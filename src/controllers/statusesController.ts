@@ -26,7 +26,7 @@ export function createStatus(req: Request, res: Response): void {
   const { name } = req.body as Partial<Status>;
 
   if (!name) {
-    res.status(400).json({ message: 'name is required' });
+    res.status(422).json({ message: 'name is required' });
     return;
   }
 

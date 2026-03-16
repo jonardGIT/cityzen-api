@@ -26,7 +26,7 @@ export function createLocation(req: Request, res: Response): void {
   const { district, city, province, region } = req.body as Partial<Location>;
 
   if (!district || !city || !province || !region) {
-    res.status(400).json({ message: 'district, city, province, and region are required' });
+    res.status(422).json({ message: 'district, city, province, and region are required' });
     return;
   }
 

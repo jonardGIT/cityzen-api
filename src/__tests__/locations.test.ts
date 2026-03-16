@@ -38,7 +38,7 @@ describe(`POST ${BASE}`, () => {
 
   it('should return 400 when fields are missing', async () => {
     const res = await request(app).post(BASE).send({ district: 'North' });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(422);
     expect(res.body).toHaveProperty('errors');
   });
 });

@@ -22,7 +22,7 @@ export function getUserById(req: Request, res: Response): void {
 export function createUser(req: Request, res: Response): void {
   const { name, email } = req.body as Partial<User>;
   if (!name || !email) {
-    res.status(400).json({ message: 'name and email are required' });
+    res.status(422).json({ message: 'name and email are required' });
     return;
   }
   const newUser: User = { id: users.length + 1, name, email };

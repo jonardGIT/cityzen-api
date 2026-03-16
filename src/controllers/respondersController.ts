@@ -26,7 +26,7 @@ export function createResponder(req: Request, res: Response): void {
   const { name, agency, role, contactInfo } = req.body as Partial<Responder>;
 
   if (!name || !agency || !role || !contactInfo) {
-    res.status(400).json({ message: 'name, agency, role, and contactInfo are required' });
+    res.status(422).json({ message: 'name, agency, role, and contactInfo are required' });
     return;
   }
 
