@@ -26,7 +26,7 @@ export function createCitizen(req: Request, res: Response): void {
   const { name, contactInfo, preferredChannel } = req.body as Partial<Citizen>;
 
   if (!name || !contactInfo || !preferredChannel) {
-    res.status(400).json({ message: 'name, contactInfo, and preferredChannel are required' });
+    res.status(422).json({ message: 'name, contactInfo, and preferredChannel are required' });
     return;
   }
 

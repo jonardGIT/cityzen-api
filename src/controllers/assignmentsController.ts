@@ -34,17 +34,17 @@ export function createAssignment(req: Request, res: Response): void {
   } = req.body as Partial<Assignment>;
 
   if (!incidentId || !responderId) {
-    res.status(400).json({ message: 'incidentId and responderId are required' });
+    res.status(422).json({ message: 'incidentId and responderId are required' });
     return;
   }
 
   if (!incidents.some((item) => item.id === incidentId)) {
-    res.status(400).json({ message: 'incidentId does not reference a valid CitizenIncident' });
+    res.status(422).json({ message: 'incidentId does not reference a valid CitizenIncident' });
     return;
   }
 
   if (!responders.some((item) => item.id === responderId)) {
-    res.status(400).json({ message: 'responderId does not reference a valid Responder' });
+    res.status(422).json({ message: 'responderId does not reference a valid Responder' });
     return;
   }
 

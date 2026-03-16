@@ -26,7 +26,7 @@ export function createCategory(req: Request, res: Response): void {
   const { name, subCategory } = req.body as Partial<Category>;
 
   if (!name) {
-    res.status(400).json({ message: 'name is required' });
+    res.status(422).json({ message: 'name is required' });
     return;
   }
 

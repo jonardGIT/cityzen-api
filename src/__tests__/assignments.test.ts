@@ -36,7 +36,7 @@ describe(`POST ${BASE}`, () => {
 
   it('should return 400 when required fields are missing', async () => {
     const res = await request(app).post(BASE).send({});
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(422);
     expect(res.body).toHaveProperty('errors');
   });
 
@@ -45,6 +45,6 @@ describe(`POST ${BASE}`, () => {
       incidentId: 9999,
       responderId: 1,
     });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(422);
   });
 });

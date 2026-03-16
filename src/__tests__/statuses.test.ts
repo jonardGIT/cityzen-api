@@ -33,7 +33,7 @@ describe(`POST ${BASE}`, () => {
 
   it('should return 400 when name is missing', async () => {
     const res = await request(app).post(BASE).send({});
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(422);
     expect(res.body).toHaveProperty('errors');
   });
 });

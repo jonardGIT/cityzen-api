@@ -43,34 +43,34 @@ export function createIncident(req: Request, res: Response): void {
   } = req.body as Partial<CitizenIncident>;
 
   if (!description || !statusId || !citizenId || !locationId || !categoryId || !severityId) {
-    res.status(400).json({
+    res.status(422).json({
       message: 'description, statusId, citizenId, locationId, categoryId, and severityId are required',
     });
     return;
   }
 
   if (!statuses.some((item) => item.id === statusId)) {
-    res.status(400).json({ message: 'statusId does not reference a valid Status' });
+    res.status(422).json({ message: 'statusId does not reference a valid Status' });
     return;
   }
 
   if (!citizens.some((item) => item.id === citizenId)) {
-    res.status(400).json({ message: 'citizenId does not reference a valid Citizen' });
+    res.status(422).json({ message: 'citizenId does not reference a valid Citizen' });
     return;
   }
 
   if (!locations.some((item) => item.id === locationId)) {
-    res.status(400).json({ message: 'locationId does not reference a valid Location' });
+    res.status(422).json({ message: 'locationId does not reference a valid Location' });
     return;
   }
 
   if (!categories.some((item) => item.id === categoryId)) {
-    res.status(400).json({ message: 'categoryId does not reference a valid Category' });
+    res.status(422).json({ message: 'categoryId does not reference a valid Category' });
     return;
   }
 
   if (!severities.some((item) => item.id === severityId)) {
-    res.status(400).json({ message: 'severityId does not reference a valid Severity' });
+    res.status(422).json({ message: 'severityId does not reference a valid Severity' });
     return;
   }
 

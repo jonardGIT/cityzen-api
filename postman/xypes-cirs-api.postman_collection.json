@@ -1,0 +1,308 @@
+{
+  "info": {
+    "name": "Xypes CIRS API Tests",
+    "description": "Postman collection for testing the xypes-cirs-api endpoints.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "apiBase", "value": "/api/v1" },
+    { "key": "citizenId", "value": "1" },
+    { "key": "responderId", "value": "1" },
+    { "key": "statusId", "value": "1" },
+    { "key": "categoryId", "value": "1" },
+    { "key": "severityId", "value": "1" },
+    { "key": "locationId", "value": "1" },
+    { "key": "incidentId", "value": "1" },
+    { "key": "assignmentId", "value": "1" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET Health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Body has status ok', function () {",
+                  "  var body = pm.response.json();",
+                  "  pm.expect(body.status).to.eql('ok');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiBase}}/health"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Citizens",
+      "item": [
+        {
+          "name": "GET Citizens",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response is array', function () {",
+                  "  pm.expect(pm.response.json()).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": { "method": "GET", "url": "{{baseUrl}}{{apiBase}}/citizens" }
+        },
+        {
+          "name": "POST Citizen Valid",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.collectionVariables.set('citizenId', String(body.id));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Citizen\",\n  \"contactInfo\": \"citizen@example.com\",\n  \"preferredChannel\": \"sms\"\n}"
+            },
+            "url": "{{baseUrl}}{{apiBase}}/citizens"
+          }
+        },
+        {
+          "name": "POST Citizen Invalid",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 422', function () {",
+                  "  pm.response.to.have.status(422);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": "{{baseUrl}}{{apiBase}}/citizens"
+          }
+        },
+        {
+          "name": "GET Citizen By Id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": { "method": "GET", "url": "{{baseUrl}}{{apiBase}}/citizens/{{citizenId}}" }
+        },
+        {
+          "name": "GET Citizen Missing",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": { "method": "GET", "url": "{{baseUrl}}{{apiBase}}/citizens/999999" }
+        }
+      ]
+    },
+    {
+      "name": "Responders",
+      "item": [
+        {
+          "name": "GET Responders",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 200', function () { pm.response.to.have.status(200); });"] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}{{apiBase}}/responders" }
+        },
+        {
+          "name": "POST Responder Valid",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 201', function () { pm.response.to.have.status(201); });", "var body = pm.response.json();", "pm.collectionVariables.set('responderId', String(body.id));"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Postman Responder\",\n  \"agency\": \"BFP\",\n  \"role\": \"Officer\",\n  \"contactInfo\": \"responder@example.com\"\n}" },
+            "url": "{{baseUrl}}{{apiBase}}/responders"
+          }
+        },
+        {
+          "name": "POST Responder Invalid",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 422', function () { pm.response.to.have.status(422); });"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": "{{baseUrl}}{{apiBase}}/responders"
+          }
+        },
+        {
+          "name": "GET Responder Missing",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 404', function () { pm.response.to.have.status(404); });"] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}{{apiBase}}/responders/999999" }
+        }
+      ]
+    },
+    {
+      "name": "Reference Data",
+      "item": [
+        {
+          "name": "POST Status",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 201', function () { pm.response.to.have.status(201); });", "pm.collectionVariables.set('statusId', String(pm.response.json().id));"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Open\"\n}" },
+            "url": "{{baseUrl}}{{apiBase}}/statuses"
+          }
+        },
+        {
+          "name": "POST Category",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 201', function () { pm.response.to.have.status(201); });", "pm.collectionVariables.set('categoryId', String(pm.response.json().id));"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Flood\",\n  \"subCategory\": \"Urban\"\n}" },
+            "url": "{{baseUrl}}{{apiBase}}/categories"
+          }
+        },
+        {
+          "name": "POST Severity",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 201', function () { pm.response.to.have.status(201); });", "pm.collectionVariables.set('severityId', String(pm.response.json().id));"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"level\": \"High\",\n  \"definition\": \"Major impact\"\n}" },
+            "url": "{{baseUrl}}{{apiBase}}/severities"
+          }
+        },
+        {
+          "name": "POST Location",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 201', function () { pm.response.to.have.status(201); });", "pm.collectionVariables.set('locationId', String(pm.response.json().id));"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"district\": \"District 1\",\n  \"city\": \"Manila\",\n  \"province\": \"NCR\",\n  \"region\": \"National Capital Region\"\n}" },
+            "url": "{{baseUrl}}{{apiBase}}/locations"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Incidents and Assignments",
+      "item": [
+        {
+          "name": "POST Incident Valid",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 201', function () { pm.response.to.have.status(201); });", "pm.collectionVariables.set('incidentId', String(pm.response.json().id));"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Street flooding near school\",\n  \"statusId\": {{statusId}},\n  \"citizenId\": {{citizenId}},\n  \"locationId\": {{locationId}},\n  \"categoryId\": {{categoryId}},\n  \"severityId\": {{severityId}}\n}"
+            },
+            "url": "{{baseUrl}}{{apiBase}}/incidents"
+          }
+        },
+        {
+          "name": "POST Incident Invalid FK",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 422', function () { pm.response.to.have.status(422); });"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Invalid FK incident\",\n  \"statusId\": 999999,\n  \"citizenId\": {{citizenId}},\n  \"locationId\": {{locationId}},\n  \"categoryId\": {{categoryId}},\n  \"severityId\": {{severityId}}\n}"
+            },
+            "url": "{{baseUrl}}{{apiBase}}/incidents"
+          }
+        },
+        {
+          "name": "POST Assignment Valid",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 201', function () { pm.response.to.have.status(201); });", "pm.collectionVariables.set('assignmentId', String(pm.response.json().id));"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"incidentId\": {{incidentId}},\n  \"responderId\": {{responderId}}\n}"
+            },
+            "url": "{{baseUrl}}{{apiBase}}/assignments"
+          }
+        },
+        {
+          "name": "POST Assignment Invalid FK",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 422', function () { pm.response.to.have.status(422); });"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"incidentId\": 999999,\n  \"responderId\": {{responderId}}\n}"
+            },
+            "url": "{{baseUrl}}{{apiBase}}/assignments"
+          }
+        },
+        {
+          "name": "GET Location Missing (404 sample)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 404', function () { pm.response.to.have.status(404); });"] } }],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}{{apiBase}}/locations/999999"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -26,7 +26,7 @@ export function createSeverity(req: Request, res: Response): void {
   const { level, definition } = req.body as Partial<Severity>;
 
   if (!level) {
-    res.status(400).json({ message: 'level is required' });
+    res.status(422).json({ message: 'level is required' });
     return;
   }
 
