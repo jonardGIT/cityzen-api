@@ -1,0 +1,135 @@
+Project: Xypes CIRS API
+
+Section 1: Source Repo Handoff
+
+Summary:
+This is a TypeScript + Express REST API for a Citizen Incident Reporting System (CIRS). It currently exposes versioned endpoints under /api/v1 for citizens, responders, statuses, categories, severities, locations, incidents, and assignments.
+
+Current capabilities:
+- Resource CRUD currently includes GET list, GET by id, and POST create for each main resource
+- Input validation with express-validator
+- Centralized error handling and 404 handling
+- Swagger/OpenAPI docs in non-production
+- API key protection for protected endpoints
+- Request rate limiting with standard rate-limit headers
+- Jest + Supertest test coverage
+
+Authentication:
+- Protected routes use x-api-key when API_KEYS or API_KEY is configured
+- Public endpoints:
+  - /api/v1/health
+  - /api/v1/openapi.json
+  - /api/v1/docs
+
+Rate limiting:
+- Enabled by default
+- Configurable via RATE_LIMIT_ENABLED, RATE_LIMIT_WINDOW_MS, RATE_LIMIT_MAX_REQUESTS
+- Exceeded requests return 429 with Retry-After and X-RateLimit-* headers
+
+Architecture decisions:
+- Keep API as a separate backend service
+- Recommended future dashboard framework: Next.js
+- Recommended database: PostgreSQL + Prisma
+- Recommended auth direction: RBAC with scoped permissions
+- Recommended long-term platform design: centralize auth in an API gateway when multiple APIs exist
+
+Current limitations:
+- In-memory data store only
+- No persistent database yet
+- No full JWT/RBAC implementation yet
+- No CI/CD workflow file yet
+
+Intended consumers:
+- Web dashboard
+- Mobile application
+- Future third-party or internal integrations
+
+Section 2: Target Repo Copilot Instructions
+
+This project integrates with the Xypes CIRS API.
+
+Integration context:
+- Backend service: Xypes CIRS API
+- API style: REST
+- Base path: /api/v1
+- Main resources: citizens, responders, statuses, categories, severities, locations, incidents, assignments
+
+Important API behavior:
+- Protected routes require x-api-key when API_KEYS or API_KEY is configured on the backend
+- Public routes:
+  - /api/v1/health
+  - /api/v1/openapi.json
+  - /api/v1/docs
+- Rate limiting is enabled by default and may return HTTP 429 with Retry-After and X-RateLimit-* headers
+- Validation failures return structured error payloads
+
+Architecture assumptions for this project:
+- This project should treat the CIRS API as the source of truth
+- Do not duplicate backend business rules in frontend code unless necessary for UX
+- Prefer typed API clients and shared request/response contracts where possible
+- Prepare for future RBAC/scoped permissions
+- Assume future migration from API key auth to stronger user auth for web/mobile clients
+
+Implementation preferences:
+- Keep API access centralized in one client/service layer
+- Reuse endpoint constants and request types
+- Handle 401, 403, 404, 422, and 429 consistently
+- Surface rate-limit and auth failures clearly in the UI
+- Prefer maintainable integration patterns over ad hoc fetch calls spread across the app
+
+When generating code:
+- Use the CIRS API resource names exactly as defined
+- Keep the integration modular and typed
+- Separate API client code from UI components
+- Expect future support for JWT auth and role-based dashboards
+
+Section 3: Dashboard Integration Brief
+
+This dashboard consumes the Xypes CIRS API.
+
+Backend overview:
+- TypeScript + Express REST API
+- Base path: /api/v1
+- Resources:
+  - citizens
+  - responders
+  - statuses
+  - categories
+  - severities
+  - locations
+  - incidents
+  - assignments
+
+Current backend security:
+- API key authentication for protected endpoints
+- Public endpoints:
+  - /api/v1/health
+  - /api/v1/openapi.json
+  - /api/v1/docs
+- Request rate limiting is enabled by default
+
+Expected frontend needs:
+- Incident listing and detail views
+- Assignment tracking
+- Dashboard metrics and status summaries
+- Role-aware navigation for admin, dispatcher, responder, and future user types
+- Graceful handling for auth failures, validation failures, and rate limiting
+
+Recommended frontend architecture:
+- Use Next.js for the dashboard
+- Keep API access in a dedicated service/client layer
+- Use server-side environment variables for backend base URL and keys where appropriate
+- Do not hardcode business rules that belong in the backend
+- Prepare code structure for future JWT and RBAC support
+
+Known backend limitations:
+- In-memory data store only
+- No persistent database yet
+- RBAC not fully implemented yet
+- Current auth is API-key based, which may later be replaced or supplemented for human users
+
+Recommended future alignment:
+- Generate a typed API client from the OpenAPI definition
+- Add role/scope awareness once backend RBAC is implemented
+- Prepare for migration to PostgreSQL + Prisma-backed endpoints
+- Design the dashboard assuming the API will evolve into a multi-client platform for web, mobile, and integrations

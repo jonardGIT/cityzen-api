@@ -52,7 +52,19 @@ API_BASE_PATH=/api/v1
 LOG_LEVEL=info
 CORS_ORIGIN=http://localhost:5173
 TRUST_PROXY=false
+API_KEYS=local-dev-key,partner-key
+RATE_LIMIT_ENABLED=true
+RATE_LIMIT_WINDOW_MS=60000
+RATE_LIMIT_MAX_REQUESTS=100
 ```
+
+Security and throttling variables:
+
+- `API_KEYS`: optional comma-separated API keys. When set, all API routes except health/docs require `x-api-key`.
+- `API_KEY`: optional single key fallback if you prefer one key instead of a list.
+- `RATE_LIMIT_ENABLED`: `true`/`false`, default `true`.
+- `RATE_LIMIT_WINDOW_MS`: rate-limit window duration in milliseconds, default `60000`.
+- `RATE_LIMIT_MAX_REQUESTS`: max requests per client IP per window, default `100`.
 
 ### 3. Start development server
 
@@ -116,6 +128,30 @@ Swagger is available only when not running in production mode.
 
 If `NODE_ENV=production`, these endpoints are not mounted.
 
+## API Key Authentication
+
+When `API_KEYS` or `API_KEY` is configured, include the key in request headers:
+
+```text
+x-api-key: your-api-key
+```
+
+Public endpoints that remain accessible without an API key:
+
+- `/api/v1/health`
+- `/api/v1/openapi.json`
+- `/api/v1/docs`
+
+Requests without a valid key return HTTP 401.
+
+## Request Rate Limiting
+
+Rate limiting is enabled by default and applies per client IP across API routes.
+
+- Exceeding the configured request limit returns HTTP 429.
+- Responses include `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, and `Retry-After` (when limited).
+- Health and docs endpoints are excluded from limiting.
+
 ## Testing
 
 The test suite covers all route groups, including:
@@ -141,12 +177,10 @@ npm start
 ## Current Limitations
 
 - Data is stored in memory and resets on server restart.
-- No authentication/authorization layer yet.
 - No persistent database integration yet.
 
 ## Next Improvements
 
 - Add database persistence (for example, PostgreSQL + Prisma)
-- Add auth and role-based access control
-- Add request rate limiting and API key support
+- Add auth and role-based access control (scoped permissions)
 - Add CI pipeline for lint/build/test

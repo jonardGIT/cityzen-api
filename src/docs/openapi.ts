@@ -29,6 +29,7 @@ const paths = {
     get: {
       summary: 'Health check',
       tags: ['System'],
+      security: [],
       responses: {
         '200': {
           description: 'Service is healthy',
@@ -643,8 +644,17 @@ export const openApiDocument = {
     { name: 'Incidents' },
     { name: 'Assignments' },
   ],
+  security: [{ ApiKeyAuth: [] }],
   paths,
   components: {
+    securitySchemes: {
+      ApiKeyAuth: {
+        type: 'apiKey',
+        in: 'header',
+        name: 'x-api-key',
+        description: 'Required when API_KEYS or API_KEY is configured on the server.',
+      },
+    },
     parameters: {
       IdParam: {
         name: 'id',
