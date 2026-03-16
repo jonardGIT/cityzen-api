@@ -3,6 +3,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
+import swaggerUi from 'swagger-ui-express';
 import citizensRouter from './routes/citizens.js';
 import respondersRouter from './routes/responders.js';
 import statusesRouter from './routes/statuses.js';
@@ -11,6 +12,7 @@ import severitiesRouter from './routes/severities.js';
 import locationsRouter from './routes/locations.js';
 import incidentsRouter from './routes/incidents.js';
 import assignmentsRouter from './routes/assignments.js';
+import { openApiDocument } from './docs/openapi.js';
 import { notFoundHandler } from './middleware/notFound.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
@@ -43,6 +45,14 @@ app.use(express.json());
 app.get(`${API_V1}/health`, (_req, res) => {
   res.json({ status: 'ok' });
 });
+
+if (!isProduction) {
+  app.get(`${API_V1}/openapi.json`, (_req, res) => {
+    res.json(openApiDocument);
+  });
+
+  app.use(`${API_V1}/docs`, swaggerUi.serve, swaggerUi.setup(openApiDocument));
+}
 
 app.use(`${API_V1}/citizens`, citizensRouter);
 app.use(`${API_V1}/responders`, respondersRouter);

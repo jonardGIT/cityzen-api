@@ -7,6 +7,18 @@ describe(`GET ${API_V1}/health`, () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ status: 'ok' });
   });
+
+  it('should expose OpenAPI JSON', async () => {
+    const res = await request(app).get(`${API_V1}/openapi.json`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('openapi', '3.0.3');
+  });
+
+  it('should serve Swagger UI', async () => {
+    const res = await request(app).get(`${API_V1}/docs`);
+    expect(res.status).toBe(301);
+    expect(res.headers.location).toBe(`${API_V1}/docs/`);
+  });
 });
 
 describe('404 handler', () => {
