@@ -1,4 +1,5 @@
 import { body } from 'express-validator';
+import { USER_ROLES } from '../types/auth.js';
 
 export const createCitizenValidator = [
   body('name').isString().trim().notEmpty().withMessage('name is required'),
@@ -53,4 +54,37 @@ export const createAssignmentValidator = [
   body('responseEnd').optional().isISO8601().withMessage('responseEnd must be an ISO8601 date'),
   body('outcome').optional().isString().withMessage('outcome must be a string'),
   body('notes').optional().isString().withMessage('notes must be a string'),
+];
+
+export const createUserValidator = [
+  body('name').isString().trim().notEmpty().withMessage('name is required'),
+  body('email').isEmail().withMessage('email must be a valid email address'),
+  body('password').isString().isLength({ min: 8 }).withMessage('password must be at least 8 characters'),
+  body('role')
+    .optional()
+    .isString()
+    .custom((value) => USER_ROLES.includes(value.toUpperCase()))
+    .withMessage('role must be one of SUPER_ADMIN, ADMIN, DISPATCHER, RESPONDER, VIEWER'),
+];
+
+export const updateUserValidator = [
+  body().custom((value) => {
+    const hasUpdatableField = ['name', 'email', 'password', 'role'].some((field) => value?.[field] !== undefined);
+    if (!hasUpdatableField) {
+      throw new Error('at least one of name, email, password, or role is required');
+    }
+    return true;
+  }),
+  body('name').optional().isString().trim().notEmpty().withMessage('name must be a non-empty string'),
+  body('email').optional().isEmail().withMessage('email must be a valid email address'),
+  body('password')
+    .optional()
+    .isString()
+    .isLength({ min: 8 })
+    .withMessage('password must be at least 8 characters'),
+  body('role')
+    .optional()
+    .isString()
+    .custom((value) => USER_ROLES.includes(value.toUpperCase()))
+    .withMessage('role must be one of SUPER_ADMIN, ADMIN, DISPATCHER, RESPONDER, VIEWER'),
 ];

@@ -440,7 +440,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Postman User\",\n  \"email\": \"postman.user@example.com\"\n}"
+              "raw": "{\n  \"name\": \"Postman User\",\n  \"email\": \"postman.user@example.com\",\n  \"password\": \"Password123!\",\n  \"role\": \"VIEWER\"\n}"
             },
             "url": "{{baseUrl}}{{apiBase}}/users"
           }

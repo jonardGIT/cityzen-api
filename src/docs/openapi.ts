@@ -47,6 +47,97 @@ const paths = {
       },
     },
   },
+  [`${API_BASE_PATH}/auth/login`]: {
+    post: {
+      summary: 'Login and get JWT token',
+      tags: ['Auth'],
+      security: [],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/LoginRequest' },
+          },
+        },
+      },
+      responses: {
+        '200': {
+          description: 'Authentication successful',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/LoginResponse' },
+            },
+          },
+        },
+        '401': {
+          description: 'Invalid credentials',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+      },
+    },
+  },
+  [`${API_BASE_PATH}/auth/me`]: {
+    get: {
+      summary: 'Get current authenticated user',
+      tags: ['Auth'],
+      security: [{ BearerAuth: [] }],
+      responses: {
+        '200': {
+          description: 'Current authenticated user',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/User' },
+            },
+          },
+        },
+        '401': {
+          description: 'Missing or invalid bearer token',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+      },
+    },
+  },
+  [`${API_BASE_PATH}/admin/users`]: {
+    get: {
+      summary: 'List all users (admin roles only)',
+      tags: ['Admin'],
+      security: [{ BearerAuth: [] }],
+      responses: {
+        '200': {
+          description: 'User list',
+          content: {
+            'application/json': {
+              schema: { type: 'array', items: { $ref: '#/components/schemas/User' } },
+            },
+          },
+        },
+        '401': {
+          description: 'Missing or invalid bearer token',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+        '403': {
+          description: 'Insufficient role permissions',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+      },
+    },
+  },
   [`${API_BASE_PATH}/citizens`]: {
     get: {
       summary: 'List citizens',
@@ -135,7 +226,9 @@ const paths = {
     },
     post: {
       summary: 'Create responder',
+      description: 'Creates a responder. Requires Bearer token with SUPER_ADMIN or ADMIN role.',
       tags: ['Responders'],
+      security: [{ BearerAuth: [] }],
       requestBody: {
         required: true,
         content: {
@@ -158,6 +251,22 @@ const paths = {
           content: {
             'application/json': {
               schema: validationErrorSchema,
+            },
+          },
+        },
+        '401': {
+          description: 'Missing or invalid bearer token',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+        '403': {
+          description: 'Insufficient role permissions',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
             },
           },
         },
@@ -206,7 +315,9 @@ const paths = {
     },
     post: {
       summary: 'Create status',
+      description: 'Creates a status. Requires Bearer token with SUPER_ADMIN or ADMIN role.',
       tags: ['Statuses'],
+      security: [{ BearerAuth: [] }],
       requestBody: {
         required: true,
         content: {
@@ -229,6 +340,22 @@ const paths = {
           content: {
             'application/json': {
               schema: validationErrorSchema,
+            },
+          },
+        },
+        '401': {
+          description: 'Missing or invalid bearer token',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+        '403': {
+          description: 'Insufficient role permissions',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
             },
           },
         },
@@ -277,7 +404,9 @@ const paths = {
     },
     post: {
       summary: 'Create category',
+      description: 'Creates a category. Requires Bearer token with SUPER_ADMIN or ADMIN role.',
       tags: ['Categories'],
+      security: [{ BearerAuth: [] }],
       requestBody: {
         required: true,
         content: {
@@ -300,6 +429,22 @@ const paths = {
           content: {
             'application/json': {
               schema: validationErrorSchema,
+            },
+          },
+        },
+        '401': {
+          description: 'Missing or invalid bearer token',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+        '403': {
+          description: 'Insufficient role permissions',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
             },
           },
         },
@@ -348,7 +493,9 @@ const paths = {
     },
     post: {
       summary: 'Create severity',
+      description: 'Creates a severity. Requires Bearer token with SUPER_ADMIN or ADMIN role.',
       tags: ['Severities'],
+      security: [{ BearerAuth: [] }],
       requestBody: {
         required: true,
         content: {
@@ -371,6 +518,22 @@ const paths = {
           content: {
             'application/json': {
               schema: validationErrorSchema,
+            },
+          },
+        },
+        '401': {
+          description: 'Missing or invalid bearer token',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+        '403': {
+          description: 'Insufficient role permissions',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
             },
           },
         },
@@ -419,7 +582,9 @@ const paths = {
     },
     post: {
       summary: 'Create location',
+      description: 'Creates a location. Requires Bearer token with SUPER_ADMIN or ADMIN role.',
       tags: ['Locations'],
+      security: [{ BearerAuth: [] }],
       requestBody: {
         required: true,
         content: {
@@ -442,6 +607,22 @@ const paths = {
           content: {
             'application/json': {
               schema: validationErrorSchema,
+            },
+          },
+        },
+        '401': {
+          description: 'Missing or invalid bearer token',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+        '403': {
+          description: 'Insufficient role permissions',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
             },
           },
         },
@@ -493,7 +674,10 @@ const paths = {
     },
     post: {
       summary: 'Create incident',
+      description:
+        'Creates an incident. Requires Bearer token with SUPER_ADMIN, ADMIN, DISPATCHER, or RESPONDER role.',
       tags: ['Incidents'],
+      security: [{ BearerAuth: [] }],
       requestBody: {
         required: true,
         content: {
@@ -513,6 +697,22 @@ const paths = {
         },
         '422': {
           description: 'Validation or FK reference failed',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+        '401': {
+          description: 'Missing or invalid bearer token',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+        '403': {
+          description: 'Insufficient role permissions',
           content: {
             'application/json': {
               schema: commonErrorSchema,
@@ -564,7 +764,10 @@ const paths = {
     },
     post: {
       summary: 'Create assignment',
+      description:
+        'Creates an assignment. Requires Bearer token with SUPER_ADMIN, ADMIN, or DISPATCHER role.',
       tags: ['Assignments'],
+      security: [{ BearerAuth: [] }],
       requestBody: {
         required: true,
         content: {
@@ -584,6 +787,22 @@ const paths = {
         },
         '422': {
           description: 'Validation or FK reference failed',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+        '401': {
+          description: 'Missing or invalid bearer token',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+        '403': {
+          description: 'Insufficient role permissions',
           content: {
             'application/json': {
               schema: commonErrorSchema,
@@ -621,8 +840,9 @@ const paths = {
   [`${API_BASE_PATH}/users`]: {
     get: {
       summary: 'List users',
-      description: 'Returns all system users.',
+      description: 'Returns all system users. Requires Bearer token with SUPER_ADMIN or ADMIN role.',
       tags: ['Users'],
+      security: [{ BearerAuth: [] }],
       responses: {
         '200': {
           description: 'User list',
@@ -632,12 +852,30 @@ const paths = {
             },
           },
         },
+        '401': {
+          description: 'Missing or invalid bearer token',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+        '403': {
+          description: 'Insufficient role permissions',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
       },
     },
     post: {
       summary: 'Create user',
-      description: 'Creates a new system user.',
+      description:
+        'Creates a new system user. SUPER_ADMIN and ADMIN can create only users with a lower access level than their own.',
       tags: ['Users'],
+      security: [{ BearerAuth: [] }],
       requestBody: {
         required: true,
         content: {
@@ -663,14 +901,39 @@ const paths = {
             },
           },
         },
+        '401': {
+          description: 'Missing or invalid bearer token',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+        '403': {
+          description: 'Insufficient role permissions',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+        '409': {
+          description: 'Email already exists',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
       },
     },
   },
   [`${API_BASE_PATH}/users/{id}`]: {
     get: {
       summary: 'Get user by id',
-      description: 'Returns a single user by numeric ID.',
+      description: 'Returns a single user by numeric ID. Requires Bearer token with SUPER_ADMIN or ADMIN role.',
       tags: ['Users'],
+      security: [{ BearerAuth: [] }],
       parameters: [{ $ref: '#/components/parameters/IdParam' }],
       responses: {
         '200': {
@@ -678,6 +941,125 @@ const paths = {
           content: {
             'application/json': {
               schema: { $ref: '#/components/schemas/User' },
+            },
+          },
+        },
+        '404': {
+          description: 'User not found',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+        '401': {
+          description: 'Missing or invalid bearer token',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+        '403': {
+          description: 'Insufficient role permissions',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+      },
+    },
+    patch: {
+      summary: 'Update user',
+      description:
+        'Updates a user. SUPER_ADMIN and ADMIN can edit only users with a lower access level than their own. Users may update their own name, email, or password but cannot change their own role.',
+      tags: ['Users'],
+      security: [{ BearerAuth: [] }],
+      parameters: [{ $ref: '#/components/parameters/IdParam' }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/UserUpdate' },
+          },
+        },
+      },
+      responses: {
+        '200': {
+          description: 'User updated',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/User' },
+            },
+          },
+        },
+        '401': {
+          description: 'Missing or invalid bearer token',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+        '403': {
+          description: 'Insufficient role permissions',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+        '404': {
+          description: 'User not found',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+        '409': {
+          description: 'Email already exists',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+        '422': {
+          description: 'Validation failed',
+          content: {
+            'application/json': {
+              schema: validationErrorSchema,
+            },
+          },
+        },
+      },
+    },
+    delete: {
+      summary: 'Delete user',
+      description:
+        'Deletes a user. SUPER_ADMIN and ADMIN can delete only users with a lower access level than their own. Self-deletion is not allowed.',
+      tags: ['Users'],
+      security: [{ BearerAuth: [] }],
+      parameters: [{ $ref: '#/components/parameters/IdParam' }],
+      responses: {
+        '204': {
+          description: 'User deleted',
+        },
+        '401': {
+          description: 'Missing or invalid bearer token',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+        '403': {
+          description: 'Insufficient role permissions',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
             },
           },
         },
@@ -718,7 +1100,13 @@ export const openApiDocument = {
     { name: 'Locations', description: 'Lookup values for geographic incident locations.' },
     { name: 'Incidents', description: 'Manage citizen-reported incidents.' },
     { name: 'Assignments', description: 'Manage responder assignments to incidents.' },
-    { name: 'Users', description: 'Manage system users.' },
+    {
+      name: 'Users',
+      description:
+        'Manage system users with hierarchical access rules. SUPER_ADMIN and ADMIN can manage only users with a lower access level than their own.',
+    },
+    { name: 'Auth', description: 'User authentication and JWT token endpoints.' },
+    { name: 'Admin', description: 'Role-protected administration endpoints.' },
   ],
   security: [{ ApiKeyAuth: [] }],
   paths,
@@ -730,6 +1118,11 @@ export const openApiDocument = {
         name: 'x-api-key',
         description:
           'Required for protected endpoints when API_KEYS or API_KEY is configured. Health and docs endpoints are public.',
+      },
+      BearerAuth: {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
       },
     },
     parameters: {
@@ -922,16 +1315,63 @@ export const openApiDocument = {
           id: { type: 'integer', example: 1 },
           name: { type: 'string' },
           email: { type: 'string', format: 'email' },
+          role: {
+            type: 'string',
+            enum: ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER', 'RESPONDER', 'VIEWER'],
+            example: 'VIEWER',
+          },
         },
-        required: ['id', 'name', 'email'],
+        required: ['id', 'name', 'email', 'role'],
       },
       UserCreate: {
         type: 'object',
+        description:
+          'Payload for creating a user. The requested role must be lower than the authenticated admin user\'s access level.',
         properties: {
-          name: { type: 'string' },
-          email: { type: 'string', format: 'email' },
+          name: { type: 'string', example: 'Dispatcher One' },
+          email: { type: 'string', format: 'email', example: 'dispatcher.one@xypes.local' },
+          password: { type: 'string', format: 'password', minLength: 8, example: 'Password123!' },
+          role: {
+            type: 'string',
+            enum: ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER', 'RESPONDER', 'VIEWER'],
+            default: 'VIEWER',
+            example: 'DISPATCHER',
+          },
         },
-        required: ['name', 'email'],
+        required: ['name', 'email', 'password'],
+      },
+      UserUpdate: {
+        type: 'object',
+        minProperties: 1,
+        description:
+          'Payload for updating a user. At least one field is required. Role changes are restricted by access level, and users cannot change their own role.',
+        properties: {
+          name: { type: 'string', example: 'Updated Dispatcher' },
+          email: { type: 'string', format: 'email', example: 'updated.dispatcher@xypes.local' },
+          password: { type: 'string', format: 'password', minLength: 8, example: 'Password123!' },
+          role: {
+            type: 'string',
+            enum: ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER', 'RESPONDER', 'VIEWER'],
+            example: 'VIEWER',
+          },
+        },
+      },
+      LoginRequest: {
+        type: 'object',
+        properties: {
+          email: { type: 'string', format: 'email' },
+          password: { type: 'string', format: 'password' },
+        },
+        required: ['email', 'password'],
+      },
+      LoginResponse: {
+        type: 'object',
+        properties: {
+          accessToken: { type: 'string' },
+          tokenType: { type: 'string', example: 'Bearer' },
+          user: { $ref: '#/components/schemas/User' },
+        },
+        required: ['accessToken', 'tokenType', 'user'],
       },
     },
   },

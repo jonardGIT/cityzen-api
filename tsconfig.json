@@ -11,5 +11,13 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true
   },
-  "exclude": ["node_modules", "dist", "jest.config.ts", "src/__tests__"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "jest.config.ts",
+    "src/__tests__",
+    "postman",
+    "prisma",
+    "docs"
+  ]
 }

@@ -149,10 +149,17 @@ Resources:
 - `/api/v1/assignments`
 - `/api/v1/users`
 
+Auth and admin routes:
+
+- `POST /api/v1/auth/login`
+- `GET /api/v1/auth/me`
+- `GET /api/v1/admin/users` (admin roles only)
+
 Notes:
 
 - `incidents` and `assignments` validate foreign key references before insert.
 - Validation failures return HTTP 422.
+- Selected write endpoints require JWT bearer auth with role checks.
 
 ## Swagger Documentation
 
@@ -174,6 +181,26 @@ Public paths (no key required):
 - `/api/v1/docs`
 
 Invalid or missing key returns HTTP 401.
+
+## JWT Auth and Roles
+
+JWT auth is used for role-aware dashboard access.
+
+- Login endpoint: `POST /api/v1/auth/login`
+- Current user endpoint: `GET /api/v1/auth/me` with `Authorization: Bearer <token>`
+- Admin example endpoint: `GET /api/v1/admin/users` (requires `SUPER_ADMIN` or `ADMIN`)
+
+Seeded development login:
+
+- `admin@xypes.local` / `Password123!` (role: `SUPER_ADMIN`)
+
+Role values:
+
+- `SUPER_ADMIN`
+- `ADMIN`
+- `DISPATCHER`
+- `RESPONDER`
+- `VIEWER`
 
 ## Request Rate Limiting
 

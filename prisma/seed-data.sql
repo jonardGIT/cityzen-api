@@ -13,13 +13,14 @@
     "User"
   RESTART IDENTITY CASCADE;
 
-  -- Users (smaller set as requested).
-  INSERT INTO "User" (name, email) VALUES
-    ('Admin User', 'admin@xypes.local'),
-    ('Ops Lead', 'ops.lead@xypes.local'),
-    ('Dispatcher', 'dispatcher@xypes.local'),
-    ('Analyst', 'analyst@xypes.local'),
-    ('Supervisor', 'supervisor@xypes.local');
+  -- Users with role/access level.
+  -- Default password for all seeded users: Password123!
+  INSERT INTO "User" (name, email, "passwordHash", role) VALUES
+    ('Admin User', 'admin@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'SUPER_ADMIN'),
+    ('Ops Lead', 'ops.lead@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'ADMIN'),
+    ('Dispatcher', 'dispatcher@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'DISPATCHER'),
+    ('Analyst', 'analyst@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'VIEWER'),
+    ('Supervisor', 'supervisor@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'RESPONDER');
 
   -- Statuses (16) aligned to typical LGU incident operations.
   INSERT INTO statuses (name) VALUES
