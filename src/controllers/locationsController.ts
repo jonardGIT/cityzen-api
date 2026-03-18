@@ -1,19 +1,24 @@
+// Handles CRUD operations for geographic location lookup values.
 import type { Request, Response } from 'express';
-import { locations, getNextId } from '../data/store.js';
+import prisma from '../lib/prisma.js';
 import { getParamId } from '../utils/request.js';
-import type { Location } from '../types/models.js';
 
-export function getLocations(_req: Request, res: Response): void {
+// Returns all locations from the database.
+export async function getLocations(_req: Request, res: Response): Promise<void> {
+  const locations = await prisma.location.findMany();
   res.json(locations);
 }
 
-export function getLocationById(req: Request, res: Response): void {
+// Returns a single location by numeric ID. Responds 404 if not found.
+export async function getLocationById(req: Request, res: Response): Promise<void> {
   const id = getParamId(req, res);
   if (id === null) {
     return;
   }
 
-  const location = locations.find((item) => item.id === id);
+  const location = await prisma.location.findUnique({
+    where: { id },
+  });
   if (!location) {
     res.status(404).json({ message: 'Location not found' });
     return;
@@ -22,22 +27,23 @@ export function getLocationById(req: Request, res: Response): void {
   res.json(location);
 }
 
-export function createLocation(req: Request, res: Response): void {
-  const { district, city, province, region } = req.body as Partial<Location>;
+// Creates a new location entry. Requires district, city, province, and region.
+export async function createLocation(req: Request, res: Response): Promise<void> {
+  const { district, city, province, region } = req.body as {
+    district?: string;
+    city?: string;
+    province?: string;
+    region?: string;
+  };
 
   if (!district || !city || !province || !region) {
     res.status(422).json({ message: 'district, city, province, and region are required' });
     return;
   }
 
-  const location: Location = {
-    id: getNextId(locations),
-    district,
-    city,
-    province,
-    region,
-  };
+  const location = await prisma.location.create({
+    data: { district, city, province, region },
+  });
 
-  locations.push(location);
   res.status(201).json(location);
 }

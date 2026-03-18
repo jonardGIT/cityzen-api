@@ -1,10 +1,10 @@
 # xypes-cirs-api
 
-Citizen Incident Reporting System (CIRS) REST API built with TypeScript and Express.
+Citizen Incident Reporting System (CIRS) REST API built with TypeScript, Express, Prisma, and PostgreSQL (Supabase).
 
 ## Overview
 
-This project provides versioned REST endpoints for:
+This API provides versioned endpoints for:
 
 - Citizens
 - Responders
@@ -14,22 +14,59 @@ This project provides versioned REST endpoints for:
 - Locations
 - Incidents
 - Assignments
+- Users
 
-The API currently uses an in-memory data store and includes:
+Core features:
 
+- Prisma-based PostgreSQL persistence
 - Input validation with express-validator
-- Centralized error handling and 404 handling
-- Security and API middleware (helmet, cors, morgan)
-- Jest + Supertest test coverage for all routes
+- Centralized 404 and error handling
+- API key protection and request rate limiting
 - Swagger/OpenAPI docs in development
+- Jest + Supertest test coverage
 
 ## Tech Stack
 
 - Node.js
 - TypeScript
 - Express
+- Prisma + @prisma/client
+- PostgreSQL (Supabase)
 - Jest + Supertest
 - Swagger UI Express
+
+## Project Structure
+
+### src folder
+
+- `src/server.ts`: process entrypoint that starts the HTTP server.
+- `src/app.ts`: Express app bootstrap, middleware wiring, route registration, docs mounting.
+- `src/controllers/`: request handlers per resource (list/get/create) using Prisma queries.
+- `src/routes/`: Express routers mapping URLs to controller functions.
+- `src/lib/prisma.ts`: shared Prisma client instance used by controllers.
+- `src/middleware/`: custom middleware for API key auth, rate limits, 404, and centralized errors.
+- `src/docs/openapi.ts`: OpenAPI document definition used by Swagger UI.
+- `src/validators/`: body validation chains for incoming payloads.
+- `src/utils/`: helper utilities (e.g., route parameter parsing, async wrappers).
+- `src/types/`: TypeScript interfaces and model typings.
+- `src/__tests__/`: integration tests for routes and middleware behavior.
+- `src/data/store.ts`: legacy in-memory sample data (kept for reference only; runtime now uses Prisma).
+
+### prisma folder
+
+- `prisma/schema.prisma`: single source of truth for data models and relations.
+	- Defines models: `User`, `Citizen`, `Responder`, `Status`, `Category`, `Severity`, `Location`, `CitizenIncident`, `Assignment`.
+	- Uses `@@map(...)` for mapped table names used in PostgreSQL.
+
+- `prisma/reset-prisma-schema.sql`: one-time database reset script.
+	- Drops legacy/current tables.
+	- Recreates all tables exactly matching Prisma expectations.
+	- Use this when you want a clean baseline schema in Supabase.
+
+- `prisma/seed-data.sql`: reusable seed script.
+	- Truncates data and resets identities.
+	- Inserts realistic sample data.
+	- Provides at least 10 rows for core domain tables and a smaller user set.
 
 ## Getting Started
 
@@ -41,9 +78,7 @@ npm install
 
 ### 2. Configure environment
 
-Copy `.env.example` to `.env.development` and adjust values as needed.
-
-Example variables:
+Set these variables in `.env.development` (and `.env` if needed by tooling):
 
 ```env
 NODE_ENV=development
@@ -52,9 +87,28 @@ API_BASE_PATH=/api/v1
 LOG_LEVEL=info
 CORS_ORIGIN=http://localhost:5173
 TRUST_PROXY=false
+DATABASE_URL=postgresql://postgres:<password>@<host>:5432/postgres
+API_KEYS=local-dev-key
+RATE_LIMIT_ENABLED=true
+RATE_LIMIT_WINDOW_MS=60000
+RATE_LIMIT_MAX_REQUESTS=100
 ```
 
-### 3. Start development server
+Important variables:
+
+- `DATABASE_URL`: PostgreSQL connection for Prisma.
+- `API_KEYS`: comma-separated allowed API keys.
+- `API_KEY`: optional single-key fallback if `API_KEYS` is not set.
+- `RATE_LIMIT_ENABLED`, `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX_REQUESTS`: request throttling controls.
+
+### 3. Initialize database schema and seed data (Supabase SQL Editor)
+
+Run in this order:
+
+1. `prisma/reset-prisma-schema.sql` (one-time reset)
+2. `prisma/seed-data.sql` (sample records)
+
+### 4. Start development server
 
 ```bash
 npm run dev
@@ -62,33 +116,25 @@ npm run dev
 
 ## Available Scripts
 
-- `npm run dev` - start development server with nodemon + tsx
-- `npm run build` - compile TypeScript to `dist`
-- `npm start` - run compiled server from `dist/server.js`
-- `npm test` - run Jest test suite
-- `npm run test:watch` - run tests in watch mode
-- `npm run test:coverage` - run tests with coverage report
+- `npm run dev`: start development server with nodemon + tsx
+- `npm run build`: compile TypeScript into `dist`
+- `npm start`: run compiled server from `dist/server.js`
+- `npm test`: run Jest test suite
+- `npm run test:watch`: run tests in watch mode
+- `npm run test:coverage`: run tests with coverage report
 
 ## API Base Path
 
-Default base path:
+Default base path: `/api/v1`
 
-```text
-/api/v1
-```
-
-Health endpoint:
-
-```text
-GET /api/v1/health
-```
+Health check: `GET /api/v1/health`
 
 ## Route Summary
 
-Each resource exposes:
+Each resource supports:
 
 - `GET /` list all
-- `GET /:id` get by id
+- `GET /:id` get one by ID
 - `POST /` create
 
 Resources:
@@ -101,35 +147,51 @@ Resources:
 - `/api/v1/locations`
 - `/api/v1/incidents`
 - `/api/v1/assignments`
+- `/api/v1/users`
 
 Notes:
 
-- `incidents` and `assignments` include foreign key checks against related entities.
-- Validation errors return HTTP 400 with a structured errors payload.
+- `incidents` and `assignments` validate foreign key references before insert.
+- Validation failures return HTTP 422.
 
 ## Swagger Documentation
 
-Swagger is available only when not running in production mode.
+Enabled only when `NODE_ENV` is not `production`.
 
 - OpenAPI JSON: `/api/v1/openapi.json`
 - Swagger UI: `/api/v1/docs`
 
-If `NODE_ENV=production`, these endpoints are not mounted.
+## API Key Authentication
+
+When `API_KEYS` or `API_KEY` is configured, include this header:
+
+`x-api-key: your-api-key`
+
+Public paths (no key required):
+
+- `/api/v1/health`
+- `/api/v1/openapi.json`
+- `/api/v1/docs`
+
+Invalid or missing key returns HTTP 401.
+
+## Request Rate Limiting
+
+Rate limiting is enabled by default per client IP on versioned API routes.
+
+- Exceeded limit returns HTTP 429.
+- Response headers include `X-RateLimit-*` and `Retry-After`.
+- Health/docs endpoints are excluded.
 
 ## Testing
 
-The test suite covers all route groups, including:
-
-- success and not-found responses for `GET /:id`
-- successful creation flows for `POST /`
-- validation and bad-request scenarios
-- docs and health checks
-
-Run tests:
+Run:
 
 ```bash
 npm test
 ```
+
+Coverage includes route behavior, validation, security middleware, and health/docs endpoints.
 
 ## Build and Run (Production)
 
@@ -138,15 +200,33 @@ npm run build
 npm start
 ```
 
-## Current Limitations
+## Notes
 
-- Data is stored in memory and resets on server restart.
-- No authentication/authorization layer yet.
-- No persistent database integration yet.
+- Prisma client generation is required after schema changes:
 
-## Next Improvements
+```bash
+npx prisma generate
+```
 
-- Add database persistence (for example, PostgreSQL + Prisma)
-- Add auth and role-based access control
-- Add request rate limiting and API key support
-- Add CI pipeline for lint/build/test
+- If direct PostgreSQL port access is restricted on your network, run schema/seed SQL in Supabase SQL Editor.
+
+## Troubleshooting
+
+- Prisma cannot find `DATABASE_URL`:
+	- Ensure `.env` exists for Prisma CLI and contains `DATABASE_URL`.
+	- App runtime may use `.env.development`; Prisma CLI reads `.env` by default.
+
+- `P1001: Can't reach database server`:
+	- Verify Supabase project is active.
+	- Confirm host/port and password in `DATABASE_URL`.
+	- If your network blocks direct DB access, execute `prisma/reset-prisma-schema.sql` and `prisma/seed-data.sql` in Supabase SQL Editor.
+
+- SQL seed errors like missing relation/column:
+	- Run `prisma/reset-prisma-schema.sql` first.
+	- Then run `prisma/seed-data.sql`.
+
+- API returns 401:
+	- Include `x-api-key` matching `API_KEYS` or `API_KEY`.
+
+- API returns 429:
+	- Reduce request rate or tune `RATE_LIMIT_WINDOW_MS` and `RATE_LIMIT_MAX_REQUESTS`.

@@ -1,0 +1,109 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id    Int     @id @default(autoincrement())
+  name  String
+  email String  @unique
+}
+
+model Citizen {
+  id               Int               @id @default(autoincrement())
+  name             String
+  contactInfo      String
+  preferredChannel String
+  incidents        CitizenIncident[]
+
+  @@map("citizens")
+}
+
+model Responder {
+  id          Int          @id @default(autoincrement())
+  name        String
+  agency      String
+  role        String
+  contactInfo String
+  assignments Assignment[]
+
+  @@map("responders")
+}
+
+model Status {
+  id        Int               @id @default(autoincrement())
+  name      String            @unique
+  incidents CitizenIncident[]
+
+  @@map("statuses")
+}
+
+model Category {
+  id         Int               @id @default(autoincrement())
+  name       String            @unique
+  subCategory String?
+  incidents  CitizenIncident[]
+
+  @@map("categories")
+}
+
+model Severity {
+  id        Int               @id @default(autoincrement())
+  level     String            @unique
+  definition String?
+  incidents CitizenIncident[]
+
+  @@map("severities")
+}
+
+model Location {
+  id       Int               @id @default(autoincrement())
+  district String
+  city     String
+  province String
+  region   String
+  incidents CitizenIncident[]
+
+  @@map("locations")
+}
+
+model CitizenIncident {
+  id           Int        @id @default(autoincrement())
+  description  String
+  mediaUrl     String?
+  dateReported DateTime   @default(now())
+  statusId     Int
+  citizenId    Int
+  locationId   Int
+  categoryId   Int
+  severityId   Int
+  assignments  Assignment[]
+
+  status   Status   @relation(fields: [statusId], references: [id])
+  citizen  Citizen  @relation(fields: [citizenId], references: [id])
+  location Location @relation(fields: [locationId], references: [id])
+  category Category @relation(fields: [categoryId], references: [id])
+  severity Severity @relation(fields: [severityId], references: [id])
+
+  @@map("incidents")
+}
+
+model Assignment {
+  id           Int       @id @default(autoincrement())
+  incidentId   Int
+  responderId  Int
+  assignedDate DateTime  @default(now())
+  responseStart DateTime?
+  responseEnd  DateTime?
+  outcome      String?
+  notes        String?
+
+  incident CitizenIncident @relation(fields: [incidentId], references: [id])
+  responder  Responder      @relation(fields: [responderId], references: [id])
+
+  @@map("assignments")
+}

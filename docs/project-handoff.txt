@@ -1,0 +1,145 @@
+Project: Xypes CIRS API
+
+Section 1: Source Repo Handoff
+
+Summary:
+This is a TypeScript + Express REST API for a Citizen Incident Reporting System (CIRS). It exposes versioned endpoints under /api/v1 and now uses Prisma with PostgreSQL (Supabase) for persistence.
+
+Current capabilities:
+- Resource operations include GET list, GET by id, and POST create
+- Resources: citizens, responders, statuses, categories, severities, locations, incidents, assignments, users
+- Input validation with express-validator
+- Centralized error handling and 404 handling
+- Swagger/OpenAPI docs in non-production
+- API key protection for protected endpoints
+- Request rate limiting with standard rate-limit headers
+- Jest + Supertest test coverage
+- Prisma Client integration across all controllers
+
+Authentication:
+- Protected routes use x-api-key when API_KEYS or API_KEY is configured
+- Public endpoints:
+  - /api/v1/health
+  - /api/v1/openapi.json
+  - /api/v1/docs
+
+Rate limiting:
+- Enabled by default
+- Configurable via RATE_LIMIT_ENABLED, RATE_LIMIT_WINDOW_MS, RATE_LIMIT_MAX_REQUESTS
+- Exceeded requests return 429 with Retry-After and X-RateLimit-* headers
+
+Database and persistence:
+- Database: PostgreSQL (Supabase)
+- ORM: Prisma
+- Prisma schema: prisma/schema.prisma
+- Prisma client bootstrap: src/lib/prisma.ts
+- One-time schema reset script: prisma/reset-prisma-schema.sql
+- Re-runnable seed script: prisma/seed-data.sql
+- Current seeding target: minimum 10 rows for main domain tables; smaller set for users
+
+Build/runtime status:
+- TypeScript build passes
+- Prisma Client generation passes
+- API health endpoint is reachable
+- Data endpoints use live database via Prisma
+
+Current limitations:
+- Full JWT auth and RBAC are not yet implemented
+- CI/CD workflow file is not yet added
+- Some environments may block direct DB port access; Supabase SQL Editor can be used for schema/seed scripts
+
+Intended consumers:
+- Web dashboard
+- Mobile application
+- Future third-party or internal integrations
+
+Section 2: Target Repo Copilot Instructions
+
+This project integrates with the Xypes CIRS API.
+
+Integration context:
+- Backend service: Xypes CIRS API
+- API style: REST
+- Base path: /api/v1
+- Main resources: citizens, responders, statuses, categories, severities, locations, incidents, assignments, users
+
+Important API behavior:
+- Protected routes require x-api-key when API_KEYS or API_KEY is configured on the backend
+- Public routes:
+  - /api/v1/health
+  - /api/v1/openapi.json
+  - /api/v1/docs
+- Rate limiting is enabled by default and may return HTTP 429 with Retry-After and X-RateLimit-* headers
+- Validation failures commonly return HTTP 422 with structured payloads
+
+Architecture assumptions for this project:
+- Treat the CIRS API as the source of truth
+- Do not duplicate backend business rules in frontend code unless needed for UX
+- Prefer typed API clients and shared request/response contracts where possible
+- Prepare for future RBAC/scoped permissions
+- Assume future migration from API key auth to stronger user auth for web/mobile clients
+
+Implementation preferences:
+- Keep API access centralized in one client/service layer
+- Reuse endpoint constants and request types
+- Handle 401, 403, 404, 422, and 429 consistently
+- Surface rate-limit and auth failures clearly in UI
+- Prefer maintainable integration patterns over ad hoc fetch calls in components
+
+When generating code:
+- Use the CIRS API resource names exactly as defined
+- Keep integration modular and typed
+- Separate API client code from UI components
+- Expect future support for JWT auth and role-based dashboards
+
+Section 3: Dashboard Integration Brief
+
+This dashboard consumes the Xypes CIRS API.
+
+Backend overview:
+- TypeScript + Express REST API
+- Base path: /api/v1
+- Resources:
+  - citizens
+  - responders
+  - statuses
+  - categories
+  - severities
+  - locations
+  - incidents
+  - assignments
+  - users
+- Persistence: Prisma + PostgreSQL (Supabase)
+
+Current backend security:
+- API key authentication for protected endpoints
+- Public endpoints:
+  - /api/v1/health
+  - /api/v1/openapi.json
+  - /api/v1/docs
+- Request rate limiting is enabled by default
+
+Expected frontend needs:
+- Incident listing and detail views
+- Assignment tracking
+- Dashboard metrics and status summaries
+- Role-aware navigation for admin, dispatcher, responder, and future user types
+- Graceful handling for auth failures, validation failures, and rate limiting
+
+Recommended frontend architecture:
+- Use Next.js for dashboard
+- Keep API access in a dedicated service/client layer
+- Use server-side environment variables for backend base URL and keys where appropriate
+- Do not hardcode backend business rules in UI
+- Prepare code structure for future JWT and RBAC support
+
+Known backend gaps:
+- RBAC is planned but not yet implemented
+- Current auth is API-key based, which may later be replaced or supplemented for human users
+- CI/CD automation is still pending
+
+Recommended future alignment:
+- Generate a typed API client from OpenAPI
+- Add role/scope awareness once backend RBAC is implemented
+- Introduce JWT + refresh token strategy for human clients
+- Add CI pipeline for lint/build/test and optional deploy steps
