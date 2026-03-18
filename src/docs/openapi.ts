@@ -82,7 +82,7 @@ const paths = {
             },
           },
         },
-        '400': {
+        '422': {
           description: 'Validation failed',
           content: {
             'application/json': {
@@ -153,7 +153,7 @@ const paths = {
             },
           },
         },
-        '400': {
+        '422': {
           description: 'Validation failed',
           content: {
             'application/json': {
@@ -224,7 +224,7 @@ const paths = {
             },
           },
         },
-        '400': {
+        '422': {
           description: 'Validation failed',
           content: {
             'application/json': {
@@ -295,7 +295,7 @@ const paths = {
             },
           },
         },
-        '400': {
+        '422': {
           description: 'Validation failed',
           content: {
             'application/json': {
@@ -366,7 +366,7 @@ const paths = {
             },
           },
         },
-        '400': {
+        '422': {
           description: 'Validation failed',
           content: {
             'application/json': {
@@ -437,7 +437,7 @@ const paths = {
             },
           },
         },
-        '400': {
+        '422': {
           description: 'Validation failed',
           content: {
             'application/json': {
@@ -511,8 +511,8 @@ const paths = {
             },
           },
         },
-        '400': {
-          description: 'Validation or FK check failed',
+        '422': {
+          description: 'Validation or FK reference failed',
           content: {
             'application/json': {
               schema: commonErrorSchema,
@@ -582,8 +582,8 @@ const paths = {
             },
           },
         },
-        '400': {
-          description: 'Validation or FK check failed',
+        '422': {
+          description: 'Validation or FK reference failed',
           content: {
             'application/json': {
               schema: commonErrorSchema,
@@ -618,6 +618,80 @@ const paths = {
       },
     },
   },
+  [`${API_BASE_PATH}/users`]: {
+    get: {
+      summary: 'List users',
+      description: 'Returns all system users.',
+      tags: ['Users'],
+      responses: {
+        '200': {
+          description: 'User list',
+          content: {
+            'application/json': {
+              schema: { type: 'array', items: { $ref: '#/components/schemas/User' } },
+            },
+          },
+        },
+      },
+    },
+    post: {
+      summary: 'Create user',
+      description: 'Creates a new system user.',
+      tags: ['Users'],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/UserCreate' },
+          },
+        },
+      },
+      responses: {
+        '201': {
+          description: 'User created',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/User' },
+            },
+          },
+        },
+        '422': {
+          description: 'Validation failed',
+          content: {
+            'application/json': {
+              schema: validationErrorSchema,
+            },
+          },
+        },
+      },
+    },
+  },
+  [`${API_BASE_PATH}/users/{id}`]: {
+    get: {
+      summary: 'Get user by id',
+      description: 'Returns a single user by numeric ID.',
+      tags: ['Users'],
+      parameters: [{ $ref: '#/components/parameters/IdParam' }],
+      responses: {
+        '200': {
+          description: 'User found',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/User' },
+            },
+          },
+        },
+        '404': {
+          description: 'User not found',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+      },
+    },
+  },
 };
 
 export const openApiDocument = {
@@ -625,7 +699,8 @@ export const openApiDocument = {
   info: {
     title: 'Xypes CIRS API',
     version: '1.0.0',
-    description: 'Citizen Incident Reporting System API documentation.',
+    description:
+      'Citizen Incident Reporting System API powered by Express, Prisma, and PostgreSQL (Supabase). Protected endpoints use API key auth and rate limiting.',
   },
   servers: [
     {
@@ -634,15 +709,16 @@ export const openApiDocument = {
     },
   ],
   tags: [
-    { name: 'System' },
-    { name: 'Citizens' },
-    { name: 'Responders' },
-    { name: 'Statuses' },
-    { name: 'Categories' },
-    { name: 'Severities' },
-    { name: 'Locations' },
-    { name: 'Incidents' },
-    { name: 'Assignments' },
+    { name: 'System', description: 'API health and status endpoints.' },
+    { name: 'Citizens', description: 'Manage citizens who report incidents.' },
+    { name: 'Responders', description: 'Manage emergency responders assigned to incidents.' },
+    { name: 'Statuses', description: 'Lookup values for incident status.' },
+    { name: 'Categories', description: 'Lookup values for incident category.' },
+    { name: 'Severities', description: 'Lookup values for incident severity level.' },
+    { name: 'Locations', description: 'Lookup values for geographic incident locations.' },
+    { name: 'Incidents', description: 'Manage citizen-reported incidents.' },
+    { name: 'Assignments', description: 'Manage responder assignments to incidents.' },
+    { name: 'Users', description: 'Manage system users.' },
   ],
   security: [{ ApiKeyAuth: [] }],
   paths,
@@ -652,7 +728,8 @@ export const openApiDocument = {
         type: 'apiKey',
         in: 'header',
         name: 'x-api-key',
-        description: 'Required when API_KEYS or API_KEY is configured on the server.',
+        description:
+          'Required for protected endpoints when API_KEYS or API_KEY is configured. Health and docs endpoints are public.',
       },
     },
     parameters: {
@@ -838,6 +915,23 @@ export const openApiDocument = {
           notes: { type: 'string' },
         },
         required: ['incidentId', 'responderId'],
+      },
+      User: {
+        type: 'object',
+        properties: {
+          id: { type: 'integer', example: 1 },
+          name: { type: 'string' },
+          email: { type: 'string', format: 'email' },
+        },
+        required: ['id', 'name', 'email'],
+      },
+      UserCreate: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          email: { type: 'string', format: 'email' },
+        },
+        required: ['name', 'email'],
       },
     },
   },

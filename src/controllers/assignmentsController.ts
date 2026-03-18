@@ -1,19 +1,26 @@
+// Handles CRUD operations for responder assignments to incidents.
 import type { Request, Response } from 'express';
-import { assignments, getNextId, incidents, responders } from '../data/store.js';
+import prisma from '../lib/prisma.js';
 import { getParamId } from '../utils/request.js';
 import type { Assignment } from '../types/models.js';
 
-export function getAssignments(_req: Request, res: Response): void {
+// Returns all assignments from the database.
+export async function getAssignments(_req: Request, res: Response): Promise<void> {
+  const assignments = await prisma.assignment.findMany();
   res.json(assignments);
 }
 
-export function getAssignmentById(req: Request, res: Response): void {
+// Returns a single assignment by numeric ID. Responds 404 if not found.
+export async function getAssignmentById(req: Request, res: Response): Promise<void> {
   const id = getParamId(req, res);
   if (id === null) {
     return;
   }
 
-  const assignment = assignments.find((item) => item.id === id);
+  const assignment = await prisma.assignment.findUnique({
+    where: { id },
+  });
+
   if (!assignment) {
     res.status(404).json({ message: 'Assignment not found' });
     return;
@@ -22,7 +29,9 @@ export function getAssignmentById(req: Request, res: Response): void {
   res.json(assignment);
 }
 
-export function createAssignment(req: Request, res: Response): void {
+// Creates a new assignment linking a responder to an incident.
+// Validates that both the incident and responder exist before persisting.
+export async function createAssignment(req: Request, res: Response): Promise<void> {
   const {
     incidentId,
     responderId,
@@ -38,27 +47,27 @@ export function createAssignment(req: Request, res: Response): void {
     return;
   }
 
-  if (!incidents.some((item) => item.id === incidentId)) {
+  if (!(await prisma.citizenIncident.findUnique({ where: { id: incidentId } }))) {
     res.status(422).json({ message: 'incidentId does not reference a valid CitizenIncident' });
     return;
   }
 
-  if (!responders.some((item) => item.id === responderId)) {
+  if (!(await prisma.responder.findUnique({ where: { id: responderId } }))) {
     res.status(422).json({ message: 'responderId does not reference a valid Responder' });
     return;
   }
 
-  const assignment: Assignment = {
-    id: getNextId(assignments),
-    incidentId,
-    responderId,
-    assignedDate: assignedDate ? new Date(assignedDate) : new Date(),
-    responseStart: responseStart ? new Date(responseStart) : undefined,
-    responseEnd: responseEnd ? new Date(responseEnd) : undefined,
-    outcome,
-    notes,
-  };
+  const assignment = await prisma.assignment.create({
+    data: {
+      incidentId,
+      responderId,
+      assignedDate: assignedDate ? new Date(assignedDate) : new Date(),
+      responseStart: responseStart ? new Date(responseStart) : undefined,
+      responseEnd: responseEnd ? new Date(responseEnd) : undefined,
+      outcome,
+      notes,
+    },
+  });
 
-  assignments.push(assignment);
   res.status(201).json(assignment);
 }

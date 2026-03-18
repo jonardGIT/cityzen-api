@@ -1,17 +1,19 @@
+// Handles CRUD operations for system users.
 import type { Request, Response } from 'express';
-import type { User } from '../types/User.js';
+import prisma from '../lib/prisma.js';
 
-const users: User[] = [
-  { id: 1, name: 'Alice', email: 'alice@example.com' },
-  { id: 2, name: 'Bob', email: 'bob@example.com' },
-];
-
-export function getUsers(_req: Request, res: Response): void {
+// Returns all users from the database.
+export async function getUsers(_req: Request, res: Response): Promise<void> {
+  const users = await prisma.user.findMany();
   res.json(users);
 }
 
-export function getUserById(req: Request, res: Response): void {
-  const user = users.find((u) => u.id === Number(req.params.id));
+// Returns a single user by numeric ID. Responds 404 if not found.
+export async function getUserById(req: Request, res: Response): Promise<void> {
+  const id = Number(req.params.id);
+  const user = await prisma.user.findUnique({
+    where: { id },
+  });
   if (!user) {
     res.status(404).json({ message: 'User not found' });
     return;
@@ -19,13 +21,15 @@ export function getUserById(req: Request, res: Response): void {
   res.json(user);
 }
 
-export function createUser(req: Request, res: Response): void {
-  const { name, email } = req.body as Partial<User>;
+// Creates a new user account. Requires name and email (must be unique).
+export async function createUser(req: Request, res: Response): Promise<void> {
+  const { name, email } = req.body as { name?: string; email?: string };
   if (!name || !email) {
     res.status(422).json({ message: 'name and email are required' });
     return;
   }
-  const newUser: User = { id: users.length + 1, name, email };
-  users.push(newUser);
+  const newUser = await prisma.user.create({
+    data: { name, email },
+  });
   res.status(201).json(newUser);
 }

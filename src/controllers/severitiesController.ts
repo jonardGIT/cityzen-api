@@ -1,19 +1,24 @@
+// Handles CRUD operations for incident severity lookup values.
 import type { Request, Response } from 'express';
-import { severities, getNextId } from '../data/store.js';
+import prisma from '../lib/prisma.js';
 import { getParamId } from '../utils/request.js';
-import type { Severity } from '../types/models.js';
 
-export function getSeverities(_req: Request, res: Response): void {
+// Returns all severities from the database.
+export async function getSeverities(_req: Request, res: Response): Promise<void> {
+  const severities = await prisma.severity.findMany();
   res.json(severities);
 }
 
-export function getSeverityById(req: Request, res: Response): void {
+// Returns a single severity by numeric ID. Responds 404 if not found.
+export async function getSeverityById(req: Request, res: Response): Promise<void> {
   const id = getParamId(req, res);
   if (id === null) {
     return;
   }
 
-  const severity = severities.find((item) => item.id === id);
+  const severity = await prisma.severity.findUnique({
+    where: { id },
+  });
   if (!severity) {
     res.status(404).json({ message: 'Severity not found' });
     return;
@@ -22,20 +27,21 @@ export function getSeverityById(req: Request, res: Response): void {
   res.json(severity);
 }
 
-export function createSeverity(req: Request, res: Response): void {
-  const { level, definition } = req.body as Partial<Severity>;
+// Creates a new severity entry. Requires level; definition is optional.
+export async function createSeverity(req: Request, res: Response): Promise<void> {
+  const { level, definition } = req.body as { level?: string; definition?: string };
 
   if (!level) {
     res.status(422).json({ message: 'level is required' });
     return;
   }
 
-  const severity: Severity = {
-    id: getNextId(severities),
-    level,
-    definition,
-  };
+  const severity = await prisma.severity.create({
+    data: {
+      level,
+      definition: definition || null,
+    },
+  });
 
-  severities.push(severity);
   res.status(201).json(severity);
 }

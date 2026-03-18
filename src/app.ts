@@ -12,6 +12,7 @@ import severitiesRouter from './routes/severities.js';
 import locationsRouter from './routes/locations.js';
 import incidentsRouter from './routes/incidents.js';
 import assignmentsRouter from './routes/assignments.js';
+import usersRouter from './routes/users.js';
 import { openApiDocument } from './docs/openapi.js';
 import { createApiKeyAuthMiddleware } from './middleware/apiKeyAuth.js';
 import { createRateLimitMiddleware } from './middleware/rateLimit.js';
@@ -26,6 +27,11 @@ const app = express();
 export const API_V1 = process.env.API_BASE_PATH ?? '/api/v1';
 const isProduction = process.env.NODE_ENV === 'production';
 const publicApiPaths = ['/health', '/openapi.json', '/docs'];
+const corsOriginConfig = process.env.CORS_ORIGIN ?? '*';
+const allowedCorsOrigins = corsOriginConfig
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter((origin) => origin.length > 0);
 
 if (!isProduction) {
   app.disable('etag');
@@ -40,7 +46,19 @@ if (!isProduction) {
 app.use(helmet());
 
 // Enable cross-origin requests for API consumers.
-app.use(cors({ origin: process.env.CORS_ORIGIN ?? '*' }));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow non-browser requests and configured browser origins.
+      if (!origin || allowedCorsOrigins.includes('*') || allowedCorsOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error('Not allowed by CORS'));
+    },
+  })
+);
 // Log incoming HTTP requests in development-friendly format.
 app.use(morgan(isProduction ? 'combined' : 'dev'));
 
@@ -81,6 +99,8 @@ app.use(`${API_V1}/locations`, locationsRouter);
 app.use(`${API_V1}/incidents`, incidentsRouter);
 // Mount assignments resource routes.
 app.use(`${API_V1}/assignments`, assignmentsRouter);
+// Mount users resource routes.
+app.use(`${API_V1}/users`, usersRouter);
 
 // Return a 404 response for unmatched routes.
 app.use(notFoundHandler);

@@ -1,19 +1,24 @@
+// Handles CRUD operations for incident category lookup values.
 import type { Request, Response } from 'express';
-import { categories, getNextId } from '../data/store.js';
+import prisma from '../lib/prisma.js';
 import { getParamId } from '../utils/request.js';
-import type { Category } from '../types/models.js';
 
-export function getCategories(_req: Request, res: Response): void {
+// Returns all categories from the database.
+export async function getCategories(_req: Request, res: Response): Promise<void> {
+  const categories = await prisma.category.findMany();
   res.json(categories);
 }
 
-export function getCategoryById(req: Request, res: Response): void {
+// Returns a single category by numeric ID. Responds 404 if not found.
+export async function getCategoryById(req: Request, res: Response): Promise<void> {
   const id = getParamId(req, res);
   if (id === null) {
     return;
   }
 
-  const category = categories.find((item) => item.id === id);
+  const category = await prisma.category.findUnique({
+    where: { id },
+  });
   if (!category) {
     res.status(404).json({ message: 'Category not found' });
     return;
@@ -22,20 +27,21 @@ export function getCategoryById(req: Request, res: Response): void {
   res.json(category);
 }
 
-export function createCategory(req: Request, res: Response): void {
-  const { name, subCategory } = req.body as Partial<Category>;
+// Creates a new category entry. Requires name; subCategory is optional.
+export async function createCategory(req: Request, res: Response): Promise<void> {
+  const { name, subCategory } = req.body as { name?: string; subCategory?: string };
 
   if (!name) {
     res.status(422).json({ message: 'name is required' });
     return;
   }
 
-  const category: Category = {
-    id: getNextId(categories),
-    name,
-    subCategory,
-  };
+  const category = await prisma.category.create({
+    data: {
+      name,
+      subCategory: subCategory || null,
+    },
+  });
 
-  categories.push(category);
   res.status(201).json(category);
 }

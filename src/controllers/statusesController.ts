@@ -1,19 +1,24 @@
+// Handles CRUD operations for incident status lookup values.
 import type { Request, Response } from 'express';
-import { statuses, getNextId } from '../data/store.js';
+import prisma from '../lib/prisma.js';
 import { getParamId } from '../utils/request.js';
-import type { Status } from '../types/models.js';
 
-export function getStatuses(_req: Request, res: Response): void {
+// Returns all statuses from the database.
+export async function getStatuses(_req: Request, res: Response): Promise<void> {
+  const statuses = await prisma.status.findMany();
   res.json(statuses);
 }
 
-export function getStatusById(req: Request, res: Response): void {
+// Returns a single status by numeric ID. Responds 404 if not found.
+export async function getStatusById(req: Request, res: Response): Promise<void> {
   const id = getParamId(req, res);
   if (id === null) {
     return;
   }
 
-  const status = statuses.find((item) => item.id === id);
+  const status = await prisma.status.findUnique({
+    where: { id },
+  });
   if (!status) {
     res.status(404).json({ message: 'Status not found' });
     return;
@@ -22,19 +27,18 @@ export function getStatusById(req: Request, res: Response): void {
   res.json(status);
 }
 
-export function createStatus(req: Request, res: Response): void {
-  const { name } = req.body as Partial<Status>;
+// Creates a new status entry. Requires name.
+export async function createStatus(req: Request, res: Response): Promise<void> {
+  const { name } = req.body as { name?: string };
 
   if (!name) {
     res.status(422).json({ message: 'name is required' });
     return;
   }
 
-  const status: Status = {
-    id: getNextId(statuses),
-    name,
-  };
+  const status = await prisma.status.create({
+    data: { name },
+  });
 
-  statuses.push(status);
   res.status(201).json(status);
 }

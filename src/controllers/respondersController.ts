@@ -1,19 +1,26 @@
+// Handles CRUD operations for emergency responders.
 import type { Request, Response } from 'express';
-import { responders, getNextId } from '../data/store.js';
+import prisma from '../lib/prisma.js';
 import { getParamId } from '../utils/request.js';
 import type { Responder } from '../types/models.js';
 
-export function getResponders(_req: Request, res: Response): void {
+// Returns all responders from the database.
+export async function getResponders(_req: Request, res: Response): Promise<void> {
+  const responders = await prisma.responder.findMany();
   res.json(responders);
 }
 
-export function getResponderById(req: Request, res: Response): void {
+// Returns a single responder by numeric ID. Responds 404 if not found.
+export async function getResponderById(req: Request, res: Response): Promise<void> {
   const id = getParamId(req, res);
   if (id === null) {
     return;
   }
 
-  const responder = responders.find((item) => item.id === id);
+  const responder = await prisma.responder.findUnique({
+    where: { id },
+  });
+
   if (!responder) {
     res.status(404).json({ message: 'Responder not found' });
     return;
@@ -22,7 +29,8 @@ export function getResponderById(req: Request, res: Response): void {
   res.json(responder);
 }
 
-export function createResponder(req: Request, res: Response): void {
+// Creates a new responder record. Requires name, agency, role, and contactInfo.
+export async function createResponder(req: Request, res: Response): Promise<void> {
   const { name, agency, role, contactInfo } = req.body as Partial<Responder>;
 
   if (!name || !agency || !role || !contactInfo) {
@@ -30,14 +38,14 @@ export function createResponder(req: Request, res: Response): void {
     return;
   }
 
-  const responder: Responder = {
-    id: getNextId(responders),
-    name,
-    agency,
-    role,
-    contactInfo,
-  };
+  const responder = await prisma.responder.create({
+    data: {
+      name,
+      agency,
+      role,
+      contactInfo,
+    },
+  });
 
-  responders.push(responder);
   res.status(201).json(responder);
 }

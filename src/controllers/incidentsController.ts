@@ -1,27 +1,26 @@
+// Handles CRUD operations for citizen-reported incidents.
 import type { Request, Response } from 'express';
-import {
-  categories,
-  citizens,
-  getNextId,
-  incidents,
-  locations,
-  severities,
-  statuses,
-} from '../data/store.js';
+import prisma from '../lib/prisma.js';
 import { getParamId } from '../utils/request.js';
 import type { CitizenIncident } from '../types/models.js';
 
-export function getIncidents(_req: Request, res: Response): void {
+// Returns all incidents from the database.
+export async function getIncidents(_req: Request, res: Response): Promise<void> {
+  const incidents = await prisma.citizenIncident.findMany();
   res.json(incidents);
 }
 
-export function getIncidentById(req: Request, res: Response): void {
+// Returns a single incident by numeric ID. Responds 404 if not found.
+export async function getIncidentById(req: Request, res: Response): Promise<void> {
   const id = getParamId(req, res);
   if (id === null) {
     return;
   }
 
-  const incident = incidents.find((item) => item.id === id);
+  const incident = await prisma.citizenIncident.findUnique({
+    where: { id },
+  });
+
   if (!incident) {
     res.status(404).json({ message: 'CitizenIncident not found' });
     return;
@@ -30,7 +29,9 @@ export function getIncidentById(req: Request, res: Response): void {
   res.json(incident);
 }
 
-export function createIncident(req: Request, res: Response): void {
+// Creates a new incident. Validates all FK references (status, citizen, location,
+// category, severity) before persisting to the database.
+export async function createIncident(req: Request, res: Response): Promise<void> {
   const {
     description,
     mediaUrl,
@@ -49,43 +50,43 @@ export function createIncident(req: Request, res: Response): void {
     return;
   }
 
-  if (!statuses.some((item) => item.id === statusId)) {
+  if (!(await prisma.status.findUnique({ where: { id: statusId } }))) {
     res.status(422).json({ message: 'statusId does not reference a valid Status' });
     return;
   }
 
-  if (!citizens.some((item) => item.id === citizenId)) {
+  if (!(await prisma.citizen.findUnique({ where: { id: citizenId } }))) {
     res.status(422).json({ message: 'citizenId does not reference a valid Citizen' });
     return;
   }
 
-  if (!locations.some((item) => item.id === locationId)) {
+  if (!(await prisma.location.findUnique({ where: { id: locationId } }))) {
     res.status(422).json({ message: 'locationId does not reference a valid Location' });
     return;
   }
 
-  if (!categories.some((item) => item.id === categoryId)) {
+  if (!(await prisma.category.findUnique({ where: { id: categoryId } }))) {
     res.status(422).json({ message: 'categoryId does not reference a valid Category' });
     return;
   }
 
-  if (!severities.some((item) => item.id === severityId)) {
+  if (!(await prisma.severity.findUnique({ where: { id: severityId } }))) {
     res.status(422).json({ message: 'severityId does not reference a valid Severity' });
     return;
   }
 
-  const incident: CitizenIncident = {
-    id: getNextId(incidents),
-    description,
-    mediaUrl,
-    dateReported: dateReported ? new Date(dateReported) : new Date(),
-    statusId,
-    citizenId,
-    locationId,
-    categoryId,
-    severityId,
-  };
+  const incident = await prisma.citizenIncident.create({
+    data: {
+      description,
+      mediaUrl,
+      dateReported: dateReported ? new Date(dateReported) : new Date(),
+      statusId,
+      citizenId,
+      locationId,
+      categoryId,
+      severityId,
+    },
+  });
 
-  incidents.push(incident);
   res.status(201).json(incident);
 }
