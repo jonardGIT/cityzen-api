@@ -174,4 +174,36 @@ describe('VIEWER incident scoping', () => {
     expect(res.status).toBe(422);
     expect(res.body).toHaveProperty('errors');
   });
+
+  it('POST /incidents/report accepts numeric string IDs', async () => {
+    const res = await request(app)
+      .post(`${API_V1}/incidents/report`)
+      .set('Authorization', `Bearer ${viewerToken}`)
+      .send({
+        description: 'Numeric string id payload',
+        statusId: '1',
+        locationId: '1',
+        categoryId: '1',
+        severityId: '1',
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty('id');
+  });
+
+  it('POST /incidents/report returns 422 for non-numeric string IDs', async () => {
+    const res = await request(app)
+      .post(`${API_V1}/incidents/report`)
+      .set('Authorization', `Bearer ${viewerToken}`)
+      .send({
+        description: 'Bad string id payload',
+        statusId: 'one',
+        locationId: '1',
+        categoryId: '1',
+        severityId: '1',
+      });
+
+    expect(res.status).toBe(422);
+    expect(res.body).toHaveProperty('errors');
+  });
 });

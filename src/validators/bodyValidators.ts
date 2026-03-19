@@ -127,11 +127,11 @@ export const createIncidentValidator = [
   body('description').isString().trim().notEmpty().withMessage('description is required'),
   body('mediaUrl').optional().isString().withMessage('mediaUrl must be a string'),
   body('dateReported').optional().isISO8601().withMessage('dateReported must be an ISO8601 date'),
-  body('statusId').isInt({ min: 1 }).withMessage('statusId must be a positive integer'),
-  body('citizenId').isInt({ min: 1 }).withMessage('citizenId must be a positive integer'),
-  body('locationId').isInt({ min: 1 }).withMessage('locationId must be a positive integer'),
-  body('categoryId').isInt({ min: 1 }).withMessage('categoryId must be a positive integer'),
-  body('severityId').isInt({ min: 1 }).withMessage('severityId must be a positive integer'),
+  body('statusId').isInt({ min: 1 }).toInt().withMessage('statusId must be a positive integer'),
+  body('citizenId').isInt({ min: 1 }).toInt().withMessage('citizenId must be a positive integer'),
+  body('locationId').isInt({ min: 1 }).toInt().withMessage('locationId must be a positive integer'),
+  body('categoryId').isInt({ min: 1 }).toInt().withMessage('categoryId must be a positive integer'),
+  body('severityId').isInt({ min: 1 }).toInt().withMessage('severityId must be a positive integer'),
 ];
 
 export const createCitizenIncidentReportValidator = [
@@ -139,10 +139,10 @@ export const createCitizenIncidentReportValidator = [
   body('mediaUrl').optional().isString().withMessage('mediaUrl must be a string'),
   body('dateReported').optional().isISO8601().withMessage('dateReported must be an ISO8601 date'),
   body('citizenId').not().exists().withMessage('citizenId is inferred from authenticated account context'),
-  body('statusId').isInt({ min: 1 }).withMessage('statusId must be a positive integer'),
-  body('locationId').isInt({ min: 1 }).withMessage('locationId must be a positive integer'),
-  body('categoryId').isInt({ min: 1 }).withMessage('categoryId must be a positive integer'),
-  body('severityId').isInt({ min: 1 }).withMessage('severityId must be a positive integer'),
+  body('statusId').isInt({ min: 1 }).toInt().withMessage('statusId must be a positive integer'),
+  body('locationId').isInt({ min: 1 }).toInt().withMessage('locationId must be a positive integer'),
+  body('categoryId').isInt({ min: 1 }).toInt().withMessage('categoryId must be a positive integer'),
+  body('severityId').isInt({ min: 1 }).toInt().withMessage('severityId must be a positive integer'),
 ];
 
 export const updateIncidentValidator = [
@@ -157,11 +157,11 @@ export const updateIncidentValidator = [
   body('description').optional().isString().trim().notEmpty().withMessage('description must be a non-empty string'),
   body('mediaUrl').optional().isString().withMessage('mediaUrl must be a string'),
   body('dateReported').optional().isISO8601().withMessage('dateReported must be an ISO8601 date'),
-  body('statusId').optional().isInt({ min: 1 }).withMessage('statusId must be a positive integer'),
-  body('citizenId').optional().isInt({ min: 1 }).withMessage('citizenId must be a positive integer'),
-  body('locationId').optional().isInt({ min: 1 }).withMessage('locationId must be a positive integer'),
-  body('categoryId').optional().isInt({ min: 1 }).withMessage('categoryId must be a positive integer'),
-  body('severityId').optional().isInt({ min: 1 }).withMessage('severityId must be a positive integer'),
+  body('statusId').optional().isInt({ min: 1 }).toInt().withMessage('statusId must be a positive integer'),
+  body('citizenId').optional().isInt({ min: 1 }).toInt().withMessage('citizenId must be a positive integer'),
+  body('locationId').optional().isInt({ min: 1 }).toInt().withMessage('locationId must be a positive integer'),
+  body('categoryId').optional().isInt({ min: 1 }).toInt().withMessage('categoryId must be a positive integer'),
+  body('severityId').optional().isInt({ min: 1 }).toInt().withMessage('severityId must be a positive integer'),
 ];
 
 export const createAssignmentValidator = [
