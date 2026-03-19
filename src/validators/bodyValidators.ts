@@ -7,6 +7,32 @@ export const createCitizenValidator = [
   body('preferredChannel').isString().trim().notEmpty().withMessage('preferredChannel is required'),
 ];
 
+export const updateCitizenValidator = [
+  body().custom((value) => {
+    const hasUpdatableField = ['name', 'contactInfo', 'preferredChannel'].some((field) => value?.[field] !== undefined);
+    if (!hasUpdatableField) {
+      throw new Error('at least one of name, contactInfo, or preferredChannel is required');
+    }
+    return true;
+  }),
+  body('name').optional().isString().trim().notEmpty().withMessage('name must be a non-empty string'),
+  body('contactInfo').optional().isString().trim().notEmpty().withMessage('contactInfo must be a non-empty string'),
+  body('preferredChannel').optional().isString().trim().notEmpty().withMessage('preferredChannel must be a non-empty string'),
+];
+
+export const linkMyCitizenProfileValidator = [
+  body().custom((value) => {
+    const hasUpdatableField = ['name', 'preferredChannel'].some((field) => value?.[field] !== undefined);
+    if (!hasUpdatableField) {
+      throw new Error('at least one of name or preferredChannel is required');
+    }
+    return true;
+  }),
+  body('contactInfo').not().exists().withMessage('contactInfo is managed from authenticated account email'),
+  body('name').optional().isString().trim().notEmpty().withMessage('name must be a non-empty string'),
+  body('preferredChannel').optional().isString().trim().notEmpty().withMessage('preferredChannel must be a non-empty string'),
+];
+
 export const createResponderValidator = [
   body('name').isString().trim().notEmpty().withMessage('name is required'),
   body('agency').isString().trim().notEmpty().withMessage('agency is required'),
@@ -14,8 +40,32 @@ export const createResponderValidator = [
   body('contactInfo').isString().trim().notEmpty().withMessage('contactInfo is required'),
 ];
 
+export const updateResponderValidator = [
+  body().custom((value) => {
+    const hasUpdatableField = ['name', 'agency', 'role', 'contactInfo'].some((field) => value?.[field] !== undefined);
+    if (!hasUpdatableField) {
+      throw new Error('at least one of name, agency, role, or contactInfo is required');
+    }
+    return true;
+  }),
+  body('name').optional().isString().trim().notEmpty().withMessage('name must be a non-empty string'),
+  body('agency').optional().isString().trim().notEmpty().withMessage('agency must be a non-empty string'),
+  body('role').optional().isString().trim().notEmpty().withMessage('role must be a non-empty string'),
+  body('contactInfo').optional().isString().trim().notEmpty().withMessage('contactInfo must be a non-empty string'),
+];
+
 export const createStatusValidator = [
   body('name').isString().trim().notEmpty().withMessage('name is required'),
+];
+
+export const updateStatusValidator = [
+  body().custom((value) => {
+    if (value?.name === undefined) {
+      throw new Error('name is required');
+    }
+    return true;
+  }),
+  body('name').isString().trim().notEmpty().withMessage('name must be a non-empty string'),
 ];
 
 export const createCategoryValidator = [
@@ -23,9 +73,33 @@ export const createCategoryValidator = [
   body('subCategory').optional().isString().withMessage('subCategory must be a string'),
 ];
 
+export const updateCategoryValidator = [
+  body().custom((value) => {
+    const hasUpdatableField = ['name', 'subCategory'].some((field) => value?.[field] !== undefined);
+    if (!hasUpdatableField) {
+      throw new Error('at least one of name or subCategory is required');
+    }
+    return true;
+  }),
+  body('name').optional().isString().trim().notEmpty().withMessage('name must be a non-empty string'),
+  body('subCategory').optional({ nullable: true }).isString().withMessage('subCategory must be a string'),
+];
+
 export const createSeverityValidator = [
   body('level').isString().trim().notEmpty().withMessage('level is required'),
   body('definition').optional().isString().withMessage('definition must be a string'),
+];
+
+export const updateSeverityValidator = [
+  body().custom((value) => {
+    const hasUpdatableField = ['level', 'definition'].some((field) => value?.[field] !== undefined);
+    if (!hasUpdatableField) {
+      throw new Error('at least one of level or definition is required');
+    }
+    return true;
+  }),
+  body('level').optional().isString().trim().notEmpty().withMessage('level must be a non-empty string'),
+  body('definition').optional({ nullable: true }).isString().withMessage('definition must be a string'),
 ];
 
 export const createLocationValidator = [
@@ -33,6 +107,20 @@ export const createLocationValidator = [
   body('city').isString().trim().notEmpty().withMessage('city is required'),
   body('province').isString().trim().notEmpty().withMessage('province is required'),
   body('region').isString().trim().notEmpty().withMessage('region is required'),
+];
+
+export const updateLocationValidator = [
+  body().custom((value) => {
+    const hasUpdatableField = ['district', 'city', 'province', 'region'].some((field) => value?.[field] !== undefined);
+    if (!hasUpdatableField) {
+      throw new Error('at least one of district, city, province, or region is required');
+    }
+    return true;
+  }),
+  body('district').optional().isString().trim().notEmpty().withMessage('district must be a non-empty string'),
+  body('city').optional().isString().trim().notEmpty().withMessage('city must be a non-empty string'),
+  body('province').optional().isString().trim().notEmpty().withMessage('province must be a non-empty string'),
+  body('region').optional().isString().trim().notEmpty().withMessage('region must be a non-empty string'),
 ];
 
 export const createIncidentValidator = [
@@ -46,9 +134,57 @@ export const createIncidentValidator = [
   body('severityId').isInt({ min: 1 }).withMessage('severityId must be a positive integer'),
 ];
 
+export const createCitizenIncidentReportValidator = [
+  body('description').isString().trim().notEmpty().withMessage('description is required'),
+  body('mediaUrl').optional().isString().withMessage('mediaUrl must be a string'),
+  body('dateReported').optional().isISO8601().withMessage('dateReported must be an ISO8601 date'),
+  body('citizenId').not().exists().withMessage('citizenId is inferred from authenticated account context'),
+  body('statusId').isInt({ min: 1 }).withMessage('statusId must be a positive integer'),
+  body('locationId').isInt({ min: 1 }).withMessage('locationId must be a positive integer'),
+  body('categoryId').isInt({ min: 1 }).withMessage('categoryId must be a positive integer'),
+  body('severityId').isInt({ min: 1 }).withMessage('severityId must be a positive integer'),
+];
+
+export const updateIncidentValidator = [
+  body().custom((value) => {
+    const hasUpdatableField = ['description', 'mediaUrl', 'dateReported', 'statusId', 'citizenId', 'locationId', 'categoryId', 'severityId']
+      .some((field) => value?.[field] !== undefined);
+    if (!hasUpdatableField) {
+      throw new Error('at least one updatable incident field is required');
+    }
+    return true;
+  }),
+  body('description').optional().isString().trim().notEmpty().withMessage('description must be a non-empty string'),
+  body('mediaUrl').optional().isString().withMessage('mediaUrl must be a string'),
+  body('dateReported').optional().isISO8601().withMessage('dateReported must be an ISO8601 date'),
+  body('statusId').optional().isInt({ min: 1 }).withMessage('statusId must be a positive integer'),
+  body('citizenId').optional().isInt({ min: 1 }).withMessage('citizenId must be a positive integer'),
+  body('locationId').optional().isInt({ min: 1 }).withMessage('locationId must be a positive integer'),
+  body('categoryId').optional().isInt({ min: 1 }).withMessage('categoryId must be a positive integer'),
+  body('severityId').optional().isInt({ min: 1 }).withMessage('severityId must be a positive integer'),
+];
+
 export const createAssignmentValidator = [
   body('incidentId').isInt({ min: 1 }).withMessage('incidentId must be a positive integer'),
   body('responderId').isInt({ min: 1 }).withMessage('responderId must be a positive integer'),
+  body('assignedDate').optional().isISO8601().withMessage('assignedDate must be an ISO8601 date'),
+  body('responseStart').optional().isISO8601().withMessage('responseStart must be an ISO8601 date'),
+  body('responseEnd').optional().isISO8601().withMessage('responseEnd must be an ISO8601 date'),
+  body('outcome').optional().isString().withMessage('outcome must be a string'),
+  body('notes').optional().isString().withMessage('notes must be a string'),
+];
+
+export const updateAssignmentValidator = [
+  body().custom((value) => {
+    const hasUpdatableField = ['incidentId', 'responderId', 'assignedDate', 'responseStart', 'responseEnd', 'outcome', 'notes']
+      .some((field) => value?.[field] !== undefined);
+    if (!hasUpdatableField) {
+      throw new Error('at least one updatable assignment field is required');
+    }
+    return true;
+  }),
+  body('incidentId').optional().isInt({ min: 1 }).withMessage('incidentId must be a positive integer'),
+  body('responderId').optional().isInt({ min: 1 }).withMessage('responderId must be a positive integer'),
   body('assignedDate').optional().isISO8601().withMessage('assignedDate must be an ISO8601 date'),
   body('responseStart').optional().isISO8601().withMessage('responseStart must be an ISO8601 date'),
   body('responseEnd').optional().isISO8601().withMessage('responseEnd must be an ISO8601 date'),

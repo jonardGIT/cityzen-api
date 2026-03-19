@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import {
   createAssignment,
+  deleteAssignment,
   getAssignmentById,
   getAssignments,
+  updateAssignment,
 } from '../controllers/assignmentsController.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { validateRequest } from '../middleware/validateRequest.js';
-import { createAssignmentValidator } from '../validators/bodyValidators.js';
+import { createAssignmentValidator, updateAssignmentValidator } from '../validators/bodyValidators.js';
 import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
 import { DISPATCH_ROLES } from '../types/auth.js';
 
@@ -22,5 +24,14 @@ router.post(
   validateRequest,
   asyncHandler(createAssignment)
 );
+router.patch(
+  '/:id',
+  requireJwtAuth,
+  requireRole(...DISPATCH_ROLES),
+  updateAssignmentValidator,
+  validateRequest,
+  asyncHandler(updateAssignment)
+);
+router.delete('/:id', requireJwtAuth, requireRole(...DISPATCH_ROLES), asyncHandler(deleteAssignment));
 
 export default router;

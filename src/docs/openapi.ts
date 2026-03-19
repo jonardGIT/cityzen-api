@@ -5,6 +5,12 @@ const commonErrorSchema = {
   properties: {
     message: { type: 'string' },
   },
+  examples: [
+    { message: 'Unauthorized: bearer token required' },
+    { message: 'Forbidden: insufficient role permissions' },
+    { message: 'Conflict: resource violates a unique constraint' },
+    { message: 'Conflict: resource is still referenced by other records' },
+  ],
 };
 
 const validationErrorSchema = {
@@ -21,6 +27,19 @@ const validationErrorSchema = {
         },
       },
     },
+  },
+  example: {
+    message: 'Validation failed',
+    errors: [
+      {
+        field: 'email',
+        message: 'email must be a valid email address',
+      },
+      {
+        field: 'password',
+        message: 'password must be at least 8 characters',
+      },
+    ],
   },
 };
 
@@ -47,6 +66,57 @@ const paths = {
       },
     },
   },
+  [`${API_BASE_PATH}/auth/register`]: {
+    post: {
+      summary: 'Register a viewer user and get JWT token',
+      tags: ['Auth'],
+      security: [],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/RegisterRequest' },
+            examples: {
+              viewerRegistration: {
+                summary: 'Standard viewer registration',
+                value: {
+                  name: 'Jane Citizen',
+                  email: 'jane.citizen@xypes.local',
+                  password: 'Password123!',
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        '201': {
+          description: 'Registration successful',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/LoginResponse' },
+            },
+          },
+        },
+        '409': {
+          description: 'Email already registered',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+        '422': {
+          description: 'Validation failed',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+      },
+    },
+  },
   [`${API_BASE_PATH}/auth/login`]: {
     post: {
       summary: 'Login and get JWT token',
@@ -57,6 +127,22 @@ const paths = {
         content: {
           'application/json': {
             schema: { $ref: '#/components/schemas/LoginRequest' },
+            examples: {
+              adminLogin: {
+                summary: 'Seeded admin login',
+                value: {
+                  email: 'admin@xypes.local',
+                  password: 'Password123!',
+                },
+              },
+              viewerLogin: {
+                summary: 'Viewer login',
+                value: {
+                  email: 'viewer@xypes.local',
+                  password: 'Password123!',
+                },
+              },
+            },
           },
         },
       },
@@ -161,6 +247,16 @@ const paths = {
         content: {
           'application/json': {
             schema: { $ref: '#/components/schemas/CitizenCreate' },
+            examples: {
+              basicCitizen: {
+                summary: 'Create a citizen reporter',
+                value: {
+                  name: 'Postman Citizen',
+                  contactInfo: 'citizen@example.com',
+                  preferredChannel: 'sms',
+                },
+              },
+            },
           },
         },
       },
@@ -170,6 +266,80 @@ const paths = {
           content: {
             'application/json': {
               schema: { $ref: '#/components/schemas/Citizen' },
+            },
+          },
+        },
+        '422': {
+          description: 'Validation failed',
+          content: {
+            'application/json': {
+              schema: validationErrorSchema,
+            },
+          },
+        },
+      },
+    },
+  },
+  [`${API_BASE_PATH}/citizens/link-me`]: {
+    post: {
+      summary: 'Link authenticated viewer to citizen profile',
+      description:
+        'Creates or updates a citizen profile linked to the authenticated VIEWER account. contactInfo is server-managed and always set from the authenticated user email; client-provided contactInfo is rejected.',
+      tags: ['Citizens'],
+      security: [{ BearerAuth: [] }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/CitizenLinkMeRequest' },
+            examples: {
+              createLinkedProfile: {
+                summary: 'Create linked citizen profile',
+                value: {
+                  name: 'Jane Citizen',
+                  preferredChannel: 'app',
+                },
+              },
+              updateChannelOnly: {
+                summary: 'Update linked profile channel',
+                value: {
+                  preferredChannel: 'sms',
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        '201': {
+          description: 'Linked citizen profile created',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/Citizen' },
+            },
+          },
+        },
+        '200': {
+          description: 'Linked citizen profile updated',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/Citizen' },
+            },
+          },
+        },
+        '401': {
+          description: 'Missing or invalid bearer token',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+        '403': {
+          description: 'Only VIEWER role can access this endpoint',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
             },
           },
         },
@@ -208,6 +378,50 @@ const paths = {
         },
       },
     },
+    patch: {
+      summary: 'Update citizen',
+      description: 'Updates a citizen. Requires Bearer token with SUPER_ADMIN or ADMIN role.',
+      tags: ['Citizens'],
+      security: [{ BearerAuth: [] }],
+      parameters: [{ $ref: '#/components/parameters/IdParam' }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/CitizenUpdate' },
+            examples: {
+              changeChannel: {
+                summary: 'Update communication channel',
+                value: {
+                  preferredChannel: 'app',
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        '200': { description: 'Citizen updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/Citizen' } } } },
+        '401': { description: 'Missing or invalid bearer token', content: { 'application/json': { schema: commonErrorSchema } } },
+        '403': { description: 'Insufficient role permissions', content: { 'application/json': { schema: commonErrorSchema } } },
+        '404': { description: 'Citizen not found', content: { 'application/json': { schema: commonErrorSchema } } },
+        '422': { description: 'Validation failed', content: { 'application/json': { schema: validationErrorSchema } } },
+      },
+    },
+    delete: {
+      summary: 'Delete citizen',
+      description: 'Deletes a citizen. Requires Bearer token with SUPER_ADMIN or ADMIN role.',
+      tags: ['Citizens'],
+      security: [{ BearerAuth: [] }],
+      parameters: [{ $ref: '#/components/parameters/IdParam' }],
+      responses: {
+        '204': { description: 'Citizen deleted' },
+        '401': { description: 'Missing or invalid bearer token', content: { 'application/json': { schema: commonErrorSchema } } },
+        '403': { description: 'Insufficient role permissions', content: { 'application/json': { schema: commonErrorSchema } } },
+        '404': { description: 'Citizen not found', content: { 'application/json': { schema: commonErrorSchema } } },
+        '409': { description: 'Citizen is still referenced by other records', content: { 'application/json': { schema: commonErrorSchema } } },
+      },
+    },
   },
   [`${API_BASE_PATH}/responders`]: {
     get: {
@@ -234,6 +448,17 @@ const paths = {
         content: {
           'application/json': {
             schema: { $ref: '#/components/schemas/ResponderCreate' },
+            examples: {
+              fireOfficer: {
+                summary: 'Create responder profile',
+                value: {
+                  name: 'Postman Responder',
+                  agency: 'BFP',
+                  role: 'Officer',
+                  contactInfo: 'responder@example.com',
+                },
+              },
+            },
           },
         },
       },
@@ -297,6 +522,50 @@ const paths = {
         },
       },
     },
+    patch: {
+      summary: 'Update responder',
+      description: 'Updates a responder. Requires Bearer token with SUPER_ADMIN or ADMIN role.',
+      tags: ['Responders'],
+      security: [{ BearerAuth: [] }],
+      parameters: [{ $ref: '#/components/parameters/IdParam' }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/ResponderUpdate' },
+            examples: {
+              moveAgency: {
+                summary: 'Update responder agency',
+                value: {
+                  agency: 'City Rescue Office',
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        '200': { description: 'Responder updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/Responder' } } } },
+        '401': { description: 'Missing or invalid bearer token', content: { 'application/json': { schema: commonErrorSchema } } },
+        '403': { description: 'Insufficient role permissions', content: { 'application/json': { schema: commonErrorSchema } } },
+        '404': { description: 'Responder not found', content: { 'application/json': { schema: commonErrorSchema } } },
+        '422': { description: 'Validation failed', content: { 'application/json': { schema: validationErrorSchema } } },
+      },
+    },
+    delete: {
+      summary: 'Delete responder',
+      description: 'Deletes a responder. Requires Bearer token with SUPER_ADMIN or ADMIN role.',
+      tags: ['Responders'],
+      security: [{ BearerAuth: [] }],
+      parameters: [{ $ref: '#/components/parameters/IdParam' }],
+      responses: {
+        '204': { description: 'Responder deleted' },
+        '401': { description: 'Missing or invalid bearer token', content: { 'application/json': { schema: commonErrorSchema } } },
+        '403': { description: 'Insufficient role permissions', content: { 'application/json': { schema: commonErrorSchema } } },
+        '404': { description: 'Responder not found', content: { 'application/json': { schema: commonErrorSchema } } },
+        '409': { description: 'Responder is still referenced by other records', content: { 'application/json': { schema: commonErrorSchema } } },
+      },
+    },
   },
   [`${API_BASE_PATH}/statuses`]: {
     get: {
@@ -323,6 +592,14 @@ const paths = {
         content: {
           'application/json': {
             schema: { $ref: '#/components/schemas/StatusCreate' },
+            examples: {
+              openStatus: {
+                summary: 'Create status',
+                value: {
+                  name: 'Open',
+                },
+              },
+            },
           },
         },
       },
@@ -332,6 +609,14 @@ const paths = {
           content: {
             'application/json': {
               schema: { $ref: '#/components/schemas/Status' },
+            },
+          },
+        },
+        '409': {
+          description: 'Status already exists (unique name)',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
             },
           },
         },
@@ -386,6 +671,50 @@ const paths = {
         },
       },
     },
+    patch: {
+      summary: 'Update status',
+      description: 'Updates a status. Requires Bearer token with SUPER_ADMIN or ADMIN role.',
+      tags: ['Statuses'],
+      security: [{ BearerAuth: [] }],
+      parameters: [{ $ref: '#/components/parameters/IdParam' }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/StatusUpdate' },
+            examples: {
+              renameStatus: {
+                summary: 'Rename status',
+                value: {
+                  name: 'In Review',
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        '200': { description: 'Status updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/Status' } } } },
+        '401': { description: 'Missing or invalid bearer token', content: { 'application/json': { schema: commonErrorSchema } } },
+        '403': { description: 'Insufficient role permissions', content: { 'application/json': { schema: commonErrorSchema } } },
+        '404': { description: 'Status not found', content: { 'application/json': { schema: commonErrorSchema } } },
+        '422': { description: 'Validation failed', content: { 'application/json': { schema: validationErrorSchema } } },
+      },
+    },
+    delete: {
+      summary: 'Delete status',
+      description: 'Deletes a status. Requires Bearer token with SUPER_ADMIN or ADMIN role.',
+      tags: ['Statuses'],
+      security: [{ BearerAuth: [] }],
+      parameters: [{ $ref: '#/components/parameters/IdParam' }],
+      responses: {
+        '204': { description: 'Status deleted' },
+        '401': { description: 'Missing or invalid bearer token', content: { 'application/json': { schema: commonErrorSchema } } },
+        '403': { description: 'Insufficient role permissions', content: { 'application/json': { schema: commonErrorSchema } } },
+        '404': { description: 'Status not found', content: { 'application/json': { schema: commonErrorSchema } } },
+        '409': { description: 'Status is still referenced by other records', content: { 'application/json': { schema: commonErrorSchema } } },
+      },
+    },
   },
   [`${API_BASE_PATH}/categories`]: {
     get: {
@@ -412,6 +741,15 @@ const paths = {
         content: {
           'application/json': {
             schema: { $ref: '#/components/schemas/CategoryCreate' },
+            examples: {
+              floodCategory: {
+                summary: 'Create incident category',
+                value: {
+                  name: 'Flood',
+                  subCategory: 'Urban',
+                },
+              },
+            },
           },
         },
       },
@@ -421,6 +759,14 @@ const paths = {
           content: {
             'application/json': {
               schema: { $ref: '#/components/schemas/Category' },
+            },
+          },
+        },
+        '409': {
+          description: 'Category already exists (unique name)',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
             },
           },
         },
@@ -475,6 +821,50 @@ const paths = {
         },
       },
     },
+    patch: {
+      summary: 'Update category',
+      description: 'Updates a category. Requires Bearer token with SUPER_ADMIN or ADMIN role.',
+      tags: ['Categories'],
+      security: [{ BearerAuth: [] }],
+      parameters: [{ $ref: '#/components/parameters/IdParam' }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/CategoryUpdate' },
+            examples: {
+              changeSubCategory: {
+                summary: 'Update category sub-type',
+                value: {
+                  subCategory: 'River Overflow',
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        '200': { description: 'Category updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/Category' } } } },
+        '401': { description: 'Missing or invalid bearer token', content: { 'application/json': { schema: commonErrorSchema } } },
+        '403': { description: 'Insufficient role permissions', content: { 'application/json': { schema: commonErrorSchema } } },
+        '404': { description: 'Category not found', content: { 'application/json': { schema: commonErrorSchema } } },
+        '422': { description: 'Validation failed', content: { 'application/json': { schema: validationErrorSchema } } },
+      },
+    },
+    delete: {
+      summary: 'Delete category',
+      description: 'Deletes a category. Requires Bearer token with SUPER_ADMIN or ADMIN role.',
+      tags: ['Categories'],
+      security: [{ BearerAuth: [] }],
+      parameters: [{ $ref: '#/components/parameters/IdParam' }],
+      responses: {
+        '204': { description: 'Category deleted' },
+        '401': { description: 'Missing or invalid bearer token', content: { 'application/json': { schema: commonErrorSchema } } },
+        '403': { description: 'Insufficient role permissions', content: { 'application/json': { schema: commonErrorSchema } } },
+        '404': { description: 'Category not found', content: { 'application/json': { schema: commonErrorSchema } } },
+        '409': { description: 'Category is still referenced by other records', content: { 'application/json': { schema: commonErrorSchema } } },
+      },
+    },
   },
   [`${API_BASE_PATH}/severities`]: {
     get: {
@@ -501,6 +891,15 @@ const paths = {
         content: {
           'application/json': {
             schema: { $ref: '#/components/schemas/SeverityCreate' },
+            examples: {
+              highSeverity: {
+                summary: 'Create severity level',
+                value: {
+                  level: 'High',
+                  definition: 'Major impact',
+                },
+              },
+            },
           },
         },
       },
@@ -510,6 +909,14 @@ const paths = {
           content: {
             'application/json': {
               schema: { $ref: '#/components/schemas/Severity' },
+            },
+          },
+        },
+        '409': {
+          description: 'Severity already exists (unique level)',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
             },
           },
         },
@@ -564,6 +971,50 @@ const paths = {
         },
       },
     },
+    patch: {
+      summary: 'Update severity',
+      description: 'Updates a severity. Requires Bearer token with SUPER_ADMIN or ADMIN role.',
+      tags: ['Severities'],
+      security: [{ BearerAuth: [] }],
+      parameters: [{ $ref: '#/components/parameters/IdParam' }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/SeverityUpdate' },
+            examples: {
+              tweakDefinition: {
+                summary: 'Update severity definition',
+                value: {
+                  definition: 'Updated impact definition',
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        '200': { description: 'Severity updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/Severity' } } } },
+        '401': { description: 'Missing or invalid bearer token', content: { 'application/json': { schema: commonErrorSchema } } },
+        '403': { description: 'Insufficient role permissions', content: { 'application/json': { schema: commonErrorSchema } } },
+        '404': { description: 'Severity not found', content: { 'application/json': { schema: commonErrorSchema } } },
+        '422': { description: 'Validation failed', content: { 'application/json': { schema: validationErrorSchema } } },
+      },
+    },
+    delete: {
+      summary: 'Delete severity',
+      description: 'Deletes a severity. Requires Bearer token with SUPER_ADMIN or ADMIN role.',
+      tags: ['Severities'],
+      security: [{ BearerAuth: [] }],
+      parameters: [{ $ref: '#/components/parameters/IdParam' }],
+      responses: {
+        '204': { description: 'Severity deleted' },
+        '401': { description: 'Missing or invalid bearer token', content: { 'application/json': { schema: commonErrorSchema } } },
+        '403': { description: 'Insufficient role permissions', content: { 'application/json': { schema: commonErrorSchema } } },
+        '404': { description: 'Severity not found', content: { 'application/json': { schema: commonErrorSchema } } },
+        '409': { description: 'Severity is still referenced by other records', content: { 'application/json': { schema: commonErrorSchema } } },
+      },
+    },
   },
   [`${API_BASE_PATH}/locations`]: {
     get: {
@@ -590,6 +1041,17 @@ const paths = {
         content: {
           'application/json': {
             schema: { $ref: '#/components/schemas/LocationCreate' },
+            examples: {
+              metroLocation: {
+                summary: 'Create incident location',
+                value: {
+                  district: 'District 1',
+                  city: 'Manila',
+                  province: 'NCR',
+                  region: 'National Capital Region',
+                },
+              },
+            },
           },
         },
       },
@@ -653,11 +1115,58 @@ const paths = {
         },
       },
     },
+    patch: {
+      summary: 'Update location',
+      description: 'Updates a location. Requires Bearer token with SUPER_ADMIN or ADMIN role.',
+      tags: ['Locations'],
+      security: [{ BearerAuth: [] }],
+      parameters: [{ $ref: '#/components/parameters/IdParam' }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/LocationUpdate' },
+            examples: {
+              moveCity: {
+                summary: 'Update city name',
+                value: {
+                  city: 'Quezon City',
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        '200': { description: 'Location updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/Location' } } } },
+        '401': { description: 'Missing or invalid bearer token', content: { 'application/json': { schema: commonErrorSchema } } },
+        '403': { description: 'Insufficient role permissions', content: { 'application/json': { schema: commonErrorSchema } } },
+        '404': { description: 'Location not found', content: { 'application/json': { schema: commonErrorSchema } } },
+        '422': { description: 'Validation failed', content: { 'application/json': { schema: validationErrorSchema } } },
+      },
+    },
+    delete: {
+      summary: 'Delete location',
+      description: 'Deletes a location. Requires Bearer token with SUPER_ADMIN or ADMIN role.',
+      tags: ['Locations'],
+      security: [{ BearerAuth: [] }],
+      parameters: [{ $ref: '#/components/parameters/IdParam' }],
+      responses: {
+        '204': { description: 'Location deleted' },
+        '401': { description: 'Missing or invalid bearer token', content: { 'application/json': { schema: commonErrorSchema } } },
+        '403': { description: 'Insufficient role permissions', content: { 'application/json': { schema: commonErrorSchema } } },
+        '404': { description: 'Location not found', content: { 'application/json': { schema: commonErrorSchema } } },
+        '409': { description: 'Location is still referenced by other records', content: { 'application/json': { schema: commonErrorSchema } } },
+      },
+    },
   },
   [`${API_BASE_PATH}/incidents`]: {
     get: {
       summary: 'List incidents',
+      description:
+        'Returns incidents for authenticated users. VIEWER users only see their own incident reports; staff roles can see all incidents.',
       tags: ['Incidents'],
+      security: [{ BearerAuth: [] }],
       responses: {
         '200': {
           description: 'Incident list',
@@ -667,6 +1176,22 @@ const paths = {
                 type: 'array',
                 items: { $ref: '#/components/schemas/CitizenIncident' },
               },
+            },
+          },
+        },
+        '401': {
+          description: 'Missing or invalid bearer token',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+        '422': {
+          description: 'VIEWER account has no linked citizen profile',
+          content: {
+            'application/json': {
+              schema: validationErrorSchema,
             },
           },
         },
@@ -683,6 +1208,19 @@ const paths = {
         content: {
           'application/json': {
             schema: { $ref: '#/components/schemas/CitizenIncidentCreate' },
+            examples: {
+              floodReport: {
+                summary: 'Create an incident report',
+                value: {
+                  description: 'Street flooding near school',
+                  statusId: 1,
+                  citizenId: 1,
+                  locationId: 1,
+                  categoryId: 1,
+                  severityId: 1,
+                },
+              },
+            },
           },
         },
       },
@@ -722,10 +1260,76 @@ const paths = {
       },
     },
   },
+  [`${API_BASE_PATH}/incidents/report`]: {
+    post: {
+      summary: 'Citizen self-report incident',
+      description:
+        'Allows an authenticated VIEWER user to submit an incident. citizenId is server-managed and inferred from the authenticated account context; client-provided citizenId is rejected.',
+      tags: ['Incidents'],
+      security: [{ BearerAuth: [] }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/CitizenIncidentReportCreate' },
+            examples: {
+              citizenMobileReport: {
+                summary: 'Citizen mobile incident submission',
+                value: {
+                  description: 'Flood water rising near barangay hall',
+                  statusId: 1,
+                  locationId: 1,
+                  categoryId: 1,
+                  severityId: 1,
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        '201': {
+          description: 'Incident reported successfully',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/CitizenIncident' },
+            },
+          },
+        },
+        '401': {
+          description: 'Missing or invalid bearer token',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+        '403': {
+          description: 'Only VIEWER role can access this endpoint',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+        '422': {
+          description: 'Validation failed or citizen profile not linked to account email',
+          content: {
+            'application/json': {
+              schema: validationErrorSchema,
+            },
+          },
+        },
+      },
+    },
+  },
   [`${API_BASE_PATH}/incidents/{id}`]: {
     get: {
       summary: 'Get incident by id',
+      description:
+        'Returns an incident by ID for authenticated users. VIEWER users can only access their own incident reports.',
       tags: ['Incidents'],
+      security: [{ BearerAuth: [] }],
       parameters: [{ $ref: '#/components/parameters/IdParam' }],
       responses: {
         '200': {
@@ -733,6 +1337,22 @@ const paths = {
           content: {
             'application/json': {
               schema: { $ref: '#/components/schemas/CitizenIncident' },
+            },
+          },
+        },
+        '401': {
+          description: 'Missing or invalid bearer token',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+        '422': {
+          description: 'VIEWER account has no linked citizen profile',
+          content: {
+            'application/json': {
+              schema: validationErrorSchema,
             },
           },
         },
@@ -744,6 +1364,50 @@ const paths = {
             },
           },
         },
+      },
+    },
+    patch: {
+      summary: 'Update incident',
+      description: 'Updates an incident. Requires Bearer token with SUPER_ADMIN, ADMIN, DISPATCHER, or RESPONDER role.',
+      tags: ['Incidents'],
+      security: [{ BearerAuth: [] }],
+      parameters: [{ $ref: '#/components/parameters/IdParam' }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/CitizenIncidentUpdate' },
+            examples: {
+              reviseDescription: {
+                summary: 'Update incident detail',
+                value: {
+                  description: 'Street flooding near school gate',
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        '200': { description: 'Incident updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/CitizenIncident' } } } },
+        '401': { description: 'Missing or invalid bearer token', content: { 'application/json': { schema: commonErrorSchema } } },
+        '403': { description: 'Insufficient role permissions', content: { 'application/json': { schema: commonErrorSchema } } },
+        '404': { description: 'Incident not found', content: { 'application/json': { schema: commonErrorSchema } } },
+        '422': { description: 'Validation or FK reference failed', content: { 'application/json': { schema: validationErrorSchema } } },
+      },
+    },
+    delete: {
+      summary: 'Delete incident',
+      description: 'Deletes an incident. Requires Bearer token with SUPER_ADMIN, ADMIN, DISPATCHER, or RESPONDER role.',
+      tags: ['Incidents'],
+      security: [{ BearerAuth: [] }],
+      parameters: [{ $ref: '#/components/parameters/IdParam' }],
+      responses: {
+        '204': { description: 'Incident deleted' },
+        '401': { description: 'Missing or invalid bearer token', content: { 'application/json': { schema: commonErrorSchema } } },
+        '403': { description: 'Insufficient role permissions', content: { 'application/json': { schema: commonErrorSchema } } },
+        '404': { description: 'Incident not found', content: { 'application/json': { schema: commonErrorSchema } } },
+        '409': { description: 'Incident is still referenced by other records', content: { 'application/json': { schema: commonErrorSchema } } },
       },
     },
   },
@@ -773,6 +1437,15 @@ const paths = {
         content: {
           'application/json': {
             schema: { $ref: '#/components/schemas/AssignmentCreate' },
+            examples: {
+              assignResponder: {
+                summary: 'Assign responder to incident',
+                value: {
+                  incidentId: 1,
+                  responderId: 1,
+                },
+              },
+            },
           },
         },
       },
@@ -836,6 +1509,49 @@ const paths = {
         },
       },
     },
+    patch: {
+      summary: 'Update assignment',
+      description: 'Updates an assignment. Requires Bearer token with SUPER_ADMIN, ADMIN, or DISPATCHER role.',
+      tags: ['Assignments'],
+      security: [{ BearerAuth: [] }],
+      parameters: [{ $ref: '#/components/parameters/IdParam' }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/AssignmentUpdate' },
+            examples: {
+              addOutcome: {
+                summary: 'Update assignment outcome',
+                value: {
+                  outcome: 'Monitoring',
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        '200': { description: 'Assignment updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/Assignment' } } } },
+        '401': { description: 'Missing or invalid bearer token', content: { 'application/json': { schema: commonErrorSchema } } },
+        '403': { description: 'Insufficient role permissions', content: { 'application/json': { schema: commonErrorSchema } } },
+        '404': { description: 'Assignment not found', content: { 'application/json': { schema: commonErrorSchema } } },
+        '422': { description: 'Validation or FK reference failed', content: { 'application/json': { schema: validationErrorSchema } } },
+      },
+    },
+    delete: {
+      summary: 'Delete assignment',
+      description: 'Deletes an assignment. Requires Bearer token with SUPER_ADMIN, ADMIN, or DISPATCHER role.',
+      tags: ['Assignments'],
+      security: [{ BearerAuth: [] }],
+      parameters: [{ $ref: '#/components/parameters/IdParam' }],
+      responses: {
+        '204': { description: 'Assignment deleted' },
+        '401': { description: 'Missing or invalid bearer token', content: { 'application/json': { schema: commonErrorSchema } } },
+        '403': { description: 'Insufficient role permissions', content: { 'application/json': { schema: commonErrorSchema } } },
+        '404': { description: 'Assignment not found', content: { 'application/json': { schema: commonErrorSchema } } },
+      },
+    },
   },
   [`${API_BASE_PATH}/users`]: {
     get: {
@@ -881,6 +1597,26 @@ const paths = {
         content: {
           'application/json': {
             schema: { $ref: '#/components/schemas/UserCreate' },
+            examples: {
+              createDispatcher: {
+                summary: 'Create dispatcher account',
+                value: {
+                  name: 'Dispatcher One',
+                  email: 'dispatcher.one@xypes.local',
+                  password: 'Password123!',
+                  role: 'DISPATCHER',
+                },
+              },
+              createViewer: {
+                summary: 'Create viewer account',
+                value: {
+                  name: 'Viewer One',
+                  email: 'viewer.one@xypes.local',
+                  password: 'Password123!',
+                  role: 'VIEWER',
+                },
+              },
+            },
           },
         },
       },
@@ -982,6 +1718,21 @@ const paths = {
         content: {
           'application/json': {
             schema: { $ref: '#/components/schemas/UserUpdate' },
+            examples: {
+              updateUserProfile: {
+                summary: 'Update user profile fields',
+                value: {
+                  name: 'Updated Dispatcher',
+                  email: 'updated.dispatcher@xypes.local',
+                },
+              },
+              changeUserRole: {
+                summary: 'Admin role update',
+                value: {
+                  role: 'RESPONDER',
+                },
+              },
+            },
           },
         },
       },
@@ -1152,6 +1903,37 @@ export const openApiDocument = {
           preferredChannel: { type: 'string' },
         },
         required: ['name', 'contactInfo', 'preferredChannel'],
+        example: {
+          name: 'Postman Citizen',
+          contactInfo: 'citizen@example.com',
+          preferredChannel: 'sms',
+        },
+      },
+      CitizenUpdate: {
+        type: 'object',
+        minProperties: 1,
+        properties: {
+          name: { type: 'string' },
+          contactInfo: { type: 'string' },
+          preferredChannel: { type: 'string' },
+        },
+        example: {
+          preferredChannel: 'app',
+        },
+      },
+      CitizenLinkMeRequest: {
+        type: 'object',
+        description:
+          'Payload for linking or updating the authenticated viewer citizen profile. contactInfo is not allowed in this payload and is always bound to the authenticated user email.',
+        minProperties: 1,
+        properties: {
+          name: { type: 'string' },
+          preferredChannel: { type: 'string' },
+        },
+        example: {
+          name: 'Jane Citizen',
+          preferredChannel: 'app',
+        },
       },
       Responder: {
         type: 'object',
@@ -1173,6 +1955,25 @@ export const openApiDocument = {
           contactInfo: { type: 'string' },
         },
         required: ['name', 'agency', 'role', 'contactInfo'],
+        example: {
+          name: 'Postman Responder',
+          agency: 'BFP',
+          role: 'Officer',
+          contactInfo: 'responder@example.com',
+        },
+      },
+      ResponderUpdate: {
+        type: 'object',
+        minProperties: 1,
+        properties: {
+          name: { type: 'string' },
+          agency: { type: 'string' },
+          role: { type: 'string' },
+          contactInfo: { type: 'string' },
+        },
+        example: {
+          agency: 'City Rescue Office',
+        },
       },
       Status: {
         type: 'object',
@@ -1188,6 +1989,19 @@ export const openApiDocument = {
           name: { type: 'string' },
         },
         required: ['name'],
+        example: {
+          name: 'Open',
+        },
+      },
+      StatusUpdate: {
+        type: 'object',
+        required: ['name'],
+        properties: {
+          name: { type: 'string' },
+        },
+        example: {
+          name: 'In Review',
+        },
       },
       Category: {
         type: 'object',
@@ -1205,6 +2019,21 @@ export const openApiDocument = {
           subCategory: { type: 'string' },
         },
         required: ['name'],
+        example: {
+          name: 'Flood',
+          subCategory: 'Urban',
+        },
+      },
+      CategoryUpdate: {
+        type: 'object',
+        minProperties: 1,
+        properties: {
+          name: { type: 'string' },
+          subCategory: { type: 'string', nullable: true },
+        },
+        example: {
+          subCategory: 'River Overflow',
+        },
       },
       Severity: {
         type: 'object',
@@ -1222,6 +2051,21 @@ export const openApiDocument = {
           definition: { type: 'string' },
         },
         required: ['level'],
+        example: {
+          level: 'High',
+          definition: 'Major impact',
+        },
+      },
+      SeverityUpdate: {
+        type: 'object',
+        minProperties: 1,
+        properties: {
+          level: { type: 'string' },
+          definition: { type: 'string', nullable: true },
+        },
+        example: {
+          definition: 'Updated impact definition',
+        },
       },
       Location: {
         type: 'object',
@@ -1243,6 +2087,25 @@ export const openApiDocument = {
           region: { type: 'string' },
         },
         required: ['district', 'city', 'province', 'region'],
+        example: {
+          district: 'District 1',
+          city: 'Manila',
+          province: 'NCR',
+          region: 'National Capital Region',
+        },
+      },
+      LocationUpdate: {
+        type: 'object',
+        minProperties: 1,
+        properties: {
+          district: { type: 'string' },
+          city: { type: 'string' },
+          province: { type: 'string' },
+          region: { type: 'string' },
+        },
+        example: {
+          city: 'Quezon City',
+        },
       },
       CitizenIncident: {
         type: 'object',
@@ -1281,6 +2144,53 @@ export const openApiDocument = {
           severityId: { type: 'integer' },
         },
         required: ['description', 'statusId', 'citizenId', 'locationId', 'categoryId', 'severityId'],
+        example: {
+          description: 'Street flooding near school',
+          statusId: 1,
+          citizenId: 1,
+          locationId: 1,
+          categoryId: 1,
+          severityId: 1,
+        },
+      },
+      CitizenIncidentReportCreate: {
+        type: 'object',
+        description:
+          'Payload for viewer self-report incidents. citizenId must not be sent; it is inferred from the authenticated account context.',
+        properties: {
+          description: { type: 'string' },
+          mediaUrl: { type: 'string' },
+          dateReported: { type: 'string', format: 'date-time' },
+          statusId: { type: 'integer' },
+          locationId: { type: 'integer' },
+          categoryId: { type: 'integer' },
+          severityId: { type: 'integer' },
+        },
+        required: ['description', 'statusId', 'locationId', 'categoryId', 'severityId'],
+        example: {
+          description: 'Flood water rising near barangay hall',
+          statusId: 1,
+          locationId: 1,
+          categoryId: 1,
+          severityId: 1,
+        },
+      },
+      CitizenIncidentUpdate: {
+        type: 'object',
+        minProperties: 1,
+        properties: {
+          description: { type: 'string' },
+          mediaUrl: { type: 'string' },
+          dateReported: { type: 'string', format: 'date-time' },
+          statusId: { type: 'integer' },
+          citizenId: { type: 'integer' },
+          locationId: { type: 'integer' },
+          categoryId: { type: 'integer' },
+          severityId: { type: 'integer' },
+        },
+        example: {
+          description: 'Street flooding near school gate',
+        },
       },
       Assignment: {
         type: 'object',
@@ -1308,6 +2218,26 @@ export const openApiDocument = {
           notes: { type: 'string' },
         },
         required: ['incidentId', 'responderId'],
+        example: {
+          incidentId: 1,
+          responderId: 1,
+        },
+      },
+      AssignmentUpdate: {
+        type: 'object',
+        minProperties: 1,
+        properties: {
+          incidentId: { type: 'integer' },
+          responderId: { type: 'integer' },
+          assignedDate: { type: 'string', format: 'date-time' },
+          responseStart: { type: 'string', format: 'date-time' },
+          responseEnd: { type: 'string', format: 'date-time' },
+          outcome: { type: 'string' },
+          notes: { type: 'string' },
+        },
+        example: {
+          outcome: 'Monitoring',
+        },
       },
       User: {
         type: 'object',
@@ -1356,6 +2286,15 @@ export const openApiDocument = {
           },
         },
       },
+      RegisterRequest: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', example: 'Jane Citizen' },
+          email: { type: 'string', format: 'email', example: 'jane.citizen@xypes.local' },
+          password: { type: 'string', format: 'password', minLength: 8, example: 'Password123!' },
+        },
+        required: ['name', 'email', 'password'],
+      },
       LoginRequest: {
         type: 'object',
         properties: {
@@ -1363,15 +2302,19 @@ export const openApiDocument = {
           password: { type: 'string', format: 'password' },
         },
         required: ['email', 'password'],
+        example: {
+          email: 'admin@xypes.local',
+          password: 'Password123!',
+        },
       },
       LoginResponse: {
         type: 'object',
         properties: {
-          accessToken: { type: 'string' },
+          token: { type: 'string' },
           tokenType: { type: 'string', example: 'Bearer' },
           user: { $ref: '#/components/schemas/User' },
         },
-        required: ['accessToken', 'tokenType', 'user'],
+        required: ['token', 'tokenType', 'user'],
       },
     },
   },

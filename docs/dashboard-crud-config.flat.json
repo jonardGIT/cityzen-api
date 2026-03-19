@@ -1,0 +1,493 @@
+{
+  "apiBasePath": "/api/v1",
+  "auth": {
+    "type": "bearer",
+    "tokenHeader": "Authorization",
+    "tokenPrefix": "Bearer"
+  },
+  "endpoints": [
+    {
+      "resource": "citizens",
+      "label": "Citizens",
+      "operation": "list",
+      "method": "GET",
+      "path": "/citizens",
+      "fullPath": "/api/v1/citizens",
+      "authRequired": false,
+      "allowedRoles": []
+    },
+    {
+      "resource": "citizens",
+      "label": "Citizens",
+      "operation": "get",
+      "method": "GET",
+      "path": "/citizens/{id}",
+      "fullPath": "/api/v1/citizens/{id}",
+      "authRequired": false,
+      "allowedRoles": []
+    },
+    {
+      "resource": "citizens",
+      "label": "Citizens",
+      "operation": "create",
+      "method": "POST",
+      "path": "/citizens",
+      "fullPath": "/api/v1/citizens",
+      "authRequired": false,
+      "allowedRoles": []
+    },
+    {
+      "resource": "citizens",
+      "label": "Citizens",
+      "operation": "linkMe",
+      "method": "POST",
+      "path": "/citizens/link-me",
+      "fullPath": "/api/v1/citizens/link-me",
+      "authRequired": true,
+      "allowedRoles": ["VIEWER"],
+      "notes": "Creates or updates the authenticated viewer's linked citizen profile."
+    },
+    {
+      "resource": "citizens",
+      "label": "Citizens",
+      "operation": "update",
+      "method": "PATCH",
+      "path": "/citizens/{id}",
+      "fullPath": "/api/v1/citizens/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+    },
+    {
+      "resource": "citizens",
+      "label": "Citizens",
+      "operation": "delete",
+      "method": "DELETE",
+      "path": "/citizens/{id}",
+      "fullPath": "/api/v1/citizens/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+    },
+
+    {
+      "resource": "responders",
+      "label": "Responders",
+      "operation": "list",
+      "method": "GET",
+      "path": "/responders",
+      "fullPath": "/api/v1/responders",
+      "authRequired": false,
+      "allowedRoles": []
+    },
+    {
+      "resource": "responders",
+      "label": "Responders",
+      "operation": "get",
+      "method": "GET",
+      "path": "/responders/{id}",
+      "fullPath": "/api/v1/responders/{id}",
+      "authRequired": false,
+      "allowedRoles": []
+    },
+    {
+      "resource": "responders",
+      "label": "Responders",
+      "operation": "create",
+      "method": "POST",
+      "path": "/responders",
+      "fullPath": "/api/v1/responders",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+    },
+    {
+      "resource": "responders",
+      "label": "Responders",
+      "operation": "update",
+      "method": "PATCH",
+      "path": "/responders/{id}",
+      "fullPath": "/api/v1/responders/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+    },
+    {
+      "resource": "responders",
+      "label": "Responders",
+      "operation": "delete",
+      "method": "DELETE",
+      "path": "/responders/{id}",
+      "fullPath": "/api/v1/responders/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+    },
+
+    {
+      "resource": "statuses",
+      "label": "Statuses",
+      "operation": "list",
+      "method": "GET",
+      "path": "/statuses",
+      "fullPath": "/api/v1/statuses",
+      "authRequired": false,
+      "allowedRoles": []
+    },
+    {
+      "resource": "statuses",
+      "label": "Statuses",
+      "operation": "get",
+      "method": "GET",
+      "path": "/statuses/{id}",
+      "fullPath": "/api/v1/statuses/{id}",
+      "authRequired": false,
+      "allowedRoles": []
+    },
+    {
+      "resource": "statuses",
+      "label": "Statuses",
+      "operation": "create",
+      "method": "POST",
+      "path": "/statuses",
+      "fullPath": "/api/v1/statuses",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+    },
+    {
+      "resource": "statuses",
+      "label": "Statuses",
+      "operation": "update",
+      "method": "PATCH",
+      "path": "/statuses/{id}",
+      "fullPath": "/api/v1/statuses/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+    },
+    {
+      "resource": "statuses",
+      "label": "Statuses",
+      "operation": "delete",
+      "method": "DELETE",
+      "path": "/statuses/{id}",
+      "fullPath": "/api/v1/statuses/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+    },
+
+    {
+      "resource": "categories",
+      "label": "Categories",
+      "operation": "list",
+      "method": "GET",
+      "path": "/categories",
+      "fullPath": "/api/v1/categories",
+      "authRequired": false,
+      "allowedRoles": []
+    },
+    {
+      "resource": "categories",
+      "label": "Categories",
+      "operation": "get",
+      "method": "GET",
+      "path": "/categories/{id}",
+      "fullPath": "/api/v1/categories/{id}",
+      "authRequired": false,
+      "allowedRoles": []
+    },
+    {
+      "resource": "categories",
+      "label": "Categories",
+      "operation": "create",
+      "method": "POST",
+      "path": "/categories",
+      "fullPath": "/api/v1/categories",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+    },
+    {
+      "resource": "categories",
+      "label": "Categories",
+      "operation": "update",
+      "method": "PATCH",
+      "path": "/categories/{id}",
+      "fullPath": "/api/v1/categories/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+    },
+    {
+      "resource": "categories",
+      "label": "Categories",
+      "operation": "delete",
+      "method": "DELETE",
+      "path": "/categories/{id}",
+      "fullPath": "/api/v1/categories/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+    },
+
+    {
+      "resource": "severities",
+      "label": "Severities",
+      "operation": "list",
+      "method": "GET",
+      "path": "/severities",
+      "fullPath": "/api/v1/severities",
+      "authRequired": false,
+      "allowedRoles": []
+    },
+    {
+      "resource": "severities",
+      "label": "Severities",
+      "operation": "get",
+      "method": "GET",
+      "path": "/severities/{id}",
+      "fullPath": "/api/v1/severities/{id}",
+      "authRequired": false,
+      "allowedRoles": []
+    },
+    {
+      "resource": "severities",
+      "label": "Severities",
+      "operation": "create",
+      "method": "POST",
+      "path": "/severities",
+      "fullPath": "/api/v1/severities",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+    },
+    {
+      "resource": "severities",
+      "label": "Severities",
+      "operation": "update",
+      "method": "PATCH",
+      "path": "/severities/{id}",
+      "fullPath": "/api/v1/severities/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+    },
+    {
+      "resource": "severities",
+      "label": "Severities",
+      "operation": "delete",
+      "method": "DELETE",
+      "path": "/severities/{id}",
+      "fullPath": "/api/v1/severities/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+    },
+
+    {
+      "resource": "locations",
+      "label": "Locations",
+      "operation": "list",
+      "method": "GET",
+      "path": "/locations",
+      "fullPath": "/api/v1/locations",
+      "authRequired": false,
+      "allowedRoles": []
+    },
+    {
+      "resource": "locations",
+      "label": "Locations",
+      "operation": "get",
+      "method": "GET",
+      "path": "/locations/{id}",
+      "fullPath": "/api/v1/locations/{id}",
+      "authRequired": false,
+      "allowedRoles": []
+    },
+    {
+      "resource": "locations",
+      "label": "Locations",
+      "operation": "create",
+      "method": "POST",
+      "path": "/locations",
+      "fullPath": "/api/v1/locations",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+    },
+    {
+      "resource": "locations",
+      "label": "Locations",
+      "operation": "update",
+      "method": "PATCH",
+      "path": "/locations/{id}",
+      "fullPath": "/api/v1/locations/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+    },
+    {
+      "resource": "locations",
+      "label": "Locations",
+      "operation": "delete",
+      "method": "DELETE",
+      "path": "/locations/{id}",
+      "fullPath": "/api/v1/locations/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+    },
+
+    {
+      "resource": "incidents",
+      "label": "Incidents",
+      "operation": "list",
+      "method": "GET",
+      "path": "/incidents",
+      "fullPath": "/api/v1/incidents",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN", "DISPATCHER", "RESPONDER", "VIEWER"],
+      "notes": "VIEWER users only receive their own incidents."
+    },
+    {
+      "resource": "incidents",
+      "label": "Incidents",
+      "operation": "get",
+      "method": "GET",
+      "path": "/incidents/{id}",
+      "fullPath": "/api/v1/incidents/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN", "DISPATCHER", "RESPONDER", "VIEWER"],
+      "notes": "VIEWER users can only access their own incident IDs."
+    },
+    {
+      "resource": "incidents",
+      "label": "Incidents",
+      "operation": "create",
+      "method": "POST",
+      "path": "/incidents",
+      "fullPath": "/api/v1/incidents",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN", "DISPATCHER", "RESPONDER"]
+    },
+    {
+      "resource": "incidents",
+      "label": "Incidents",
+      "operation": "report",
+      "method": "POST",
+      "path": "/incidents/report",
+      "fullPath": "/api/v1/incidents/report",
+      "authRequired": true,
+      "allowedRoles": ["VIEWER"],
+      "notes": "Citizen self-report endpoint. citizenId is inferred from authenticated user email."
+    },
+    {
+      "resource": "incidents",
+      "label": "Incidents",
+      "operation": "update",
+      "method": "PATCH",
+      "path": "/incidents/{id}",
+      "fullPath": "/api/v1/incidents/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN", "DISPATCHER", "RESPONDER"]
+    },
+    {
+      "resource": "incidents",
+      "label": "Incidents",
+      "operation": "delete",
+      "method": "DELETE",
+      "path": "/incidents/{id}",
+      "fullPath": "/api/v1/incidents/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN", "DISPATCHER", "RESPONDER"]
+    },
+
+    {
+      "resource": "assignments",
+      "label": "Assignments",
+      "operation": "list",
+      "method": "GET",
+      "path": "/assignments",
+      "fullPath": "/api/v1/assignments",
+      "authRequired": false,
+      "allowedRoles": []
+    },
+    {
+      "resource": "assignments",
+      "label": "Assignments",
+      "operation": "get",
+      "method": "GET",
+      "path": "/assignments/{id}",
+      "fullPath": "/api/v1/assignments/{id}",
+      "authRequired": false,
+      "allowedRoles": []
+    },
+    {
+      "resource": "assignments",
+      "label": "Assignments",
+      "operation": "create",
+      "method": "POST",
+      "path": "/assignments",
+      "fullPath": "/api/v1/assignments",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN", "DISPATCHER"]
+    },
+    {
+      "resource": "assignments",
+      "label": "Assignments",
+      "operation": "update",
+      "method": "PATCH",
+      "path": "/assignments/{id}",
+      "fullPath": "/api/v1/assignments/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN", "DISPATCHER"]
+    },
+    {
+      "resource": "assignments",
+      "label": "Assignments",
+      "operation": "delete",
+      "method": "DELETE",
+      "path": "/assignments/{id}",
+      "fullPath": "/api/v1/assignments/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN", "DISPATCHER"]
+    },
+
+    {
+      "resource": "users",
+      "label": "Users",
+      "operation": "list",
+      "method": "GET",
+      "path": "/users",
+      "fullPath": "/api/v1/users",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+    },
+    {
+      "resource": "users",
+      "label": "Users",
+      "operation": "get",
+      "method": "GET",
+      "path": "/users/{id}",
+      "fullPath": "/api/v1/users/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+    },
+    {
+      "resource": "users",
+      "label": "Users",
+      "operation": "create",
+      "method": "POST",
+      "path": "/users",
+      "fullPath": "/api/v1/users",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+    },
+    {
+      "resource": "users",
+      "label": "Users",
+      "operation": "update",
+      "method": "PATCH",
+      "path": "/users/{id}",
+      "fullPath": "/api/v1/users/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN"],
+      "notes": "Self-update is allowed by backend logic for non-role fields."
+    },
+    {
+      "resource": "users",
+      "label": "Users",
+      "operation": "delete",
+      "method": "DELETE",
+      "path": "/users/{id}",
+      "fullPath": "/api/v1/users/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+    }
+  ]
+}

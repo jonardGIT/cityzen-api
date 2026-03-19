@@ -1,7 +1,13 @@
 import request from 'supertest';
 import app, { API_V1 } from '../app.js';
+import { getAdminToken } from './helpers/auth.js';
 
 const BASE = `${API_V1}/categories`;
+let adminToken = '';
+
+beforeAll(async () => {
+  adminToken = await getAdminToken();
+});
 
 describe(`GET ${BASE}`, () => {
   it('should return 200 with array', async () => {
@@ -26,13 +32,16 @@ describe(`GET ${BASE}/:id`, () => {
 
 describe(`POST ${BASE}`, () => {
   it('should create and return 201', async () => {
-    const res = await request(app).post(BASE).send({ name: 'Flood', subCategory: 'Urban' });
+    const res = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: `Flood-${Date.now()}`, subCategory: 'Urban' });
     expect(res.status).toBe(201);
-    expect(res.body).toMatchObject({ name: 'Flood' });
+    expect(res.body.name).toContain('Flood-');
   });
 
   it('should return 400 when name is missing', async () => {
-    const res = await request(app).post(BASE).send({});
+    const res = await request(app).post(BASE).set('Authorization', `Bearer ${adminToken}`).send({});
     expect(res.status).toBe(422);
     expect(res.body).toHaveProperty('errors');
   });

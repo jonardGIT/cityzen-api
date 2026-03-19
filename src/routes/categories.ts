@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import {
   createCategory,
+  deleteCategory,
   getCategories,
   getCategoryById,
+  updateCategory,
 } from '../controllers/categoriesController.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { validateRequest } from '../middleware/validateRequest.js';
-import { createCategoryValidator } from '../validators/bodyValidators.js';
+import { createCategoryValidator, updateCategoryValidator } from '../validators/bodyValidators.js';
 import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
 import { ADMIN_ROLES } from '../types/auth.js';
 
@@ -22,5 +24,14 @@ router.post(
   validateRequest,
   asyncHandler(createCategory)
 );
+router.patch(
+  '/:id',
+  requireJwtAuth,
+  requireRole(...ADMIN_ROLES),
+  updateCategoryValidator,
+  validateRequest,
+  asyncHandler(updateCategory)
+);
+router.delete('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(deleteCategory));
 
 export default router;

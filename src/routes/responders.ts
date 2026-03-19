@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import {
   createResponder,
+  deleteResponder,
   getResponderById,
   getResponders,
+  updateResponder,
 } from '../controllers/respondersController.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { validateRequest } from '../middleware/validateRequest.js';
-import { createResponderValidator } from '../validators/bodyValidators.js';
+import { createResponderValidator, updateResponderValidator } from '../validators/bodyValidators.js';
 import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
 import { ADMIN_ROLES } from '../types/auth.js';
 
@@ -22,5 +24,14 @@ router.post(
   validateRequest,
   asyncHandler(createResponder)
 );
+router.patch(
+  '/:id',
+  requireJwtAuth,
+  requireRole(...ADMIN_ROLES),
+  updateResponderValidator,
+  validateRequest,
+  asyncHandler(updateResponder)
+);
+router.delete('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(deleteResponder));
 
 export default router;

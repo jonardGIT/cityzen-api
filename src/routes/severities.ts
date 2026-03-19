@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import {
   createSeverity,
+  deleteSeverity,
   getSeverityById,
   getSeverities,
+  updateSeverity,
 } from '../controllers/severitiesController.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { validateRequest } from '../middleware/validateRequest.js';
-import { createSeverityValidator } from '../validators/bodyValidators.js';
+import { createSeverityValidator, updateSeverityValidator } from '../validators/bodyValidators.js';
 import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
 import { ADMIN_ROLES } from '../types/auth.js';
 
@@ -22,5 +24,14 @@ router.post(
   validateRequest,
   asyncHandler(createSeverity)
 );
+router.patch(
+  '/:id',
+  requireJwtAuth,
+  requireRole(...ADMIN_ROLES),
+  updateSeverityValidator,
+  validateRequest,
+  asyncHandler(updateSeverity)
+);
+router.delete('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(deleteSeverity));
 
 export default router;

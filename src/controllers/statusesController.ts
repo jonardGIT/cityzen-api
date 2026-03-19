@@ -42,3 +42,44 @@ export async function createStatus(req: Request, res: Response): Promise<void> {
 
   res.status(201).json(status);
 }
+
+// Updates an existing status entry.
+export async function updateStatus(req: Request, res: Response): Promise<void> {
+  const id = getParamId(req, res);
+  if (id === null) {
+    return;
+  }
+
+  const { name } = req.body as { name?: string };
+  const existingStatus = await prisma.status.findUnique({ where: { id } });
+
+  if (!existingStatus) {
+    res.status(404).json({ message: 'Status not found' });
+    return;
+  }
+
+  const status = await prisma.status.update({
+    where: { id },
+    data: { name },
+  });
+
+  res.json(status);
+}
+
+// Deletes an existing status entry.
+export async function deleteStatus(req: Request, res: Response): Promise<void> {
+  const id = getParamId(req, res);
+  if (id === null) {
+    return;
+  }
+
+  const existingStatus = await prisma.status.findUnique({ where: { id } });
+
+  if (!existingStatus) {
+    res.status(404).json({ message: 'Status not found' });
+    return;
+  }
+
+  await prisma.status.delete({ where: { id } });
+  res.status(204).send();
+}

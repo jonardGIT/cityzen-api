@@ -2,6 +2,9 @@
 export default {
   preset: 'ts-jest',
   testEnvironment: 'node',
+  testTimeout: 30000,
+  maxWorkers: 1,
+  setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.ts'],
   extensionsToTreatAsEsm: [],
   transform: {
     '^.+\\.ts$': [
