@@ -7,6 +7,7 @@ Citizen Incident Reporting System (CIRS) REST API built with TypeScript, Express
 This API provides versioned endpoints for:
 
 - Citizens
+- Agencies
 - Responders
 - Statuses
 - Categories
@@ -55,7 +56,7 @@ Core features:
 ### prisma folder
 
 - `prisma/schema.prisma`: single source of truth for data models and relations.
-	- Defines models: `User`, `Citizen`, `Responder`, `Status`, `Category`, `Severity`, `Location`, `CitizenIncident`, `Assignment`.
+	- Defines models: `User`, `Citizen`, `Agency`, `Responder`, `Status`, `Category`, `Severity`, `Location`, `CitizenIncident`, `Assignment`.
 	- Uses `@@map(...)` for mapped table names used in PostgreSQL.
 
 - `prisma/reset-prisma-schema.sql`: one-time database reset script.
@@ -140,6 +141,7 @@ Each resource supports:
 Resources:
 
 - `/api/v1/citizens`
+- `/api/v1/agencies`
 - `/api/v1/responders`
 - `/api/v1/statuses`
 - `/api/v1/categories`

@@ -25,13 +25,22 @@ model Citizen {
   @@map("citizens")
 }
 
+model Agency {
+  id         Int         @id @default(autoincrement())
+  name       String      @unique
+  responders Responder[]
+
+  @@map("agencies")
+}
+
 model Responder {
   id          Int          @id @default(autoincrement())
   name        String
-  agency      String
+  agencyId    Int
   role        String
   contactInfo String
   assignments Assignment[]
+  agency      Agency       @relation(fields: [agencyId], references: [id])
 
   @@map("responders")
 }

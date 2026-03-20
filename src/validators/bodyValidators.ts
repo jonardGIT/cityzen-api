@@ -35,23 +35,37 @@ export const linkMyCitizenProfileValidator = [
 
 export const createResponderValidator = [
   body('name').isString().trim().notEmpty().withMessage('name is required'),
-  body('agency').isString().trim().notEmpty().withMessage('agency is required'),
+  body('agencyId').isInt({ min: 1 }).toInt().withMessage('agencyId must be a positive integer'),
   body('role').isString().trim().notEmpty().withMessage('role is required'),
   body('contactInfo').isString().trim().notEmpty().withMessage('contactInfo is required'),
 ];
 
 export const updateResponderValidator = [
   body().custom((value) => {
-    const hasUpdatableField = ['name', 'agency', 'role', 'contactInfo'].some((field) => value?.[field] !== undefined);
+    const hasUpdatableField = ['name', 'agencyId', 'role', 'contactInfo'].some((field) => value?.[field] !== undefined);
     if (!hasUpdatableField) {
-      throw new Error('at least one of name, agency, role, or contactInfo is required');
+      throw new Error('at least one of name, agencyId, role, or contactInfo is required');
     }
     return true;
   }),
   body('name').optional().isString().trim().notEmpty().withMessage('name must be a non-empty string'),
-  body('agency').optional().isString().trim().notEmpty().withMessage('agency must be a non-empty string'),
+  body('agencyId').optional().isInt({ min: 1 }).toInt().withMessage('agencyId must be a positive integer'),
   body('role').optional().isString().trim().notEmpty().withMessage('role must be a non-empty string'),
   body('contactInfo').optional().isString().trim().notEmpty().withMessage('contactInfo must be a non-empty string'),
+];
+
+export const createAgencyValidator = [
+  body('name').isString().trim().notEmpty().withMessage('name is required'),
+];
+
+export const updateAgencyValidator = [
+  body().custom((value) => {
+    if (value?.name === undefined) {
+      throw new Error('name is required');
+    }
+    return true;
+  }),
+  body('name').isString().trim().notEmpty().withMessage('name must be a non-empty string'),
 ];
 
 export const createStatusValidator = [

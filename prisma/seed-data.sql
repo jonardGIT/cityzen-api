@@ -5,6 +5,7 @@
     assignments,
     incidents,
     responders,
+    agencies,
     citizens,
     statuses,
     categories,
@@ -105,18 +106,26 @@
     ('Bea Navarro', 'bea.navarro@example.com', 'SMS'),
     ('Leo Tan', 'leo.tan@example.com', 'Email');
 
+  -- Agencies (5)
+  INSERT INTO agencies (name) VALUES
+    ('City Fire Department'),
+    ('EMS Unit'),
+    ('Police District'),
+    ('Disaster Risk Office'),
+    ('Rescue Task Force');
+
   -- Responders (10)
-  INSERT INTO responders (name, agency, role, "contactInfo") VALUES
-    ('Alex Smith', 'City Fire Department', 'Field Responder', 'alex.smith@agency.gov'),
-    ('Brian Lee', 'EMS Unit', 'Paramedic', 'brian.lee@agency.gov'),
-    ('Carla Mendoza', 'Police District', 'Patrol Officer', 'carla.mendoza@agency.gov'),
-    ('Daniel Ong', 'Disaster Risk Office', 'Operations Officer', 'daniel.ong@agency.gov'),
-    ('Erika Ramos', 'City Fire Department', 'Crew Lead', 'erika.ramos@agency.gov'),
-    ('Francis Yu', 'EMS Unit', 'Emergency Nurse', 'francis.yu@agency.gov'),
-    ('Grace Villanueva', 'Police District', 'Investigator', 'grace.villanueva@agency.gov'),
-    ('Harold Go', 'Rescue Task Force', 'Rescue Diver', 'harold.go@agency.gov'),
-    ('Iris Chua', 'Disaster Risk Office', 'Logistics Coordinator', 'iris.chua@agency.gov'),
-    ('Jason Bautista', 'City Fire Department', 'Pump Operator', 'jason.bautista@agency.gov');
+  INSERT INTO responders (name, "agencyId", role, "contactInfo") VALUES
+    ('Alex Smith', 1, 'Field Responder', 'alex.smith@agency.gov'),
+    ('Brian Lee', 2, 'Paramedic', 'brian.lee@agency.gov'),
+    ('Carla Mendoza', 3, 'Patrol Officer', 'carla.mendoza@agency.gov'),
+    ('Daniel Ong', 4, 'Operations Officer', 'daniel.ong@agency.gov'),
+    ('Erika Ramos', 1, 'Crew Lead', 'erika.ramos@agency.gov'),
+    ('Francis Yu', 2, 'Emergency Nurse', 'francis.yu@agency.gov'),
+    ('Grace Villanueva', 3, 'Investigator', 'grace.villanueva@agency.gov'),
+    ('Harold Go', 5, 'Rescue Diver', 'harold.go@agency.gov'),
+    ('Iris Chua', 4, 'Logistics Coordinator', 'iris.chua@agency.gov'),
+    ('Jason Bautista', 1, 'Pump Operator', 'jason.bautista@agency.gov');
 
   -- Incidents (10) with valid foreign keys.
   INSERT INTO incidents (

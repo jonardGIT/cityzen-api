@@ -10,6 +10,7 @@
     { "key": "jwtToken", "value": "", "type": "string" },
     { "key": "dispatcherJwtToken", "value": "", "type": "string" },
     { "key": "citizenId", "value": "1" },
+    { "key": "agencyId", "value": "1" },
     { "key": "responderId", "value": "1" },
     { "key": "statusId", "value": "1" },
     { "key": "categoryId", "value": "1" },
@@ -362,7 +363,7 @@
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Postman Responder\",\n  \"agency\": \"BFP\",\n  \"role\": \"Officer\",\n  \"contactInfo\": \"responder@example.com\"\n}" },
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Postman Responder\",\n  \"agencyId\": {{agencyId}},\n  \"role\": \"Officer\",\n  \"contactInfo\": \"responder@example.com\"\n}" },
             "url": "{{baseUrl}}{{apiBase}}/responders"
           }
         },
@@ -383,11 +384,11 @@
         },
         {
           "name": "PATCH Responder",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 200', function () { pm.response.to.have.status(200); });", "pm.expect(pm.response.json().agency).to.eql('City Rescue Office');"] } }],
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 200', function () { pm.response.to.have.status(200); });", "pm.expect(pm.response.json().agencyId).to.eql(2);", "pm.expect(pm.response.json().agency.name).to.eql('EMS Unit');"] } }],
           "request": {
             "method": "PATCH",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"agency\": \"City Rescue Office\"\n}" },
+            "body": { "mode": "raw", "raw": "{\n  \"agencyId\": 2\n}" },
             "url": "{{baseUrl}}{{apiBase}}/responders/{{responderId}}"
           }
         },

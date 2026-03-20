@@ -43,6 +43,33 @@
       }
     },
     {
+      "name": "agencies",
+      "label": "Agencies",
+      "primaryKey": "id",
+      "routes": {
+        "list": { "method": "GET", "path": "/agencies", "authRequired": false },
+        "get": { "method": "GET", "path": "/agencies/{id}", "authRequired": false },
+        "create": {
+          "method": "POST",
+          "path": "/agencies",
+          "authRequired": true,
+          "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+        },
+        "update": {
+          "method": "PATCH",
+          "path": "/agencies/{id}",
+          "authRequired": true,
+          "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+        },
+        "delete": {
+          "method": "DELETE",
+          "path": "/agencies/{id}",
+          "authRequired": true,
+          "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+        }
+      }
+    },
+    {
       "name": "responders",
       "label": "Responders",
       "primaryKey": "id",

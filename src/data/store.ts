@@ -1,4 +1,5 @@
 import type {
+  Agency,
   Assignment,
   Category,
   Citizen,
@@ -13,11 +14,17 @@ export const citizens: Citizen[] = [
   { id: 1, name: 'Jane Doe', contactInfo: 'jane@example.com', preferredChannel: 'SMS' },
 ];
 
+export const agencies: Agency[] = [
+  { id: 1, name: 'City Fire Department' },
+  { id: 2, name: 'EMS Unit' },
+];
+
 export const responders: Responder[] = [
   {
     id: 1,
     name: 'Alex Smith',
-    agency: 'City Fire Department',
+    agencyId: 1,
+    agency: agencies[0],
     role: 'Field Responder',
     contactInfo: 'alex@agency.gov',
   },

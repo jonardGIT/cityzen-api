@@ -423,6 +423,147 @@ const paths = {
       },
     },
   },
+  [`${API_BASE_PATH}/agencies`]: {
+    get: {
+      summary: 'List agencies',
+      tags: ['Agencies'],
+      responses: {
+        '200': {
+          description: 'Agency list',
+          content: {
+            'application/json': {
+              schema: { type: 'array', items: { $ref: '#/components/schemas/Agency' } },
+            },
+          },
+        },
+      },
+    },
+    post: {
+      summary: 'Create agency',
+      description: 'Creates an agency. Requires Bearer token with SUPER_ADMIN or ADMIN role.',
+      tags: ['Agencies'],
+      security: [{ BearerAuth: [] }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/AgencyCreate' },
+            examples: {
+              publicSafetyOffice: {
+                summary: 'Create agency record',
+                value: {
+                  name: 'Public Safety Office',
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        '201': {
+          description: 'Agency created',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/Agency' },
+            },
+          },
+        },
+        '422': {
+          description: 'Validation failed',
+          content: {
+            'application/json': {
+              schema: validationErrorSchema,
+            },
+          },
+        },
+        '401': {
+          description: 'Missing or invalid bearer token',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+        '403': {
+          description: 'Insufficient role permissions',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+      },
+    },
+  },
+  [`${API_BASE_PATH}/agencies/{id}`]: {
+    get: {
+      summary: 'Get agency by id',
+      tags: ['Agencies'],
+      parameters: [{ $ref: '#/components/parameters/IdParam' }],
+      responses: {
+        '200': {
+          description: 'Agency found',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/Agency' },
+            },
+          },
+        },
+        '404': {
+          description: 'Agency not found',
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+      },
+    },
+    patch: {
+      summary: 'Update agency',
+      description: 'Updates an agency. Requires Bearer token with SUPER_ADMIN or ADMIN role.',
+      tags: ['Agencies'],
+      security: [{ BearerAuth: [] }],
+      parameters: [{ $ref: '#/components/parameters/IdParam' }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/AgencyUpdate' },
+            examples: {
+              renameAgency: {
+                summary: 'Rename agency',
+                value: {
+                  name: 'City Rescue Office',
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        '200': { description: 'Agency updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/Agency' } } } },
+        '401': { description: 'Missing or invalid bearer token', content: { 'application/json': { schema: commonErrorSchema } } },
+        '403': { description: 'Insufficient role permissions', content: { 'application/json': { schema: commonErrorSchema } } },
+        '404': { description: 'Agency not found', content: { 'application/json': { schema: commonErrorSchema } } },
+        '422': { description: 'Validation failed', content: { 'application/json': { schema: validationErrorSchema } } },
+      },
+    },
+    delete: {
+      summary: 'Delete agency',
+      description: 'Deletes an agency. Requires Bearer token with SUPER_ADMIN or ADMIN role.',
+      tags: ['Agencies'],
+      security: [{ BearerAuth: [] }],
+      parameters: [{ $ref: '#/components/parameters/IdParam' }],
+      responses: {
+        '204': { description: 'Agency deleted' },
+        '401': { description: 'Missing or invalid bearer token', content: { 'application/json': { schema: commonErrorSchema } } },
+        '403': { description: 'Insufficient role permissions', content: { 'application/json': { schema: commonErrorSchema } } },
+        '404': { description: 'Agency not found', content: { 'application/json': { schema: commonErrorSchema } } },
+        '409': { description: 'Agency is still referenced by responder records', content: { 'application/json': { schema: commonErrorSchema } } },
+      },
+    },
+  },
   [`${API_BASE_PATH}/responders`]: {
     get: {
       summary: 'List responders',
@@ -453,7 +594,7 @@ const paths = {
                 summary: 'Create responder profile',
                 value: {
                   name: 'Postman Responder',
-                  agency: 'BFP',
+                  agencyId: 1,
                   role: 'Officer',
                   contactInfo: 'responder@example.com',
                 },
@@ -537,7 +678,7 @@ const paths = {
               moveAgency: {
                 summary: 'Update responder agency',
                 value: {
-                  agency: 'City Rescue Office',
+                  agencyId: 2,
                 },
               },
             },
@@ -1844,6 +1985,7 @@ export const openApiDocument = {
   tags: [
     { name: 'System', description: 'API health and status endpoints.' },
     { name: 'Citizens', description: 'Manage citizens who report incidents.' },
+    { name: 'Agencies', description: 'Manage responder agencies used as lookup options when assigning responders.' },
     { name: 'Responders', description: 'Manage emergency responders assigned to incidents.' },
     { name: 'Statuses', description: 'Lookup values for incident status.' },
     { name: 'Categories', description: 'Lookup values for incident category.' },
@@ -1935,29 +2077,58 @@ export const openApiDocument = {
           preferredChannel: 'app',
         },
       },
+      Agency: {
+        type: 'object',
+        properties: {
+          id: { type: 'integer', example: 1 },
+          name: { type: 'string', example: 'City Fire Department' },
+        },
+        required: ['id', 'name'],
+      },
+      AgencyCreate: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+        },
+        required: ['name'],
+        example: {
+          name: 'Public Safety Office',
+        },
+      },
+      AgencyUpdate: {
+        type: 'object',
+        minProperties: 1,
+        properties: {
+          name: { type: 'string' },
+        },
+        example: {
+          name: 'City Rescue Office',
+        },
+      },
       Responder: {
         type: 'object',
         properties: {
           id: { type: 'integer', example: 1 },
           name: { type: 'string' },
-          agency: { type: 'string' },
+          agencyId: { type: 'integer', example: 1 },
+          agency: { $ref: '#/components/schemas/Agency' },
           role: { type: 'string' },
           contactInfo: { type: 'string' },
         },
-        required: ['id', 'name', 'agency', 'role', 'contactInfo'],
+        required: ['id', 'name', 'agencyId', 'agency', 'role', 'contactInfo'],
       },
       ResponderCreate: {
         type: 'object',
         properties: {
           name: { type: 'string' },
-          agency: { type: 'string' },
+          agencyId: { type: 'integer' },
           role: { type: 'string' },
           contactInfo: { type: 'string' },
         },
-        required: ['name', 'agency', 'role', 'contactInfo'],
+        required: ['name', 'agencyId', 'role', 'contactInfo'],
         example: {
           name: 'Postman Responder',
-          agency: 'BFP',
+          agencyId: 1,
           role: 'Officer',
           contactInfo: 'responder@example.com',
         },
@@ -1967,12 +2138,12 @@ export const openApiDocument = {
         minProperties: 1,
         properties: {
           name: { type: 'string' },
-          agency: { type: 'string' },
+          agencyId: { type: 'integer' },
           role: { type: 'string' },
           contactInfo: { type: 'string' },
         },
         example: {
-          agency: 'City Rescue Office',
+          agencyId: 2,
         },
       },
       Status: {

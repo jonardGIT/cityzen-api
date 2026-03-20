@@ -25,7 +25,7 @@ Functional requirements:
 
 3. Dynamic resource pages
 - Auto-generate one page per resource from config:
-  - citizens, responders, statuses, categories, severities, locations, incidents, assignments, users
+  - citizens, agencies, responders, statuses, categories, severities, locations, incidents, assignments, users
 - For each resource page:
   - Table/List view (list endpoint)
   - Details drawer/modal (get endpoint)
@@ -50,7 +50,8 @@ Functional requirements:
 - Start with these default field mappings:
   - users: name, email, password, role
   - citizens: name, contactInfo, preferredChannel
-  - responders: name, agency, role, contactInfo
+  - agencies: name
+  - responders: name, agencyId, role, contactInfo
   - statuses: name
   - categories: name, subCategory
   - severities: level, definition

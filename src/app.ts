@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import swaggerUi from 'swagger-ui-express';
 import citizensRouter from './routes/citizens.js';
+import agenciesRouter from './routes/agencies.js';
 import respondersRouter from './routes/responders.js';
 import statusesRouter from './routes/statuses.js';
 import categoriesRouter from './routes/categories.js';
@@ -87,6 +88,8 @@ if (!isProduction) {
 
 // Mount citizens resource routes.
 app.use(`${API_V1}/citizens`, citizensRouter);
+// Mount agency resource routes.
+app.use(`${API_V1}/agencies`, agenciesRouter);
 // Mount responders resource routes.
 app.use(`${API_V1}/responders`, respondersRouter);
 // Mount statuses resource routes.

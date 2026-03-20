@@ -17,10 +17,16 @@ export interface Citizen {
   preferredChannel: string;
 }
 
+export interface Agency {
+  id: number;
+  name: string;
+}
+
 export interface Responder {
   id: number;
   name: string;
-  agency: string;
+  agencyId: number;
+  agency?: Agency;
   role: string;
   contactInfo: string;
 }
