@@ -107,12 +107,12 @@
     ('Leo Tan', 'leo.tan@example.com', 'Email');
 
   -- Agencies (5)
-  INSERT INTO agencies (name) VALUES
-    ('City Fire Department'),
-    ('EMS Unit'),
-    ('Police District'),
-    ('Disaster Risk Office'),
-    ('Rescue Task Force');
+  INSERT INTO agencies (name, "contactNumber") VALUES
+    ('City Fire Department', '+1-555-0100'),
+    ('EMS Unit', '+1-555-0101'),
+    ('Police District', '+1-555-0102'),
+    ('Disaster Risk Office', '+1-555-0103'),
+    ('Rescue Task Force', '+1-555-0104');
 
   -- Responders (10)
   INSERT INTO responders (name, "agencyId", role, "contactInfo") VALUES

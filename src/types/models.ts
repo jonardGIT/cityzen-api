@@ -20,6 +20,7 @@ export interface Citizen {
 export interface Agency {
   id: number;
   name: string;
+  contactNumber?: string;
 }
 
 export interface Responder {

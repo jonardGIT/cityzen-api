@@ -2082,6 +2082,7 @@ export const openApiDocument = {
         properties: {
           id: { type: 'integer', example: 1 },
           name: { type: 'string', example: 'City Fire Department' },
+          contactNumber: { type: 'string', nullable: true, example: '+1-555-0100' },
         },
         required: ['id', 'name'],
       },
@@ -2089,10 +2090,12 @@ export const openApiDocument = {
         type: 'object',
         properties: {
           name: { type: 'string' },
+          contactNumber: { type: 'string', example: '+1-555-0100' },
         },
         required: ['name'],
         example: {
           name: 'Public Safety Office',
+          contactNumber: '+1-555-0199',
         },
       },
       AgencyUpdate: {
@@ -2100,9 +2103,11 @@ export const openApiDocument = {
         minProperties: 1,
         properties: {
           name: { type: 'string' },
+          contactNumber: { type: 'string', nullable: true, example: '+1-555-0199' },
         },
         example: {
           name: 'City Rescue Office',
+          contactNumber: '(555) 0199',
         },
       },
       Responder: {

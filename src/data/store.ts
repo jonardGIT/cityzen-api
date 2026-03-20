@@ -15,8 +15,8 @@ export const citizens: Citizen[] = [
 ];
 
 export const agencies: Agency[] = [
-  { id: 1, name: 'City Fire Department' },
-  { id: 2, name: 'EMS Unit' },
+  { id: 1, name: 'City Fire Department', contactNumber: '+1-555-0100' },
+  { id: 2, name: 'EMS Unit', contactNumber: '+1-555-0101' },
 ];
 
 export const responders: Responder[] = [

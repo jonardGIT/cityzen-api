@@ -41,7 +41,8 @@ CREATE TABLE citizens (
 
 CREATE TABLE agencies (
   id SERIAL PRIMARY KEY,
-  name TEXT NOT NULL UNIQUE
+  name TEXT NOT NULL UNIQUE,
+  "contactNumber" VARCHAR(20)
 );
 
 CREATE TABLE responders (

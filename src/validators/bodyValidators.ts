@@ -56,6 +56,12 @@ export const updateResponderValidator = [
 
 export const createAgencyValidator = [
   body('name').isString().trim().notEmpty().withMessage('name is required'),
+  body('contactNumber')
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 20 })
+    .withMessage('contactNumber must be a string with maximum 20 characters'),
 ];
 
 export const updateAgencyValidator = [
@@ -66,6 +72,13 @@ export const updateAgencyValidator = [
     return true;
   }),
   body('name').isString().trim().notEmpty().withMessage('name must be a non-empty string'),
+  body('contactNumber')
+    .optional({ nullable: true })
+    .if((value) => value !== null && value !== undefined)
+    .isString()
+    .trim()
+    .isLength({ max: 20 })
+    .withMessage('contactNumber must be a string with maximum 20 characters'),
 ];
 
 export const createStatusValidator = [

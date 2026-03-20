@@ -26,9 +26,10 @@ model Citizen {
 }
 
 model Agency {
-  id         Int         @id @default(autoincrement())
-  name       String      @unique
-  responders Responder[]
+  id            Int         @id @default(autoincrement())
+  name          String      @unique
+  contactNumber String?
+  responders    Responder[]
 
   @@map("agencies")
 }
