@@ -47,3 +47,16 @@ export async function getAdminToken(): Promise<string> {
 
   return adminTokenPromise;
 }
+
+export async function getTokenForRole(email: string): Promise<string> {
+  const response = await request(app).post(`${API_V1}/auth/login`).send({
+    email,
+    password: 'Password123!',
+  });
+
+  if (response.status === 200 && response.body?.token) {
+    return response.body.token as string;
+  }
+
+  throw new Error(`Login failed for ${email}: ${response.status} ${response.body?.message ?? ''}`);
+}

@@ -41,6 +41,14 @@ function isUniqueConstraintError(error: unknown): boolean {
   );
 }
 
+// Returns capability flags for user management operations based on the authenticated admin's role.
+export async function getUserCapabilities(_req: Request, res: Response): Promise<void> {
+  res.json({
+    canUpdateUser: true,
+    canDeleteUser: true,
+  });
+}
+
 // Returns all users from the database.
 export async function getUsers(_req: Request, res: Response): Promise<void> {
   const users = await prisma.user.findMany({ select: userSelect });

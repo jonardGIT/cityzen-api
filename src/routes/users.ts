@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createUser, deleteUser, getUserById, getUsers, updateUser } from '../controllers/usersController.js';
+import { createUser, deleteUser, getUserById, getUsers, getUserCapabilities, updateUser } from '../controllers/usersController.js';
 import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
 import { ADMIN_ROLES } from '../types/auth.js';
 import { validateRequest } from '../middleware/validateRequest.js';
@@ -7,6 +7,7 @@ import { createUserValidator, updateUserValidator } from '../validators/bodyVali
 
 const router = Router();
 
+router.get('/capabilities', requireJwtAuth, requireRole(...ADMIN_ROLES), getUserCapabilities);
 router.get('/', requireJwtAuth, requireRole(...ADMIN_ROLES), getUsers);
 router.get('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), getUserById);
 router.post('/', requireJwtAuth, requireRole(...ADMIN_ROLES), createUserValidator, validateRequest, createUser);

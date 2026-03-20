@@ -1694,6 +1694,33 @@ const paths = {
       },
     },
   },
+  [`${API_BASE_PATH}/users/capabilities`]: {
+    get: {
+      summary: 'Get user management capabilities',
+      description:
+        'Returns boolean flags indicating whether the authenticated admin can update and delete users. Requires SUPER_ADMIN or ADMIN role.',
+      tags: ['Users'],
+      security: [{ BearerAuth: [] }],
+      responses: {
+        '200': {
+          description: 'Capability flags',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/UserCapabilities' },
+            },
+          },
+        },
+        '401': {
+          description: 'Missing or invalid bearer token',
+          content: { 'application/json': { schema: commonErrorSchema } },
+        },
+        '403': {
+          description: 'Insufficient role permissions',
+          content: { 'application/json': { schema: commonErrorSchema } },
+        },
+      },
+    },
+  },
   [`${API_BASE_PATH}/users`]: {
     get: {
       summary: 'List users',
@@ -2412,6 +2439,15 @@ export const openApiDocument = {
         example: {
           outcome: 'Monitoring',
         },
+      },
+      UserCapabilities: {
+        type: 'object',
+        description: 'Flags indicating which user management operations the current admin can perform.',
+        properties: {
+          canUpdateUser: { type: 'boolean', example: true },
+          canDeleteUser: { type: 'boolean', example: true },
+        },
+        required: ['canUpdateUser', 'canDeleteUser'],
       },
       User: {
         type: 'object',
