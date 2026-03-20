@@ -100,7 +100,6 @@ describe('VIEWER incident scoping', () => {
       .set('Authorization', `Bearer ${viewerToken}`)
       .send({
         description: 'Viewer-owned incident',
-        statusId: 1,
         locationId: 1,
         categoryId: 1,
         severityId: 1,
@@ -165,6 +164,21 @@ describe('VIEWER incident scoping', () => {
       .send({
         description: 'Should fail because citizenId is forbidden',
         citizenId: 999,
+        locationId: 1,
+        categoryId: 1,
+        severityId: 1,
+      });
+
+    expect(res.status).toBe(422);
+    expect(res.body).toHaveProperty('errors');
+  });
+
+  it('POST /incidents/report rejects client-provided statusId', async () => {
+    const res = await request(app)
+      .post(`${API_V1}/incidents/report`)
+      .set('Authorization', `Bearer ${viewerToken}`)
+      .send({
+        description: 'Should fail because statusId is forbidden',
         statusId: 1,
         locationId: 1,
         categoryId: 1,
@@ -175,13 +189,27 @@ describe('VIEWER incident scoping', () => {
     expect(res.body).toHaveProperty('errors');
   });
 
+  it('POST /incidents/report auto-assigns Reported status', async () => {
+    const res = await request(app)
+      .post(`${API_V1}/incidents/report`)
+      .set('Authorization', `Bearer ${viewerToken}`)
+      .send({
+        description: 'Auto status test',
+        locationId: 1,
+        categoryId: 1,
+        severityId: 1,
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty('statusId');
+  });
+
   it('POST /incidents/report accepts numeric string IDs', async () => {
     const res = await request(app)
       .post(`${API_V1}/incidents/report`)
       .set('Authorization', `Bearer ${viewerToken}`)
       .send({
         description: 'Numeric string id payload',
-        statusId: '1',
         locationId: '1',
         categoryId: '1',
         severityId: '1',
@@ -197,8 +225,7 @@ describe('VIEWER incident scoping', () => {
       .set('Authorization', `Bearer ${viewerToken}`)
       .send({
         description: 'Bad string id payload',
-        statusId: 'one',
-        locationId: '1',
+        locationId: 'one',
         categoryId: '1',
         severityId: '1',
       });

@@ -2332,20 +2332,18 @@ export const openApiDocument = {
       CitizenIncidentReportCreate: {
         type: 'object',
         description:
-          'Payload for viewer self-report incidents. citizenId must not be sent; it is inferred from the authenticated account context.',
+          'Payload for viewer self-report incidents. citizenId and statusId must not be sent — citizenId is inferred from the authenticated account context and statusId is automatically set to "Reported".',
         properties: {
           description: { type: 'string' },
           mediaUrl: { type: 'string' },
           dateReported: { type: 'string', format: 'date-time' },
-          statusId: { type: 'integer' },
           locationId: { type: 'integer' },
           categoryId: { type: 'integer' },
           severityId: { type: 'integer' },
         },
-        required: ['description', 'statusId', 'locationId', 'categoryId', 'severityId'],
+        required: ['description', 'locationId', 'categoryId', 'severityId'],
         example: {
           description: 'Flood water rising near barangay hall',
-          statusId: 1,
           locationId: 1,
           categoryId: 1,
           severityId: 1,

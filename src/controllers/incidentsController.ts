@@ -150,11 +150,11 @@ export async function createCitizenIncidentReport(req: Request, res: Response): 
     return;
   }
 
-  const { description, mediaUrl, dateReported, statusId, locationId, categoryId, severityId } = req.body as Partial<CitizenIncident>;
+  const { description, mediaUrl, dateReported, locationId, categoryId, severityId } = req.body as Partial<CitizenIncident>;
 
-  if (!description || !statusId || !locationId || !categoryId || !severityId) {
+  if (!description || !locationId || !categoryId || !severityId) {
     res.status(422).json({
-      message: 'description, statusId, locationId, categoryId, and severityId are required',
+      message: 'description, locationId, categoryId, and severityId are required',
     });
     return;
   }
@@ -167,10 +167,12 @@ export async function createCitizenIncidentReport(req: Request, res: Response): 
     return;
   }
 
-  if (!(await prisma.status.findUnique({ where: { id: statusId } }))) {
-    res.status(422).json({ message: 'statusId does not reference a valid Status' });
+  const reportedStatus = await prisma.status.findFirst({ where: { name: 'Reported' } });
+  if (!reportedStatus) {
+    res.status(500).json({ message: 'Default status "Reported" not found. Contact an administrator.' });
     return;
   }
+  const statusId = reportedStatus.id;
 
   if (!(await prisma.location.findUnique({ where: { id: locationId } }))) {
     res.status(422).json({ message: 'locationId does not reference a valid Location' });
