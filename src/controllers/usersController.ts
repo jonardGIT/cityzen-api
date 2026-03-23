@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
 import { hasHigherAccessLevel, isUserRole } from '../types/auth.js';
+import { buildPaginatedResponse, getPaginationQuery } from '../utils/request.js';
 
 const userSelect = {
   id: true,
@@ -50,7 +51,21 @@ export async function getUserCapabilities(_req: Request, res: Response): Promise
 }
 
 // Returns all users from the database.
-export async function getUsers(_req: Request, res: Response): Promise<void> {
+export async function getUsers(req: Request, res: Response): Promise<void> {
+  const pagination = getPaginationQuery(req);
+  if (pagination.enabled) {
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        select: userSelect,
+        skip: pagination.skip,
+        take: pagination.take,
+      }),
+      prisma.user.count(),
+    ]);
+    res.json(buildPaginatedResponse(users, total, pagination));
+    return;
+  }
+
   const users = await prisma.user.findMany({ select: userSelect });
   res.json(users);
 }

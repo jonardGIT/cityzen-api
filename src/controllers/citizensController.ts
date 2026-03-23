@@ -1,12 +1,22 @@
 // Handles CRUD operations for citizens who report incidents.
 import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
-import { getParamId } from '../utils/request.js';
+import { buildPaginatedResponse, getPaginationQuery, getParamId } from '../utils/request.js';
 import type { Citizen } from '../types/models.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
 
 // Returns all citizens from the database.
-export async function getCitizens(_req: Request, res: Response): Promise<void> {
+export async function getCitizens(req: Request, res: Response): Promise<void> {
+  const pagination = getPaginationQuery(req);
+  if (pagination.enabled) {
+    const [citizens, total] = await Promise.all([
+      prisma.citizen.findMany({ skip: pagination.skip, take: pagination.take }),
+      prisma.citizen.count(),
+    ]);
+    res.json(buildPaginatedResponse(citizens, total, pagination));
+    return;
+  }
+
   const citizens = await prisma.citizen.findMany();
   res.json(citizens);
 }

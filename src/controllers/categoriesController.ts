@@ -1,10 +1,20 @@
 // Handles CRUD operations for incident category lookup values.
 import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
-import { getParamId } from '../utils/request.js';
+import { buildPaginatedResponse, getPaginationQuery, getParamId } from '../utils/request.js';
 
 // Returns all categories from the database.
-export async function getCategories(_req: Request, res: Response): Promise<void> {
+export async function getCategories(req: Request, res: Response): Promise<void> {
+  const pagination = getPaginationQuery(req);
+  if (pagination.enabled) {
+    const [categories, total] = await Promise.all([
+      prisma.category.findMany({ skip: pagination.skip, take: pagination.take }),
+      prisma.category.count(),
+    ]);
+    res.json(buildPaginatedResponse(categories, total, pagination));
+    return;
+  }
+
   const categories = await prisma.category.findMany();
   res.json(categories);
 }

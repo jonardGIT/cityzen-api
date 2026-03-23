@@ -1,7 +1,7 @@
 // Handles CRUD operations for emergency responders.
 import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
-import { getParamId } from '../utils/request.js';
+import { buildPaginatedResponse, getPaginationQuery, getParamId } from '../utils/request.js';
 import type { Responder } from '../types/models.js';
 
 const responderInclude = {
@@ -9,7 +9,21 @@ const responderInclude = {
 } as const;
 
 // Returns all responders from the database.
-export async function getResponders(_req: Request, res: Response): Promise<void> {
+export async function getResponders(req: Request, res: Response): Promise<void> {
+  const pagination = getPaginationQuery(req);
+  if (pagination.enabled) {
+    const [responders, total] = await Promise.all([
+      prisma.responder.findMany({
+        include: responderInclude,
+        skip: pagination.skip,
+        take: pagination.take,
+      }),
+      prisma.responder.count(),
+    ]);
+    res.json(buildPaginatedResponse(responders, total, pagination));
+    return;
+  }
+
   const responders = await prisma.responder.findMany({ include: responderInclude });
   res.json(responders);
 }

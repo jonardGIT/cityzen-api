@@ -15,6 +15,18 @@ describe(`GET ${BASE}`, () => {
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
   });
+
+  it('should return paginated result when page and pageSize are provided', async () => {
+    const res = await request(app).get(`${BASE}?page=1&pageSize=2`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.pagination).toMatchObject({
+      page: 1,
+      pageSize: 2,
+    });
+    expect(typeof res.body.pagination.total).toBe('number');
+    expect(res.body.data.length).toBeLessThanOrEqual(2);
+  });
 });
 
 describe(`GET ${BASE}/:id`, () => {

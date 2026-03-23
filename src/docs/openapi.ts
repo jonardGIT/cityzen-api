@@ -194,14 +194,25 @@ const paths = {
   [`${API_BASE_PATH}/admin/users`]: {
     get: {
       summary: 'List all users (admin roles only)',
+      description:
+        'Supports optional pagination with page and pageSize. Without pagination params, returns the legacy array response.',
       tags: ['Admin'],
       security: [{ BearerAuth: [] }],
+      parameters: [
+        { $ref: '#/components/parameters/PageParam' },
+        { $ref: '#/components/parameters/PageSizeParam' },
+      ],
       responses: {
         '200': {
           description: 'User list',
           content: {
             'application/json': {
-              schema: { type: 'array', items: { $ref: '#/components/schemas/User' } },
+              schema: {
+                oneOf: [
+                  { type: 'array', items: { $ref: '#/components/schemas/User' } },
+                  { $ref: '#/components/schemas/PaginatedUserList' },
+                ],
+              },
             },
           },
         },
@@ -227,13 +238,24 @@ const paths = {
   [`${API_BASE_PATH}/citizens`]: {
     get: {
       summary: 'List citizens',
+      description:
+        'Supports optional pagination with page and pageSize. Without pagination params, returns the legacy array response.',
       tags: ['Citizens'],
+      parameters: [
+        { $ref: '#/components/parameters/PageParam' },
+        { $ref: '#/components/parameters/PageSizeParam' },
+      ],
       responses: {
         '200': {
           description: 'Citizen list',
           content: {
             'application/json': {
-              schema: { type: 'array', items: { $ref: '#/components/schemas/Citizen' } },
+              schema: {
+                oneOf: [
+                  { type: 'array', items: { $ref: '#/components/schemas/Citizen' } },
+                  { $ref: '#/components/schemas/PaginatedCitizenList' },
+                ],
+              },
             },
           },
         },
@@ -426,13 +448,24 @@ const paths = {
   [`${API_BASE_PATH}/agencies`]: {
     get: {
       summary: 'List agencies',
+      description:
+        'Supports optional pagination with page and pageSize. Without pagination params, returns the legacy array response.',
       tags: ['Agencies'],
+      parameters: [
+        { $ref: '#/components/parameters/PageParam' },
+        { $ref: '#/components/parameters/PageSizeParam' },
+      ],
       responses: {
         '200': {
           description: 'Agency list',
           content: {
             'application/json': {
-              schema: { type: 'array', items: { $ref: '#/components/schemas/Agency' } },
+              schema: {
+                oneOf: [
+                  { type: 'array', items: { $ref: '#/components/schemas/Agency' } },
+                  { $ref: '#/components/schemas/PaginatedAgencyList' },
+                ],
+              },
             },
           },
         },
@@ -567,13 +600,24 @@ const paths = {
   [`${API_BASE_PATH}/responders`]: {
     get: {
       summary: 'List responders',
+      description:
+        'Supports optional pagination with page and pageSize. Without pagination params, returns the legacy array response.',
       tags: ['Responders'],
+      parameters: [
+        { $ref: '#/components/parameters/PageParam' },
+        { $ref: '#/components/parameters/PageSizeParam' },
+      ],
       responses: {
         '200': {
           description: 'Responder list',
           content: {
             'application/json': {
-              schema: { type: 'array', items: { $ref: '#/components/schemas/Responder' } },
+              schema: {
+                oneOf: [
+                  { type: 'array', items: { $ref: '#/components/schemas/Responder' } },
+                  { $ref: '#/components/schemas/PaginatedResponderList' },
+                ],
+              },
             },
           },
         },
@@ -711,13 +755,24 @@ const paths = {
   [`${API_BASE_PATH}/statuses`]: {
     get: {
       summary: 'List statuses',
+      description:
+        'Supports optional pagination with page and pageSize. Without pagination params, returns the legacy array response.',
       tags: ['Statuses'],
+      parameters: [
+        { $ref: '#/components/parameters/PageParam' },
+        { $ref: '#/components/parameters/PageSizeParam' },
+      ],
       responses: {
         '200': {
           description: 'Status list',
           content: {
             'application/json': {
-              schema: { type: 'array', items: { $ref: '#/components/schemas/Status' } },
+              schema: {
+                oneOf: [
+                  { type: 'array', items: { $ref: '#/components/schemas/Status' } },
+                  { $ref: '#/components/schemas/PaginatedStatusList' },
+                ],
+              },
             },
           },
         },
@@ -860,13 +915,24 @@ const paths = {
   [`${API_BASE_PATH}/categories`]: {
     get: {
       summary: 'List categories',
+      description:
+        'Supports optional pagination with page and pageSize. Without pagination params, returns the legacy array response.',
       tags: ['Categories'],
+      parameters: [
+        { $ref: '#/components/parameters/PageParam' },
+        { $ref: '#/components/parameters/PageSizeParam' },
+      ],
       responses: {
         '200': {
           description: 'Category list',
           content: {
             'application/json': {
-              schema: { type: 'array', items: { $ref: '#/components/schemas/Category' } },
+              schema: {
+                oneOf: [
+                  { type: 'array', items: { $ref: '#/components/schemas/Category' } },
+                  { $ref: '#/components/schemas/PaginatedCategoryList' },
+                ],
+              },
             },
           },
         },
@@ -1010,13 +1076,24 @@ const paths = {
   [`${API_BASE_PATH}/severities`]: {
     get: {
       summary: 'List severities',
+      description:
+        'Supports optional pagination with page and pageSize. Without pagination params, returns the legacy array response.',
       tags: ['Severities'],
+      parameters: [
+        { $ref: '#/components/parameters/PageParam' },
+        { $ref: '#/components/parameters/PageSizeParam' },
+      ],
       responses: {
         '200': {
           description: 'Severity list',
           content: {
             'application/json': {
-              schema: { type: 'array', items: { $ref: '#/components/schemas/Severity' } },
+              schema: {
+                oneOf: [
+                  { type: 'array', items: { $ref: '#/components/schemas/Severity' } },
+                  { $ref: '#/components/schemas/PaginatedSeverityList' },
+                ],
+              },
             },
           },
         },
@@ -1160,13 +1237,24 @@ const paths = {
   [`${API_BASE_PATH}/locations`]: {
     get: {
       summary: 'List locations',
+      description:
+        'Supports optional pagination with page and pageSize. Without pagination params, returns the legacy array response.',
       tags: ['Locations'],
+      parameters: [
+        { $ref: '#/components/parameters/PageParam' },
+        { $ref: '#/components/parameters/PageSizeParam' },
+      ],
       responses: {
         '200': {
           description: 'Location list',
           content: {
             'application/json': {
-              schema: { type: 'array', items: { $ref: '#/components/schemas/Location' } },
+              schema: {
+                oneOf: [
+                  { type: 'array', items: { $ref: '#/components/schemas/Location' } },
+                  { $ref: '#/components/schemas/PaginatedLocationList' },
+                ],
+              },
             },
           },
         },
@@ -1305,17 +1393,26 @@ const paths = {
     get: {
       summary: 'List incidents',
       description:
-        'Returns incidents for authenticated users. VIEWER users only see their own incident reports; staff roles can see all incidents.',
+        'Returns incidents for authenticated users. VIEWER users only see their own incident reports; staff roles can see all incidents. Supports optional pagination with page and pageSize. Without pagination params, returns the legacy array response.',
       tags: ['Incidents'],
       security: [{ BearerAuth: [] }],
+      parameters: [
+        { $ref: '#/components/parameters/PageParam' },
+        { $ref: '#/components/parameters/PageSizeParam' },
+      ],
       responses: {
         '200': {
           description: 'Incident list',
           content: {
             'application/json': {
               schema: {
-                type: 'array',
-                items: { $ref: '#/components/schemas/CitizenIncident' },
+                oneOf: [
+                  {
+                    type: 'array',
+                    items: { $ref: '#/components/schemas/CitizenIncident' },
+                  },
+                  { $ref: '#/components/schemas/PaginatedCitizenIncidentList' },
+                ],
               },
             },
           },
@@ -1555,13 +1652,24 @@ const paths = {
   [`${API_BASE_PATH}/assignments`]: {
     get: {
       summary: 'List assignments',
+      description:
+        'Supports optional pagination with page and pageSize. Without pagination params, returns the legacy array response.',
       tags: ['Assignments'],
+      parameters: [
+        { $ref: '#/components/parameters/PageParam' },
+        { $ref: '#/components/parameters/PageSizeParam' },
+      ],
       responses: {
         '200': {
           description: 'Assignment list',
           content: {
             'application/json': {
-              schema: { type: 'array', items: { $ref: '#/components/schemas/Assignment' } },
+              schema: {
+                oneOf: [
+                  { type: 'array', items: { $ref: '#/components/schemas/Assignment' } },
+                  { $ref: '#/components/schemas/PaginatedAssignmentList' },
+                ],
+              },
             },
           },
         },
@@ -1724,15 +1832,25 @@ const paths = {
   [`${API_BASE_PATH}/users`]: {
     get: {
       summary: 'List users',
-      description: 'Returns all system users. Requires Bearer token with SUPER_ADMIN or ADMIN role.',
+      description:
+        'Returns all system users. Requires Bearer token with SUPER_ADMIN or ADMIN role. Supports optional pagination with page and pageSize. Without pagination params, returns the legacy array response.',
       tags: ['Users'],
       security: [{ BearerAuth: [] }],
+      parameters: [
+        { $ref: '#/components/parameters/PageParam' },
+        { $ref: '#/components/parameters/PageSizeParam' },
+      ],
       responses: {
         '200': {
           description: 'User list',
           content: {
             'application/json': {
-              schema: { type: 'array', items: { $ref: '#/components/schemas/User' } },
+              schema: {
+                oneOf: [
+                  { type: 'array', items: { $ref: '#/components/schemas/User' } },
+                  { $ref: '#/components/schemas/PaginatedUserList' },
+                ],
+              },
             },
           },
         },
@@ -2052,8 +2170,114 @@ export const openApiDocument = {
         required: true,
         schema: { type: 'integer', minimum: 1 },
       },
+      PageParam: {
+        name: 'page',
+        in: 'query',
+        required: false,
+        description: 'Optional page number for paginated responses. When omitted (and pageSize is omitted), the endpoint returns the legacy array response.',
+        schema: { type: 'integer', minimum: 1, default: 1 },
+      },
+      PageSizeParam: {
+        name: 'pageSize',
+        in: 'query',
+        required: false,
+        description: 'Optional page size for paginated responses. Maximum value is 100.',
+        schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+      },
     },
     schemas: {
+      PaginationMeta: {
+        type: 'object',
+        properties: {
+          page: { type: 'integer', minimum: 1, example: 1 },
+          pageSize: { type: 'integer', minimum: 1, maximum: 100, example: 20 },
+          total: { type: 'integer', minimum: 0, example: 142 },
+          totalPages: { type: 'integer', minimum: 0, example: 8 },
+          hasNextPage: { type: 'boolean', example: true },
+          hasPrevPage: { type: 'boolean', example: false },
+        },
+        required: ['page', 'pageSize', 'total', 'totalPages', 'hasNextPage', 'hasPrevPage'],
+      },
+      PaginatedCitizenList: {
+        type: 'object',
+        properties: {
+          data: { type: 'array', items: { $ref: '#/components/schemas/Citizen' } },
+          pagination: { $ref: '#/components/schemas/PaginationMeta' },
+        },
+        required: ['data', 'pagination'],
+      },
+      PaginatedAgencyList: {
+        type: 'object',
+        properties: {
+          data: { type: 'array', items: { $ref: '#/components/schemas/Agency' } },
+          pagination: { $ref: '#/components/schemas/PaginationMeta' },
+        },
+        required: ['data', 'pagination'],
+      },
+      PaginatedResponderList: {
+        type: 'object',
+        properties: {
+          data: { type: 'array', items: { $ref: '#/components/schemas/Responder' } },
+          pagination: { $ref: '#/components/schemas/PaginationMeta' },
+        },
+        required: ['data', 'pagination'],
+      },
+      PaginatedStatusList: {
+        type: 'object',
+        properties: {
+          data: { type: 'array', items: { $ref: '#/components/schemas/Status' } },
+          pagination: { $ref: '#/components/schemas/PaginationMeta' },
+        },
+        required: ['data', 'pagination'],
+      },
+      PaginatedCategoryList: {
+        type: 'object',
+        properties: {
+          data: { type: 'array', items: { $ref: '#/components/schemas/Category' } },
+          pagination: { $ref: '#/components/schemas/PaginationMeta' },
+        },
+        required: ['data', 'pagination'],
+      },
+      PaginatedSeverityList: {
+        type: 'object',
+        properties: {
+          data: { type: 'array', items: { $ref: '#/components/schemas/Severity' } },
+          pagination: { $ref: '#/components/schemas/PaginationMeta' },
+        },
+        required: ['data', 'pagination'],
+      },
+      PaginatedLocationList: {
+        type: 'object',
+        properties: {
+          data: { type: 'array', items: { $ref: '#/components/schemas/Location' } },
+          pagination: { $ref: '#/components/schemas/PaginationMeta' },
+        },
+        required: ['data', 'pagination'],
+      },
+      PaginatedCitizenIncidentList: {
+        type: 'object',
+        properties: {
+          data: { type: 'array', items: { $ref: '#/components/schemas/CitizenIncident' } },
+          pagination: { $ref: '#/components/schemas/PaginationMeta' },
+        },
+        required: ['data', 'pagination'],
+      },
+      PaginatedAssignmentList: {
+        type: 'object',
+        properties: {
+          data: { type: 'array', items: { $ref: '#/components/schemas/Assignment' } },
+          pagination: { $ref: '#/components/schemas/PaginationMeta' },
+        },
+        required: ['data', 'pagination'],
+      },
+      PaginatedUserList: {
+        type: 'object',
+        properties: {
+          data: { type: 'array', items: { $ref: '#/components/schemas/User' } },
+          pagination: { $ref: '#/components/schemas/PaginationMeta' },
+        },
+        required: ['data', 'pagination'],
+      },
       Citizen: {
         type: 'object',
         properties: {

@@ -1,7 +1,7 @@
 // Handles CRUD operations for citizen-reported incidents.
 import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
-import { getParamId } from '../utils/request.js';
+import { buildPaginatedResponse, getPaginationQuery, getParamId } from '../utils/request.js';
 import type { CitizenIncident } from '../types/models.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
 
@@ -22,6 +22,10 @@ export async function getIncidents(req: Request, res: Response): Promise<void> {
     return;
   }
 
+  const pagination = getPaginationQuery(req);
+
+  let where: { citizenId?: number } = {};
+
   let incidents;
   if (authUser.role === 'VIEWER') {
     const citizenId = await getLinkedCitizenIdByAuthEmail(authUser.email);
@@ -32,10 +36,23 @@ export async function getIncidents(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    incidents = await prisma.citizenIncident.findMany({ where: { citizenId } });
-  } else {
-    incidents = await prisma.citizenIncident.findMany();
+    where = { citizenId };
   }
+
+  if (pagination.enabled) {
+    const [paginatedIncidents, total] = await Promise.all([
+      prisma.citizenIncident.findMany({
+        where,
+        skip: pagination.skip,
+        take: pagination.take,
+      }),
+      prisma.citizenIncident.count({ where }),
+    ]);
+    res.json(buildPaginatedResponse(paginatedIncidents, total, pagination));
+    return;
+  }
+
+  incidents = await prisma.citizenIncident.findMany({ where });
 
   res.json(incidents);
 }

@@ -1,10 +1,20 @@
 // Handles CRUD operations for incident severity lookup values.
 import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
-import { getParamId } from '../utils/request.js';
+import { buildPaginatedResponse, getPaginationQuery, getParamId } from '../utils/request.js';
 
 // Returns all severities from the database.
-export async function getSeverities(_req: Request, res: Response): Promise<void> {
+export async function getSeverities(req: Request, res: Response): Promise<void> {
+  const pagination = getPaginationQuery(req);
+  if (pagination.enabled) {
+    const [severities, total] = await Promise.all([
+      prisma.severity.findMany({ skip: pagination.skip, take: pagination.take }),
+      prisma.severity.count(),
+    ]);
+    res.json(buildPaginatedResponse(severities, total, pagination));
+    return;
+  }
+
   const severities = await prisma.severity.findMany();
   res.json(severities);
 }

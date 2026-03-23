@@ -1,8 +1,18 @@
 import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
-import { getParamId } from '../utils/request.js';
+import { buildPaginatedResponse, getPaginationQuery, getParamId } from '../utils/request.js';
 
-export async function getAgencies(_req: Request, res: Response): Promise<void> {
+export async function getAgencies(req: Request, res: Response): Promise<void> {
+  const pagination = getPaginationQuery(req);
+  if (pagination.enabled) {
+    const [agencies, total] = await Promise.all([
+      prisma.agency.findMany({ skip: pagination.skip, take: pagination.take }),
+      prisma.agency.count(),
+    ]);
+    res.json(buildPaginatedResponse(agencies, total, pagination));
+    return;
+  }
+
   const agencies = await prisma.agency.findMany();
   res.json(agencies);
 }
