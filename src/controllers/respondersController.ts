@@ -1,7 +1,7 @@
 // Handles CRUD operations for emergency responders.
 import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
-import { buildPaginatedResponse, getPaginationQuery, getParamId } from '../utils/request.js';
+import { buildPaginatedResponse, getPaginationQuery, getParamId, getTimestampQuery } from '../utils/request.js';
 import type { Responder } from '../types/models.js';
 
 const responderInclude = {
@@ -11,20 +11,27 @@ const responderInclude = {
 // Returns all responders from the database.
 export async function getResponders(req: Request, res: Response): Promise<void> {
   const pagination = getPaginationQuery(req);
+  const timestampQuery = getTimestampQuery(req);
   if (pagination.enabled) {
     const [responders, total] = await Promise.all([
       prisma.responder.findMany({
         include: responderInclude,
+        where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined,
+        orderBy: timestampQuery.orderBy as any,
         skip: pagination.skip,
         take: pagination.take,
       }),
-      prisma.responder.count(),
+      prisma.responder.count({ where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined }),
     ]);
     res.json(buildPaginatedResponse(responders, total, pagination));
     return;
   }
 
-  const responders = await prisma.responder.findMany({ include: responderInclude });
+  const responders = await prisma.responder.findMany({
+    include: responderInclude,
+    where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined,
+    orderBy: timestampQuery.orderBy as any,
+  });
   res.json(responders);
 }
 

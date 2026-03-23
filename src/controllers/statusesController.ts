@@ -1,21 +1,30 @@
 // Handles CRUD operations for incident status lookup values.
 import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
-import { buildPaginatedResponse, getPaginationQuery, getParamId } from '../utils/request.js';
+import { buildPaginatedResponse, getPaginationQuery, getParamId, getTimestampQuery } from '../utils/request.js';
 
 // Returns all statuses from the database.
 export async function getStatuses(req: Request, res: Response): Promise<void> {
   const pagination = getPaginationQuery(req);
+  const timestampQuery = getTimestampQuery(req);
   if (pagination.enabled) {
     const [statuses, total] = await Promise.all([
-      prisma.status.findMany({ skip: pagination.skip, take: pagination.take }),
-      prisma.status.count(),
+      prisma.status.findMany({
+        where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined,
+        orderBy: timestampQuery.orderBy as any,
+        skip: pagination.skip,
+        take: pagination.take,
+      }),
+      prisma.status.count({ where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined }),
     ]);
     res.json(buildPaginatedResponse(statuses, total, pagination));
     return;
   }
 
-  const statuses = await prisma.status.findMany();
+  const statuses = await prisma.status.findMany({
+    where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined,
+    orderBy: timestampQuery.orderBy as any,
+  });
   res.json(statuses);
 }
 

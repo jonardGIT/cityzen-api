@@ -10,18 +10,29 @@ import type {
   Status,
 } from '../types/models.js';
 
+const now = new Date();
+
 export const citizens: Citizen[] = [
-  { id: 1, name: 'Jane Doe', contactInfo: 'jane@example.com', preferredChannel: 'SMS' },
+  {
+    id: 1,
+    createdAt: now,
+    updatedAt: now,
+    name: 'Jane Doe',
+    contactInfo: 'jane@example.com',
+    preferredChannel: 'SMS',
+  },
 ];
 
 export const agencies: Agency[] = [
-  { id: 1, name: 'City Fire Department', contactNumber: '+1-555-0100' },
-  { id: 2, name: 'EMS Unit', contactNumber: '+1-555-0101' },
+  { id: 1, createdAt: now, updatedAt: now, name: 'City Fire Department', contactNumber: '+1-555-0100' },
+  { id: 2, createdAt: now, updatedAt: now, name: 'EMS Unit', contactNumber: '+1-555-0101' },
 ];
 
 export const responders: Responder[] = [
   {
     id: 1,
+    createdAt: now,
+    updatedAt: now,
     name: 'Alex Smith',
     agencyId: 1,
     agency: agencies[0],
@@ -31,24 +42,26 @@ export const responders: Responder[] = [
 ];
 
 export const statuses: Status[] = [
-  { id: 1, name: 'Reported' },
-  { id: 2, name: 'In Progress' },
-  { id: 3, name: 'Resolved' },
+  { id: 1, createdAt: now, updatedAt: now, name: 'Reported' },
+  { id: 2, createdAt: now, updatedAt: now, name: 'In Progress' },
+  { id: 3, createdAt: now, updatedAt: now, name: 'Resolved' },
 ];
 
 export const categories: Category[] = [
-  { id: 1, name: 'Fire', subCategory: 'Residential' },
-  { id: 2, name: 'Medical', subCategory: 'Emergency' },
+  { id: 1, createdAt: now, updatedAt: now, name: 'Fire', subCategory: 'Residential' },
+  { id: 2, createdAt: now, updatedAt: now, name: 'Medical', subCategory: 'Emergency' },
 ];
 
 export const severities: Severity[] = [
-  { id: 1, level: 'Low', definition: 'Minimal impact' },
-  { id: 2, level: 'High', definition: 'Immediate action required' },
+  { id: 1, createdAt: now, updatedAt: now, level: 'Low', definition: 'Minimal impact' },
+  { id: 2, createdAt: now, updatedAt: now, level: 'High', definition: 'Immediate action required' },
 ];
 
 export const locations: Location[] = [
   {
     id: 1,
+    createdAt: now,
+    updatedAt: now,
     district: 'District 1',
     city: 'Sample City',
     province: 'Sample Province',
@@ -59,6 +72,8 @@ export const locations: Location[] = [
 export const incidents: CitizenIncident[] = [
   {
     id: 1,
+    createdAt: now,
+    updatedAt: now,
     description: 'Small kitchen fire reported by resident.',
     dateReported: new Date(),
     statusId: 1,
@@ -72,6 +87,8 @@ export const incidents: CitizenIncident[] = [
 export const assignments: Assignment[] = [
   {
     id: 1,
+    createdAt: now,
+    updatedAt: now,
     incidentId: 1,
     responderId: 1,
     assignedDate: new Date(),

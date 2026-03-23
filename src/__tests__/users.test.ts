@@ -84,4 +84,25 @@ describe(`GET ${USERS}`, () => {
     expect(typeof res.body.pagination.hasPrevPage).toBe('boolean');
     expect(res.body.data.length).toBeLessThanOrEqual(2);
   });
+
+  it('should support updatedAt sorting and range filters', async () => {
+    const updatedFrom = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+
+    const res = await request(app)
+      .get(`${USERS}?page=1&pageSize=5&sortBy=updatedAt&sortOrder=desc&updatedFrom=${encodeURIComponent(updatedFrom)}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.data)).toBe(true);
+
+    for (const user of res.body.data) {
+      expect(new Date(user.updatedAt).getTime()).toBeGreaterThanOrEqual(new Date(updatedFrom).getTime());
+    }
+
+    if (res.body.data.length >= 2) {
+      const first = new Date(res.body.data[0].updatedAt).getTime();
+      const second = new Date(res.body.data[1].updatedAt).getTime();
+      expect(first).toBeGreaterThanOrEqual(second);
+    }
+  });
 });

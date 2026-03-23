@@ -5,10 +5,12 @@ import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
 import { hasHigherAccessLevel, isUserRole } from '../types/auth.js';
-import { buildPaginatedResponse, getPaginationQuery } from '../utils/request.js';
+import { buildPaginatedResponse, getPaginationQuery, getTimestampQuery } from '../utils/request.js';
 
 const userSelect = {
   id: true,
+  createdAt: true,
+  updatedAt: true,
   name: true,
   email: true,
   role: true,
@@ -53,20 +55,27 @@ export async function getUserCapabilities(_req: Request, res: Response): Promise
 // Returns all users from the database.
 export async function getUsers(req: Request, res: Response): Promise<void> {
   const pagination = getPaginationQuery(req);
+  const timestampQuery = getTimestampQuery(req);
   if (pagination.enabled) {
     const [users, total] = await Promise.all([
       prisma.user.findMany({
         select: userSelect,
+        where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined,
+        orderBy: timestampQuery.orderBy as any,
         skip: pagination.skip,
         take: pagination.take,
       }),
-      prisma.user.count(),
+      prisma.user.count({ where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined }),
     ]);
     res.json(buildPaginatedResponse(users, total, pagination));
     return;
   }
 
-  const users = await prisma.user.findMany({ select: userSelect });
+  const users = await prisma.user.findMany({
+    select: userSelect,
+    where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined,
+    orderBy: timestampQuery.orderBy as any,
+  });
   res.json(users);
 }
 

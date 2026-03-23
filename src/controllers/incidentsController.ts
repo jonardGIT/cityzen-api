@@ -1,7 +1,7 @@
 // Handles CRUD operations for citizen-reported incidents.
 import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
-import { buildPaginatedResponse, getPaginationQuery, getParamId } from '../utils/request.js';
+import { buildPaginatedResponse, getPaginationQuery, getParamId, getTimestampQuery } from '../utils/request.js';
 import type { CitizenIncident } from '../types/models.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
 
@@ -23,8 +23,11 @@ export async function getIncidents(req: Request, res: Response): Promise<void> {
   }
 
   const pagination = getPaginationQuery(req);
+  const timestampQuery = getTimestampQuery(req);
 
-  let where: { citizenId?: number } = {};
+  let where: { citizenId?: number; createdAt?: { gte?: Date; lte?: Date }; updatedAt?: { gte?: Date; lte?: Date } } = {
+    ...timestampQuery.where,
+  };
 
   let incidents;
   if (authUser.role === 'VIEWER') {
@@ -37,12 +40,17 @@ export async function getIncidents(req: Request, res: Response): Promise<void> {
     }
 
     where = { citizenId };
+    where = {
+      ...timestampQuery.where,
+      citizenId,
+    };
   }
 
   if (pagination.enabled) {
     const [paginatedIncidents, total] = await Promise.all([
       prisma.citizenIncident.findMany({
         where,
+        orderBy: timestampQuery.orderBy as any,
         skip: pagination.skip,
         take: pagination.take,
       }),
@@ -52,7 +60,10 @@ export async function getIncidents(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  incidents = await prisma.citizenIncident.findMany({ where });
+  incidents = await prisma.citizenIncident.findMany({
+    where,
+    orderBy: timestampQuery.orderBy as any,
+  });
 
   res.json(incidents);
 }
