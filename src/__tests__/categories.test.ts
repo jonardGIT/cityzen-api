@@ -1,13 +1,52 @@
 import request from 'supertest';
 import app, { API_V1 } from '../app.js';
+import { getAdminToken } from './helpers/auth.js';
 
 const BASE = `${API_V1}/categories`;
+let adminToken = '';
+
+beforeAll(async () => {
+  adminToken = await getAdminToken();
+});
 
 describe(`GET ${BASE}`, () => {
   it('should return 200 with array', async () => {
     const res = await request(app).get(BASE);
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  it('should return paginated result when page and pageSize are provided', async () => {
+    const res = await request(app).get(`${BASE}?page=1&pageSize=2`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.pagination).toMatchObject({
+      page: 1,
+      pageSize: 2,
+    });
+    expect(typeof res.body.pagination.total).toBe('number');
+    expect(res.body.data.length).toBeLessThanOrEqual(2);
+  });
+
+  it('should support createdAt sorting and range filters', async () => {
+    const createdFrom = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
+
+    const res = await request(app).get(
+      `${BASE}?page=1&pageSize=5&sortBy=createdAt&sortOrder=desc&createdFrom=${encodeURIComponent(createdFrom)}`,
+    );
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.data)).toBe(true);
+
+    for (const item of res.body.data) {
+      expect(new Date(item.createdAt).getTime()).toBeGreaterThanOrEqual(new Date(createdFrom).getTime());
+    }
+
+    if (res.body.data.length >= 2) {
+      const first = new Date(res.body.data[0].createdAt).getTime();
+      const second = new Date(res.body.data[1].createdAt).getTime();
+      expect(first).toBeGreaterThanOrEqual(second);
+    }
   });
 });
 
@@ -26,13 +65,16 @@ describe(`GET ${BASE}/:id`, () => {
 
 describe(`POST ${BASE}`, () => {
   it('should create and return 201', async () => {
-    const res = await request(app).post(BASE).send({ name: 'Flood', subCategory: 'Urban' });
+    const res = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: `Flood-${Date.now()}`, subCategory: 'Urban' });
     expect(res.status).toBe(201);
-    expect(res.body).toMatchObject({ name: 'Flood' });
+    expect(res.body.name).toContain('Flood-');
   });
 
   it('should return 400 when name is missing', async () => {
-    const res = await request(app).post(BASE).send({});
+    const res = await request(app).post(BASE).set('Authorization', `Bearer ${adminToken}`).send({});
     expect(res.status).toBe(422);
     expect(res.body).toHaveProperty('errors');
   });

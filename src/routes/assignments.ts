@@ -1,17 +1,37 @@
 import { Router } from 'express';
 import {
   createAssignment,
+  deleteAssignment,
   getAssignmentById,
   getAssignments,
+  updateAssignment,
 } from '../controllers/assignmentsController.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { validateRequest } from '../middleware/validateRequest.js';
-import { createAssignmentValidator } from '../validators/bodyValidators.js';
+import { createAssignmentValidator, updateAssignmentValidator } from '../validators/bodyValidators.js';
+import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
+import { DISPATCH_ROLES } from '../types/auth.js';
 
 const router = Router();
 
 router.get('/', asyncHandler(getAssignments));
 router.get('/:id', asyncHandler(getAssignmentById));
-router.post('/', createAssignmentValidator, validateRequest, asyncHandler(createAssignment));
+router.post(
+  '/',
+  requireJwtAuth,
+  requireRole(...DISPATCH_ROLES),
+  createAssignmentValidator,
+  validateRequest,
+  asyncHandler(createAssignment)
+);
+router.patch(
+  '/:id',
+  requireJwtAuth,
+  requireRole(...DISPATCH_ROLES),
+  updateAssignmentValidator,
+  validateRequest,
+  asyncHandler(updateAssignment)
+);
+router.delete('/:id', requireJwtAuth, requireRole(...DISPATCH_ROLES), asyncHandler(deleteAssignment));
 
 export default router;

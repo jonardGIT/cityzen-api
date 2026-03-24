@@ -5,6 +5,7 @@
     assignments,
     incidents,
     responders,
+    agencies,
     citizens,
     statuses,
     categories,
@@ -13,114 +14,125 @@
     "User"
   RESTART IDENTITY CASCADE;
 
-  -- Users (smaller set as requested).
-  INSERT INTO "User" (name, email) VALUES
-    ('Admin User', 'admin@xypes.local'),
-    ('Ops Lead', 'ops.lead@xypes.local'),
-    ('Dispatcher', 'dispatcher@xypes.local'),
-    ('Analyst', 'analyst@xypes.local'),
-    ('Supervisor', 'supervisor@xypes.local');
+  -- Users with role/access level.
+  -- Default password for all seeded users: Password123!
+  INSERT INTO "User" (name, email, "passwordHash", role, "createdAt", "updatedAt") VALUES
+    ('Admin User', 'admin@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'SUPER_ADMIN', NOW() - INTERVAL '14 days', NOW() - INTERVAL '2 days'),
+    ('Ops Lead', 'ops.lead@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'ADMIN', NOW() - INTERVAL '12 days', NOW() - INTERVAL '3 days'),
+    ('Dispatcher', 'dispatcher@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'DISPATCHER', NOW() - INTERVAL '10 days', NOW() - INTERVAL '1 day'),
+    ('Analyst', 'analyst@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'VIEWER', NOW() - INTERVAL '8 days', NOW() - INTERVAL '12 hours'),
+    ('Supervisor', 'supervisor@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'RESPONDER', NOW() - INTERVAL '6 days', NOW() - INTERVAL '8 hours');
 
   -- Statuses (16) aligned to typical LGU incident operations.
-  INSERT INTO statuses (name) VALUES
-    ('Reported'),
-    ('Verified'),
-    ('For Dispatch'),
-    ('Dispatched'),
-    ('Responding'),
-    ('On Site'),
-    ('Action Ongoing'),
-    ('Needs Escalation'),
-    ('Resolved'),
-    ('Closed'),
-    ('Reopened'),
-    ('False Alarm'),
-    ('Duplicate Report'),
-    ('Pending Approval'),
-    ('Cancelled'),
-    ('Archived');
+  INSERT INTO statuses (name, "createdAt", "updatedAt") VALUES
+    ('Reported', NOW() - INTERVAL '16 days', NOW() - INTERVAL '16 days'),
+    ('Verified', NOW() - INTERVAL '16 days', NOW() - INTERVAL '15 days'),
+    ('For Dispatch', NOW() - INTERVAL '16 days', NOW() - INTERVAL '15 days'),
+    ('Dispatched', NOW() - INTERVAL '16 days', NOW() - INTERVAL '14 days'),
+    ('Responding', NOW() - INTERVAL '16 days', NOW() - INTERVAL '14 days'),
+    ('On Site', NOW() - INTERVAL '16 days', NOW() - INTERVAL '13 days'),
+    ('Action Ongoing', NOW() - INTERVAL '16 days', NOW() - INTERVAL '13 days'),
+    ('Needs Escalation', NOW() - INTERVAL '16 days', NOW() - INTERVAL '12 days'),
+    ('Resolved', NOW() - INTERVAL '16 days', NOW() - INTERVAL '12 days'),
+    ('Closed', NOW() - INTERVAL '16 days', NOW() - INTERVAL '11 days'),
+    ('Reopened', NOW() - INTERVAL '16 days', NOW() - INTERVAL '10 days'),
+    ('False Alarm', NOW() - INTERVAL '16 days', NOW() - INTERVAL '10 days'),
+    ('Duplicate Report', NOW() - INTERVAL '16 days', NOW() - INTERVAL '9 days'),
+    ('Pending Approval', NOW() - INTERVAL '16 days', NOW() - INTERVAL '9 days'),
+    ('Cancelled', NOW() - INTERVAL '16 days', NOW() - INTERVAL '8 days'),
+    ('Archived', NOW() - INTERVAL '16 days', NOW() - INTERVAL '8 days');
 
   -- Categories (16) focused on common local-government incidents.
-  INSERT INTO categories (name, "subCategory") VALUES
-    ('Fire Incident', 'Residential Structure'),
-    ('Medical Emergency', 'Patient Transport'),
-    ('Road Accident', 'Vehicle Collision'),
-    ('Flooding', 'Urban Drainage Overflow'),
-    ('Landslide', 'Road Obstruction'),
-    ('Earthquake Related', 'Structural Damage Assessment'),
-    ('Public Safety', 'Crime or Disturbance Report'),
-    ('Utility Disruption', 'Power or Water Service Outage'),
-    ('Hazardous Material', 'Chemical or Fuel Spill'),
-    ('Search and Rescue', 'Missing Person or Water Rescue'),
-    ('Storm Impact', 'Strong Wind Damage'),
-    ('Public Infrastructure', 'Bridge or Roadway Damage'),
-    ('Environmental Incident', 'River or Coastal Pollution'),
-    ('Animal-Related Incident', 'Stray or Dangerous Animal Response'),
-    ('Public Event Incident', 'Crowd Control or Safety Risk'),
-    ('Evacuation Support', 'Preemptive or Emergency Evacuation');
+  INSERT INTO categories (name, "subCategory", "createdAt", "updatedAt") VALUES
+    ('Fire Incident', 'Residential Structure', NOW() - INTERVAL '15 days', NOW() - INTERVAL '14 days'),
+    ('Medical Emergency', 'Patient Transport', NOW() - INTERVAL '15 days', NOW() - INTERVAL '14 days'),
+    ('Road Accident', 'Vehicle Collision', NOW() - INTERVAL '15 days', NOW() - INTERVAL '13 days'),
+    ('Flooding', 'Urban Drainage Overflow', NOW() - INTERVAL '15 days', NOW() - INTERVAL '13 days'),
+    ('Landslide', 'Road Obstruction', NOW() - INTERVAL '15 days', NOW() - INTERVAL '12 days'),
+    ('Earthquake Related', 'Structural Damage Assessment', NOW() - INTERVAL '15 days', NOW() - INTERVAL '12 days'),
+    ('Public Safety', 'Crime or Disturbance Report', NOW() - INTERVAL '15 days', NOW() - INTERVAL '11 days'),
+    ('Utility Disruption', 'Power or Water Service Outage', NOW() - INTERVAL '15 days', NOW() - INTERVAL '11 days'),
+    ('Hazardous Material', 'Chemical or Fuel Spill', NOW() - INTERVAL '15 days', NOW() - INTERVAL '10 days'),
+    ('Search and Rescue', 'Missing Person or Water Rescue', NOW() - INTERVAL '15 days', NOW() - INTERVAL '10 days'),
+    ('Storm Impact', 'Strong Wind Damage', NOW() - INTERVAL '15 days', NOW() - INTERVAL '9 days'),
+    ('Public Infrastructure', 'Bridge or Roadway Damage', NOW() - INTERVAL '15 days', NOW() - INTERVAL '9 days'),
+    ('Environmental Incident', 'River or Coastal Pollution', NOW() - INTERVAL '15 days', NOW() - INTERVAL '8 days'),
+    ('Animal-Related Incident', 'Stray or Dangerous Animal Response', NOW() - INTERVAL '15 days', NOW() - INTERVAL '8 days'),
+    ('Public Event Incident', 'Crowd Control or Safety Risk', NOW() - INTERVAL '15 days', NOW() - INTERVAL '7 days'),
+    ('Evacuation Support', 'Preemptive or Emergency Evacuation', NOW() - INTERVAL '15 days', NOW() - INTERVAL '7 days');
 
   -- Severities (16) suitable for LGU dispatch and escalation decisions.
-  INSERT INTO severities (level, definition) VALUES
-    ('Level 1 - Information', 'For documentation and monitoring; no deployment needed.'),
-    ('Level 2 - Minor', 'Low-impact issue with minimal public safety risk.'),
-    ('Level 3 - Routine Response', 'Requires standard responder deployment.'),
-    ('Level 4 - Priority Response', 'Needs quick response to prevent escalation.'),
-    ('Level 5 - High Priority', 'Clear threat to life, property, or critical access routes.'),
-    ('Level 6 - Critical', 'Immediate intervention required; multiple units may be needed.'),
-    ('Level 7 - Severe', 'High-impact event affecting multiple households/blocks.'),
-    ('Level 8 - Major', 'City-level incident requiring inter-office coordination.'),
-    ('Level 9 - Extreme', 'Large-scale emergency with prolonged operations expected.'),
-    ('Level 10 - Disaster', 'Widespread disaster condition requiring full LGU activation.'),
-    ('Level 11 - Life Threatening', 'Immediate danger to multiple lives with ongoing exposure.'),
-    ('Level 12 - Critical Infrastructure', 'Severe impact to hospitals, water, power, or transport systems.'),
-    ('Level 13 - Regional Emergency', 'Incident impact extends beyond city boundaries.'),
-    ('Level 14 - Prolonged Operations', 'Multi-day response requiring sustained command and logistics.'),
-    ('Level 15 - Mass Casualty Risk', 'High probability of mass casualty scenario.'),
-    ('Level 16 - Full Mobilization', 'Requires full LGU emergency operations center activation.');
+  INSERT INTO severities (level, definition, "createdAt", "updatedAt") VALUES
+    ('Level 1 - Information', 'For documentation and monitoring; no deployment needed.', NOW() - INTERVAL '15 days', NOW() - INTERVAL '15 days'),
+    ('Level 2 - Minor', 'Low-impact issue with minimal public safety risk.', NOW() - INTERVAL '15 days', NOW() - INTERVAL '14 days'),
+    ('Level 3 - Routine Response', 'Requires standard responder deployment.', NOW() - INTERVAL '15 days', NOW() - INTERVAL '14 days'),
+    ('Level 4 - Priority Response', 'Needs quick response to prevent escalation.', NOW() - INTERVAL '15 days', NOW() - INTERVAL '13 days'),
+    ('Level 5 - High Priority', 'Clear threat to life, property, or critical access routes.', NOW() - INTERVAL '15 days', NOW() - INTERVAL '13 days'),
+    ('Level 6 - Critical', 'Immediate intervention required; multiple units may be needed.', NOW() - INTERVAL '15 days', NOW() - INTERVAL '12 days'),
+    ('Level 7 - Severe', 'High-impact event affecting multiple households/blocks.', NOW() - INTERVAL '15 days', NOW() - INTERVAL '12 days'),
+    ('Level 8 - Major', 'City-level incident requiring inter-office coordination.', NOW() - INTERVAL '15 days', NOW() - INTERVAL '11 days'),
+    ('Level 9 - Extreme', 'Large-scale emergency with prolonged operations expected.', NOW() - INTERVAL '15 days', NOW() - INTERVAL '11 days'),
+    ('Level 10 - Disaster', 'Widespread disaster condition requiring full LGU activation.', NOW() - INTERVAL '15 days', NOW() - INTERVAL '10 days'),
+    ('Level 11 - Life Threatening', 'Immediate danger to multiple lives with ongoing exposure.', NOW() - INTERVAL '15 days', NOW() - INTERVAL '10 days'),
+    ('Level 12 - Critical Infrastructure', 'Severe impact to hospitals, water, power, or transport systems.', NOW() - INTERVAL '15 days', NOW() - INTERVAL '9 days'),
+    ('Level 13 - Regional Emergency', 'Incident impact extends beyond city boundaries.', NOW() - INTERVAL '15 days', NOW() - INTERVAL '9 days'),
+    ('Level 14 - Prolonged Operations', 'Multi-day response requiring sustained command and logistics.', NOW() - INTERVAL '15 days', NOW() - INTERVAL '8 days'),
+    ('Level 15 - Mass Casualty Risk', 'High probability of mass casualty scenario.', NOW() - INTERVAL '15 days', NOW() - INTERVAL '8 days'),
+    ('Level 16 - Full Mobilization', 'Requires full LGU emergency operations center activation.', NOW() - INTERVAL '15 days', NOW() - INTERVAL '7 days');
 
-  -- Locations (10)
-  INSERT INTO locations (district, city, province, region) VALUES
-    ('District 1', 'Quezon City', 'Metro Manila', 'NCR'),
-    ('District 2', 'Makati', 'Metro Manila', 'NCR'),
-    ('District 3', 'Taguig', 'Metro Manila', 'NCR'),
-    ('District 4', 'Cebu City', 'Cebu', 'Region VII'),
-    ('District 5', 'Davao City', 'Davao del Sur', 'Region XI'),
-    ('District 6', 'Baguio', 'Benguet', 'CAR'),
-    ('District 7', 'Iloilo City', 'Iloilo', 'Region VI'),
-    ('District 8', 'Cagayan de Oro', 'Misamis Oriental', 'Region X'),
-    ('District 9', 'Bacolod', 'Negros Occidental', 'Region VI'),
-    ('District 10', 'Zamboanga City', 'Zamboanga del Sur', 'Region IX');
+  -- Locations (10): realistic barangay-level areas in one city operation zone.
+  INSERT INTO locations (district, city, province, region, "createdAt", "updatedAt") VALUES
+    ('District 1 - Batasan', 'Quezon City', 'Metro Manila', 'NCR', NOW() - INTERVAL '20 days', NOW() - INTERVAL '5 days'),
+    ('District 2 - Commonwealth', 'Quezon City', 'Metro Manila', 'NCR', NOW() - INTERVAL '19 days', NOW() - INTERVAL '5 days'),
+    ('District 3 - Cubao', 'Quezon City', 'Metro Manila', 'NCR', NOW() - INTERVAL '18 days', NOW() - INTERVAL '4 days'),
+    ('District 4 - Novaliches', 'Quezon City', 'Metro Manila', 'NCR', NOW() - INTERVAL '17 days', NOW() - INTERVAL '4 days'),
+    ('District 5 - Project 6', 'Quezon City', 'Metro Manila', 'NCR', NOW() - INTERVAL '16 days', NOW() - INTERVAL '3 days'),
+    ('District 6 - Tandang Sora', 'Quezon City', 'Metro Manila', 'NCR', NOW() - INTERVAL '15 days', NOW() - INTERVAL '3 days'),
+    ('District 7 - Holy Spirit', 'Quezon City', 'Metro Manila', 'NCR', NOW() - INTERVAL '14 days', NOW() - INTERVAL '2 days'),
+    ('District 8 - Fairview', 'Quezon City', 'Metro Manila', 'NCR', NOW() - INTERVAL '13 days', NOW() - INTERVAL '2 days'),
+    ('District 9 - Kamias', 'Quezon City', 'Metro Manila', 'NCR', NOW() - INTERVAL '12 days', NOW() - INTERVAL '1 day'),
+    ('District 10 - Diliman', 'Quezon City', 'Metro Manila', 'NCR', NOW() - INTERVAL '11 days', NOW() - INTERVAL '1 day');
 
-  -- Citizens (10)
-  INSERT INTO citizens (name, "contactInfo", "preferredChannel") VALUES
-    ('Jane Doe', 'jane.doe@example.com', 'SMS'),
-    ('John Cruz', 'john.cruz@example.com', 'Call'),
-    ('Maria Santos', 'maria.santos@example.com', 'Email'),
-    ('Carlos Reyes', 'carlos.reyes@example.com', 'SMS'),
-    ('Angela Lim', 'angela.lim@example.com', 'Call'),
-    ('Paolo Garcia', 'paolo.garcia@example.com', 'SMS'),
-    ('Nina Flores', 'nina.flores@example.com', 'Email'),
-    ('Ramon Dela Cruz', 'ramon.delacruz@example.com', 'Call'),
-    ('Bea Navarro', 'bea.navarro@example.com', 'SMS'),
-    ('Leo Tan', 'leo.tan@example.com', 'Email');
+  -- Citizens (10): residents submitting typhoon-weekend incident reports.
+  INSERT INTO citizens (name, "contactInfo", "preferredChannel", "createdAt", "updatedAt") VALUES
+    ('Mika dela Cruz', 'mika.delacruz@example.com', 'SMS', NOW() - INTERVAL '9 days', NOW() - INTERVAL '18 hours'),
+    ('Ronnie Villareal', 'ronnie.villareal@example.com', 'Call', NOW() - INTERVAL '8 days', NOW() - INTERVAL '20 hours'),
+    ('Aileen Santiago', 'aileen.santiago@example.com', 'Email', NOW() - INTERVAL '7 days', NOW() - INTERVAL '16 hours'),
+    ('Noel Ramos', 'noel.ramos@example.com', 'SMS', NOW() - INTERVAL '6 days', NOW() - INTERVAL '14 hours'),
+    ('Jessa Bautista', 'jessa.bautista@example.com', 'Call', NOW() - INTERVAL '5 days', NOW() - INTERVAL '12 hours'),
+    ('Paolo Natividad', 'paolo.natividad@example.com', 'SMS', NOW() - INTERVAL '4 days', NOW() - INTERVAL '10 hours'),
+    ('Lea Fernandez', 'lea.fernandez@example.com', 'Email', NOW() - INTERVAL '3 days', NOW() - INTERVAL '8 hours'),
+    ('Mark Villanueva', 'mark.villanueva@example.com', 'Call', NOW() - INTERVAL '2 days', NOW() - INTERVAL '6 hours'),
+    ('Trina Co', 'trina.co@example.com', 'SMS', NOW() - INTERVAL '36 hours', NOW() - INTERVAL '4 hours'),
+    ('Josef Tan', 'josef.tan@example.com', 'Email', NOW() - INTERVAL '24 hours', NOW() - INTERVAL '2 hours');
 
-  -- Responders (10)
-  INSERT INTO responders (name, agency, role, "contactInfo") VALUES
-    ('Alex Smith', 'City Fire Department', 'Field Responder', 'alex.smith@agency.gov'),
-    ('Brian Lee', 'EMS Unit', 'Paramedic', 'brian.lee@agency.gov'),
-    ('Carla Mendoza', 'Police District', 'Patrol Officer', 'carla.mendoza@agency.gov'),
-    ('Daniel Ong', 'Disaster Risk Office', 'Operations Officer', 'daniel.ong@agency.gov'),
-    ('Erika Ramos', 'City Fire Department', 'Crew Lead', 'erika.ramos@agency.gov'),
-    ('Francis Yu', 'EMS Unit', 'Emergency Nurse', 'francis.yu@agency.gov'),
-    ('Grace Villanueva', 'Police District', 'Investigator', 'grace.villanueva@agency.gov'),
-    ('Harold Go', 'Rescue Task Force', 'Rescue Diver', 'harold.go@agency.gov'),
-    ('Iris Chua', 'Disaster Risk Office', 'Logistics Coordinator', 'iris.chua@agency.gov'),
-    ('Jason Bautista', 'City Fire Department', 'Pump Operator', 'jason.bautista@agency.gov');
+  -- Agencies (5): field command contacts used by dispatch.
+  INSERT INTO agencies (name, "contactNumber", "createdAt", "updatedAt") VALUES
+    ('Quezon City Fire District', '+63-2-8928-8363', NOW() - INTERVAL '14 days', NOW() - INTERVAL '3 days'),
+    ('Quezon City EMS Command', '+63-2-8898-6722', NOW() - INTERVAL '13 days', NOW() - INTERVAL '3 days'),
+    ('Quezon City Police District', '+63-2-8723-0401', NOW() - INTERVAL '12 days', NOW() - INTERVAL '2 days'),
+    ('QC Disaster Risk Reduction Office', '+63-2-8709-1923', NOW() - INTERVAL '11 days', NOW() - INTERVAL '2 days'),
+    ('Metro Rescue Task Group', '+63-917-555-0440', NOW() - INTERVAL '10 days', NOW() - INTERVAL '1 day');
 
-  -- Incidents (10) with valid foreign keys.
+  -- Responders (10): assigned personnel mapped to proper agencies.
+  INSERT INTO responders (name, "agencyId", role, "contactInfo", "createdAt", "updatedAt") VALUES
+    ('Capt. Luis Herrera', 1, 'Fire Incident Commander', 'l.herrera@qcfire.gov.ph', NOW() - INTERVAL '9 days', NOW() - INTERVAL '30 hours'),
+    ('FO1 Carla Santos', 1, 'Pump Operator', 'c.santos@qcfire.gov.ph', NOW() - INTERVAL '8 days', NOW() - INTERVAL '28 hours'),
+    ('EMT Bryan Lim', 2, 'Paramedic', 'b.lim@qcems.gov.ph', NOW() - INTERVAL '7 days', NOW() - INTERVAL '26 hours'),
+    ('Nurse Tricia Ong', 2, 'Emergency Nurse', 't.ong@qcems.gov.ph', NOW() - INTERVAL '6 days', NOW() - INTERVAL '24 hours'),
+    ('PSMS Joel Navarro', 3, 'Traffic Control Officer', 'j.navarro@qcpd.gov.ph', NOW() - INTERVAL '5 days', NOW() - INTERVAL '22 hours'),
+    ('PLT Ana Cruz', 3, 'Investigator', 'a.cruz@qcpd.gov.ph', NOW() - INTERVAL '4 days', NOW() - INTERVAL '20 hours'),
+    ('Engr. Marco Sy', 4, 'Operations Officer', 'm.sy@qcdrro.gov.ph', NOW() - INTERVAL '3 days', NOW() - INTERVAL '18 hours'),
+    ('Iris Mateo', 4, 'Logistics Coordinator', 'i.mateo@qcdrro.gov.ph', NOW() - INTERVAL '60 hours', NOW() - INTERVAL '12 hours'),
+    ('Ruben Alvarez', 5, 'Swift Water Rescue Lead', 'r.alvarez@rescuetask.ph', NOW() - INTERVAL '48 hours', NOW() - INTERVAL '8 hours'),
+    ('Kim Garcia', 5, 'Search Specialist', 'k.garcia@rescuetask.ph', NOW() - INTERVAL '36 hours', NOW() - INTERVAL '6 hours');
+
+  -- Incidents (10): one continuous typhoon-event timeline with varied states.
   INSERT INTO incidents (
     description,
     "mediaUrl",
+    "createdAt",
+    "updatedAt",
     "dateReported",
     "statusId",
     "citizenId",
@@ -128,36 +140,38 @@
     "categoryId",
     "severityId"
   ) VALUES
-    ('Kitchen fire in apartment unit.', 'https://example.com/media/incident-1.jpg', NOW() - INTERVAL '10 days', 1, 1, 1, 1, 6),
-    ('Pedestrian injured near intersection.', 'https://example.com/media/incident-2.jpg', NOW() - INTERVAL '9 days', 2, 2, 2, 2, 5),
-    ('Two-vehicle collision on main road.', 'https://example.com/media/incident-3.jpg', NOW() - INTERVAL '8 days', 3, 3, 3, 3, 4),
-    ('Flooded street after heavy rain.', 'https://example.com/media/incident-4.jpg', NOW() - INTERVAL '7 days', 4, 4, 4, 4, 7),
-    ('Road blocked by minor landslide.', 'https://example.com/media/incident-5.jpg', NOW() - INTERVAL '6 days', 5, 5, 5, 5, 5),
-    ('Building cracks after tremor.', 'https://example.com/media/incident-6.jpg', NOW() - INTERVAL '5 days', 6, 6, 6, 6, 8),
-    ('Neighborhood blackout affecting 3 blocks.', 'https://example.com/media/incident-7.jpg', NOW() - INTERVAL '4 days', 7, 7, 7, 7, 3),
-    ('Store robbery in progress report.', 'https://example.com/media/incident-8.jpg', NOW() - INTERVAL '3 days', 8, 8, 8, 8, 6),
-    ('Chemical leak from delivery truck.', 'https://example.com/media/incident-9.jpg', NOW() - INTERVAL '2 days', 9, 9, 9, 9, 9),
-    ('Missing swimmer reported at shoreline.', 'https://example.com/media/incident-10.jpg', NOW() - INTERVAL '1 day', 10, 10, 10, 10, 7);
+    ('Kitchen fire triggered by electrical short after power restoration.', 'https://example.com/media/qc-incident-001.jpg', NOW() - INTERVAL '36 hours', NOW() - INTERVAL '34 hours', NOW() - INTERVAL '36 hours', 10, 1, 3, 1, 6),
+    ('Senior citizen with breathing difficulty during flood evacuation.', 'https://example.com/media/qc-incident-002.jpg', NOW() - INTERVAL '30 hours', NOW() - INTERVAL '28 hours', NOW() - INTERVAL '30 hours', 9, 2, 2, 2, 5),
+    ('Three-vehicle collision on wet overpass near Cubao.', 'https://example.com/media/qc-incident-003.jpg', NOW() - INTERVAL '26 hours', NOW() - INTERVAL '24 hours', NOW() - INTERVAL '26 hours', 9, 3, 3, 3, 5),
+    ('Waist-deep flooding blocking access to elementary school.', 'https://example.com/media/qc-incident-004.jpg', NOW() - INTERVAL '22 hours', NOW() - INTERVAL '16 hours', NOW() - INTERVAL '22 hours', 7, 4, 8, 4, 8),
+    ('Collapsed roadside wall causing partial lane obstruction.', 'https://example.com/media/qc-incident-005.jpg', NOW() - INTERVAL '18 hours', NOW() - INTERVAL '13 hours', NOW() - INTERVAL '18 hours', 6, 5, 6, 12, 7),
+    ('Possible fuel leak reported from delivery truck after crash.', 'https://example.com/media/qc-incident-006.jpg', NOW() - INTERVAL '14 hours', NOW() - INTERVAL '11 hours', NOW() - INTERVAL '14 hours', 6, 6, 9, 9, 9),
+    ('Neighborhood outage affecting water pumping station.', 'https://example.com/media/qc-incident-007.jpg', NOW() - INTERVAL '10 hours', NOW() - INTERVAL '8 hours', NOW() - INTERVAL '10 hours', 5, 7, 10, 8, 6),
+    ('Missing teenage swimmer reported near overflow creek.', 'https://example.com/media/qc-incident-008.jpg', NOW() - INTERVAL '7 hours', NOW() - INTERVAL '5 hours', NOW() - INTERVAL '7 hours', 5, 8, 7, 10, 8),
+    ('Suspicious activity reported in temporary evacuation center.', 'https://example.com/media/qc-incident-009.jpg', NOW() - INTERVAL '4 hours', NOW() - INTERVAL '3 hours', NOW() - INTERVAL '4 hours', 4, 9, 1, 7, 4),
+    ('Fallen tree blocking barangay access road after strong winds.', 'https://example.com/media/qc-incident-010.jpg', NOW() - INTERVAL '90 minutes', NOW() - INTERVAL '45 minutes', NOW() - INTERVAL '90 minutes', 1, 10, 4, 11, 4);
 
-  -- Assignments (10) with valid foreign keys.
+  -- Assignments (10): includes resolved and ongoing operations.
   INSERT INTO assignments (
     "incidentId",
     "responderId",
+    "createdAt",
+    "updatedAt",
     "assignedDate",
     "responseStart",
     "responseEnd",
     outcome,
     notes
   ) VALUES
-    (1, 1, NOW() - INTERVAL '10 days', NOW() - INTERVAL '10 days' + INTERVAL '8 minutes', NOW() - INTERVAL '10 days' + INTERVAL '95 minutes', 'Contained', 'Fire extinguished; no casualties.'),
-    (2, 2, NOW() - INTERVAL '9 days', NOW() - INTERVAL '9 days' + INTERVAL '6 minutes', NOW() - INTERVAL '9 days' + INTERVAL '45 minutes', 'Stabilized', 'Patient transported to nearest hospital.'),
-    (3, 3, NOW() - INTERVAL '8 days', NOW() - INTERVAL '8 days' + INTERVAL '5 minutes', NOW() - INTERVAL '8 days' + INTERVAL '70 minutes', 'Cleared', 'Traffic rerouted and scene cleared.'),
-    (4, 4, NOW() - INTERVAL '7 days', NOW() - INTERVAL '7 days' + INTERVAL '12 minutes', NOW() - INTERVAL '7 days' + INTERVAL '180 minutes', 'Mitigated', 'Flood barriers deployed.'),
-    (5, 5, NOW() - INTERVAL '6 days', NOW() - INTERVAL '6 days' + INTERVAL '9 minutes', NOW() - INTERVAL '6 days' + INTERVAL '110 minutes', 'Partially Cleared', 'Heavy equipment requested.'),
-    (6, 6, NOW() - INTERVAL '5 days', NOW() - INTERVAL '5 days' + INTERVAL '7 minutes', NOW() - INTERVAL '5 days' + INTERVAL '130 minutes', 'Evaluated', 'Site marked unsafe pending engineering assessment.'),
-    (7, 7, NOW() - INTERVAL '4 days', NOW() - INTERVAL '4 days' + INTERVAL '4 minutes', NOW() - INTERVAL '4 days' + INTERVAL '35 minutes', 'Secured', 'Area secured while utility team repairs line.'),
-    (8, 8, NOW() - INTERVAL '3 days', NOW() - INTERVAL '3 days' + INTERVAL '3 minutes', NOW() - INTERVAL '3 days' + INTERVAL '60 minutes', 'Investigated', 'Suspect apprehended by responding unit.'),
-    (9, 9, NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days' + INTERVAL '10 minutes', NOW() - INTERVAL '2 days' + INTERVAL '150 minutes', 'Contained', 'Spill isolated; hazmat cleanup completed.'),
-    (10, 10, NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day' + INTERVAL '14 minutes', NOW() - INTERVAL '1 day' + INTERVAL '200 minutes', 'Rescued', 'Swimmer located and brought to shore safely.');
+    (1, 1, NOW() - INTERVAL '35 hours 50 minutes', NOW() - INTERVAL '34 hours 30 minutes', NOW() - INTERVAL '35 hours 50 minutes', NOW() - INTERVAL '35 hours 42 minutes', NOW() - INTERVAL '34 hours 30 minutes', 'Contained', 'Fire knocked down in 20 minutes; overhaul completed.'),
+    (2, 3, NOW() - INTERVAL '29 hours 45 minutes', NOW() - INTERVAL '28 hours 55 minutes', NOW() - INTERVAL '29 hours 45 minutes', NOW() - INTERVAL '29 hours 38 minutes', NOW() - INTERVAL '28 hours 55 minutes', 'Stabilized', 'Patient stabilized and transferred to East Avenue Medical Center.'),
+    (3, 5, NOW() - INTERVAL '25 hours 45 minutes', NOW() - INTERVAL '24 hours 50 minutes', NOW() - INTERVAL '25 hours 45 minutes', NOW() - INTERVAL '25 hours 39 minutes', NOW() - INTERVAL '24 hours 50 minutes', 'Cleared', 'Traffic restored after towing and scene documentation.'),
+    (4, 7, NOW() - INTERVAL '21 hours 50 minutes', NOW() - INTERVAL '16 hours 20 minutes', NOW() - INTERVAL '21 hours 50 minutes', NOW() - INTERVAL '21 hours 35 minutes', NOW() - INTERVAL '16 hours 20 minutes', 'Mitigated', 'Flood barriers and pumps deployed; road passable to light vehicles.'),
+    (5, 7, NOW() - INTERVAL '17 hours 45 minutes', NOW() - INTERVAL '13 hours 40 minutes', NOW() - INTERVAL '17 hours 45 minutes', NOW() - INTERVAL '17 hours 33 minutes', NOW() - INTERVAL '13 hours 40 minutes', 'Partially Cleared', 'Engineering team requested for retaining wall inspection.'),
+    (6, 8, NOW() - INTERVAL '13 hours 45 minutes', NOW() - INTERVAL '2 hours', NOW() - INTERVAL '13 hours 45 minutes', NOW() - INTERVAL '13 hours 31 minutes', NULL, 'Action Ongoing', 'Hot zone isolated; awaiting hazmat contractor clearance report.'),
+    (7, 8, NOW() - INTERVAL '9 hours 45 minutes', NOW() - INTERVAL '90 minutes', NOW() - INTERVAL '9 hours 45 minutes', NOW() - INTERVAL '9 hours 39 minutes', NULL, 'Action Ongoing', 'Power utility coordination in progress; backup generator deployed.'),
+    (8, 9, NOW() - INTERVAL '6 hours 50 minutes', NOW() - INTERVAL '55 minutes', NOW() - INTERVAL '6 hours 50 minutes', NOW() - INTERVAL '6 hours 38 minutes', NULL, 'Search Ongoing', 'Riverbank sweep expanded to downstream sector Bravo.'),
+    (9, 6, NOW() - INTERVAL '3 hours 45 minutes', NOW() - INTERVAL '35 minutes', NOW() - INTERVAL '3 hours 45 minutes', NOW() - INTERVAL '3 hours 36 minutes', NULL, 'Under Investigation', 'CCTV retrieval requested from evacuation center admin.'),
+    (10, 2, NOW() - INTERVAL '80 minutes', NOW() - INTERVAL '20 minutes', NOW() - INTERVAL '80 minutes', NULL, NULL, 'For Dispatch', 'Crew on standby pending final route safety confirmation.');
 
   COMMIT;

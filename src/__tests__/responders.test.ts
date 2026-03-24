@@ -1,7 +1,13 @@
 import request from 'supertest';
 import app, { API_V1 } from '../app.js';
+import { getAdminToken } from './helpers/auth.js';
 
 const BASE = `${API_V1}/responders`;
+let adminToken = '';
+
+beforeAll(async () => {
+  adminToken = await getAdminToken();
+});
 
 describe(`GET ${BASE}`, () => {
   it('should return 200 with an array of responders', async () => {
@@ -16,6 +22,7 @@ describe(`GET ${BASE}/:id`, () => {
     const res = await request(app).get(`${BASE}/1`);
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('id', 1);
+    expect(res.body).toHaveProperty('agency.id');
   });
 
   it('should return 404 for a non-existent id', async () => {
@@ -26,18 +33,33 @@ describe(`GET ${BASE}/:id`, () => {
 
 describe(`POST ${BASE}`, () => {
   it('should create a responder and return 201', async () => {
-    const res = await request(app).post(BASE).send({
+    const res = await request(app).post(BASE).set('Authorization', `Bearer ${adminToken}`).send({
       name: 'Responder A',
-      agency: 'Fire Dept',
+      agencyId: 1,
       role: 'Medic',
       contactInfo: 'responder@gov.com',
     });
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ name: 'Responder A' });
+    expect(res.body).toHaveProperty('agencyId', 1);
+  });
+
+  it('should return 422 when agencyId is invalid', async () => {
+    const res = await request(app).post(BASE).set('Authorization', `Bearer ${adminToken}`).send({
+      name: 'Responder A',
+      agencyId: 999999,
+      role: 'Medic',
+      contactInfo: 'responder@gov.com',
+    });
+    expect(res.status).toBe(422);
+    expect(res.body.message).toContain('agencyId');
   });
 
   it('should return 400 when required fields are missing', async () => {
-    const res = await request(app).post(BASE).send({ name: 'Incomplete' });
+    const res = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'Incomplete' });
     expect(res.status).toBe(422);
     expect(res.body).toHaveProperty('errors');
   });

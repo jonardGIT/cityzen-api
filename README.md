@@ -7,6 +7,7 @@ Citizen Incident Reporting System (CIRS) REST API built with TypeScript, Express
 This API provides versioned endpoints for:
 
 - Citizens
+- Agencies
 - Responders
 - Statuses
 - Categories
@@ -55,13 +56,18 @@ Core features:
 ### prisma folder
 
 - `prisma/schema.prisma`: single source of truth for data models and relations.
-	- Defines models: `User`, `Citizen`, `Responder`, `Status`, `Category`, `Severity`, `Location`, `CitizenIncident`, `Assignment`.
+	- Defines models: `User`, `Citizen`, `Agency`, `Responder`, `Status`, `Category`, `Severity`, `Location`, `CitizenIncident`, `Assignment`.
 	- Uses `@@map(...)` for mapped table names used in PostgreSQL.
 
 - `prisma/reset-prisma-schema.sql`: one-time database reset script.
 	- Drops legacy/current tables.
 	- Recreates all tables exactly matching Prisma expectations.
+	- Includes `createdAt` and `updatedAt` lifecycle timestamps on every table.
 	- Use this when you want a clean baseline schema in Supabase.
+
+- `prisma/add-timestamps.sql`: additive migration script for existing databases.
+	- Adds `createdAt` and `updatedAt` columns to all mapped tables.
+	- Creates update triggers so `updatedAt` changes automatically for SQL-level updates.
 
 - `prisma/seed-data.sql`: reusable seed script.
 	- Truncates data and resets identities.
@@ -108,6 +114,8 @@ Run in this order:
 1. `prisma/reset-prisma-schema.sql` (one-time reset)
 2. `prisma/seed-data.sql` (sample records)
 
+If your database already exists and you do not want a full reset, run `prisma/add-timestamps.sql` instead of the reset script.
+
 ### 4. Start development server
 
 ```bash
@@ -140,6 +148,7 @@ Each resource supports:
 Resources:
 
 - `/api/v1/citizens`
+- `/api/v1/agencies`
 - `/api/v1/responders`
 - `/api/v1/statuses`
 - `/api/v1/categories`
@@ -149,10 +158,17 @@ Resources:
 - `/api/v1/assignments`
 - `/api/v1/users`
 
+Auth and admin routes:
+
+- `POST /api/v1/auth/login`
+- `GET /api/v1/auth/me`
+- `GET /api/v1/admin/users` (admin roles only)
+
 Notes:
 
 - `incidents` and `assignments` validate foreign key references before insert.
 - Validation failures return HTTP 422.
+- Selected write endpoints require JWT bearer auth with role checks.
 
 ## Swagger Documentation
 
@@ -174,6 +190,26 @@ Public paths (no key required):
 - `/api/v1/docs`
 
 Invalid or missing key returns HTTP 401.
+
+## JWT Auth and Roles
+
+JWT auth is used for role-aware dashboard access.
+
+- Login endpoint: `POST /api/v1/auth/login`
+- Current user endpoint: `GET /api/v1/auth/me` with `Authorization: Bearer <token>`
+- Admin example endpoint: `GET /api/v1/admin/users` (requires `SUPER_ADMIN` or `ADMIN`)
+
+Seeded development login:
+
+- `admin@xypes.local` / `Password123!` (role: `SUPER_ADMIN`)
+
+Role values:
+
+- `SUPER_ADMIN`
+- `ADMIN`
+- `DISPATCHER`
+- `RESPONDER`
+- `VIEWER`
 
 ## Request Rate Limiting
 

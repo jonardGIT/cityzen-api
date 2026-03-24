@@ -8,13 +8,19 @@ datasource db {
 }
 
 model User {
-  id    Int     @id @default(autoincrement())
-  name  String
-  email String  @unique
+  id           Int      @id @default(autoincrement())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         String   @default("VIEWER")
 }
 
 model Citizen {
   id               Int               @id @default(autoincrement())
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
   name             String
   contactInfo      String
   preferredChannel String
@@ -23,19 +29,35 @@ model Citizen {
   @@map("citizens")
 }
 
+model Agency {
+  id            Int         @id @default(autoincrement())
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  name          String      @unique
+  contactNumber String?
+  responders    Responder[]
+
+  @@map("agencies")
+}
+
 model Responder {
   id          Int          @id @default(autoincrement())
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
   name        String
-  agency      String
+  agencyId    Int
   role        String
   contactInfo String
   assignments Assignment[]
+  agency      Agency       @relation(fields: [agencyId], references: [id])
 
   @@map("responders")
 }
 
 model Status {
   id        Int               @id @default(autoincrement())
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
   name      String            @unique
   incidents CitizenIncident[]
 
@@ -44,6 +66,8 @@ model Status {
 
 model Category {
   id         Int               @id @default(autoincrement())
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
   name       String            @unique
   subCategory String?
   incidents  CitizenIncident[]
@@ -52,8 +76,10 @@ model Category {
 }
 
 model Severity {
-  id        Int               @id @default(autoincrement())
-  level     String            @unique
+  id         Int               @id @default(autoincrement())
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  level      String            @unique
   definition String?
   incidents CitizenIncident[]
 
@@ -61,21 +87,25 @@ model Severity {
 }
 
 model Location {
-  id       Int               @id @default(autoincrement())
-  district String
-  city     String
-  province String
-  region   String
+  id        Int               @id @default(autoincrement())
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  district  String
+  city      String
+  province  String
+  region    String
   incidents CitizenIncident[]
 
   @@map("locations")
 }
 
 model CitizenIncident {
-  id           Int        @id @default(autoincrement())
+  id           Int          @id @default(autoincrement())
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
   description  String
   mediaUrl     String?
-  dateReported DateTime   @default(now())
+  dateReported DateTime     @default(now())
   statusId     Int
   citizenId    Int
   locationId   Int
@@ -93,10 +123,12 @@ model CitizenIncident {
 }
 
 model Assignment {
-  id           Int       @id @default(autoincrement())
-  incidentId   Int
-  responderId  Int
-  assignedDate DateTime  @default(now())
+  id            Int       @id @default(autoincrement())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  incidentId    Int
+  responderId   Int
+  assignedDate  DateTime  @default(now())
   responseStart DateTime?
   responseEnd  DateTime?
   outcome      String?

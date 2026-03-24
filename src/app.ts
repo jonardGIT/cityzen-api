@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import swaggerUi from 'swagger-ui-express';
 import citizensRouter from './routes/citizens.js';
+import agenciesRouter from './routes/agencies.js';
 import respondersRouter from './routes/responders.js';
 import statusesRouter from './routes/statuses.js';
 import categoriesRouter from './routes/categories.js';
@@ -13,6 +14,8 @@ import locationsRouter from './routes/locations.js';
 import incidentsRouter from './routes/incidents.js';
 import assignmentsRouter from './routes/assignments.js';
 import usersRouter from './routes/users.js';
+import authRouter from './routes/auth.js';
+import adminRouter from './routes/admin.js';
 import { openApiDocument } from './docs/openapi.js';
 import { createApiKeyAuthMiddleware } from './middleware/apiKeyAuth.js';
 import { createRateLimitMiddleware } from './middleware/rateLimit.js';
@@ -26,7 +29,7 @@ dotenv.config({ path: envFile });
 const app = express();
 export const API_V1 = process.env.API_BASE_PATH ?? '/api/v1';
 const isProduction = process.env.NODE_ENV === 'production';
-const publicApiPaths = ['/health', '/openapi.json', '/docs'];
+const publicApiPaths = ['/health', '/openapi.json', '/docs', '/auth', '/admin'];
 const corsOriginConfig = process.env.CORS_ORIGIN ?? '*';
 const allowedCorsOrigins = corsOriginConfig
   .split(',')
@@ -85,6 +88,8 @@ if (!isProduction) {
 
 // Mount citizens resource routes.
 app.use(`${API_V1}/citizens`, citizensRouter);
+// Mount agency resource routes.
+app.use(`${API_V1}/agencies`, agenciesRouter);
 // Mount responders resource routes.
 app.use(`${API_V1}/responders`, respondersRouter);
 // Mount statuses resource routes.
@@ -101,6 +106,10 @@ app.use(`${API_V1}/incidents`, incidentsRouter);
 app.use(`${API_V1}/assignments`, assignmentsRouter);
 // Mount users resource routes.
 app.use(`${API_V1}/users`, usersRouter);
+// Mount auth endpoints (JWT login/me).
+app.use(`${API_V1}/auth`, authRouter);
+// Mount admin endpoints (JWT + role-protected).
+app.use(`${API_V1}/admin`, adminRouter);
 
 // Return a 404 response for unmatched routes.
 app.use(notFoundHandler);

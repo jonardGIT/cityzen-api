@@ -1,12 +1,31 @@
 // Handles CRUD operations for responder assignments to incidents.
 import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
-import { getParamId } from '../utils/request.js';
+import { buildPaginatedResponse, getPaginationQuery, getParamId, getTimestampQuery } from '../utils/request.js';
 import type { Assignment } from '../types/models.js';
 
 // Returns all assignments from the database.
-export async function getAssignments(_req: Request, res: Response): Promise<void> {
-  const assignments = await prisma.assignment.findMany();
+export async function getAssignments(req: Request, res: Response): Promise<void> {
+  const pagination = getPaginationQuery(req);
+  const timestampQuery = getTimestampQuery(req);
+  if (pagination.enabled) {
+    const [assignments, total] = await Promise.all([
+      prisma.assignment.findMany({
+        where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined,
+        orderBy: timestampQuery.orderBy as any,
+        skip: pagination.skip,
+        take: pagination.take,
+      }),
+      prisma.assignment.count({ where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined }),
+    ]);
+    res.json(buildPaginatedResponse(assignments, total, pagination));
+    return;
+  }
+
+  const assignments = await prisma.assignment.findMany({
+    where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined,
+    orderBy: timestampQuery.orderBy as any,
+  });
   res.json(assignments);
 }
 
@@ -70,4 +89,70 @@ export async function createAssignment(req: Request, res: Response): Promise<voi
   });
 
   res.status(201).json(assignment);
+}
+
+// Updates an existing assignment and validates any provided foreign keys.
+export async function updateAssignment(req: Request, res: Response): Promise<void> {
+  const id = getParamId(req, res);
+  if (id === null) {
+    return;
+  }
+
+  const {
+    incidentId,
+    responderId,
+    assignedDate,
+    responseStart,
+    responseEnd,
+    outcome,
+    notes,
+  } = req.body as Partial<Assignment>;
+
+  const existingAssignment = await prisma.assignment.findUnique({ where: { id } });
+  if (!existingAssignment) {
+    res.status(404).json({ message: 'Assignment not found' });
+    return;
+  }
+
+  if (incidentId !== undefined && !(await prisma.citizenIncident.findUnique({ where: { id: incidentId } }))) {
+    res.status(422).json({ message: 'incidentId does not reference a valid CitizenIncident' });
+    return;
+  }
+
+  if (responderId !== undefined && !(await prisma.responder.findUnique({ where: { id: responderId } }))) {
+    res.status(422).json({ message: 'responderId does not reference a valid Responder' });
+    return;
+  }
+
+  const assignment = await prisma.assignment.update({
+    where: { id },
+    data: {
+      incidentId,
+      responderId,
+      assignedDate: assignedDate ? new Date(assignedDate) : undefined,
+      responseStart: responseStart ? new Date(responseStart) : undefined,
+      responseEnd: responseEnd ? new Date(responseEnd) : undefined,
+      outcome,
+      notes,
+    },
+  });
+
+  res.json(assignment);
+}
+
+// Deletes an existing assignment.
+export async function deleteAssignment(req: Request, res: Response): Promise<void> {
+  const id = getParamId(req, res);
+  if (id === null) {
+    return;
+  }
+
+  const existingAssignment = await prisma.assignment.findUnique({ where: { id } });
+  if (!existingAssignment) {
+    res.status(404).json({ message: 'Assignment not found' });
+    return;
+  }
+
+  await prisma.assignment.delete({ where: { id } });
+  res.status(204).send();
 }

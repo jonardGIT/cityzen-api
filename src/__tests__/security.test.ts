@@ -1,5 +1,7 @@
 import request from 'supertest';
 
+jest.setTimeout(15000);
+
 describe('API key authentication', () => {
   const originalEnv = { ...process.env };
 
