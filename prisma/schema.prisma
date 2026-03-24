@@ -8,37 +8,37 @@ datasource db {
 }
 
 model User {
+<<<<<<< HEAD
   id           String   @id @default(uuid()) @db.Uuid
-  name         String
-  email        String @unique
-  passwordHash String
-  role         String @default("VIEWER")
+=======
+  id           String   @id @default(uuid()) @db.Uuid
+  role         String   @default("VIEWER")
 }
 
 model Citizen {
+<<<<<<< HEAD
   id               String            @id @default(uuid()) @db.Uuid
-  name             String
-  contactInfo      String
-  preferredChannel String
+=======
+  id               String            @id @default(uuid()) @db.Uuid
   incidents        CitizenIncident[]
 
   @@map("citizens")
 }
 
 model Agency {
+<<<<<<< HEAD
   id            String      @id @default(uuid()) @db.Uuid
-  name          String      @unique
-  contactNumber String?
-  responders    Responder[]
+=======
+  id            String      @id @default(uuid()) @db.Uuid
 
   @@map("agencies")
 }
 
 model Responder {
+<<<<<<< HEAD
   id          String       @id @default(uuid()) @db.Uuid
-  name        String
-    agencyId    String
-  role        String
+=======
+  id          String       @id @default(uuid()) @db.Uuid
   contactInfo String
   assignments Assignment[]
   agency      Agency       @relation(fields: [agencyId], references: [id])
@@ -47,55 +47,55 @@ model Responder {
 }
 
 model Status {
+<<<<<<< HEAD
   id        String            @id @default(uuid()) @db.Uuid
-  name      String            @unique
-  incidents CitizenIncident[]
-
+=======
+  id        String            @id @default(uuid()) @db.Uuid
   @@map("statuses")
 }
 
 model Category {
+<<<<<<< HEAD
   id         String            @id @default(uuid()) @db.Uuid
-  name       String            @unique
-  subCategory String?
-  incidents  CitizenIncident[]
+=======
+  id         String            @id @default(uuid()) @db.Uuid
 
   @@map("categories")
 }
 
 model Severity {
+<<<<<<< HEAD
   id        String            @id @default(uuid()) @db.Uuid
   level     String            @unique
-  definition String?
-  incidents CitizenIncident[]
-
+  id        String            @id @default(uuid()) @db.Uuid
+  level     String            @unique
   @@map("severities")
 }
 
 model Location {
+<<<<<<< HEAD
+  id       String            @id @default(uuid()) @db.Uuid
+  district String
   id       String            @id @default(uuid()) @db.Uuid
   district String
   city     String
   province String
   region   String
-  incidents CitizenIncident[]
-
-  @@map("locations")
 }
 
 model CitizenIncident {
+<<<<<<< HEAD
+  id           String     @id @default(uuid()) @db.Uuid
+  description  String
   id           String     @id @default(uuid()) @db.Uuid
   description  String
   mediaUrl     String?
   dateReported DateTime   @default(now())
-    statusId     String
-    citizenId    String
-    locationId   String
-    categoryId   String
-    severityId   String
-  assignments  Assignment[]
-
-  status   Status   @relation(fields: [statusId], references: [id])
+  statusId     String
+  citizenId    String
+  locationId   String
+  categoryId   String
+  severityId   String
   citizen  Citizen  @relation(fields: [citizenId], references: [id])
   location Location @relation(fields: [locationId], references: [id])
   category Category @relation(fields: [categoryId], references: [id])
@@ -105,12 +105,13 @@ model CitizenIncident {
 }
 
 model Assignment {
+<<<<<<< HEAD
+  id           String    @id @default(uuid()) @db.Uuid
+  incidentId   String
   id           String    @id @default(uuid()) @db.Uuid
   incidentId   String
   responderId  String
   assignedDate DateTime  @default(now())
-  responseStart DateTime?
-  responseEnd  DateTime?
   outcome      String?
   notes        String?
 

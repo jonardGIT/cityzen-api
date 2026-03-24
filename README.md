@@ -62,7 +62,12 @@ Core features:
 - `prisma/reset-prisma-schema.sql`: one-time database reset script.
 	- Drops legacy/current tables.
 	- Recreates all tables exactly matching Prisma expectations.
+	- Includes `createdAt` and `updatedAt` lifecycle timestamps on every table.
 	- Use this when you want a clean baseline schema in Supabase.
+
+- `prisma/add-timestamps.sql`: additive migration script for existing databases.
+	- Adds `createdAt` and `updatedAt` columns to all mapped tables.
+	- Creates update triggers so `updatedAt` changes automatically for SQL-level updates.
 
 - `prisma/seed-data.sql`: reusable seed script.
 	- Truncates data and resets identities.
@@ -108,6 +113,8 @@ Run in this order:
 
 1. `prisma/reset-prisma-schema.sql` (one-time reset)
 2. `prisma/seed-data.sql` (sample records)
+
+If your database already exists and you do not want a full reset, run `prisma/add-timestamps.sql` instead of the reset script.
 
 ### 4. Start development server
 

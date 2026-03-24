@@ -1,21 +1,30 @@
 // Handles CRUD operations for geographic location lookup values.
 import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
-import { buildPaginatedResponse, getPaginationQuery, getParamId } from '../utils/request.js';
+import { buildPaginatedResponse, getPaginationQuery, getParamId, getTimestampQuery } from '../utils/request.js';
 
 // Returns all locations from the database.
 export async function getLocations(req: Request, res: Response): Promise<void> {
   const pagination = getPaginationQuery(req);
+  const timestampQuery = getTimestampQuery(req);
   if (pagination.enabled) {
     const [locations, total] = await Promise.all([
-      prisma.location.findMany({ skip: pagination.skip, take: pagination.take }),
-      prisma.location.count(),
+      prisma.location.findMany({
+        where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined,
+        orderBy: timestampQuery.orderBy as any,
+        skip: pagination.skip,
+        take: pagination.take,
+      }),
+      prisma.location.count({ where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined }),
     ]);
     res.json(buildPaginatedResponse(locations, total, pagination));
     return;
   }
 
-  const locations = await prisma.location.findMany();
+  const locations = await prisma.location.findMany({
+    where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined,
+    orderBy: timestampQuery.orderBy as any,
+  });
   res.json(locations);
 }
 

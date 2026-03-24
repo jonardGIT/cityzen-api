@@ -27,6 +27,27 @@ describe(`GET ${BASE}`, () => {
     expect(typeof res.body.pagination.total).toBe('number');
     expect(res.body.data.length).toBeLessThanOrEqual(2);
   });
+
+  it('should support createdAt sorting and range filters', async () => {
+    const createdFrom = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
+
+    const res = await request(app).get(
+      `${BASE}?page=1&pageSize=5&sortBy=createdAt&sortOrder=desc&createdFrom=${encodeURIComponent(createdFrom)}`,
+    );
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.data)).toBe(true);
+
+    for (const item of res.body.data) {
+      expect(new Date(item.createdAt).getTime()).toBeGreaterThanOrEqual(new Date(createdFrom).getTime());
+    }
+
+    if (res.body.data.length >= 2) {
+      const first = new Date(res.body.data[0].createdAt).getTime();
+      const second = new Date(res.body.data[1].createdAt).getTime();
+      expect(first).toBeGreaterThanOrEqual(second);
+    }
+  });
 });
 
 describe(`GET ${BASE}/:id`, () => {

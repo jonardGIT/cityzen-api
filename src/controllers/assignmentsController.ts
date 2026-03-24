@@ -1,22 +1,31 @@
 // Handles CRUD operations for responder assignments to incidents.
 import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
-import { buildPaginatedResponse, getPaginationQuery, getParamId } from '../utils/request.js';
+import { buildPaginatedResponse, getPaginationQuery, getParamId, getTimestampQuery } from '../utils/request.js';
 import type { Assignment } from '../types/models.js';
 
 // Returns all assignments from the database.
 export async function getAssignments(req: Request, res: Response): Promise<void> {
   const pagination = getPaginationQuery(req);
+  const timestampQuery = getTimestampQuery(req);
   if (pagination.enabled) {
     const [assignments, total] = await Promise.all([
-      prisma.assignment.findMany({ skip: pagination.skip, take: pagination.take }),
-      prisma.assignment.count(),
+      prisma.assignment.findMany({
+        where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined,
+        orderBy: timestampQuery.orderBy as any,
+        skip: pagination.skip,
+        take: pagination.take,
+      }),
+      prisma.assignment.count({ where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined }),
     ]);
     res.json(buildPaginatedResponse(assignments, total, pagination));
     return;
   }
 
-  const assignments = await prisma.assignment.findMany();
+  const assignments = await prisma.assignment.findMany({
+    where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined,
+    orderBy: timestampQuery.orderBy as any,
+  });
   res.json(assignments);
 }
 

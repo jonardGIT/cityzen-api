@@ -1,6 +1,7 @@
 BEGIN;
 
 -- Drop legacy and current tables to guarantee a clean Prisma-aligned schema.
+
 DROP TABLE IF EXISTS assignments CASCADE;
 DROP TABLE IF EXISTS incidents CASCADE;
 DROP TABLE IF EXISTS responders CASCADE;
@@ -12,17 +13,7 @@ DROP TABLE IF EXISTS severities CASCADE;
 DROP TABLE IF EXISTS locations CASCADE;
 DROP TABLE IF EXISTS "User" CASCADE;
 
-DROP TABLE IF EXISTS "Assignment" CASCADE;
-DROP TABLE IF EXISTS "CitizenIncident" CASCADE;
-DROP TABLE IF EXISTS "Responder" CASCADE;
-DROP TABLE IF EXISTS "Agency" CASCADE;
-DROP TABLE IF EXISTS "Citizen" CASCADE;
-DROP TABLE IF EXISTS "Status" CASCADE;
-DROP TABLE IF EXISTS "Category" CASCADE;
-DROP TABLE IF EXISTS "Severity" CASCADE;
-DROP TABLE IF EXISTS "Location" CASCADE;
 
--- Recreate schema exactly as expected by Prisma mappings.
 CREATE TABLE "User" (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
@@ -32,6 +23,7 @@ CREATE TABLE "User" (
   CONSTRAINT user_role_check CHECK (role IN ('SUPER_ADMIN', 'ADMIN', 'DISPATCHER', 'RESPONDER', 'VIEWER'))
 );
 
+
 CREATE TABLE citizens (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
@@ -39,11 +31,13 @@ CREATE TABLE citizens (
   "preferredChannel" TEXT NOT NULL
 );
 
+
 CREATE TABLE agencies (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL UNIQUE,
   "contactNumber" VARCHAR(20)
 );
+
 
 CREATE TABLE responders (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -53,10 +47,12 @@ CREATE TABLE responders (
   "contactInfo" TEXT NOT NULL
 );
 
+
 CREATE TABLE statuses (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL UNIQUE
 );
+
 
 CREATE TABLE categories (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -64,11 +60,13 @@ CREATE TABLE categories (
   "subCategory" TEXT
 );
 
+
 CREATE TABLE severities (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   level TEXT NOT NULL UNIQUE,
   definition TEXT
 );
+
 
 CREATE TABLE locations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -77,6 +75,7 @@ CREATE TABLE locations (
   province TEXT NOT NULL,
   region TEXT NOT NULL
 );
+
 
 CREATE TABLE incidents (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -90,6 +89,7 @@ CREATE TABLE incidents (
   "severityId" uuid NOT NULL REFERENCES severities(id)
 );
 
+
 CREATE TABLE assignments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "incidentId" uuid NOT NULL REFERENCES incidents(id),
@@ -100,5 +100,63 @@ CREATE TABLE assignments (
   outcome TEXT,
   notes TEXT
 );
+
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW."updatedAt" = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER set_user_updated_at
+BEFORE UPDATE ON "User"
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER set_citizens_updated_at
+BEFORE UPDATE ON citizens
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER set_agencies_updated_at
+BEFORE UPDATE ON agencies
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER set_responders_updated_at
+BEFORE UPDATE ON responders
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER set_statuses_updated_at
+BEFORE UPDATE ON statuses
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER set_categories_updated_at
+BEFORE UPDATE ON categories
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER set_severities_updated_at
+BEFORE UPDATE ON severities
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER set_locations_updated_at
+BEFORE UPDATE ON locations
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER set_incidents_updated_at
+BEFORE UPDATE ON incidents
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER set_assignments_updated_at
+BEFORE UPDATE ON assignments
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
 
 COMMIT;

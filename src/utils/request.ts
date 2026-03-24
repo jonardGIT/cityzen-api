@@ -12,6 +12,29 @@ export interface PaginationQuery {
   take: number;
 }
 
+type SortOrder = 'asc' | 'desc';
+type TimestampSortField = 'createdAt' | 'updatedAt';
+
+export interface TimestampQuery {
+  where: {
+    createdAt?: {
+      gte?: Date;
+      lte?: Date;
+    };
+    updatedAt?: {
+      gte?: Date;
+      lte?: Date;
+    };
+  };
+  hasFilters: boolean;
+  sortBy: TimestampSortField;
+  sortOrder: SortOrder;
+  orderBy: {
+    createdAt?: SortOrder;
+    updatedAt?: SortOrder;
+  };
+}
+
 interface PaginatedResponse<T> {
   data: T[];
   pagination: {
@@ -35,6 +58,71 @@ function parsePositiveInt(value: unknown, fallback: number): number {
   }
 
   return parsed;
+}
+
+function parseSortOrder(value: unknown): SortOrder {
+  if (typeof value !== 'string') {
+    return 'desc';
+  }
+
+  const normalized = value.toLowerCase();
+  return normalized === 'asc' ? 'asc' : 'desc';
+}
+
+function parseTimestampSortField(value: unknown): TimestampSortField {
+  if (typeof value !== 'string') {
+    return 'createdAt';
+  }
+
+  return value === 'updatedAt' ? 'updatedAt' : 'createdAt';
+}
+
+function parseIsoDate(value: unknown): Date | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date;
+}
+
+function buildDateFilter(fromValue: unknown, toValue: unknown): { gte?: Date; lte?: Date } | undefined {
+  const gte = parseIsoDate(fromValue);
+  const lte = parseIsoDate(toValue);
+
+  if (!gte && !lte) {
+    return undefined;
+  }
+
+  return {
+    ...(gte ? { gte } : {}),
+    ...(lte ? { lte } : {}),
+  };
+}
+
+export function getTimestampQuery(req: Request): TimestampQuery {
+  const sortBy = parseTimestampSortField(req.query.sortBy);
+  const sortOrder = parseSortOrder(req.query.sortOrder);
+
+  const createdAt = buildDateFilter(req.query.createdFrom, req.query.createdTo);
+  const updatedAt = buildDateFilter(req.query.updatedFrom, req.query.updatedTo);
+
+  return {
+    where: {
+      ...(createdAt ? { createdAt } : {}),
+      ...(updatedAt ? { updatedAt } : {}),
+    },
+    hasFilters: Boolean(createdAt || updatedAt),
+    sortBy,
+    sortOrder,
+    orderBy: {
+      [sortBy]: sortOrder,
+    },
+  };
 }
 
 export function getPaginationQuery(req: Request): PaginationQuery {
