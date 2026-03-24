@@ -2281,7 +2281,7 @@ export const openApiDocument = {
       Citizen: {
         type: 'object',
         properties: {
-          id: { type: 'integer', example: 1 },
+          id: { type: 'string', format: 'uuid', example: 'b3e1c2d4-1234-4abc-8def-1234567890ab' },
           name: { type: 'string' },
           contactInfo: { type: 'string' },
           preferredChannel: { type: 'string' },

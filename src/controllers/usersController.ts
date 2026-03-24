@@ -14,8 +14,17 @@ const userSelect = {
   role: true,
 } as const;
 
-function getUserId(req: Request): number {
-  return Number(req.params.id);
+// UUID v4 validation regex
+const UUID_V4_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function getUserId(req: Request, res?: Response): string | null {
+  const id = req.params.id;
+  if (typeof id !== 'string' || !UUID_V4_REGEX.test(id)) {
+    if (res) {
+      res.status(400).json({ message: 'Invalid id parameter (must be a valid UUID v4)'});
+    }
+    return null;
+  }
+  return id;
 }
 
 function getAuthUser(req: Request) {
@@ -70,9 +79,10 @@ export async function getUsers(req: Request, res: Response): Promise<void> {
   res.json(users);
 }
 
-// Returns a single user by numeric ID. Responds 404 if not found.
+// Returns a single user by UUID. Responds 404 if not found.
 export async function getUserById(req: Request, res: Response): Promise<void> {
-  const id = getUserId(req);
+  const id = getUserId(req, res);
+  if (id === null) return;
   const user = await prisma.user.findUnique({
     where: { id },
     select: userSelect,
@@ -145,7 +155,8 @@ export async function createUser(req: Request, res: Response): Promise<void> {
 // Updates an existing user account while enforcing access-level hierarchy rules.
 export async function updateUser(req: Request, res: Response): Promise<void> {
   const authUser = getAuthUser(req);
-  const id = getUserId(req);
+  const id = getUserId(req, res);
+  if (id === null) return;
   const { name, email, password, role } = req.body as {
     name?: string;
     email?: string;
@@ -170,7 +181,7 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const isSelfUpdate = authUser.id === existingUser.id;
+  const isSelfUpdate = String(authUser.id) === String(existingUser.id);
   if (!isSelfUpdate && !hasHigherAccessLevel(authUser.role, existingUserRole)) {
     res.status(403).json({
       message: 'Forbidden: you can only edit users with a lower access level than your own',
@@ -242,7 +253,8 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
 // Deletes an existing user account while preventing self-deletion and peer escalation.
 export async function deleteUser(req: Request, res: Response): Promise<void> {
   const authUser = getAuthUser(req);
-  const id = getUserId(req);
+  const id = getUserId(req, res);
+  if (id === null) return;
 
   if (!authUser) {
     res.status(401).json({ message: 'Unauthorized: missing authentication context' });
@@ -261,7 +273,7 @@ export async function deleteUser(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  if (authUser.id === existingUser.id) {
+  if (String(authUser.id) === String(existingUser.id)) {
     res.status(403).json({ message: 'Forbidden: you cannot delete your own account' });
     return;
   }

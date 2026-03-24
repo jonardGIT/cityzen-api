@@ -34,26 +34,35 @@ export async function getResponderById(req: Request, res: Response): Promise<voi
   if (id === null) {
     return;
   }
-
-  const responder = await prisma.responder.findUnique({
-    where: { id },
-    include: responderInclude,
-  });
-
-  if (!responder) {
-    res.status(404).json({ message: 'Responder not found' });
-    return;
+  try {
+    const responder = await prisma.responder.findUnique({
+      where: { id },
+      include: responderInclude,
+    });
+    if (!responder) {
+      res.status(404).json({ message: 'Responder not found' });
+      return;
+    }
+    res.json(responder);
+  } catch (err) {
+    res.status(400).json({ message: 'Invalid responder id', error: (err as Error)?.message });
   }
-
-  res.json(responder);
 }
 
 // Creates a new responder record. Requires name, agencyId, role, and contactInfo.
 export async function createResponder(req: Request, res: Response): Promise<void> {
   const { name, agencyId, role, contactInfo } = req.body as Partial<Responder>;
 
+
   if (!name || !agencyId || !role || !contactInfo) {
     res.status(422).json({ message: 'name, agencyId, role, and contactInfo are required' });
+    return;
+  }
+
+  // Relaxed UUID format check for agencyId (accepts all valid UUIDs, including seed/test values)
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (typeof agencyId !== 'string' || !uuidRegex.test(agencyId)) {
+    res.status(400).json({ message: 'agencyId must be a valid UUID' });
     return;
   }
 

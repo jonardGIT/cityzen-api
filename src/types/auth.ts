@@ -23,7 +23,7 @@ export function hasHigherAccessLevel(actorRole: UserRole, targetRole: UserRole):
 }
 
 export interface AuthUser {
-  id: number;
+  id: string;
   email: string;
   role: UserRole;
 }

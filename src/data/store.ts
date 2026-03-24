@@ -11,19 +11,19 @@ import type {
 } from '../types/models.js';
 
 export const citizens: Citizen[] = [
-  { id: 1, name: 'Jane Doe', contactInfo: 'jane@example.com', preferredChannel: 'SMS' },
+  { id: 'uuid-citizen-1', name: 'Jane Doe', contactInfo: 'jane@example.com', preferredChannel: 'SMS' },
 ];
 
 export const agencies: Agency[] = [
-  { id: 1, name: 'City Fire Department', contactNumber: '+1-555-0100' },
-  { id: 2, name: 'EMS Unit', contactNumber: '+1-555-0101' },
+  { id: 'uuid-agency-1', name: 'City Fire Department', contactNumber: '+1-555-0100' },
+  { id: 'uuid-agency-2', name: 'EMS Unit', contactNumber: '+1-555-0101' },
 ];
 
 export const responders: Responder[] = [
   {
-    id: 1,
+    id: 'uuid-responder-1',
     name: 'Alex Smith',
-    agencyId: 1,
+    agencyId: 'uuid-agency-1',
     agency: agencies[0],
     role: 'Field Responder',
     contactInfo: 'alex@agency.gov',
@@ -31,24 +31,24 @@ export const responders: Responder[] = [
 ];
 
 export const statuses: Status[] = [
-  { id: 1, name: 'Reported' },
-  { id: 2, name: 'In Progress' },
-  { id: 3, name: 'Resolved' },
+  { id: 'uuid-status-1', name: 'Reported' },
+  { id: 'uuid-status-2', name: 'In Progress' },
+  { id: 'uuid-status-3', name: 'Resolved' },
 ];
 
 export const categories: Category[] = [
-  { id: 1, name: 'Fire', subCategory: 'Residential' },
-  { id: 2, name: 'Medical', subCategory: 'Emergency' },
+  { id: 'uuid-category-1', name: 'Fire', subCategory: 'Residential' },
+  { id: 'uuid-category-2', name: 'Medical', subCategory: 'Emergency' },
 ];
 
 export const severities: Severity[] = [
-  { id: 1, level: 'Low', definition: 'Minimal impact' },
-  { id: 2, level: 'High', definition: 'Immediate action required' },
+  { id: 'uuid-severity-1', level: 'Low', definition: 'Minimal impact' },
+  { id: 'uuid-severity-2', level: 'High', definition: 'Immediate action required' },
 ];
 
 export const locations: Location[] = [
   {
-    id: 1,
+    id: 'uuid-location-1',
     district: 'District 1',
     city: 'Sample City',
     province: 'Sample Province',
@@ -58,30 +58,25 @@ export const locations: Location[] = [
 
 export const incidents: CitizenIncident[] = [
   {
-    id: 1,
+    id: 'uuid-incident-1',
     description: 'Small kitchen fire reported by resident.',
     dateReported: new Date(),
-    statusId: 1,
-    citizenId: 1,
-    locationId: 1,
-    categoryId: 1,
-    severityId: 2,
+    statusId: 'uuid-status-1',
+    citizenId: 'uuid-citizen-1',
+    locationId: 'uuid-location-1',
+    categoryId: 'uuid-category-1',
+    severityId: 'uuid-severity-2',
   },
 ];
 
 export const assignments: Assignment[] = [
   {
-    id: 1,
-    incidentId: 1,
-    responderId: 1,
+    id: 'uuid-assignment-1',
+    incidentId: 'uuid-incident-1',
+    responderId: 'uuid-responder-1',
     assignedDate: new Date(),
     notes: 'Initial dispatch sent.',
   },
 ];
 
-export function getNextId<T extends { id: number }>(items: T[]): number {
-  if (items.length === 0) {
-    return 1;
-  }
-  return Math.max(...items.map((item) => item.id)) + 1;
-}
+// getNextId removed: UUIDs are now used for all ids.

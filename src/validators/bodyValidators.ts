@@ -33,9 +33,10 @@ export const linkMyCitizenProfileValidator = [
   body('preferredChannel').optional().isString().trim().notEmpty().withMessage('preferredChannel must be a non-empty string'),
 ];
 
+
 export const createResponderValidator = [
   body('name').isString().trim().notEmpty().withMessage('name is required'),
-  body('agencyId').isInt({ min: 1 }).toInt().withMessage('agencyId must be a positive integer'),
+  body('agencyId').isString().trim().notEmpty().withMessage('agencyId is required and must be a string'),
   body('role').isString().trim().notEmpty().withMessage('role is required'),
   body('contactInfo').isString().trim().notEmpty().withMessage('contactInfo is required'),
 ];
@@ -49,7 +50,7 @@ export const updateResponderValidator = [
     return true;
   }),
   body('name').optional().isString().trim().notEmpty().withMessage('name must be a non-empty string'),
-  body('agencyId').optional().isInt({ min: 1 }).toInt().withMessage('agencyId must be a positive integer'),
+  body('agencyId').optional().isString().trim().notEmpty().withMessage('agencyId must be a non-empty string'),
   body('role').optional().isString().trim().notEmpty().withMessage('role must be a non-empty string'),
   body('contactInfo').optional().isString().trim().notEmpty().withMessage('contactInfo must be a non-empty string'),
 ];
@@ -154,11 +155,11 @@ export const createIncidentValidator = [
   body('description').isString().trim().notEmpty().withMessage('description is required'),
   body('mediaUrl').optional().isString().withMessage('mediaUrl must be a string'),
   body('dateReported').optional().isISO8601().withMessage('dateReported must be an ISO8601 date'),
-  body('statusId').isInt({ min: 1 }).toInt().withMessage('statusId must be a positive integer'),
-  body('citizenId').isInt({ min: 1 }).toInt().withMessage('citizenId must be a positive integer'),
-  body('locationId').isInt({ min: 1 }).toInt().withMessage('locationId must be a positive integer'),
-  body('categoryId').isInt({ min: 1 }).toInt().withMessage('categoryId must be a positive integer'),
-  body('severityId').isInt({ min: 1 }).toInt().withMessage('severityId must be a positive integer'),
+  body('statusId').isString().trim().notEmpty().withMessage('statusId is required and must be a string'),
+  body('citizenId').isString().trim().notEmpty().withMessage('citizenId is required and must be a string'),
+  body('locationId').isString().trim().notEmpty().withMessage('locationId is required and must be a string'),
+  body('categoryId').isString().trim().notEmpty().withMessage('categoryId is required and must be a string'),
+  body('severityId').isString().trim().notEmpty().withMessage('severityId is required and must be a string'),
 ];
 
 export const createCitizenIncidentReportValidator = [
@@ -167,9 +168,9 @@ export const createCitizenIncidentReportValidator = [
   body('dateReported').optional().isISO8601().withMessage('dateReported must be an ISO8601 date'),
   body('citizenId').not().exists().withMessage('citizenId is inferred from authenticated account context'),
   body('statusId').not().exists().withMessage('statusId is automatically set to Reported'),
-  body('locationId').isInt({ min: 1 }).toInt().withMessage('locationId must be a positive integer'),
-  body('categoryId').isInt({ min: 1 }).toInt().withMessage('categoryId must be a positive integer'),
-  body('severityId').isInt({ min: 1 }).toInt().withMessage('severityId must be a positive integer'),
+  body('locationId').isString().trim().notEmpty().withMessage('locationId is required and must be a string'),
+  body('categoryId').isString().trim().notEmpty().withMessage('categoryId is required and must be a string'),
+  body('severityId').isString().trim().notEmpty().withMessage('severityId is required and must be a string'),
 ];
 
 export const updateIncidentValidator = [
@@ -184,16 +185,16 @@ export const updateIncidentValidator = [
   body('description').optional().isString().trim().notEmpty().withMessage('description must be a non-empty string'),
   body('mediaUrl').optional().isString().withMessage('mediaUrl must be a string'),
   body('dateReported').optional().isISO8601().withMessage('dateReported must be an ISO8601 date'),
-  body('statusId').optional().isInt({ min: 1 }).toInt().withMessage('statusId must be a positive integer'),
-  body('citizenId').optional().isInt({ min: 1 }).toInt().withMessage('citizenId must be a positive integer'),
-  body('locationId').optional().isInt({ min: 1 }).toInt().withMessage('locationId must be a positive integer'),
-  body('categoryId').optional().isInt({ min: 1 }).toInt().withMessage('categoryId must be a positive integer'),
-  body('severityId').optional().isInt({ min: 1 }).toInt().withMessage('severityId must be a positive integer'),
+  body('statusId').optional().isString().trim().isUUID().withMessage('statusId must be a valid UUID'),
+  body('citizenId').optional().isString().trim().isUUID().withMessage('citizenId must be a valid UUID'),
+  body('locationId').optional().isString().trim().isUUID().withMessage('locationId must be a valid UUID'),
+  body('categoryId').optional().isString().trim().isUUID().withMessage('categoryId must be a valid UUID'),
+  body('severityId').optional().isString().trim().isUUID().withMessage('severityId must be a valid UUID'),
 ];
 
 export const createAssignmentValidator = [
-  body('incidentId').isInt({ min: 1 }).withMessage('incidentId must be a positive integer'),
-  body('responderId').isInt({ min: 1 }).withMessage('responderId must be a positive integer'),
+  body('incidentId').isString().trim().notEmpty().withMessage('incidentId is required and must be a string'),
+  body('responderId').isString().trim().notEmpty().withMessage('responderId is required and must be a string'),
   body('assignedDate').optional().isISO8601().withMessage('assignedDate must be an ISO8601 date'),
   body('responseStart').optional().isISO8601().withMessage('responseStart must be an ISO8601 date'),
   body('responseEnd').optional().isISO8601().withMessage('responseEnd must be an ISO8601 date'),
@@ -203,15 +204,14 @@ export const createAssignmentValidator = [
 
 export const updateAssignmentValidator = [
   body().custom((value) => {
-    const hasUpdatableField = ['incidentId', 'responderId', 'assignedDate', 'responseStart', 'responseEnd', 'outcome', 'notes']
-      .some((field) => value?.[field] !== undefined);
+    const hasUpdatableField = ['incidentId', 'responderId', 'assignedDate', 'responseStart', 'responseEnd', 'outcome', 'notes'].some((field) => value?.[field] !== undefined);
     if (!hasUpdatableField) {
-      throw new Error('at least one updatable assignment field is required');
+      throw new Error('at least one of incidentId, responderId, assignedDate, responseStart, responseEnd, outcome, or notes is required');
     }
     return true;
   }),
-  body('incidentId').optional().isInt({ min: 1 }).withMessage('incidentId must be a positive integer'),
-  body('responderId').optional().isInt({ min: 1 }).withMessage('responderId must be a positive integer'),
+  body('incidentId').optional().isString().trim().notEmpty().withMessage('incidentId must be a non-empty string'),
+  body('responderId').optional().isString().trim().notEmpty().withMessage('responderId must be a non-empty string'),
   body('assignedDate').optional().isISO8601().withMessage('assignedDate must be an ISO8601 date'),
   body('responseStart').optional().isISO8601().withMessage('responseStart must be an ISO8601 date'),
   body('responseEnd').optional().isISO8601().withMessage('responseEnd must be an ISO8601 date'),
@@ -219,6 +219,7 @@ export const updateAssignmentValidator = [
   body('notes').optional().isString().withMessage('notes must be a string'),
 ];
 
+// Duplicate removed. Only one export for updateIncidentValidator should exist.
 export const createUserValidator = [
   body('name').isString().trim().notEmpty().withMessage('name is required'),
   body('email').isEmail().withMessage('email must be a valid email address'),

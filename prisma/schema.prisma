@@ -8,7 +8,7 @@ datasource db {
 }
 
 model User {
-  id           Int    @id @default(autoincrement())
+  id           String   @id @default(uuid()) @db.Uuid
   name         String
   email        String @unique
   passwordHash String
@@ -16,7 +16,7 @@ model User {
 }
 
 model Citizen {
-  id               Int               @id @default(autoincrement())
+  id               String            @id @default(uuid()) @db.Uuid
   name             String
   contactInfo      String
   preferredChannel String
@@ -26,7 +26,7 @@ model Citizen {
 }
 
 model Agency {
-  id            Int         @id @default(autoincrement())
+  id            String      @id @default(uuid()) @db.Uuid
   name          String      @unique
   contactNumber String?
   responders    Responder[]
@@ -35,9 +35,9 @@ model Agency {
 }
 
 model Responder {
-  id          Int          @id @default(autoincrement())
+  id          String       @id @default(uuid()) @db.Uuid
   name        String
-  agencyId    Int
+    agencyId    String
   role        String
   contactInfo String
   assignments Assignment[]
@@ -47,7 +47,7 @@ model Responder {
 }
 
 model Status {
-  id        Int               @id @default(autoincrement())
+  id        String            @id @default(uuid()) @db.Uuid
   name      String            @unique
   incidents CitizenIncident[]
 
@@ -55,7 +55,7 @@ model Status {
 }
 
 model Category {
-  id         Int               @id @default(autoincrement())
+  id         String            @id @default(uuid()) @db.Uuid
   name       String            @unique
   subCategory String?
   incidents  CitizenIncident[]
@@ -64,7 +64,7 @@ model Category {
 }
 
 model Severity {
-  id        Int               @id @default(autoincrement())
+  id        String            @id @default(uuid()) @db.Uuid
   level     String            @unique
   definition String?
   incidents CitizenIncident[]
@@ -73,7 +73,7 @@ model Severity {
 }
 
 model Location {
-  id       Int               @id @default(autoincrement())
+  id       String            @id @default(uuid()) @db.Uuid
   district String
   city     String
   province String
@@ -84,15 +84,15 @@ model Location {
 }
 
 model CitizenIncident {
-  id           Int        @id @default(autoincrement())
+  id           String     @id @default(uuid()) @db.Uuid
   description  String
   mediaUrl     String?
   dateReported DateTime   @default(now())
-  statusId     Int
-  citizenId    Int
-  locationId   Int
-  categoryId   Int
-  severityId   Int
+    statusId     String
+    citizenId    String
+    locationId   String
+    categoryId   String
+    severityId   String
   assignments  Assignment[]
 
   status   Status   @relation(fields: [statusId], references: [id])
@@ -105,9 +105,9 @@ model CitizenIncident {
 }
 
 model Assignment {
-  id           Int       @id @default(autoincrement())
-  incidentId   Int
-  responderId  Int
+  id           String    @id @default(uuid()) @db.Uuid
+  incidentId   String
+  responderId  String
   assignedDate DateTime  @default(now())
   responseStart DateTime?
   responseEnd  DateTime?

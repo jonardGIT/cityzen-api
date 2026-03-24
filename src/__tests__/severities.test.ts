@@ -18,14 +18,27 @@ describe(`GET ${BASE}`, () => {
 });
 
 describe(`GET ${BASE}/:id`, () => {
+  let createdId: string;
+
+  beforeAll(async () => {
+    // Create a severity to get a valid UUID
+    const res = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ level: `TestLevel-${Date.now()}` });
+    createdId = res.body.id;
+  });
+
   it('should return 200 for valid id', async () => {
-    const res = await request(app).get(`${BASE}/1`);
+    const res = await request(app).get(`${BASE}/${createdId}`);
     expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty('id', 1);
+    expect(res.body).toHaveProperty('id', createdId);
   });
 
   it('should return 404 for unknown id', async () => {
-    const res = await request(app).get(`${BASE}/9999`);
+    // Use a random UUID
+    const unknownId = '11111111-1111-4111-8111-111111111111';
+    const res = await request(app).get(`${BASE}/${unknownId}`);
     expect(res.status).toBe(404);
   });
 });
@@ -42,7 +55,7 @@ describe(`POST ${BASE}`, () => {
 
   it('should return 400 when level is missing', async () => {
     const res = await request(app).post(BASE).set('Authorization', `Bearer ${adminToken}`).send({});
-    expect(res.status).toBe(422);
+    expect(res.status).toBe(400);
     expect(res.body).toHaveProperty('errors');
   });
 });

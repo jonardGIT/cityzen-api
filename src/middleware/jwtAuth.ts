@@ -60,7 +60,7 @@ export function requireJwtAuth(req: Request, res: Response, next: NextFunction):
 
     const payload = decoded;
     (req as AuthenticatedRequest).authUser = {
-      id: Number(payload.sub),
+      id: String(payload.sub),
       email: payload.email,
       role: payload.role,
     };
