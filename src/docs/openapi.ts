@@ -1,17 +1,37 @@
-const API_BASE_PATH = process.env.API_BASE_PATH ?? '/api/v1';
+// Minimal valid OpenAPI document for xypes-cirs-api
+import { OpenAPIV3 } from 'openapi-types';
 
-const commonErrorSchema = {
-  type: 'object',
-  properties: {
-    message: { type: 'string' },
-  },
-  examples: [
-    { message: 'Unauthorized: bearer token required' },
-    { message: 'Forbidden: insufficient role permissions' },
-    { message: 'Conflict: resource violates a unique constraint' },
-    { message: 'Conflict: resource is still referenced by other records' },
-  ],
+export const openApiDocument: OpenAPIV3.Document = {
+	openapi: '3.0.0',
+	info: {
+		title: 'Xypes CIRS API',
+		version: '1.0.0',
+		description: 'Minimal OpenAPI definition for health endpoint.'
+	},
+	paths: {
+		'/health': {
+			get: {
+				summary: 'Health check',
+				responses: {
+					'200': {
+						description: 'OK',
+						content: {
+							'application/json': {
+								schema: {
+									type: 'object',
+									properties: {
+										status: { type: 'string' }
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 };
+<<<<<<< Updated upstream
 
 const validationErrorSchema = {
   type: 'object',
@@ -2753,3 +2773,5 @@ export const openApiDocument = {
     },
   },
 } as const;
+=======
+>>>>>>> Stashed changes
