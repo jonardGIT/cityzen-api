@@ -1,0 +1,30 @@
+# Environment and secrets
+.env
+config/private/*
+secrets/*
+*.pem
+*.key
+*.crt
+
+
+# Prisma generated files
+prisma/migrations/*
+prisma/generated/*
+
+# Build and cache outputs
+dist/
+build/
+out/
+coverage/
+node_modules/
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+.tmp/
+.DS_Store
