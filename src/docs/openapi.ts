@@ -182,31 +182,25 @@ const paths = {
         },
         '401': {
           description: 'Missing or invalid bearer token',
-          components: {
-            schemas: {
-              User: {
-                type: 'object',
-                properties: {
-                  id: { type: 'string', format: 'uuid' },
-                  name: { type: 'string' },
-                  email: { type: 'string', format: 'email' },
-                  role: {
-                    type: 'string',
-                    enum: ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER', 'RESPONDER', 'VIEWER'],
-                  },
-                },
-                required: ['id', 'name', 'email', 'role'],
-              },
+          content: {
+            'application/json': {
+              schema: commonErrorSchema,
+            },
+          },
+        },
+      },
+    },
+  },
+  [`${API_BASE_PATH}/admin/users`]: {
+    get: {
+      summary: 'List all users (admin roles only)',
+      description:
+        'Supports optional pagination with page and pageSize. Without pagination params, returns the legacy array response.',
+      tags: ['Admin'],
       security: [{ BearerAuth: [] }],
       parameters: [
         { $ref: '#/components/parameters/PageParam' },
         { $ref: '#/components/parameters/PageSizeParam' },
-        { $ref: '#/components/parameters/SortByParam' },
-        { $ref: '#/components/parameters/SortOrderParam' },
-        { $ref: '#/components/parameters/CreatedFromParam' },
-        { $ref: '#/components/parameters/CreatedToParam' },
-        { $ref: '#/components/parameters/UpdatedFromParam' },
-        { $ref: '#/components/parameters/UpdatedToParam' },
       ],
       responses: {
         '200': {
@@ -250,12 +244,6 @@ const paths = {
       parameters: [
         { $ref: '#/components/parameters/PageParam' },
         { $ref: '#/components/parameters/PageSizeParam' },
-        { $ref: '#/components/parameters/SortByParam' },
-        { $ref: '#/components/parameters/SortOrderParam' },
-        { $ref: '#/components/parameters/CreatedFromParam' },
-        { $ref: '#/components/parameters/CreatedToParam' },
-        { $ref: '#/components/parameters/UpdatedFromParam' },
-        { $ref: '#/components/parameters/UpdatedToParam' },
       ],
       responses: {
         '200': {
@@ -466,12 +454,6 @@ const paths = {
       parameters: [
         { $ref: '#/components/parameters/PageParam' },
         { $ref: '#/components/parameters/PageSizeParam' },
-        { $ref: '#/components/parameters/SortByParam' },
-        { $ref: '#/components/parameters/SortOrderParam' },
-        { $ref: '#/components/parameters/CreatedFromParam' },
-        { $ref: '#/components/parameters/CreatedToParam' },
-        { $ref: '#/components/parameters/UpdatedFromParam' },
-        { $ref: '#/components/parameters/UpdatedToParam' },
       ],
       responses: {
         '200': {
@@ -624,12 +606,6 @@ const paths = {
       parameters: [
         { $ref: '#/components/parameters/PageParam' },
         { $ref: '#/components/parameters/PageSizeParam' },
-        { $ref: '#/components/parameters/SortByParam' },
-        { $ref: '#/components/parameters/SortOrderParam' },
-        { $ref: '#/components/parameters/CreatedFromParam' },
-        { $ref: '#/components/parameters/CreatedToParam' },
-        { $ref: '#/components/parameters/UpdatedFromParam' },
-        { $ref: '#/components/parameters/UpdatedToParam' },
       ],
       responses: {
         '200': {
@@ -785,12 +761,6 @@ const paths = {
       parameters: [
         { $ref: '#/components/parameters/PageParam' },
         { $ref: '#/components/parameters/PageSizeParam' },
-        { $ref: '#/components/parameters/SortByParam' },
-        { $ref: '#/components/parameters/SortOrderParam' },
-        { $ref: '#/components/parameters/CreatedFromParam' },
-        { $ref: '#/components/parameters/CreatedToParam' },
-        { $ref: '#/components/parameters/UpdatedFromParam' },
-        { $ref: '#/components/parameters/UpdatedToParam' },
       ],
       responses: {
         '200': {
@@ -951,12 +921,6 @@ const paths = {
       parameters: [
         { $ref: '#/components/parameters/PageParam' },
         { $ref: '#/components/parameters/PageSizeParam' },
-        { $ref: '#/components/parameters/SortByParam' },
-        { $ref: '#/components/parameters/SortOrderParam' },
-        { $ref: '#/components/parameters/CreatedFromParam' },
-        { $ref: '#/components/parameters/CreatedToParam' },
-        { $ref: '#/components/parameters/UpdatedFromParam' },
-        { $ref: '#/components/parameters/UpdatedToParam' },
       ],
       responses: {
         '200': {
@@ -1118,12 +1082,6 @@ const paths = {
       parameters: [
         { $ref: '#/components/parameters/PageParam' },
         { $ref: '#/components/parameters/PageSizeParam' },
-        { $ref: '#/components/parameters/SortByParam' },
-        { $ref: '#/components/parameters/SortOrderParam' },
-        { $ref: '#/components/parameters/CreatedFromParam' },
-        { $ref: '#/components/parameters/CreatedToParam' },
-        { $ref: '#/components/parameters/UpdatedFromParam' },
-        { $ref: '#/components/parameters/UpdatedToParam' },
       ],
       responses: {
         '200': {
@@ -1285,12 +1243,6 @@ const paths = {
       parameters: [
         { $ref: '#/components/parameters/PageParam' },
         { $ref: '#/components/parameters/PageSizeParam' },
-        { $ref: '#/components/parameters/SortByParam' },
-        { $ref: '#/components/parameters/SortOrderParam' },
-        { $ref: '#/components/parameters/CreatedFromParam' },
-        { $ref: '#/components/parameters/CreatedToParam' },
-        { $ref: '#/components/parameters/UpdatedFromParam' },
-        { $ref: '#/components/parameters/UpdatedToParam' },
       ],
       responses: {
         '200': {
@@ -1447,12 +1399,6 @@ const paths = {
       parameters: [
         { $ref: '#/components/parameters/PageParam' },
         { $ref: '#/components/parameters/PageSizeParam' },
-        { $ref: '#/components/parameters/SortByParam' },
-        { $ref: '#/components/parameters/SortOrderParam' },
-        { $ref: '#/components/parameters/CreatedFromParam' },
-        { $ref: '#/components/parameters/CreatedToParam' },
-        { $ref: '#/components/parameters/UpdatedFromParam' },
-        { $ref: '#/components/parameters/UpdatedToParam' },
       ],
       responses: {
         '200': {
@@ -1712,12 +1658,6 @@ const paths = {
       parameters: [
         { $ref: '#/components/parameters/PageParam' },
         { $ref: '#/components/parameters/PageSizeParam' },
-        { $ref: '#/components/parameters/SortByParam' },
-        { $ref: '#/components/parameters/SortOrderParam' },
-        { $ref: '#/components/parameters/CreatedFromParam' },
-        { $ref: '#/components/parameters/CreatedToParam' },
-        { $ref: '#/components/parameters/UpdatedFromParam' },
-        { $ref: '#/components/parameters/UpdatedToParam' },
       ],
       responses: {
         '200': {
@@ -1899,12 +1839,6 @@ const paths = {
       parameters: [
         { $ref: '#/components/parameters/PageParam' },
         { $ref: '#/components/parameters/PageSizeParam' },
-        { $ref: '#/components/parameters/SortByParam' },
-        { $ref: '#/components/parameters/SortOrderParam' },
-        { $ref: '#/components/parameters/CreatedFromParam' },
-        { $ref: '#/components/parameters/CreatedToParam' },
-        { $ref: '#/components/parameters/UpdatedFromParam' },
-        { $ref: '#/components/parameters/UpdatedToParam' },
       ],
       responses: {
         '200': {
@@ -2250,56 +2184,6 @@ export const openApiDocument = {
         description: 'Optional page size for paginated responses. Maximum value is 100.',
         schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
       },
-      SortByParam: {
-        name: 'sortBy',
-        in: 'query',
-        required: false,
-        description: 'Sort field for list responses.',
-        schema: {
-          type: 'string',
-          enum: ['createdAt', 'updatedAt'],
-          default: 'createdAt',
-        },
-      },
-      SortOrderParam: {
-        name: 'sortOrder',
-        in: 'query',
-        required: false,
-        description: 'Sort direction for list responses.',
-        schema: {
-          type: 'string',
-          enum: ['asc', 'desc'],
-          default: 'desc',
-        },
-      },
-      CreatedFromParam: {
-        name: 'createdFrom',
-        in: 'query',
-        required: false,
-        description: 'Lower inclusive bound for createdAt (ISO-8601 datetime).',
-        schema: { type: 'string', format: 'date-time' },
-      },
-      CreatedToParam: {
-        name: 'createdTo',
-        in: 'query',
-        required: false,
-        description: 'Upper inclusive bound for createdAt (ISO-8601 datetime).',
-        schema: { type: 'string', format: 'date-time' },
-      },
-      UpdatedFromParam: {
-        name: 'updatedFrom',
-        in: 'query',
-        required: false,
-        description: 'Lower inclusive bound for updatedAt (ISO-8601 datetime).',
-        schema: { type: 'string', format: 'date-time' },
-      },
-      UpdatedToParam: {
-        name: 'updatedTo',
-        in: 'query',
-        required: false,
-        description: 'Upper inclusive bound for updatedAt (ISO-8601 datetime).',
-        schema: { type: 'string', format: 'date-time' },
-      },
     },
     schemas: {
       PaginationMeta: {
@@ -2397,18 +2281,12 @@ export const openApiDocument = {
       Citizen: {
         type: 'object',
         properties: {
-<<<<<<< HEAD
           id: { type: 'string', format: 'uuid', example: 'b3e1c2d4-1234-4abc-8def-1234567890ab' },
-=======
-          id: { type: 'integer', example: 1 },
-          createdAt: { type: 'string', format: 'date-time' },
-          updatedAt: { type: 'string', format: 'date-time' },
->>>>>>> develop
           name: { type: 'string' },
           contactInfo: { type: 'string' },
           preferredChannel: { type: 'string' },
         },
-        required: ['id', 'createdAt', 'updatedAt', 'name', 'contactInfo', 'preferredChannel'],
+        required: ['id', 'name', 'contactInfo', 'preferredChannel'],
       },
       CitizenCreate: {
         type: 'object',
@@ -2454,12 +2332,10 @@ export const openApiDocument = {
         type: 'object',
         properties: {
           id: { type: 'integer', example: 1 },
-          createdAt: { type: 'string', format: 'date-time' },
-          updatedAt: { type: 'string', format: 'date-time' },
           name: { type: 'string', example: 'City Fire Department' },
           contactNumber: { type: 'string', nullable: true, example: '+1-555-0100' },
         },
-        required: ['id', 'createdAt', 'updatedAt', 'name'],
+        required: ['id', 'name'],
       },
       AgencyCreate: {
         type: 'object',
@@ -2489,15 +2365,13 @@ export const openApiDocument = {
         type: 'object',
         properties: {
           id: { type: 'integer', example: 1 },
-          createdAt: { type: 'string', format: 'date-time' },
-          updatedAt: { type: 'string', format: 'date-time' },
           name: { type: 'string' },
           agencyId: { type: 'integer', example: 1 },
           agency: { $ref: '#/components/schemas/Agency' },
           role: { type: 'string' },
           contactInfo: { type: 'string' },
         },
-        required: ['id', 'createdAt', 'updatedAt', 'name', 'agencyId', 'agency', 'role', 'contactInfo'],
+        required: ['id', 'name', 'agencyId', 'agency', 'role', 'contactInfo'],
       },
       ResponderCreate: {
         type: 'object',
@@ -2532,11 +2406,9 @@ export const openApiDocument = {
         type: 'object',
         properties: {
           id: { type: 'integer', example: 1 },
-          createdAt: { type: 'string', format: 'date-time' },
-          updatedAt: { type: 'string', format: 'date-time' },
           name: { type: 'string' },
         },
-        required: ['id', 'createdAt', 'updatedAt', 'name'],
+        required: ['id', 'name'],
       },
       StatusCreate: {
         type: 'object',
@@ -2562,12 +2434,10 @@ export const openApiDocument = {
         type: 'object',
         properties: {
           id: { type: 'integer', example: 1 },
-          createdAt: { type: 'string', format: 'date-time' },
-          updatedAt: { type: 'string', format: 'date-time' },
           name: { type: 'string' },
           subCategory: { type: 'string' },
         },
-        required: ['id', 'createdAt', 'updatedAt', 'name'],
+        required: ['id', 'name'],
       },
       CategoryCreate: {
         type: 'object',
@@ -2596,12 +2466,10 @@ export const openApiDocument = {
         type: 'object',
         properties: {
           id: { type: 'integer', example: 1 },
-          createdAt: { type: 'string', format: 'date-time' },
-          updatedAt: { type: 'string', format: 'date-time' },
           level: { type: 'string' },
           definition: { type: 'string' },
         },
-        required: ['id', 'createdAt', 'updatedAt', 'level'],
+        required: ['id', 'level'],
       },
       SeverityCreate: {
         type: 'object',
@@ -2630,14 +2498,12 @@ export const openApiDocument = {
         type: 'object',
         properties: {
           id: { type: 'integer', example: 1 },
-          createdAt: { type: 'string', format: 'date-time' },
-          updatedAt: { type: 'string', format: 'date-time' },
           district: { type: 'string' },
           city: { type: 'string' },
           province: { type: 'string' },
           region: { type: 'string' },
         },
-        required: ['id', 'createdAt', 'updatedAt', 'district', 'city', 'province', 'region'],
+        required: ['id', 'district', 'city', 'province', 'region'],
       },
       LocationCreate: {
         type: 'object',
@@ -2672,8 +2538,6 @@ export const openApiDocument = {
         type: 'object',
         properties: {
           id: { type: 'integer', example: 1 },
-          createdAt: { type: 'string', format: 'date-time' },
-          updatedAt: { type: 'string', format: 'date-time' },
           description: { type: 'string' },
           mediaUrl: { type: 'string' },
           dateReported: { type: 'string', format: 'date-time' },
@@ -2685,8 +2549,6 @@ export const openApiDocument = {
         },
         required: [
           'id',
-          'createdAt',
-          'updatedAt',
           'description',
           'dateReported',
           'statusId',
@@ -2759,8 +2621,6 @@ export const openApiDocument = {
         type: 'object',
         properties: {
           id: { type: 'integer', example: 1 },
-          createdAt: { type: 'string', format: 'date-time' },
-          updatedAt: { type: 'string', format: 'date-time' },
           incidentId: { type: 'integer' },
           responderId: { type: 'integer' },
           assignedDate: { type: 'string', format: 'date-time' },
@@ -2769,7 +2629,7 @@ export const openApiDocument = {
           outcome: { type: 'string' },
           notes: { type: 'string' },
         },
-        required: ['id', 'createdAt', 'updatedAt', 'incidentId', 'responderId', 'assignedDate'],
+        required: ['id', 'incidentId', 'responderId', 'assignedDate'],
       },
       AssignmentCreate: {
         type: 'object',
@@ -2817,8 +2677,6 @@ export const openApiDocument = {
         type: 'object',
         properties: {
           id: { type: 'integer', example: 1 },
-          createdAt: { type: 'string', format: 'date-time' },
-          updatedAt: { type: 'string', format: 'date-time' },
           name: { type: 'string' },
           email: { type: 'string', format: 'email' },
           role: {
@@ -2827,7 +2685,7 @@ export const openApiDocument = {
             example: 'VIEWER',
           },
         },
-        required: ['id', 'createdAt', 'updatedAt', 'name', 'email', 'role'],
+        required: ['id', 'name', 'email', 'role'],
       },
       UserCreate: {
         type: 'object',

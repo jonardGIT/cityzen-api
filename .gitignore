@@ -36,3 +36,11 @@ Thumbs.db
 # Coverage reports
 coverage/
 .nyc_output/
+
+# Unrelated/testing/dev files and folders
+src/__tests__/
+scripts/
+postman/
+prisma/
+docs/
+.vscode/
