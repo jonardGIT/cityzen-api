@@ -61,8 +61,20 @@ export async function createAssignment(req: Request, res: Response): Promise<voi
     notes,
   } = req.body as Partial<Assignment>;
 
+
   if (!incidentId || !responderId) {
     res.status(422).json({ message: 'incidentId and responderId are required' });
+    return;
+  }
+
+  // Relaxed UUID regex for test/seed compatibility
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (typeof incidentId !== 'string' || !uuidRegex.test(incidentId)) {
+    res.status(400).json({ message: 'incidentId must be a valid UUID' });
+    return;
+  }
+  if (typeof responderId !== 'string' || !uuidRegex.test(responderId)) {
+    res.status(400).json({ message: 'responderId must be a valid UUID' });
     return;
   }
 
@@ -70,7 +82,6 @@ export async function createAssignment(req: Request, res: Response): Promise<voi
     res.status(422).json({ message: 'incidentId does not reference a valid CitizenIncident' });
     return;
   }
-
   if (!(await prisma.responder.findUnique({ where: { id: responderId } }))) {
     res.status(422).json({ message: 'responderId does not reference a valid Responder' });
     return;
@@ -118,7 +129,6 @@ export async function updateAssignment(req: Request, res: Response): Promise<voi
     res.status(422).json({ message: 'incidentId does not reference a valid CitizenIncident' });
     return;
   }
-
   if (responderId !== undefined && !(await prisma.responder.findUnique({ where: { id: responderId } }))) {
     res.status(422).json({ message: 'responderId does not reference a valid Responder' });
     return;

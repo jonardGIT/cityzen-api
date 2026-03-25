@@ -5,7 +5,7 @@ export function validateRequest(req: Request, res: Response, next: NextFunction)
   const errors = validationResult(req);
 
   if (!errors.isEmpty()) {
-    res.status(422).json({
+    res.status(400).json({
       message: 'Validation failed',
       errors: errors.array().map((error) => ({
         field: 'path' in error ? error.path : 'unknown',

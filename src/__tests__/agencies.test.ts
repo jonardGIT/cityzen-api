@@ -26,20 +26,33 @@ describe(`GET ${BASE}`, () => {
 });
 
 describe(`GET ${BASE}/:id`, () => {
+  let createdId: string;
+
+  beforeAll(async () => {
+    // Create an agency to get a valid UUID
+    const res = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: `TestAgency-${Date.now()}` });
+    createdId = res.body.id;
+  });
+
   it('should return 200 for valid id', async () => {
-    const res = await request(app).get(`${BASE}/1`);
+    const res = await request(app).get(`${BASE}/${createdId}`);
     expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty('id', 1);
+    expect(res.body).toHaveProperty('id', createdId);
   });
 
   it('should include contactNumber field', async () => {
-    const res = await request(app).get(`${BASE}/1`);
+    const res = await request(app).get(`${BASE}/${createdId}`);
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('contactNumber');
   });
 
   it('should return 404 for unknown id', async () => {
-    const res = await request(app).get(`${BASE}/9999`);
+    // Use a random UUID
+    const unknownId = '11111111-1111-4111-8111-111111111111';
+    const res = await request(app).get(`${BASE}/${unknownId}`);
     expect(res.status).toBe(404);
   });
 });
@@ -68,13 +81,13 @@ describe(`POST ${BASE}`, () => {
       .post(BASE)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ name: `Agency-${Date.now()}`, contactNumber: '+1-555-01001234567890extra' });
-    expect(res.status).toBe(422);
+    expect(res.status).toBe(400);
     expect(res.body).toHaveProperty('errors');
   });
 
   it('should return 422 when name is missing', async () => {
     const res = await request(app).post(BASE).set('Authorization', `Bearer ${adminToken}`).send({});
-    expect(res.status).toBe(422);
+    expect(res.status).toBe(400);
     expect(res.body).toHaveProperty('errors');
   });
 });
@@ -113,7 +126,7 @@ describe(`PATCH ${BASE}/:id`, () => {
       .patch(`${BASE}/${testAgencyId}`)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ contactNumber: '+1-555-01001234567890extra' });
-    expect(res.status).toBe(422);
+    expect(res.status).toBe(400);
     expect(res.body).toHaveProperty('errors');
   });
 });

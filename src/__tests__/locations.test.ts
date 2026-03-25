@@ -18,14 +18,27 @@ describe(`GET ${BASE}`, () => {
 });
 
 describe(`GET ${BASE}/:id`, () => {
+  let createdId: string;
+
+  beforeAll(async () => {
+    // Create a location to get a valid UUID
+    const res = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ district: 'North', city: 'Testville', province: 'TestProvince', region: 'Region X' });
+    createdId = res.body.id;
+  });
+
   it('should return 200 for valid id', async () => {
-    const res = await request(app).get(`${BASE}/1`);
+    const res = await request(app).get(`${BASE}/${createdId}`);
     expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty('id', 1);
+    expect(res.body).toHaveProperty('id', createdId);
   });
 
   it('should return 404 for unknown id', async () => {
-    const res = await request(app).get(`${BASE}/9999`);
+    // Use a random UUID
+    const unknownId = '11111111-1111-4111-8111-111111111111';
+    const res = await request(app).get(`${BASE}/${unknownId}`);
     expect(res.status).toBe(404);
   });
 });
@@ -47,7 +60,7 @@ describe(`POST ${BASE}`, () => {
       .post(BASE)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ district: 'North' });
-    expect(res.status).toBe(422);
+    expect(res.status).toBe(400);
     expect(res.body).toHaveProperty('errors');
   });
 });
