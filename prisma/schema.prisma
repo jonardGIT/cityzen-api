@@ -8,115 +8,134 @@ datasource db {
 }
 
 model User {
-<<<<<<< HEAD
   id           String   @id @default(uuid()) @db.Uuid
-=======
-  id           String   @id @default(uuid()) @db.Uuid
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  name         String
+  email        String   @unique
+  passwordHash String
   role         String   @default("VIEWER")
+
+  @@map("users")
 }
 
 model Citizen {
-<<<<<<< HEAD
   id               String            @id @default(uuid()) @db.Uuid
-=======
-  id               String            @id @default(uuid()) @db.Uuid
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  name             String
+  contactInfo      String
+  preferredChannel String
   incidents        CitizenIncident[]
 
   @@map("citizens")
 }
 
 model Agency {
-<<<<<<< HEAD
   id            String      @id @default(uuid()) @db.Uuid
-=======
-  id            String      @id @default(uuid()) @db.Uuid
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  name          String
+  contactNumber String?
+  responders    Responder[]
 
   @@map("agencies")
 }
 
 model Responder {
-<<<<<<< HEAD
   id          String       @id @default(uuid()) @db.Uuid
-=======
-  id          String       @id @default(uuid()) @db.Uuid
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  name        String
+  agencyId    String       @db.Uuid
+  role        String
   contactInfo String
-  assignments Assignment[]
   agency      Agency       @relation(fields: [agencyId], references: [id])
+  assignments Assignment[]
 
   @@map("responders")
 }
 
 model Status {
-<<<<<<< HEAD
   id        String            @id @default(uuid()) @db.Uuid
-=======
-  id        String            @id @default(uuid()) @db.Uuid
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  name      String
+  incidents CitizenIncident[]
+
   @@map("statuses")
 }
 
 model Category {
-<<<<<<< HEAD
-  id         String            @id @default(uuid()) @db.Uuid
-=======
-  id         String            @id @default(uuid()) @db.Uuid
+  id          String            @id @default(uuid()) @db.Uuid
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  name        String
+  subCategory String?
+  incidents   CitizenIncident[]
 
   @@map("categories")
 }
 
 model Severity {
-<<<<<<< HEAD
-  id        String            @id @default(uuid()) @db.Uuid
-  level     String            @unique
-  id        String            @id @default(uuid()) @db.Uuid
-  level     String            @unique
+  id         String            @id @default(uuid()) @db.Uuid
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  level      String            @unique
+  definition String?
+  incidents  CitizenIncident[]
+
   @@map("severities")
 }
 
 model Location {
-<<<<<<< HEAD
-  id       String            @id @default(uuid()) @db.Uuid
-  district String
-  id       String            @id @default(uuid()) @db.Uuid
-  district String
-  city     String
-  province String
-  region   String
+  id        String            @id @default(uuid()) @db.Uuid
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  district  String
+  city      String
+  province  String
+  region    String
+  incidents CitizenIncident[]
+
+  @@map("locations")
 }
 
 model CitizenIncident {
-<<<<<<< HEAD
-  id           String     @id @default(uuid()) @db.Uuid
-  description  String
-  id           String     @id @default(uuid()) @db.Uuid
+  id           String       @id @default(uuid()) @db.Uuid
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
   description  String
   mediaUrl     String?
-  dateReported DateTime   @default(now())
-  statusId     String
-  citizenId    String
-  locationId   String
-  categoryId   String
-  severityId   String
-  citizen  Citizen  @relation(fields: [citizenId], references: [id])
-  location Location @relation(fields: [locationId], references: [id])
-  category Category @relation(fields: [categoryId], references: [id])
-  severity Severity @relation(fields: [severityId], references: [id])
+  dateReported DateTime     @default(now())
+  statusId     String       @db.Uuid
+  citizenId    String       @db.Uuid
+  locationId   String       @db.Uuid
+  categoryId   String       @db.Uuid
+  severityId   String       @db.Uuid
+  status       Status       @relation(fields: [statusId], references: [id])
+  citizen      Citizen      @relation(fields: [citizenId], references: [id])
+  location     Location     @relation(fields: [locationId], references: [id])
+  category     Category     @relation(fields: [categoryId], references: [id])
+  severity     Severity     @relation(fields: [severityId], references: [id])
+  assignments  Assignment[]
 
   @@map("incidents")
 }
 
 model Assignment {
-<<<<<<< HEAD
-  id           String    @id @default(uuid()) @db.Uuid
-  incidentId   String
-  id           String    @id @default(uuid()) @db.Uuid
-  incidentId   String
-  responderId  String
-  assignedDate DateTime  @default(now())
-  outcome      String?
-  notes        String?
-
-  incident CitizenIncident @relation(fields: [incidentId], references: [id])
-  responder  Responder      @relation(fields: [responderId], references: [id])
+  id            String          @id @default(uuid()) @db.Uuid
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  incidentId    String          @db.Uuid
+  responderId   String          @db.Uuid
+  assignedDate  DateTime        @default(now())
+  responseStart DateTime?
+  responseEnd   DateTime?
+  outcome       String?
+  notes         String?
+  incident      CitizenIncident @relation(fields: [incidentId], references: [id])
+  responder     Responder       @relation(fields: [responderId], references: [id])
 
   @@map("assignments")
 }
