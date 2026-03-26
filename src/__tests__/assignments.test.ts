@@ -1,6 +1,6 @@
 import request from 'supertest';
 import app, { API_V1 } from '../app.js';
-import { getAdminToken } from './helpers/auth.js';
+import { getAdminToken, getTokenForRole } from './helpers/auth.js';
 
 jest.setTimeout(20000);
 
@@ -18,7 +18,6 @@ describe(`GET ${BASE}`, () => {
     expect(Array.isArray(res.body)).toBe(true);
   });
 });
-
 
 // Move these to outer scope for use in POST tests
 let incidentId: string;
@@ -38,7 +37,11 @@ describe(`GET ${BASE}/:id`, () => {
 
     const citizenRes = await request(app)
       .post(`${API_V1}/citizens`)
-      .send({ name: `TestCitizen-${Date.now()}`, contactInfo: `test${Date.now()}@mail.com`, preferredChannel: 'app' });
+      .send({
+        name: `TestCitizen-${Date.now()}`,
+        contactInfo: `test${Date.now()}@mail.com`,
+        preferredChannel: 'app',
+      });
     const citizenId = citizenRes.body.id;
 
     const locationRes = await request(app)
@@ -82,7 +85,12 @@ describe(`GET ${BASE}/:id`, () => {
     const responderRes = await request(app)
       .post(`${API_V1}/responders`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: `TestResponder-${Date.now()}`, agencyId, role: 'TestRole', contactInfo: `test${Date.now()}@mail.com` });
+      .send({
+        name: `TestResponder-${Date.now()}`,
+        agencyId,
+        role: 'TestRole',
+        contactInfo: `test${Date.now()}@mail.com`,
+      });
     responderId = responderRes.body.id;
 
     // Assignment
@@ -130,5 +138,100 @@ describe(`POST ${BASE}`, () => {
       responderId: 'uuid-responder-1',
     });
     expect(res.status).toBe(400);
+  });
+
+  it('should return 401 without auth token', async () => {
+    const res = await request(app).post(BASE).send({
+      incidentId,
+      responderId,
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it('should return 403 for VIEWER role', async () => {
+    const viewerToken = await getTokenForRole('analyst@xypes.local');
+    const res = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${viewerToken}`)
+      .send({ incidentId, responderId });
+    expect(res.status).toBe(403);
+  });
+});
+
+describe(`GET ${BASE} (pagination)`, () => {
+  it('should return paginated result when page and pageSize are provided', async () => {
+    const res = await request(app).get(`${BASE}?page=1&pageSize=2`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.pagination).toMatchObject({ page: 1, pageSize: 2 });
+    expect(typeof res.body.pagination.total).toBe('number');
+    expect(res.body.data.length).toBeLessThanOrEqual(2);
+  });
+});
+
+describe(`PATCH ${BASE}/:id`, () => {
+  let patchId: string;
+
+  beforeAll(async () => {
+    const res = await request(app).post(BASE).set('Authorization', `Bearer ${adminToken}`).send({
+      incidentId,
+      responderId,
+    });
+    patchId = res.body.id;
+  });
+
+  it('should update notes and return 200', async () => {
+    const res = await request(app)
+      .patch(`${BASE}/${patchId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ notes: 'Updated notes', outcome: 'Resolved' });
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('id', patchId);
+    expect(res.body).toHaveProperty('notes', 'Updated notes');
+    expect(res.body).toHaveProperty('outcome', 'Resolved');
+  });
+
+  it('should return 404 for non-existent id', async () => {
+    const res = await request(app)
+      .patch(`${BASE}/00000000-0000-0000-0000-000000000099`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ notes: 'Ghost' });
+    expect(res.status).toBe(404);
+  });
+
+  it('should return 401 without auth token', async () => {
+    const res = await request(app).patch(`${BASE}/${patchId}`).send({ notes: 'NoAuth' });
+    expect(res.status).toBe(401);
+  });
+});
+
+describe(`DELETE ${BASE}/:id`, () => {
+  let deleteId: string;
+
+  beforeAll(async () => {
+    const res = await request(app).post(BASE).set('Authorization', `Bearer ${adminToken}`).send({
+      incidentId,
+      responderId,
+    });
+    deleteId = res.body.id;
+  });
+
+  it('should delete and return 204', async () => {
+    const res = await request(app)
+      .delete(`${BASE}/${deleteId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(204);
+  });
+
+  it('should return 404 for non-existent id', async () => {
+    const res = await request(app)
+      .delete(`${BASE}/00000000-0000-0000-0000-000000000099`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(404);
+  });
+
+  it('should return 401 without auth token', async () => {
+    const res = await request(app).delete(`${BASE}/${deleteId}`);
+    expect(res.status).toBe(401);
   });
 });

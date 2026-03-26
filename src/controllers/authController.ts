@@ -38,6 +38,8 @@ export async function register(req: Request, res: Response): Promise<void> {
     },
     select: {
       id: true,
+      createdAt: true,
+      updatedAt: true,
       name: true,
       email: true,
       role: true,
@@ -53,7 +55,7 @@ export async function register(req: Request, res: Response): Promise<void> {
     {
       subject: String(user.id),
       expiresIn: '12h',
-    }
+    },
   );
 
   res.status(201).json({
@@ -84,9 +86,9 @@ export async function login(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const role = (USER_ROLES.includes(user.role as (typeof USER_ROLES)[number])
-    ? user.role
-    : 'VIEWER') as (typeof USER_ROLES)[number];
+  const role = (
+    USER_ROLES.includes(user.role as (typeof USER_ROLES)[number]) ? user.role : 'VIEWER'
+  ) as (typeof USER_ROLES)[number];
 
   const accessToken = jwt.sign(
     {
@@ -97,7 +99,7 @@ export async function login(req: Request, res: Response): Promise<void> {
     {
       subject: String(user.id),
       expiresIn: '12h',
-    }
+    },
   );
 
   res.json({
@@ -105,6 +107,8 @@ export async function login(req: Request, res: Response): Promise<void> {
     tokenType: 'Bearer',
     user: {
       id: user.id,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
       name: user.name,
       email: user.email,
       role,
@@ -124,6 +128,8 @@ export async function me(req: Request, res: Response): Promise<void> {
     where: { id: String(authUser.id) },
     select: {
       id: true,
+      createdAt: true,
+      updatedAt: true,
       name: true,
       email: true,
       role: true,
