@@ -4,7 +4,6 @@ import type {
   Category,
   Citizen,
   CitizenIncident,
-  Location,
   Responder,
   Severity,
   Status,
@@ -12,7 +11,12 @@ import type {
 
 // Sample citizens
 export const citizens: Citizen[] = [
-  { id: 'uuid-citizen-1', name: 'Jane Doe', contactInfo: 'jane@example.com', preferredChannel: 'SMS' },
+  {
+    id: 'uuid-citizen-1',
+    name: 'Jane Doe',
+    contactInfo: 'jane@example.com',
+    preferredChannel: 'SMS',
+  },
 ];
 
 // Sample agencies
@@ -52,26 +56,20 @@ export const severities: Severity[] = [
   { id: 'uuid-severity-2', level: 'High', definition: 'Immediate action required' },
 ];
 
-// Sample locations
-export const locations: Location[] = [
-  {
-    id: 'uuid-location-1',
-    district: 'District 1',
-    city: 'Sample City',
-    province: 'Sample Province',
-    region: 'Region A',
-  },
-];
-
 // Sample incidents
 export const incidents: CitizenIncident[] = [
   {
     id: 'uuid-incident-1',
     description: 'Small kitchen fire reported by resident.',
     dateReported: new Date(),
+    latitude: 14.5995,
+    longitude: 120.9842,
+    addressLine1: '123 Sample St',
+    cityName: 'Sample City',
+    provinceName: 'Sample Province',
+    regionName: 'Region A',
     statusId: 'uuid-status-1',
     citizenId: 'uuid-citizen-1',
-    locationId: 'uuid-location-1',
     categoryId: 'uuid-category-1',
     severityId: 'uuid-severity-2',
   },

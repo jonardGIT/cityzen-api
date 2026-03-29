@@ -3,8 +3,8 @@ import app, { API_V1 } from '../../app.js';
 
 const ADMIN_EMAIL = 'admin@xypes.local';
 const ADMIN_PASSWORD = 'Password123!';
-const MAX_LOGIN_ATTEMPTS = 3;
-const RETRY_DELAY_MS = 750;
+const MAX_LOGIN_ATTEMPTS = 5;
+const RETRY_DELAY_MS = 1000;
 
 let adminTokenPromise: Promise<string> | null = null;
 
@@ -34,7 +34,9 @@ async function loginAsAdmin(): Promise<string> {
     }
   }
 
-  throw new Error(`Admin login failed after ${MAX_LOGIN_ATTEMPTS} attempts: ${lastStatus ?? 'no status'} ${lastMessage}`);
+  throw new Error(
+    `Admin login failed after ${MAX_LOGIN_ATTEMPTS} attempts: ${lastStatus ?? 'no status'} ${lastMessage}`,
+  );
 }
 
 export async function getAdminToken(): Promise<string> {

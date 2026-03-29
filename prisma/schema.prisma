@@ -88,19 +88,6 @@ model Severity {
   @@map("severities")
 }
 
-model Location {
-  id        String            @id @default(uuid()) @db.Uuid
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
-  district  String
-  city      String
-  province  String
-  region    String
-  incidents CitizenIncident[]
-
-  @@map("locations")
-}
-
 model CitizenIncident {
   id           String       @id @default(uuid()) @db.Uuid
   createdAt    DateTime     @default(now())
@@ -108,14 +95,23 @@ model CitizenIncident {
   description  String
   mediaUrl     String?
   dateReported DateTime     @default(now())
+  latitude     Decimal?     @db.Decimal(10, 7)
+  longitude    Decimal?     @db.Decimal(10, 7)
+  addressLine1 String?
+  addressLine2 String?
+  barangay     String?
+  districtName String?
+  cityName     String?
+  provinceName String?
+  regionName   String?
+  postalCode   String?
+  landmark     String?
   statusId     String       @db.Uuid
   citizenId    String       @db.Uuid
-  locationId   String       @db.Uuid
   categoryId   String       @db.Uuid
   severityId   String       @db.Uuid
   status       Status       @relation(fields: [statusId], references: [id])
   citizen      Citizen      @relation(fields: [citizenId], references: [id])
-  location     Location     @relation(fields: [locationId], references: [id])
   category     Category     @relation(fields: [categoryId], references: [id])
   severity     Severity     @relation(fields: [severityId], references: [id])
   assignments  Assignment[]

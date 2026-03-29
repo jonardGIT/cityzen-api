@@ -1,31 +1,41 @@
 // Handles CRUD operations for citizens who report incidents.
 import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
-import { buildPaginatedResponse, getPaginationQuery, getParamId, getTimestampQuery } from '../utils/request.js';
+import {
+  buildPaginatedResponse,
+  getListQuery,
+  getPaginationQuery,
+  getParamId,
+} from '../utils/request.js';
+import { citizensListQueryConfig } from '../utils/listQueryConfig.js';
 import type { Citizen } from '../types/models.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
 
 // Returns all citizens from the database.
 export async function getCitizens(req: Request, res: Response): Promise<void> {
   const pagination = getPaginationQuery(req);
-  const timestampQuery = getTimestampQuery(req);
+  const listQuery = getListQuery(req, res, citizensListQueryConfig);
+  if (!listQuery) {
+    return;
+  }
+
   if (pagination.enabled) {
     const [citizens, total] = await Promise.all([
       prisma.citizen.findMany({
-        where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined,
-        orderBy: timestampQuery.orderBy as any,
+        where: listQuery.where as any,
+        orderBy: listQuery.orderBy as any,
         skip: pagination.skip,
         take: pagination.take,
       }),
-      prisma.citizen.count({ where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined }),
+      prisma.citizen.count({ where: listQuery.where as any }),
     ]);
     res.json(buildPaginatedResponse(citizens, total, pagination));
     return;
   }
 
   const citizens = await prisma.citizen.findMany({
-    where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined,
-    orderBy: timestampQuery.orderBy as any,
+    where: listQuery.where as any,
+    orderBy: listQuery.orderBy as any,
   });
   res.json(citizens);
 }
@@ -90,7 +100,8 @@ export async function linkMyCitizenProfile(req: Request, res: Response): Promise
   if (!existingCitizen) {
     if (!name || !preferredChannel) {
       res.status(422).json({
-        message: 'name and preferredChannel are required when creating a new linked citizen profile',
+        message:
+          'name and preferredChannel are required when creating a new linked citizen profile',
       });
       return;
     }

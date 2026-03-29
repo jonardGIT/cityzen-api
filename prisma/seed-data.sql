@@ -9,7 +9,6 @@ TRUNCATE TABLE
   statuses,
   categories,
   severities,
-  locations,
   users
 RESTART IDENTITY CASCADE;
 
@@ -40,13 +39,6 @@ INSERT INTO severities (id, "createdAt", "updatedAt", level, definition) VALUES
   ('40000000-0000-0000-0000-000000000003', NOW() - INTERVAL '15 days', NOW() - INTERVAL '13 days', 'High', 'Priority response required.'),
   ('40000000-0000-0000-0000-000000000004', NOW() - INTERVAL '15 days', NOW() - INTERVAL '12 days', 'Critical', 'Immediate intervention required.');
 
-INSERT INTO locations (id, "createdAt", "updatedAt", district, city, province, region) VALUES
-  ('50000000-0000-0000-0000-000000000001', NOW() - INTERVAL '20 days', NOW() - INTERVAL '5 days', 'District 1 - Batasan', 'Quezon City', 'Metro Manila', 'NCR'),
-  ('50000000-0000-0000-0000-000000000002', NOW() - INTERVAL '18 days', NOW() - INTERVAL '4 days', 'District 2 - Commonwealth', 'Quezon City', 'Metro Manila', 'NCR'),
-  ('50000000-0000-0000-0000-000000000003', NOW() - INTERVAL '16 days', NOW() - INTERVAL '3 days', 'District 3 - Cubao', 'Quezon City', 'Metro Manila', 'NCR'),
-  ('50000000-0000-0000-0000-000000000004', NOW() - INTERVAL '14 days', NOW() - INTERVAL '2 days', 'District 4 - Fairview', 'Quezon City', 'Metro Manila', 'NCR'),
-  ('50000000-0000-0000-0000-000000000005', NOW() - INTERVAL '12 days', NOW() - INTERVAL '1 day', 'District 5 - Diliman', 'Quezon City', 'Metro Manila', 'NCR');
-
 INSERT INTO citizens (id, "createdAt", "updatedAt", name, "contactInfo", "preferredChannel") VALUES
   ('60000000-0000-0000-0000-000000000001', NOW() - INTERVAL '9 days', NOW() - INTERVAL '18 hours', 'Mika dela Cruz', 'mika.delacruz@example.com', 'SMS'),
   ('60000000-0000-0000-0000-000000000002', NOW() - INTERVAL '8 days', NOW() - INTERVAL '16 hours', 'Ronnie Villareal', 'ronnie.villareal@example.com', 'Call'),
@@ -74,17 +66,27 @@ INSERT INTO incidents (
   description,
   "mediaUrl",
   "dateReported",
+  latitude,
+  longitude,
+  "addressLine1",
+  "addressLine2",
+  barangay,
+  "districtName",
+  "cityName",
+  "provinceName",
+  "regionName",
+  "postalCode",
+  landmark,
   "statusId",
   "citizenId",
-  "locationId",
   "categoryId",
   "severityId"
 ) VALUES
-  ('90000000-0000-0000-0000-000000000001', NOW() - INTERVAL '36 hours', NOW() - INTERVAL '34 hours', 'Kitchen fire triggered by electrical short after power restoration.', 'https://example.com/media/qc-incident-001.jpg', NOW() - INTERVAL '36 hours', '20000000-0000-0000-0000-000000000003', '60000000-0000-0000-0000-000000000001', '50000000-0000-0000-0000-000000000003', '30000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000004'),
-  ('90000000-0000-0000-0000-000000000002', NOW() - INTERVAL '30 hours', NOW() - INTERVAL '28 hours', 'Senior citizen with breathing difficulty during flood evacuation.', 'https://example.com/media/qc-incident-002.jpg', NOW() - INTERVAL '30 hours', '20000000-0000-0000-0000-000000000002', '60000000-0000-0000-0000-000000000002', '50000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000002', '40000000-0000-0000-0000-000000000003'),
-  ('90000000-0000-0000-0000-000000000003', NOW() - INTERVAL '22 hours', NOW() - INTERVAL '16 hours', 'Waist-deep flooding blocking access to elementary school.', 'https://example.com/media/qc-incident-003.jpg', NOW() - INTERVAL '22 hours', '20000000-0000-0000-0000-000000000002', '60000000-0000-0000-0000-000000000003', '50000000-0000-0000-0000-000000000004', '30000000-0000-0000-0000-000000000004', '40000000-0000-0000-0000-000000000004'),
-  ('90000000-0000-0000-0000-000000000004', NOW() - INTERVAL '4 hours', NOW() - INTERVAL '3 hours', 'Suspicious activity reported in temporary evacuation center.', 'https://example.com/media/qc-incident-004.jpg', NOW() - INTERVAL '4 hours', '20000000-0000-0000-0000-000000000005', '60000000-0000-0000-0000-000000000004', '50000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000005', '40000000-0000-0000-0000-000000000002'),
-  ('90000000-0000-0000-0000-000000000005', NOW() - INTERVAL '90 minutes', NOW() - INTERVAL '45 minutes', 'Fallen tree blocking barangay access road after strong winds.', 'https://example.com/media/qc-incident-005.jpg', NOW() - INTERVAL '90 minutes', '20000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000005', '50000000-0000-0000-0000-000000000005', '30000000-0000-0000-0000-000000000005', '40000000-0000-0000-0000-000000000002');
+  ('90000000-0000-0000-0000-000000000001', NOW() - INTERVAL '36 hours', NOW() - INTERVAL '34 hours', 'Kitchen fire triggered by electrical short after power restoration.', 'https://example.com/media/qc-incident-001.jpg', NOW() - INTERVAL '36 hours', 14.6312000, 121.0534000, '12 Batasan Road', NULL, 'Batasan Hills', 'District 3 - Cubao', 'Quezon City', 'Metro Manila', 'NCR', '1126', 'Near barangay hall', '20000000-0000-0000-0000-000000000003', '60000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000004'),
+  ('90000000-0000-0000-0000-000000000002', NOW() - INTERVAL '30 hours', NOW() - INTERVAL '28 hours', 'Senior citizen with breathing difficulty during flood evacuation.', 'https://example.com/media/qc-incident-002.jpg', NOW() - INTERVAL '30 hours', 14.7098000, 121.0745000, '88 Commonwealth Ave', 'Evacuation tent B', 'Commonwealth', NULL, 'Quezon City', 'Metro Manila', 'NCR', '1121', 'Across covered court', '20000000-0000-0000-0000-000000000002', '60000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000002', '40000000-0000-0000-0000-000000000003'),
+  ('90000000-0000-0000-0000-000000000003', NOW() - INTERVAL '22 hours', NOW() - INTERVAL '16 hours', 'Waist-deep flooding blocking access to elementary school.', 'https://example.com/media/qc-incident-003.jpg', NOW() - INTERVAL '22 hours', 14.6185000, 121.0370000, '45 Fairview Road', NULL, 'Fairview', NULL, 'Quezon City', 'Metro Manila', 'NCR', '1118', 'Beside elementary school gate', '20000000-0000-0000-0000-000000000002', '60000000-0000-0000-0000-000000000003', '30000000-0000-0000-0000-000000000004', '40000000-0000-0000-0000-000000000004'),
+  ('90000000-0000-0000-0000-000000000004', NOW() - INTERVAL '4 hours', NOW() - INTERVAL '3 hours', 'Suspicious activity reported in temporary evacuation center.', 'https://example.com/media/qc-incident-004.jpg', NOW() - INTERVAL '4 hours', 14.6760000, 121.0432000, '1 Shelter Lane', 'Evacuation Center', 'Batasan Hills', NULL, 'Quezon City', 'Metro Manila', 'NCR', '1126', 'Covered court entrance', '20000000-0000-0000-0000-000000000005', '60000000-0000-0000-0000-000000000004', '30000000-0000-0000-0000-000000000005', '40000000-0000-0000-0000-000000000002'),
+  ('90000000-0000-0000-0000-000000000005', NOW() - INTERVAL '90 minutes', NOW() - INTERVAL '45 minutes', 'Fallen tree blocking barangay access road after strong winds.', 'https://example.com/media/qc-incident-005.jpg', NOW() - INTERVAL '90 minutes', 14.6503000, 121.0329000, '99 Diliman Access Rd', NULL, 'Diliman', NULL, 'Quezon City', 'Metro Manila', 'NCR', '1101', 'Near waiting shed', '20000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000005', '30000000-0000-0000-0000-000000000005', '40000000-0000-0000-0000-000000000002');
 
 INSERT INTO assignments (
   id,

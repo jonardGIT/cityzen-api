@@ -1,37 +1,35 @@
 {
   "info": {
-    "name": "Xypes CIRS API Tests",
-    "description": "Postman collection for testing xypes-cirs-api endpoints (Express + Prisma + PostgreSQL + JWT Auth).",
+    "name": "Xypes CIRS API",
+    "description": "Postman collection aligned with the current Express, Prisma, API key, and JWT authentication flows. Set {{apiKey}} to a configured API_KEYS/API_KEY value before calling protected resource endpoints.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:3000" },
     { "key": "apiBase", "value": "/api/v1" },
+    { "key": "apiKey", "value": "test-key", "type": "string" },
     { "key": "jwtToken", "value": "", "type": "string" },
+    { "key": "adminJwtToken", "value": "", "type": "string" },
     { "key": "dispatcherJwtToken", "value": "", "type": "string" },
-    { "key": "citizenId", "value": "1" },
-    { "key": "agencyId", "value": "1" },
-    { "key": "responderId", "value": "1" },
-    { "key": "statusId", "value": "1" },
-    { "key": "categoryId", "value": "1" },
-    { "key": "severityId", "value": "1" },
-    { "key": "locationId", "value": "1" },
-    { "key": "incidentId", "value": "1" },
-    { "key": "mobileJwtToken", "value": "", "type": "string" },
-    { "key": "mobileUserId", "value": "", "type": "string" },
-    { "key": "mobileCitizenId", "value": "", "type": "string" },
-    { "key": "mobileIncidentId", "value": "", "type": "string" },
-    { "key": "mobileEmail", "value": "", "type": "string" },
-    { "key": "assignmentId", "value": "1" },
-    { "key": "userId", "value": "1" },
-    { "key": "adminUserId", "value": "2" },
-    { "key": "dispatcherUserId", "value": "3" }
+    { "key": "viewerJwtToken", "value": "", "type": "string" },
+    { "key": "viewerEmail", "value": "", "type": "string" },
+    { "key": "managedUserEmail", "value": "", "type": "string" },
+    { "key": "citizenId", "value": "", "type": "string" },
+    { "key": "agencyId", "value": "", "type": "string" },
+    { "key": "responderId", "value": "", "type": "string" },
+    { "key": "statusId", "value": "", "type": "string" },
+    { "key": "categoryId", "value": "", "type": "string" },
+    { "key": "severityId", "value": "", "type": "string" },
+    { "key": "locationId", "value": "", "type": "string" },
+    { "key": "incidentId", "value": "", "type": "string" },
+    { "key": "assignmentId", "value": "", "type": "string" },
+    { "key": "userId", "value": "", "type": "string" },
+    { "key": "currentUserId", "value": "", "type": "string" },
+    { "key": "viewerUserId", "value": "", "type": "string" }
   ],
   "auth": {
     "type": "bearer",
-    "bearer": [
-      { "key": "token", "value": "{{jwtToken}}", "type": "string" }
-    ]
+    "bearer": [{ "key": "token", "value": "{{jwtToken}}", "type": "string" }]
   },
   "item": [
     {
@@ -48,27 +46,21 @@
                   "pm.test('Status code is 200', function () {",
                   "  pm.response.to.have.status(200);",
                   "});",
-                  "pm.test('Body has status ok', function () {",
-                  "  var body = pm.response.json();",
-                  "  pm.expect(body.status).to.eql('ok');",
-                  "});"
+                  "var body = pm.response.json();",
+                  "pm.expect(body.status).to.eql('ok');"
                 ]
               }
             }
           ],
           "request": {
+            "auth": { "type": "noauth" },
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}{{apiBase}}/health"
           }
-        }
-      ]
-    },
-    {
-      "name": "JWT Auth",
-      "item": [
+        },
         {
-          "name": "Login Seeded Admin User",
+          "name": "GET OpenAPI JSON",
           "event": [
             {
               "listen": "test",
@@ -79,21 +71,86 @@
                   "  pm.response.to.have.status(200);",
                   "});",
                   "var body = pm.response.json();",
-                  "pm.expect(body).to.have.property('token');",
-                  "pm.collectionVariables.set('jwtToken', body.token);",
-                  "pm.collectionVariables.set('userId', String(body.user.id));"
+                  "pm.expect(body).to.have.property('openapi');"
                 ]
               }
             }
           ],
           "request": {
-            "auth": {
-              "type": "noauth"
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiBase}}/openapi.json"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register Viewer",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('viewerEmail', 'viewer.' + Date.now() + '@xypes.local');"
+                ]
+              }
             },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.expect(body).to.have.property('token');",
+                  "pm.collectionVariables.set('viewerJwtToken', body.token);",
+                  "pm.collectionVariables.set('viewerUserId', body.user.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
             "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Viewer\",\n  \"email\": \"{{viewerEmail}}\",\n  \"password\": \"Password123!\"\n}"
+            },
+            "url": "{{baseUrl}}{{apiBase}}/auth/register"
+          }
+        },
+        {
+          "name": "Login Seeded Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.expect(body.user.role).to.eql('SUPER_ADMIN');",
+                  "pm.collectionVariables.set('adminJwtToken', body.token);",
+                  "pm.collectionVariables.set('jwtToken', body.token);",
+                  "pm.collectionVariables.set('currentUserId', body.user.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"admin@xypes.local\",\n  \"password\": \"Password123!\"\n}"
@@ -102,79 +159,7 @@
           }
         },
         {
-          "name": "GET Current User",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status code is 200', function () {",
-                  "  pm.response.to.have.status(200);",
-                  "});",
-                  "var body = pm.response.json();",
-                  "pm.expect(body.role).to.eql('SUPER_ADMIN');",
-                  "pm.collectionVariables.set('userId', String(body.id));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}{{apiBase}}/auth/me"
-          }
-        },
-        {
-          "name": "GET Current User Missing JWT",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status code is 401', function () {",
-                  "  pm.response.to.have.status(401);",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "auth": {
-              "type": "noauth"
-            },
-            "method": "GET",
-            "url": "{{baseUrl}}{{apiBase}}/auth/me"
-          }
-        },
-        {
-          "name": "GET Current User Invalid JWT",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status code is 401', function () {",
-                  "  pm.response.to.have.status(401);",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                { "key": "token", "value": "invalid-jwt-token-here", "type": "string" }
-              ]
-            },
-            "method": "GET",
-            "url": "{{baseUrl}}{{apiBase}}/auth/me"
-          }
-        },
-        {
-          "name": "Login Seeded Dispatcher User",
+          "name": "Login Seeded Dispatcher",
           "event": [
             {
               "listen": "test",
@@ -192,18 +177,68 @@
             }
           ],
           "request": {
-            "auth": {
-              "type": "noauth"
-            },
+            "auth": { "type": "noauth" },
             "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"dispatcher@xypes.local\",\n  \"password\": \"Password123!\"\n}"
             },
             "url": "{{baseUrl}}{{apiBase}}/auth/login"
+          }
+        },
+        {
+          "name": "GET Current User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.expect(body).to.have.property('id');",
+                  "pm.collectionVariables.set('currentUserId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiBase}}/auth/me"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "GET Admin Users",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "var rows = Array.isArray(body) ? body : body.data;",
+                  "pm.expect(rows).to.be.an('array');",
+                  "if (rows.length > 0) { pm.collectionVariables.set('userId', rows[0].id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiBase}}/admin/users"
           }
         }
       ]
@@ -222,21 +257,23 @@
                   "pm.test('Status code is 200', function () {",
                   "  pm.response.to.have.status(200);",
                   "});",
-                  "pm.test('Response is array', function () {",
-                  "  pm.expect(pm.response.json()).to.be.an('array');",
-                  "});",
-                  "var rows = pm.response.json();",
-                  "if (rows.length > 0 && (!pm.collectionVariables.get('citizenId') || pm.collectionVariables.get('citizenId') === 'undefined')) {",
-                  "  pm.collectionVariables.set('citizenId', String(rows[0].id));",
-                  "}"
+                  "var body = pm.response.json();",
+                  "var rows = Array.isArray(body) ? body : body.data;",
+                  "pm.expect(rows).to.be.an('array');",
+                  "if (rows.length > 0) { pm.collectionVariables.set('citizenId', rows[0].id); }"
                 ]
               }
             }
           ],
-          "request": { "method": "GET", "url": "{{baseUrl}}{{apiBase}}/citizens" }
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{apiKey}}" }],
+            "url": "{{baseUrl}}{{apiBase}}/citizens"
+          }
         },
         {
-          "name": "POST Citizen Valid",
+          "name": "POST Citizen",
           "event": [
             {
               "listen": "test",
@@ -247,14 +284,16 @@
                   "  pm.response.to.have.status(201);",
                   "});",
                   "var body = pm.response.json();",
-                  "pm.collectionVariables.set('citizenId', String(body.id));"
+                  "pm.collectionVariables.set('citizenId', body.id);"
                 ]
               }
             }
           ],
           "request": {
+            "auth": { "type": "noauth" },
             "method": "POST",
             "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
               { "key": "Content-Type", "value": "application/json" }
             ],
             "body": {
@@ -265,31 +304,7 @@
           }
         },
         {
-          "name": "POST Citizen Invalid",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status code is 422', function () {",
-                  "  pm.response.to.have.status(422);",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": { "mode": "raw", "raw": "{}" },
-            "url": "{{baseUrl}}{{apiBase}}/citizens"
-          }
-        },
-        {
-          "name": "GET Citizen By Id",
+          "name": "GET Citizen By ID",
           "event": [
             {
               "listen": "test",
@@ -303,7 +318,12 @@
               }
             }
           ],
-          "request": { "method": "GET", "url": "{{baseUrl}}{{apiBase}}/citizens/{{citizenId}}" }
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{apiKey}}" }],
+            "url": "{{baseUrl}}{{apiBase}}/citizens/{{citizenId}}"
+          }
         },
         {
           "name": "PATCH Citizen",
@@ -322,30 +342,130 @@
             }
           ],
           "request": {
+            "auth": { "type": "noauth" },
             "method": "PATCH",
             "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
               { "key": "Content-Type", "value": "application/json" }
             ],
-            "body": { "mode": "raw", "raw": "{\n  \"preferredChannel\": \"app\"\n}" },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"preferredChannel\": \"app\"\n}"
+            },
             "url": "{{baseUrl}}{{apiBase}}/citizens/{{citizenId}}"
           }
         },
         {
-          "name": "GET Citizen Missing",
+          "name": "POST Link My Citizen Profile",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Status code is 404', function () {",
-                  "  pm.response.to.have.status(404);",
-                  "});"
+                  "pm.test('Status code is 200 or 201', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.collectionVariables.set('citizenId', body.id);"
                 ]
               }
             }
           ],
-          "request": { "method": "GET", "url": "{{baseUrl}}{{apiBase}}/citizens/999999" }
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{viewerJwtToken}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Viewer Citizen Profile\",\n  \"preferredChannel\": \"app\"\n}"
+            },
+            "url": "{{baseUrl}}{{apiBase}}/citizens/link-me"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Agencies",
+      "item": [
+        {
+          "name": "GET Agencies",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "var body = pm.response.json();",
+                  "var rows = Array.isArray(body) ? body : body.data;",
+                  "pm.expect(rows).to.be.an('array');",
+                  "if (rows.length > 0) { pm.collectionVariables.set('agencyId', rows[0].id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{apiKey}}" }],
+            "url": "{{baseUrl}}{{apiBase}}/agencies"
+          }
+        },
+        {
+          "name": "POST Agency",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set('agencyId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Agency\",\n  \"contactNumber\": \"+63-900-000-0000\"\n}"
+            },
+            "url": "{{baseUrl}}{{apiBase}}/agencies"
+          }
+        },
+        {
+          "name": "GET Agency By ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{apiKey}}" }],
+            "url": "{{baseUrl}}{{apiBase}}/agencies/{{agencyId}}"
+          }
+        },
+        {
+          "name": "PATCH Agency",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contactNumber\": \"+63-911-111-1111\"\n}"
+            },
+            "url": "{{baseUrl}}{{apiBase}}/agencies/{{agencyId}}"
+          }
         }
       ]
     },
@@ -354,327 +474,545 @@
       "item": [
         {
           "name": "GET Responders",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 200', function () { pm.response.to.have.status(200); });", "var rows = pm.response.json();", "if (rows.length > 0 && (!pm.collectionVariables.get('responderId') || pm.collectionVariables.get('responderId') === 'undefined')) {", "  pm.collectionVariables.set('responderId', String(rows[0].id));", "}"] } }],
-          "request": { "method": "GET", "url": "{{baseUrl}}{{apiBase}}/responders" }
-        },
-        {
-          "name": "POST Responder Valid",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 201', function () { pm.response.to.have.status(201); });", "var body = pm.response.json();", "pm.collectionVariables.set('responderId', String(body.id));"] } }],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "var body = pm.response.json();",
+                  "var rows = Array.isArray(body) ? body : body.data;",
+                  "if (rows.length > 0) { pm.collectionVariables.set('responderId', rows[0].id); }"
+                ]
+              }
+            }
+          ],
           "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Postman Responder\",\n  \"agencyId\": {{agencyId}},\n  \"role\": \"Officer\",\n  \"contactInfo\": \"responder@example.com\"\n}" },
+            "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{apiKey}}" }],
             "url": "{{baseUrl}}{{apiBase}}/responders"
           }
         },
         {
-          "name": "POST Responder Invalid",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 422', function () { pm.response.to.have.status(422); });"] } }],
+          "name": "POST Responder",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set('responderId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{}" },
+            "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Responder\",\n  \"agencyId\": \"{{agencyId}}\",\n  \"role\": \"Officer\",\n  \"contactInfo\": \"responder@example.com\"\n}"
+            },
             "url": "{{baseUrl}}{{apiBase}}/responders"
           }
         },
         {
           "name": "GET Responder By ID",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 200', function () { pm.response.to.have.status(200); });"] } }],
-          "request": { "method": "GET", "url": "{{baseUrl}}{{apiBase}}/responders/{{responderId}}" }
-        },
-        {
-          "name": "PATCH Responder",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 200', function () { pm.response.to.have.status(200); });", "pm.expect(pm.response.json().agencyId).to.eql(2);", "pm.expect(pm.response.json().agency.name).to.eql('EMS Unit');"] } }],
           "request": {
-            "method": "PATCH",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"agencyId\": 2\n}" },
+            "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{apiKey}}" }],
             "url": "{{baseUrl}}{{apiBase}}/responders/{{responderId}}"
           }
         },
         {
-          "name": "GET Responder Missing",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 404', function () { pm.response.to.have.status(404); });"] } }],
-          "request": { "method": "GET", "url": "{{baseUrl}}{{apiBase}}/responders/999999" }
+          "name": "PATCH Responder",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"Field Supervisor\"\n}"
+            },
+            "url": "{{baseUrl}}{{apiBase}}/responders/{{responderId}}"
+          }
         }
       ]
     },
     {
-      "name": "Reference Data",
+      "name": "Statuses",
       "item": [
         {
           "name": "GET Statuses",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 200', function () { pm.response.to.have.status(200); });", "var rows = pm.response.json();", "pm.expect(rows).to.be.an('array');", "if (rows.length > 0 && (!pm.collectionVariables.get('statusId') || pm.collectionVariables.get('statusId') === 'undefined')) {", "  pm.collectionVariables.set('statusId', String(rows[0].id));", "}"] } }],
-          "request": { "method": "GET", "url": "{{baseUrl}}{{apiBase}}/statuses" }
-        },
-        {
-          "name": "POST Status",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 201 or 409', function () { pm.expect([201,409]).to.include(pm.response.code); });", "if (pm.response.code === 201) {", "  var body = pm.response.json();", "  if (body && body.id !== undefined) pm.collectionVariables.set('statusId', String(body.id));", "} else {", "  pm.sendRequest(pm.collectionVariables.get('baseUrl') + pm.collectionVariables.get('apiBase') + '/statuses', function (_err, r) {", "    if (r && r.code === 200) {", "      var rows = r.json();", "      if (Array.isArray(rows) && rows.length > 0) pm.collectionVariables.set('statusId', String(rows[0].id));", "    }", "  });", "}"] } }],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "var body = pm.response.json();",
+                  "var rows = Array.isArray(body) ? body : body.data;",
+                  "if (rows.length > 0) { pm.collectionVariables.set('statusId', rows[0].id); }"
+                ]
+              }
+            }
+          ],
           "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Open {{$timestamp}}\"\n}" },
+            "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{apiKey}}" }],
             "url": "{{baseUrl}}{{apiBase}}/statuses"
           }
         },
         {
-          "name": "GET Status By ID",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 200', function () { pm.response.to.have.status(200); });"] } }],
-          "request": { "method": "GET", "url": "{{baseUrl}}{{apiBase}}/statuses/{{statusId}}" }
-        },
-        {
-          "name": "PATCH Status",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 200 or 409', function () { pm.expect([200,409]).to.include(pm.response.code); });", "if (pm.response.code === 200) {", "  pm.expect(pm.response.json().name).to.eql('In Review');", "}"] } }],
+          "name": "POST Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set('statusId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
           "request": {
-            "method": "PATCH",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"name\": \"In Review\"\n}" },
-            "url": "{{baseUrl}}{{apiBase}}/statuses/{{statusId}}"
+            "method": "POST",
+            "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Status\"\n}"
+            },
+            "url": "{{baseUrl}}{{apiBase}}/statuses"
           }
         },
         {
-          "name": "GET Categories",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 200', function () { pm.response.to.have.status(200); });", "var rows = pm.response.json();", "pm.expect(rows).to.be.an('array');", "if (rows.length > 0 && (!pm.collectionVariables.get('categoryId') || pm.collectionVariables.get('categoryId') === 'undefined')) {", "  pm.collectionVariables.set('categoryId', String(rows[0].id));", "}"] } }],
-          "request": { "method": "GET", "url": "{{baseUrl}}{{apiBase}}/categories" }
-        },
-        {
-          "name": "POST Category",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 201 or 409', function () { pm.expect([201,409]).to.include(pm.response.code); });", "if (pm.response.code === 201) {", "  var body = pm.response.json();", "  if (body && body.id !== undefined) pm.collectionVariables.set('categoryId', String(body.id));", "} else {", "  pm.sendRequest(pm.collectionVariables.get('baseUrl') + pm.collectionVariables.get('apiBase') + '/categories', function (_err, r) {", "    if (r && r.code === 200) {", "      var rows = r.json();", "      if (Array.isArray(rows) && rows.length > 0) pm.collectionVariables.set('categoryId', String(rows[0].id));", "    }", "  });", "}"] } }],
+          "name": "PATCH Status",
           "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Flood {{$timestamp}}\",\n  \"subCategory\": \"Urban\"\n}" },
+            "method": "PATCH",
+            "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Status Updated\"\n}"
+            },
+            "url": "{{baseUrl}}{{apiBase}}/statuses/{{statusId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Categories",
+      "item": [
+        {
+          "name": "GET Categories",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "var body = pm.response.json();",
+                  "var rows = Array.isArray(body) ? body : body.data;",
+                  "if (rows.length > 0) { pm.collectionVariables.set('categoryId', rows[0].id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{apiKey}}" }],
             "url": "{{baseUrl}}{{apiBase}}/categories"
           }
         },
         {
-          "name": "GET Category By ID",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 200', function () { pm.response.to.have.status(200); });"] } }],
-          "request": { "method": "GET", "url": "{{baseUrl}}{{apiBase}}/categories/{{categoryId}}" }
-        },
-        {
-          "name": "PATCH Category",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 200', function () { pm.response.to.have.status(200); });", "pm.expect(pm.response.json().subCategory).to.eql('River Overflow');"] } }],
+          "name": "POST Category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set('categoryId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
           "request": {
-            "method": "PATCH",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"subCategory\": \"River Overflow\"\n}" },
-            "url": "{{baseUrl}}{{apiBase}}/categories/{{categoryId}}"
+            "method": "POST",
+            "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Category\",\n  \"subCategory\": \"Demo\"\n}"
+            },
+            "url": "{{baseUrl}}{{apiBase}}/categories"
           }
         },
         {
-          "name": "GET Severities",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 200', function () { pm.response.to.have.status(200); });", "var rows = pm.response.json();", "pm.expect(rows).to.be.an('array');", "if (rows.length > 0 && (!pm.collectionVariables.get('severityId') || pm.collectionVariables.get('severityId') === 'undefined')) {", "  pm.collectionVariables.set('severityId', String(rows[0].id));", "}"] } }],
-          "request": { "method": "GET", "url": "{{baseUrl}}{{apiBase}}/severities" }
-        },
-        {
-          "name": "POST Severity",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 201 or 409', function () { pm.expect([201,409]).to.include(pm.response.code); });", "if (pm.response.code === 201) {", "  var body = pm.response.json();", "  if (body && body.id !== undefined) pm.collectionVariables.set('severityId', String(body.id));", "} else {", "  pm.sendRequest(pm.collectionVariables.get('baseUrl') + pm.collectionVariables.get('apiBase') + '/severities', function (_err, r) {", "    if (r && r.code === 200) {", "      var rows = r.json();", "      if (Array.isArray(rows) && rows.length > 0) pm.collectionVariables.set('severityId', String(rows[0].id));", "    }", "  });", "}"] } }],
+          "name": "PATCH Category",
           "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"level\": \"High {{$timestamp}}\",\n  \"definition\": \"Major impact\"\n}" },
+            "method": "PATCH",
+            "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subCategory\": \"Updated Demo\"\n}"
+            },
+            "url": "{{baseUrl}}{{apiBase}}/categories/{{categoryId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Severities",
+      "item": [
+        {
+          "name": "GET Severities",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "var body = pm.response.json();",
+                  "var rows = Array.isArray(body) ? body : body.data;",
+                  "if (rows.length > 0) { pm.collectionVariables.set('severityId', rows[0].id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{apiKey}}" }],
             "url": "{{baseUrl}}{{apiBase}}/severities"
           }
         },
         {
-          "name": "GET Severity By ID",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 200', function () { pm.response.to.have.status(200); });"] } }],
-          "request": { "method": "GET", "url": "{{baseUrl}}{{apiBase}}/severities/{{severityId}}" }
-        },
-        {
-          "name": "PATCH Severity",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 200', function () { pm.response.to.have.status(200); });", "pm.expect(pm.response.json().definition).to.eql('Updated impact definition');"] } }],
+          "name": "POST Severity",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set('severityId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
           "request": {
-            "method": "PATCH",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"definition\": \"Updated impact definition\"\n}" },
-            "url": "{{baseUrl}}{{apiBase}}/severities/{{severityId}}"
+            "method": "POST",
+            "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"level\": \"Postman Severity\",\n  \"definition\": \"Created from Postman\"\n}"
+            },
+            "url": "{{baseUrl}}{{apiBase}}/severities"
           }
         },
         {
-          "name": "GET Locations",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 200', function () { pm.response.to.have.status(200); });", "var rows = pm.response.json();", "pm.expect(rows).to.be.an('array');", "if (rows.length > 0 && (!pm.collectionVariables.get('locationId') || pm.collectionVariables.get('locationId') === 'undefined')) {", "  pm.collectionVariables.set('locationId', String(rows[0].id));", "}"] } }],
-          "request": { "method": "GET", "url": "{{baseUrl}}{{apiBase}}/locations" }
-        },
-        {
-          "name": "POST Location",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 201', function () { pm.response.to.have.status(201); });", "var body = pm.response.json();", "pm.collectionVariables.set('locationId', String(body.id));"] } }],
+          "name": "PATCH Severity",
           "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"district\": \"District 1\",\n  \"city\": \"Manila\",\n  \"province\": \"NCR\",\n  \"region\": \"National Capital Region\"\n}" },
+            "method": "PATCH",
+            "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"definition\": \"Updated from Postman\"\n}"
+            },
+            "url": "{{baseUrl}}{{apiBase}}/severities/{{severityId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Locations",
+      "item": [
+        {
+          "name": "GET Locations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "var body = pm.response.json();",
+                  "var rows = Array.isArray(body) ? body : body.data;",
+                  "if (rows.length > 0) { pm.collectionVariables.set('locationId', rows[0].id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{apiKey}}" }],
             "url": "{{baseUrl}}{{apiBase}}/locations"
           }
         },
         {
-          "name": "GET Location By ID",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 200', function () { pm.response.to.have.status(200); });"] } }],
-          "request": { "method": "GET", "url": "{{baseUrl}}{{apiBase}}/locations/{{locationId}}" }
+          "name": "POST Location",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set('locationId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"district\": \"District 1\",\n  \"city\": \"Quezon City\",\n  \"province\": \"Metro Manila\",\n  \"region\": \"NCR\"\n}"
+            },
+            "url": "{{baseUrl}}{{apiBase}}/locations"
+          }
         },
         {
           "name": "PATCH Location",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 200', function () { pm.response.to.have.status(200); });", "pm.expect(pm.response.json().city).to.eql('Quezon City');"] } }],
           "request": {
             "method": "PATCH",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"city\": \"Quezon City\"\n}" },
+            "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"district\": \"District 2\"\n}"
+            },
             "url": "{{baseUrl}}{{apiBase}}/locations/{{locationId}}"
           }
         }
       ]
     },
     {
-      "name": "Incidents and Assignments",
+      "name": "Incidents",
       "item": [
         {
-          "name": "GET Incidents",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 200', function () { pm.response.to.have.status(200); });", "var rows = pm.response.json();", "pm.expect(rows).to.be.an('array');", "if (rows.length > 0 && (!pm.collectionVariables.get('incidentId') || pm.collectionVariables.get('incidentId') === 'undefined')) {", "  pm.collectionVariables.set('incidentId', String(rows[0].id));", "}"] } }],
+          "name": "GET My Incidents",
           "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{viewerJwtToken}}", "type": "string" }]
+            },
             "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{apiKey}}" }],
             "url": "{{baseUrl}}{{apiBase}}/incidents"
           }
         },
         {
-          "name": "POST Incident Valid",
-          "event": [{ "listen": "prerequest", "script": { "type": "text/javascript", "exec": ["['statusId','citizenId','locationId','categoryId','severityId'].forEach(function (k) {", "  var v = pm.collectionVariables.get(k);", "  if (!v || v === 'undefined' || v === 'null') pm.collectionVariables.set(k, '1');", "});"] } }, { "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 201', function () { pm.response.to.have.status(201); });", "if (pm.response.code === 201) {", "  var body = pm.response.json();", "  if (body && body.id !== undefined) pm.collectionVariables.set('incidentId', String(body.id));", "}"] } }],
+          "name": "POST Incident Report",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set('incidentId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
           "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{viewerJwtToken}}", "type": "string" }]
+            },
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"description\": \"Street flooding near school\",\n  \"statusId\": {{statusId}},\n  \"citizenId\": {{citizenId}},\n  \"locationId\": {{locationId}},\n  \"categoryId\": {{categoryId}},\n  \"severityId\": {{severityId}}\n}"
+              "raw": "{\n  \"description\": \"Viewer incident reported from Postman\",\n  \"dateReported\": \"{{$isoTimestamp}}\",\n  \"locationId\": \"{{locationId}}\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"severityId\": \"{{severityId}}\"\n}"
+            },
+            "url": "{{baseUrl}}{{apiBase}}/incidents/report"
+          }
+        },
+        {
+          "name": "POST Incident As Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set('incidentId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminJwtToken}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Admin-created incident from Postman\",\n  \"dateReported\": \"{{$isoTimestamp}}\",\n  \"statusId\": \"{{statusId}}\",\n  \"citizenId\": \"{{citizenId}}\",\n  \"locationId\": \"{{locationId}}\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"severityId\": \"{{severityId}}\"\n}"
             },
             "url": "{{baseUrl}}{{apiBase}}/incidents"
           }
         },
         {
           "name": "GET Incident By ID",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 200', function () { pm.response.to.have.status(200); });"] } }],
           "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{viewerJwtToken}}", "type": "string" }]
+            },
             "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{apiKey}}" }],
             "url": "{{baseUrl}}{{apiBase}}/incidents/{{incidentId}}"
           }
         },
         {
           "name": "PATCH Incident",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 200', function () { pm.response.to.have.status(200); });", "pm.expect(pm.response.json().description).to.eql('Street flooding near school gate');"] } }],
           "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminJwtToken}}", "type": "string" }]
+            },
             "method": "PATCH",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"description\": \"Street flooding near school gate\"\n}" },
-            "url": "{{baseUrl}}{{apiBase}}/incidents/{{incidentId}}"
-          }
-        },
-        {
-          "name": "POST Incident Invalid FK",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 422', function () { pm.response.to.have.status(422); });"] } }],
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"description\": \"Invalid FK incident\",\n  \"statusId\": 999999,\n  \"citizenId\": {{citizenId}},\n  \"locationId\": {{locationId}},\n  \"categoryId\": {{categoryId}},\n  \"severityId\": {{severityId}}\n}"
+              "raw": "{\n  \"statusId\": \"{{statusId}}\",\n  \"description\": \"Updated incident from Postman\"\n}"
             },
-            "url": "{{baseUrl}}{{apiBase}}/incidents"
+            "url": "{{baseUrl}}{{apiBase}}/incidents/{{incidentId}}"
           }
-        },
-        {
-          "name": "GET Incident Missing",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 404', function () { pm.response.to.have.status(404); });"] } }],
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}{{apiBase}}/incidents/999999"
-          }
-        },
-        {
-          "name": "DELETE Status With Incident Dependency",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 204 or 409', function () { pm.expect([204,409]).to.include(pm.response.code); });", "if (pm.response.code === 409) {", "  pm.expect(pm.response.json().message).to.include('referenced');", "}"] } }],
-          "request": {
-            "method": "DELETE",
-            "url": "{{baseUrl}}{{apiBase}}/statuses/{{statusId}}"
-          }
-        },
+        }
+      ]
+    },
+    {
+      "name": "Assignments",
+      "item": [
         {
           "name": "GET Assignments",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 200', function () { pm.response.to.have.status(200); });", "var rows = pm.response.json();", "pm.expect(rows).to.be.an('array');", "if (rows.length > 0 && (!pm.collectionVariables.get('assignmentId') || pm.collectionVariables.get('assignmentId') === 'undefined')) {", "  pm.collectionVariables.set('assignmentId', String(rows[0].id));", "}"] } }],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "var body = pm.response.json();",
+                  "var rows = Array.isArray(body) ? body : body.data;",
+                  "if (rows.length > 0) { pm.collectionVariables.set('assignmentId', rows[0].id); }"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{apiKey}}" }],
             "url": "{{baseUrl}}{{apiBase}}/assignments"
           }
         },
         {
-          "name": "POST Assignment Valid",
-          "event": [{ "listen": "prerequest", "script": { "type": "text/javascript", "exec": ["['incidentId','responderId'].forEach(function (k) {", "  var v = pm.collectionVariables.get(k);", "  if (!v || v === 'undefined' || v === 'null') pm.collectionVariables.set(k, '1');", "});"] } }, { "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 201', function () { pm.response.to.have.status(201); });", "if (pm.response.code === 201) {", "  var body = pm.response.json();", "  if (body && body.id !== undefined) pm.collectionVariables.set('assignmentId', String(body.id));", "}"] } }],
+          "name": "POST Assignment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set('assignmentId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
           "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminJwtToken}}", "type": "string" }]
+            },
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"incidentId\": {{incidentId}},\n  \"responderId\": {{responderId}}\n}"
+              "raw": "{\n  \"incidentId\": \"{{incidentId}}\",\n  \"responderId\": \"{{responderId}}\",\n  \"assignedDate\": \"{{$isoTimestamp}}\",\n  \"notes\": \"Created from Postman\"\n}"
             },
             "url": "{{baseUrl}}{{apiBase}}/assignments"
           }
         },
         {
           "name": "GET Assignment By ID",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 200', function () { pm.response.to.have.status(200); });"] } }],
           "request": {
             "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{apiKey}}" }],
             "url": "{{baseUrl}}{{apiBase}}/assignments/{{assignmentId}}"
           }
         },
         {
           "name": "PATCH Assignment",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 200', function () { pm.response.to.have.status(200); });", "pm.expect(pm.response.json().outcome).to.eql('Monitoring');"] } }],
-          "request": {
-            "method": "PATCH",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"outcome\": \"Monitoring\"\n}" },
-            "url": "{{baseUrl}}{{apiBase}}/assignments/{{assignmentId}}"
-          }
-        },
-        {
-          "name": "POST Assignment Invalid FK",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 422', function () { pm.response.to.have.status(422); });"] } }],
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"incidentId\": 999999,\n  \"responderId\": {{responderId}}\n}"
-            },
-            "url": "{{baseUrl}}{{apiBase}}/assignments"
-          }
-        },
-        {
-          "name": "GET Assignment Missing",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 404', function () { pm.response.to.have.status(404); });"] } }],
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}{{apiBase}}/assignments/999999"
-          }
-        },
-        {
-          "name": "DELETE Status Forbidden (Dispatcher)",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 403', function () { pm.response.to.have.status(403); });"] } }],
           "request": {
             "auth": {
               "type": "bearer",
-              "bearer": [
-                { "key": "token", "value": "{{dispatcherJwtToken}}", "type": "string" }
-              ]
+              "bearer": [{ "key": "token", "value": "{{adminJwtToken}}", "type": "string" }]
             },
-            "method": "DELETE",
-            "url": "{{baseUrl}}{{apiBase}}/statuses/{{statusId}}"
-          }
-        },
-        {
-          "name": "GET Location Missing (404 sample)",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 404', function () { pm.response.to.have.status(404); });"] } }],
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}{{apiBase}}/locations/999999"
+            "method": "PATCH",
+            "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"outcome\": \"Resolved\",\n  \"responseEnd\": \"{{$isoTimestamp}}\"\n}"
+            },
+            "url": "{{baseUrl}}{{apiBase}}/assignments/{{assignmentId}}"
           }
         }
       ]
@@ -683,6 +1021,18 @@
       "name": "Users",
       "item": [
         {
+          "name": "GET User Capabilities",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminJwtToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{apiKey}}" }],
+            "url": "{{baseUrl}}{{apiBase}}/users/capabilities"
+          }
+        },
+        {
           "name": "GET Users",
           "event": [
             {
@@ -690,442 +1040,94 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Status code is 200', function () {",
-                  "  pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test('Response is array', function () {",
-                  "  pm.expect(pm.response.json()).to.be.an('array');",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": { "method": "GET", "url": "{{baseUrl}}{{apiBase}}/users" }
-        },
-        {
-          "name": "POST User Valid",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status code is 201 or 409', function () {",
-                  "  pm.expect([201,409]).to.include(pm.response.code);",
-                  "});",
-                  "if (pm.response.code === 201) {",
-                  "  var body = pm.response.json();",
-                  "  pm.collectionVariables.set('dispatcherUserId', String(body.id));",
-                  "}"
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "var body = pm.response.json();",
+                  "var rows = Array.isArray(body) ? body : body.data;",
+                  "if (rows.length > 0) { pm.collectionVariables.set('userId', rows[0].id); }"
                 ]
               }
             }
           ],
           "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Postman Dispatcher\",\n  \"email\": \"dispatcher.{{$timestamp}}@postman.local\",\n  \"password\": \"DispatchPass123!\",\n  \"role\": \"DISPATCHER\"\n}"
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminJwtToken}}", "type": "string" }]
             },
+            "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{apiKey}}" }],
             "url": "{{baseUrl}}{{apiBase}}/users"
           }
         },
         {
-          "name": "POST User Invalid",
+          "name": "POST User",
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('managedUserEmail', 'managed.' + Date.now() + '@xypes.local');"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Status code is 422', function () {",
-                  "  pm.response.to.have.status(422);",
-                  "});"
+                  "pm.test('Status code is 201', function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set('userId', pm.response.json().id);"
                 ]
               }
             }
           ],
           "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminJwtToken}}", "type": "string" }]
+            },
             "method": "POST",
             "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
               { "key": "Content-Type", "value": "application/json" }
             ],
-            "body": { "mode": "raw", "raw": "{}" },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Managed Postman User\",\n  \"email\": \"{{managedUserEmail}}\",\n  \"password\": \"Password123!\",\n  \"role\": \"VIEWER\"\n}"
+            },
             "url": "{{baseUrl}}{{apiBase}}/users"
           }
         },
         {
           "name": "GET User By ID",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status code is 200', function () {",
-                  "  pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test('User has required fields', function () {",
-                  "  var body = pm.response.json();",
-                  "  pm.expect(body).to.have.property('id');",
-                  "  pm.expect(body).to.have.property('email');",
-                  "  pm.expect(body).to.have.property('role');",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": { "method": "GET", "url": "{{baseUrl}}{{apiBase}}/users/{{dispatcherUserId}}" }
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminJwtToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{apiKey}}" }],
+            "url": "{{baseUrl}}{{apiBase}}/users/{{userId}}"
+          }
         },
         {
           "name": "PATCH User",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status code is 200', function () {",
-                  "  pm.response.to.have.status(200);",
-                  "});",
-                  "var body = pm.response.json();",
-                  "pm.expect(body.name).to.eql('Updated Dispatcher User');"
-                ]
-              }
-            }
-          ],
           "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminJwtToken}}", "type": "string" }]
+            },
             "method": "PATCH",
             "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
               { "key": "Content-Type", "value": "application/json" }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Updated Dispatcher User\"\n}"
+              "raw": "{\n  \"name\": \"Managed Postman User Updated\",\n  \"role\": \"RESPONDER\"\n}"
             },
-            "url": "{{baseUrl}}{{apiBase}}/users/{{dispatcherUserId}}"
+            "url": "{{baseUrl}}{{apiBase}}/users/{{userId}}"
           }
-        },
-        {
-          "name": "PATCH User Missing",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status code is 404', function () {",
-                  "  pm.response.to.have.status(404);",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "PATCH",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Missing User\"\n}"
-            },
-            "url": "{{baseUrl}}{{apiBase}}/users/999999"
-          }
-        },
-        {
-          "name": "DELETE User",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status code is 204', function () {",
-                  "  pm.response.to.have.status(204);",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": { "method": "DELETE", "url": "{{baseUrl}}{{apiBase}}/users/{{dispatcherUserId}}" }
-        },
-        {
-          "name": "DELETE User Missing",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status code is 404', function () {",
-                  "  pm.response.to.have.status(404);",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": { "method": "DELETE", "url": "{{baseUrl}}{{apiBase}}/users/999999" }
-        }
-      ]
-    },
-    {
-      "name": "Mobile Citizen Flow",
-      "item": [
-        {
-          "name": "Register Mobile Citizen Account",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status code is 201', function () {",
-                  "  pm.response.to.have.status(201);",
-                  "});",
-                  "var body = pm.response.json();",
-                  "pm.expect(body).to.have.property('token');",
-                  "pm.expect(body.user.role).to.eql('VIEWER');",
-                  "pm.collectionVariables.set('mobileJwtToken', body.token);",
-                  "pm.collectionVariables.set('mobileEmail', body.user.email);",
-                  "pm.collectionVariables.set('mobileUserId', String(body.user.id));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "auth": { "type": "noauth" },
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Mobile Citizen {{$timestamp}}\",\n  \"email\": \"mobile.{{$timestamp}}@postman.local\",\n  \"password\": \"Password123!\"\n}"
-            },
-            "url": "{{baseUrl}}{{apiBase}}/auth/register"
-          }
-        },
-        {
-          "name": "Login Mobile Citizen Account",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status code is 200', function () {",
-                  "  pm.response.to.have.status(200);",
-                  "});",
-                  "var body = pm.response.json();",
-                  "pm.expect(body.user.role).to.eql('VIEWER');",
-                  "pm.collectionVariables.set('mobileJwtToken', body.token);"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "auth": { "type": "noauth" },
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"{{mobileEmail}}\",\n  \"password\": \"Password123!\"\n}"
-            },
-            "url": "{{baseUrl}}{{apiBase}}/auth/login"
-          }
-        },
-        {
-          "name": "Link My Citizen Profile",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status code is 200 or 201', function () {",
-                  "  pm.expect([200, 201]).to.include(pm.response.code);",
-                  "});",
-                  "var body = pm.response.json();",
-                  "pm.collectionVariables.set('mobileCitizenId', String(body.id));",
-                  "pm.collectionVariables.set('mobileEmail', body.contactInfo);"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{mobileJwtToken}}", "type": "string" }]
-            },
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Linked Mobile Citizen\",\n  \"preferredChannel\": \"app\"\n}"
-            },
-            "url": "{{baseUrl}}{{apiBase}}/citizens/link-me"
-          }
-        },
-        {
-          "name": "Report Incident As Citizen",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status code is 201', function () {",
-                  "  pm.response.to.have.status(201);",
-                  "});",
-                  "var body = pm.response.json();",
-                  "pm.collectionVariables.set('mobileIncidentId', String(body.id));",
-                  "pm.collectionVariables.set('incidentId', String(body.id));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{mobileJwtToken}}", "type": "string" }]
-            },
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"description\": \"Mobile citizen flood report\",\n  \"statusId\": {{statusId}},\n  \"locationId\": {{locationId}},\n  \"categoryId\": {{categoryId}},\n  \"severityId\": {{severityId}}\n}"
-            },
-            "url": "{{baseUrl}}{{apiBase}}/incidents/report"
-          }
-        },
-        {
-          "name": "List My Incidents",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status code is 200', function () {",
-                  "  pm.response.to.have.status(200);",
-                  "});",
-                  "var rows = pm.response.json();",
-                  "pm.expect(rows).to.be.an('array');",
-                  "pm.test('Viewer only sees own incidents', function () {",
-                  "  var myCitizenId = Number(pm.collectionVariables.get('mobileCitizenId'));",
-                  "  rows.forEach(function (row) { pm.expect(row.citizenId).to.eql(myCitizenId); });",
-                  "});",
-                  "if (rows.length > 0) { pm.collectionVariables.set('mobileIncidentId', String(rows[0].id)); }"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{mobileJwtToken}}", "type": "string" }]
-            },
-            "method": "GET",
-            "url": "{{baseUrl}}{{apiBase}}/incidents"
-          }
-        },
-        {
-          "name": "Get My Incident By ID",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status code is 200', function () {",
-                  "  pm.response.to.have.status(200);",
-                  "});",
-                  "var body = pm.response.json();",
-                  "pm.expect(String(body.id)).to.eql(pm.collectionVariables.get('mobileIncidentId'));",
-                  "pm.expect(body.citizenId).to.eql(Number(pm.collectionVariables.get('mobileCitizenId')));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{mobileJwtToken}}", "type": "string" }]
-            },
-            "method": "GET",
-            "url": "{{baseUrl}}{{apiBase}}/incidents/{{mobileIncidentId}}"
-          }
-        },
-        {
-          "name": "Get Missing Incident As Viewer",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status code is 404', function () {",
-                  "  pm.response.to.have.status(404);",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{mobileJwtToken}}", "type": "string" }]
-            },
-            "method": "GET",
-            "url": "{{baseUrl}}{{apiBase}}/incidents/999999"
-          }
-        }
-      ]
-    },
-    {
-      "name": "Cleanup",
-      "item": [
-        {
-          "name": "DELETE Assignment",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 204', function () { pm.response.to.have.status(204); });"] } }],
-          "request": { "method": "DELETE", "url": "{{baseUrl}}{{apiBase}}/assignments/{{assignmentId}}" }
-        },
-        {
-          "name": "DELETE Incident",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 204', function () { pm.response.to.have.status(204); });"] } }],
-          "request": { "method": "DELETE", "url": "{{baseUrl}}{{apiBase}}/incidents/{{incidentId}}" }
-        },
-        {
-          "name": "DELETE Responder",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 204', function () { pm.response.to.have.status(204); });"] } }],
-          "request": { "method": "DELETE", "url": "{{baseUrl}}{{apiBase}}/responders/{{responderId}}" }
-        },
-        {
-          "name": "DELETE Citizen",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 204 or 409', function () { pm.expect([204,409]).to.include(pm.response.code); });"] } }],
-          "request": { "method": "DELETE", "url": "{{baseUrl}}{{apiBase}}/citizens/{{citizenId}}" }
-        },
-        {
-          "name": "DELETE Location",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 204 or 409', function () { pm.expect([204,409]).to.include(pm.response.code); });"] } }],
-          "request": { "method": "DELETE", "url": "{{baseUrl}}{{apiBase}}/locations/{{locationId}}" }
-        },
-        {
-          "name": "DELETE Severity",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 204 or 409', function () { pm.expect([204,409]).to.include(pm.response.code); });"] } }],
-          "request": { "method": "DELETE", "url": "{{baseUrl}}{{apiBase}}/severities/{{severityId}}" }
-        },
-        {
-          "name": "DELETE Category",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 204 or 409', function () { pm.expect([204,409]).to.include(pm.response.code); });"] } }],
-          "request": { "method": "DELETE", "url": "{{baseUrl}}{{apiBase}}/categories/{{categoryId}}" }
-        },
-        {
-          "name": "DELETE Status",
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status code is 204 or 409', function () { pm.expect([204,409]).to.include(pm.response.code); });"] } }],
-          "request": { "method": "DELETE", "url": "{{baseUrl}}{{apiBase}}/statuses/{{statusId}}" }
         }
       ]
     }

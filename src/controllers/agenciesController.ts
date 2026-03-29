@@ -1,27 +1,37 @@
 import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
-import { buildPaginatedResponse, getPaginationQuery, getParamId, getTimestampQuery } from '../utils/request.js';
+import {
+  buildPaginatedResponse,
+  getListQuery,
+  getPaginationQuery,
+  getParamId,
+} from '../utils/request.js';
+import { agenciesListQueryConfig } from '../utils/listQueryConfig.js';
 
 export async function getAgencies(req: Request, res: Response): Promise<void> {
   const pagination = getPaginationQuery(req);
-  const timestampQuery = getTimestampQuery(req);
+  const listQuery = getListQuery(req, res, agenciesListQueryConfig);
+  if (!listQuery) {
+    return;
+  }
+
   if (pagination.enabled) {
     const [agencies, total] = await Promise.all([
       prisma.agency.findMany({
-        where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined,
-        orderBy: timestampQuery.orderBy as any,
+        where: listQuery.where as any,
+        orderBy: listQuery.orderBy as any,
         skip: pagination.skip,
         take: pagination.take,
       }),
-      prisma.agency.count({ where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined }),
+      prisma.agency.count({ where: listQuery.where as any }),
     ]);
     res.json(buildPaginatedResponse(agencies, total, pagination));
     return;
   }
 
   const agencies = await prisma.agency.findMany({
-    where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined,
-    orderBy: timestampQuery.orderBy as any,
+    where: listQuery.where as any,
+    orderBy: listQuery.orderBy as any,
   });
   res.json(agencies);
 }
@@ -73,7 +83,8 @@ export async function updateAgency(req: Request, res: Response): Promise<void> {
 
   const updateData: { name?: string; contactNumber?: string | null } = {};
   if (name !== undefined) updateData.name = name;
-  if (contactNumber !== undefined) updateData.contactNumber = contactNumber ? contactNumber.trim() : null;
+  if (contactNumber !== undefined)
+    updateData.contactNumber = contactNumber ? contactNumber.trim() : null;
 
   const agency = await prisma.agency.update({ where: { id }, data: updateData });
   res.json(agency);

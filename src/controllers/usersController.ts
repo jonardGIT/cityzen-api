@@ -5,7 +5,8 @@ import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
 import { hasHigherAccessLevel, isUserRole } from '../types/auth.js';
-import { buildPaginatedResponse, getPaginationQuery, getTimestampQuery } from '../utils/request.js';
+import { buildPaginatedResponse, getListQuery, getPaginationQuery } from '../utils/request.js';
+import { usersListQueryConfig } from '../utils/listQueryConfig.js';
 
 const userSelect = {
   id: true,
@@ -22,7 +23,7 @@ function getUserId(req: Request, res?: Response): string | null {
   const id = req.params.id;
   if (typeof id !== 'string' || !UUID_V4_REGEX.test(id)) {
     if (res) {
-      res.status(400).json({ message: 'Invalid id parameter (must be a valid UUID v4)'});
+      res.status(400).json({ message: 'Invalid id parameter (must be a valid UUID v4)' });
     }
     return null;
   }
@@ -47,10 +48,7 @@ function getStoredUserRole(role: string) {
 }
 
 function isUniqueConstraintError(error: unknown): boolean {
-  return (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === 'P2002'
-  );
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }
 
 // Returns capability flags for user management operations based on the authenticated admin's role.
@@ -64,17 +62,21 @@ export async function getUserCapabilities(_req: Request, res: Response): Promise
 // Returns all users from the database.
 export async function getUsers(req: Request, res: Response): Promise<void> {
   const pagination = getPaginationQuery(req);
-  const timestampQuery = getTimestampQuery(req);
+  const listQuery = getListQuery(req, res, usersListQueryConfig);
+  if (!listQuery) {
+    return;
+  }
+
   if (pagination.enabled) {
     const [users, total] = await Promise.all([
       prisma.user.findMany({
         select: userSelect,
-        where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined,
-        orderBy: timestampQuery.orderBy as any,
+        where: listQuery.where as any,
+        orderBy: listQuery.orderBy as any,
         skip: pagination.skip,
         take: pagination.take,
       }),
-      prisma.user.count({ where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined }),
+      prisma.user.count({ where: listQuery.where as any }),
     ]);
     res.json(buildPaginatedResponse(users, total, pagination));
     return;
@@ -82,8 +84,8 @@ export async function getUsers(req: Request, res: Response): Promise<void> {
 
   const users = await prisma.user.findMany({
     select: userSelect,
-    where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined,
-    orderBy: timestampQuery.orderBy as any,
+    where: listQuery.where as any,
+    orderBy: listQuery.orderBy as any,
   });
   res.json(users);
 }

@@ -1,6 +1,6 @@
 import request from 'supertest';
 import app, { API_V1 } from '../app.js';
-import { getAdminToken } from './helpers/auth.js';
+import { getAdminToken, getTokenForRole } from './helpers/auth.js';
 
 const BASE = `${API_V1}/agencies`;
 let adminToken = '';
@@ -128,5 +128,76 @@ describe(`PATCH ${BASE}/:id`, () => {
       .send({ contactNumber: '+1-555-01001234567890extra' });
     expect(res.status).toBe(400);
     expect(res.body).toHaveProperty('errors');
+  });
+
+  it('should return 404 for non-existent id', async () => {
+    const res = await request(app)
+      .patch(`${BASE}/00000000-0000-0000-0000-000000000099`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'Ghost' });
+    expect(res.status).toBe(404);
+  });
+
+  it('should return 401 without auth token', async () => {
+    const res = await request(app).patch(`${BASE}/${testAgencyId}`).send({ name: 'NoAuth' });
+    expect(res.status).toBe(401);
+  });
+});
+
+describe(`POST ${BASE} (auth)`, () => {
+  it('should return 401 without auth token', async () => {
+    const res = await request(app).post(BASE).send({ name: 'NoAuth' });
+    expect(res.status).toBe(401);
+  });
+
+  it('should return 403 for VIEWER role', async () => {
+    const viewerToken = await getTokenForRole('analyst@xypes.local');
+    const res = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${viewerToken}`)
+      .send({ name: 'ViewerCreate' });
+    expect(res.status).toBe(403);
+  });
+});
+
+describe(`GET ${BASE} (pagination)`, () => {
+  it('should return paginated result when page and pageSize are provided', async () => {
+    const res = await request(app).get(`${BASE}?page=1&pageSize=2`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.pagination).toMatchObject({ page: 1, pageSize: 2 });
+    expect(typeof res.body.pagination.total).toBe('number');
+    expect(res.body.data.length).toBeLessThanOrEqual(2);
+  });
+});
+
+describe(`DELETE ${BASE}/:id`, () => {
+  let deleteId: string;
+
+  beforeAll(async () => {
+    const res = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: `DeleteAgency-${Date.now()}` });
+    deleteId = res.body.id;
+  });
+
+  it('should delete and return 204', async () => {
+    const res = await request(app)
+      .delete(`${BASE}/${deleteId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(204);
+  });
+
+  it('should return 404 for non-existent id', async () => {
+    const res = await request(app)
+      .delete(`${BASE}/00000000-0000-0000-0000-000000000099`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(404);
+  });
+
+  it('should return 401 without auth token', async () => {
+    const res = await request(app).delete(`${BASE}/${deleteId}`);
+    expect(res.status).toBe(401);
   });
 });

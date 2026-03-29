@@ -26,7 +26,12 @@ function isTokenPayload(value: unknown): value is TokenPayload {
 }
 
 function getJwtSecret(): string {
-  return process.env.JWT_SECRET ?? 'dev-only-secret-change-me';
+  const secret = process.env.JWT_SECRET?.trim();
+  if (!secret) {
+    throw new Error('JWT_SECRET must be configured');
+  }
+
+  return secret;
 }
 
 function parseBearerToken(req: Request): string | null {

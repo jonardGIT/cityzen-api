@@ -6,16 +6,20 @@ jest.setTimeout(20000);
 describe('Auth bootstrap endpoints', () => {
   it('POST /auth/register should create a VIEWER account and return token', async () => {
     const stamp = Date.now();
-    const res = await request(app).post(`${API_V1}/auth/register`).send({
-      name: `Bootstrap User ${stamp}`,
-      email: `bootstrap.${stamp}@postman.local`,
-      password: 'Password123!',
-    });
+    const res = await request(app)
+      .post(`${API_V1}/auth/register`)
+      .send({
+        name: `Bootstrap User ${stamp}`,
+        email: `bootstrap.${stamp}@postman.local`,
+        password: 'Password123!',
+      });
 
     expect(res.status).toBe(201);
     expect(res.body).toHaveProperty('token');
     expect(res.body).toHaveProperty('user');
     expect(res.body.user).toHaveProperty('role', 'VIEWER');
+    expect(res.body.user).toHaveProperty('createdAt');
+    expect(res.body.user).toHaveProperty('updatedAt');
   });
 
   it('POST /auth/login should return token for seeded admin', async () => {
@@ -27,6 +31,40 @@ describe('Auth bootstrap endpoints', () => {
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('token');
     expect(res.body).toHaveProperty('user');
+    expect(res.body.user).toHaveProperty('createdAt');
+    expect(res.body.user).toHaveProperty('updatedAt');
+  });
+
+  it('POST /auth/login should return 401 for wrong password', async () => {
+    const res = await request(app).post(`${API_V1}/auth/login`).send({
+      email: 'admin@xypes.local',
+      password: 'WrongPassword!',
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it('POST /auth/login should return 422 for missing fields', async () => {
+    const res = await request(app).post(`${API_V1}/auth/login`).send({});
+    expect(res.status).toBe(422);
+  });
+
+  it('POST /auth/register should return 422 for missing fields', async () => {
+    const res = await request(app).post(`${API_V1}/auth/register`).send({ name: 'Incomplete' });
+    expect(res.status).toBe(422);
+  });
+
+  it('POST /auth/register should return 409 for duplicate email', async () => {
+    const res = await request(app).post(`${API_V1}/auth/register`).send({
+      name: 'Duplicate',
+      email: 'admin@xypes.local',
+      password: 'Password123!',
+    });
+    expect(res.status).toBe(409);
+  });
+
+  it('GET /auth/me should return 401 without token', async () => {
+    const res = await request(app).get(`${API_V1}/auth/me`);
+    expect(res.status).toBe(401);
   });
 
   it('GET /auth/me should return current user with bearer token', async () => {
@@ -44,5 +82,7 @@ describe('Auth bootstrap endpoints', () => {
     expect(me.status).toBe(200);
     expect(me.body).toHaveProperty('id');
     expect(me.body).toHaveProperty('email', 'admin@xypes.local');
+    expect(me.body).toHaveProperty('createdAt');
+    expect(me.body).toHaveProperty('updatedAt');
   });
 });
