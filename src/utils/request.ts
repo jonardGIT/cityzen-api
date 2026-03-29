@@ -36,7 +36,7 @@ export interface TimestampQuery {
 }
 
 type FilterOperator = 'equals' | 'contains' | 'in' | 'gt' | 'gte' | 'lt' | 'lte' | 'between';
-type FieldType = 'string' | 'uuid' | 'datetime';
+type FieldType = 'string' | 'uuid' | 'datetime' | 'integer';
 
 interface ListFilterInput {
   field?: unknown;
@@ -296,6 +296,14 @@ function validateFieldValue(
       throw new Error(`${fieldName} requires a valid ISO date-time value`);
     }
     return date;
+  }
+
+  if (field.type === 'integer') {
+    if (typeof value !== 'number' || !Number.isInteger(value)) {
+      throw new Error(`${fieldName} requires an integer value`);
+    }
+
+    return value;
   }
 
   if (typeof value !== 'string' || value.trim() === '') {

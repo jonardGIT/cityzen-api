@@ -136,6 +136,10 @@ If you are adopting the incident coordinate/address snapshot contract on an exis
 
 1. `prisma/add-incident-location-snapshot.sql`
 
+If you are enabling persistent audit logging on an existing database, also run:
+
+1. `prisma/add-audit-logs.sql`
+
 ### 4. Start development server
 
 ```bash
@@ -176,12 +180,14 @@ Resources:
 - `/api/v1/incidents`
 - `/api/v1/assignments`
 - `/api/v1/users`
+- `/api/v1/audit-logs`
 
 Auth and admin routes:
 
 - `POST /api/v1/auth/login`
 - `GET /api/v1/auth/me`
 - `GET /api/v1/admin/users` (admin roles only)
+- `GET /api/v1/audit-logs` (admin roles only)
 
 Notes:
 

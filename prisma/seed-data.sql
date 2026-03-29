@@ -1,6 +1,7 @@
 BEGIN;
 
 TRUNCATE TABLE
+  audit_logs,
   assignments,
   incidents,
   responders,

@@ -19,6 +19,37 @@ model User {
   @@map("users")
 }
 
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  timestamp   DateTime @default(now())
+  action      String
+  summary     String
+  outcome     String
+  actorUserId String?  @db.Uuid
+  actorEmail  String?
+  actorRole   String?
+  resource    String
+  method      String
+  path        String
+  statusCode  Int?
+  targetId    String?
+  ipAddress   String?
+  userAgent   String?
+  requestId   String?
+  metadata    Json?
+
+  @@index([timestamp])
+  @@index([actorEmail])
+  @@index([resource])
+  @@index([action])
+  @@index([outcome])
+  @@index([targetId])
+  @@index([requestId])
+  @@map("audit_logs")
+}
+
 model Citizen {
   id               String            @id @default(uuid()) @db.Uuid
   createdAt        DateTime          @default(now())

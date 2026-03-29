@@ -112,6 +112,24 @@ const apiKeyAndBearerSecurity: OpenAPIV3.SecurityRequirementObject[] = [
   { ApiKeyAuth: [], BearerAuth: [] },
 ];
 
+function getAuthResponses(
+  security?: OpenAPIV3.SecurityRequirementObject[],
+): Record<string, OpenAPIV3.ResponseObject> {
+  if (!security) {
+    return {};
+  }
+
+  const requiresBearer = security.some((requirement) => 'BearerAuth' in requirement);
+  return {
+    '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+    ...(requiresBearer
+      ? {
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+        }
+      : {}),
+  };
+}
+
 function resourcePath(
   pathSegment: string,
   schemaName: string,
@@ -130,15 +148,7 @@ function resourcePath(
         parameters: paginationParameters,
         responses: {
           '200': listResponse(schemaName),
-          ...(readSecurity
-            ? {
-                '401': jsonResponse(
-                  { $ref: '#/components/schemas/ErrorResponse' },
-                  'Unauthorized.',
-                ),
-                '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
-              }
-            : {}),
+          ...getAuthResponses(readSecurity),
           '422': jsonResponse(
             { $ref: '#/components/schemas/ErrorResponse' },
             'Invalid list query parameters.',
@@ -180,15 +190,7 @@ function resourcePath(
             { $ref: `#/components/schemas/${schemaName}` },
             `${schemaName} found.`,
           ),
-          ...(readSecurity
-            ? {
-                '401': jsonResponse(
-                  { $ref: '#/components/schemas/ErrorResponse' },
-                  'Unauthorized.',
-                ),
-                '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
-              }
-            : {}),
+          ...getAuthResponses(readSecurity),
           '404': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Not found.'),
         },
       },
@@ -245,6 +247,7 @@ export const openApiDocument: OpenAPIV3.Document = {
     { name: 'Health' },
     { name: 'Auth' },
     { name: 'Admin' },
+    { name: 'AuditLog' },
     { name: 'Citizen' },
     { name: 'Agency' },
     { name: 'Responder' },
@@ -760,6 +763,40 @@ export const openApiDocument: OpenAPIV3.Document = {
         },
       },
     },
+    '/audit-logs': {
+      get: {
+        tags: ['AuditLog'],
+        summary: 'List audit logs',
+        security: apiKeyAndBearerSecurity,
+        parameters: paginationParameters,
+        responses: {
+          '200': listResponse('AuditLog'),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '422': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Invalid list query parameters.',
+          ),
+        },
+      },
+    },
+    '/audit-logs/{id}': {
+      get: {
+        tags: ['AuditLog'],
+        summary: 'Get audit log by id',
+        security: apiKeyAndBearerSecurity,
+        parameters: [idParameter],
+        responses: {
+          '200': jsonResponse({ $ref: '#/components/schemas/AuditLog' }, 'Audit log found.'),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '404': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Audit log not found.',
+          ),
+        },
+      },
+    },
   },
   components: {
     securitySchemes: {
@@ -833,6 +870,46 @@ export const openApiDocument: OpenAPIV3.Document = {
           role: { $ref: '#/components/schemas/UserRole' },
         },
         required: ['id', 'createdAt', 'updatedAt', 'name', 'email', 'role'],
+      },
+      AuditLog: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' },
+          timestamp: { type: 'string', format: 'date-time' },
+          action: { type: 'string' },
+          summary: { type: 'string' },
+          outcome: { type: 'string', enum: ['success', 'failure'] },
+          actorUserId: { type: 'string', format: 'uuid', nullable: true },
+          actorEmail: { type: 'string', nullable: true },
+          actorRole: { $ref: '#/components/schemas/UserRole' },
+          resource: { type: 'string' },
+          method: { type: 'string' },
+          path: { type: 'string' },
+          statusCode: { type: 'integer', nullable: true },
+          targetId: { type: 'string', nullable: true },
+          ipAddress: { type: 'string', nullable: true },
+          userAgent: { type: 'string', nullable: true },
+          requestId: { type: 'string', nullable: true },
+          metadata: {
+            type: 'object',
+            nullable: true,
+            additionalProperties: true,
+          },
+        },
+        required: [
+          'id',
+          'createdAt',
+          'updatedAt',
+          'timestamp',
+          'action',
+          'summary',
+          'outcome',
+          'resource',
+          'method',
+          'path',
+        ],
       },
       AuthUser: {
         allOf: [{ $ref: '#/components/schemas/UserSummary' }],
@@ -1280,6 +1357,14 @@ export const openApiDocument: OpenAPIV3.Document = {
         type: 'object',
         properties: {
           data: { type: 'array', items: { $ref: '#/components/schemas/UserSummary' } },
+          pagination: { $ref: '#/components/schemas/PaginationMeta' },
+        },
+        required: ['data', 'pagination'],
+      },
+      PaginatedAuditLogList: {
+        type: 'object',
+        properties: {
+          data: { type: 'array', items: { $ref: '#/components/schemas/AuditLog' } },
           pagination: { $ref: '#/components/schemas/PaginationMeta' },
         },
         required: ['data', 'pagination'],

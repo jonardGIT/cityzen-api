@@ -3,6 +3,7 @@ import type { ListQueryConfig } from './request.js';
 const textOps = ['equals', 'contains', 'in'] as const;
 const uuidOps = ['equals', 'in'] as const;
 const dateOps = ['equals', 'gt', 'gte', 'lt', 'lte', 'between'] as const;
+const integerOps = ['equals', 'in', 'gt', 'gte', 'lt', 'lte', 'between'] as const;
 
 export const citizensListQueryConfig: ListQueryConfig = {
   resource: 'citizens',
@@ -150,6 +151,39 @@ export const usersListQueryConfig: ListQueryConfig = {
     name: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
     email: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
     role: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
+    createdAt: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
+    updatedAt: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
+  },
+};
+
+export const auditLogsListQueryConfig: ListQueryConfig = {
+  resource: 'audit-logs',
+  defaultSortBy: 'timestamp',
+  fields: {
+    id: { type: 'uuid', sortable: true, filterOperators: [...uuidOps] },
+    timestamp: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
+    action: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
+    summary: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
+    outcome: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
+    actorUserId: { type: 'uuid', sortable: true, filterOperators: [...uuidOps] },
+    actorEmail: {
+      type: 'string',
+      searchable: true,
+      sortable: true,
+      filterOperators: [...textOps],
+    },
+    actorRole: {
+      type: 'string',
+      searchable: true,
+      sortable: true,
+      filterOperators: [...textOps],
+    },
+    resource: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
+    method: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
+    path: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
+    statusCode: { type: 'integer', sortable: true, filterOperators: [...integerOps] },
+    targetId: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
+    requestId: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
     createdAt: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
     updatedAt: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
   },
