@@ -25,6 +25,38 @@ function getAuditEvent(method: string, path: string): AuditEventDefinition | nul
     return { action: 'register', resource: 'auth' };
   }
 
+  if (upperMethod === 'POST' && normalizedPath === '/auth/password-reset/request') {
+    return { action: 'password_reset_request', resource: 'auth' };
+  }
+
+  if (upperMethod === 'POST' && normalizedPath === '/auth/password-reset/confirm') {
+    return { action: 'password_reset_confirm', resource: 'auth' };
+  }
+
+  if (upperMethod === 'POST' && normalizedPath === '/auth/logout') {
+    return { action: 'logout', resource: 'auth' };
+  }
+
+  if (upperMethod === 'POST' && normalizedPath === '/auth/refresh') {
+    return { action: 'refresh', resource: 'auth' };
+  }
+
+  if (upperMethod === 'POST' && normalizedPath === '/auth/mfa/setup') {
+    return { action: 'mfa_setup', resource: 'auth' };
+  }
+
+  if (upperMethod === 'POST' && normalizedPath === '/auth/mfa/enable') {
+    return { action: 'mfa_enable', resource: 'auth' };
+  }
+
+  if (upperMethod === 'POST' && normalizedPath === '/auth/mfa/disable') {
+    return { action: 'mfa_disable', resource: 'auth' };
+  }
+
+  if (upperMethod === 'DELETE' && /^\/auth\/sessions\/[A-Za-z0-9-]+$/.test(normalizedPath)) {
+    return { action: 'session_revoke', resource: 'auth' };
+  }
+
   if (upperMethod === 'POST' && normalizedPath === '/citizens/link-me') {
     return { action: 'link', resource: 'citizens' };
   }
@@ -69,6 +101,11 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 function getTargetId(req: Request, responseBody: unknown): string | null {
+  const authUser = (req as AuthenticatedRequest).authUser;
+  if (normalizePath(req.path) === '/auth/logout' && authUser) {
+    return authUser.id;
+  }
+
   if (isObject(responseBody)) {
     if (typeof responseBody.id === 'string') {
       return responseBody.id;

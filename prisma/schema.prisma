@@ -15,8 +15,51 @@ model User {
   email        String   @unique
   passwordHash String
   role         String   @default("VIEWER")
+  mfaEnabled   Boolean  @default(false)
+  mfaSecretEncrypted String?
+  mfaEnabledAt DateTime?
+  authSessions AuthSession[]
+  passwordResetTokens PasswordResetToken[]
 
   @@map("users")
+}
+
+model AuthSession {
+  id               String    @id @default(uuid()) @db.Uuid
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  userId           String    @db.Uuid
+  expiresAt        DateTime
+  refreshTokenHash String
+  refreshExpiresAt DateTime
+  refreshUsedAt    DateTime?
+  revokedAt        DateTime?
+  lastUsedAt       DateTime?
+  userAgent        String?
+  ipAddress        String?
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([refreshExpiresAt])
+  @@index([revokedAt])
+  @@map("auth_sessions")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  userId    String   @db.Uuid
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([usedAt])
+  @@map("password_reset_tokens")
 }
 
 model AuditLog {

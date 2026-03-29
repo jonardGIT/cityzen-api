@@ -10,6 +10,8 @@ DROP TABLE IF EXISTS citizens CASCADE;
 DROP TABLE IF EXISTS statuses CASCADE;
 DROP TABLE IF EXISTS categories CASCADE;
 DROP TABLE IF EXISTS severities CASCADE;
+DROP TABLE IF EXISTS password_reset_tokens CASCADE;
+DROP TABLE IF EXISTS auth_sessions CASCADE;
 DROP TABLE IF EXISTS audit_logs CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS "User" CASCADE;
@@ -24,7 +26,35 @@ CREATE TABLE users (
   email text NOT NULL UNIQUE,
   "passwordHash" text NOT NULL,
   role text NOT NULL DEFAULT 'VIEWER',
+  "mfaEnabled" boolean NOT NULL DEFAULT false,
+  "mfaSecretEncrypted" text,
+  "mfaEnabledAt" timestamptz,
   CONSTRAINT users_role_check CHECK (role IN ('SUPER_ADMIN', 'ADMIN', 'DISPATCHER', 'RESPONDER', 'VIEWER'))
+);
+
+CREATE TABLE auth_sessions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  "createdAt" timestamptz NOT NULL DEFAULT NOW(),
+  "updatedAt" timestamptz NOT NULL DEFAULT NOW(),
+  "userId" uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  "expiresAt" timestamptz NOT NULL,
+  "refreshTokenHash" text NOT NULL,
+  "refreshExpiresAt" timestamptz NOT NULL,
+  "refreshUsedAt" timestamptz,
+  "revokedAt" timestamptz,
+  "lastUsedAt" timestamptz,
+  "userAgent" text,
+  "ipAddress" text
+);
+
+CREATE TABLE password_reset_tokens (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  "createdAt" timestamptz NOT NULL DEFAULT NOW(),
+  "updatedAt" timestamptz NOT NULL DEFAULT NOW(),
+  "userId" uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  "tokenHash" text NOT NULL UNIQUE,
+  "expiresAt" timestamptz NOT NULL,
+  "usedAt" timestamptz
 );
 
 CREATE TABLE citizens (
@@ -140,6 +170,13 @@ CREATE INDEX incidents_status_id_idx ON incidents ("statusId");
 CREATE INDEX incidents_citizen_id_idx ON incidents ("citizenId");
 CREATE INDEX incidents_category_id_idx ON incidents ("categoryId");
 CREATE INDEX incidents_severity_id_idx ON incidents ("severityId");
+CREATE INDEX auth_sessions_user_id_idx ON auth_sessions ("userId");
+CREATE INDEX auth_sessions_expires_at_idx ON auth_sessions ("expiresAt");
+CREATE INDEX auth_sessions_refresh_expires_at_idx ON auth_sessions ("refreshExpiresAt");
+CREATE INDEX auth_sessions_revoked_at_idx ON auth_sessions ("revokedAt");
+CREATE INDEX password_reset_tokens_user_id_idx ON password_reset_tokens ("userId");
+CREATE INDEX password_reset_tokens_expires_at_idx ON password_reset_tokens ("expiresAt");
+CREATE INDEX password_reset_tokens_used_at_idx ON password_reset_tokens ("usedAt");
 CREATE INDEX audit_logs_timestamp_idx ON audit_logs (timestamp);
 CREATE INDEX audit_logs_actor_email_idx ON audit_logs ("actorEmail");
 CREATE INDEX audit_logs_resource_idx ON audit_logs (resource);
@@ -163,6 +200,16 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER set_users_updated_at
 BEFORE UPDATE ON users
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER set_auth_sessions_updated_at
+BEFORE UPDATE ON auth_sessions
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER set_password_reset_tokens_updated_at
+BEFORE UPDATE ON password_reset_tokens
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 

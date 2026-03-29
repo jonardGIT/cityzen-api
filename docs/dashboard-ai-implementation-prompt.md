@@ -16,7 +16,10 @@ Functional requirements:
 
 - Use Bearer token auth with Authorization header.
 - Add login flow using POST /api/v1/auth/login.
+- Add refresh flow using POST /api/v1/auth/refresh.
 - Add current-user bootstrap using GET /api/v1/auth/me.
+- Call POST /api/v1/auth/logout on explicit sign-out so the backend revokes the current auth session.
+- If login returns `401` with `mfaRequired: true`, prompt for a TOTP code and retry POST /api/v1/auth/login with `mfaCode`.
 - Persist the token securely in app state or a server-managed session. Avoid long-lived localStorage storage for sensitive admin sessions when possible.
 - Attach token to all authRequired endpoints.
 - Do not expose deployment API keys in client-side code. For non-auth API-key-protected routes, prefer a Next.js server-side proxy or BFF that injects `x-api-key` from server environment variables.
@@ -145,8 +148,13 @@ Mobile citizen flow requirements:
 
 Security alignment notes:
 
-- `/api/v1/auth/register` and `/api/v1/auth/login` are public bootstrap routes.
-- `/api/v1/auth/me` requires JWT bearer auth.
+- `/api/v1/auth/register`, `/api/v1/auth/login`, and `/api/v1/auth/refresh` are public auth bootstrap/renewal routes.
+- `/api/v1/auth/mfa/setup`, `/api/v1/auth/mfa/enable`, and `/api/v1/auth/mfa/disable` require a privileged JWT (`SUPER_ADMIN`, `ADMIN`, or `DISPATCHER`).
+- `/api/v1/auth/me` and `/api/v1/auth/logout` require JWT bearer auth.
+- Login/register/refresh responses now include `sessionId`, `expiresAt`, `refreshExpiresAt`, and a rotated `refreshToken`; use the metadata for session handling, not as a replacement for the bearer token.
+- Every successful refresh invalidates the previous refresh token, so the dashboard must replace stored refresh state atomically.
+- Privileged accounts may be challenged for TOTP MFA at login; the dashboard should render a second-step MFA form instead of treating the first `401` as a generic failure.
+- Password or role changes revoke existing backend sessions, so handle a follow-up `401` by clearing client auth state and forcing a fresh login.
 - Most non-auth API routes also require `x-api-key` when the backend is configured with API keys.
 - Audit logs are admin-only and are handled separately by `docs/dashboard-audit-log-implementation-prompt.md`.
 

@@ -110,11 +110,13 @@ RATE_LIMIT_ENABLED=true
 RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX_REQUESTS=100
 JWT_SECRET=replace-with-a-long-random-secret
+MFA_ENCRYPTION_KEY=replace-with-a-separate-long-random-secret
 ```
 
 Important variables:
 
 - `JWT_SECRET`: required. Use a long random secret and rotate it if exposure is suspected.
+- `MFA_ENCRYPTION_KEY`: required if you enable MFA. Use a separate long random secret for encrypting stored TOTP seeds.
 - `DATABASE_URL`: PostgreSQL connection for Prisma.
 - `API_KEYS`: comma-separated allowed API keys.
 - `API_KEY`: optional single-key fallback if `API_KEYS` is not set.
@@ -142,6 +144,14 @@ If you are adopting the incident coordinate/address snapshot contract on an exis
 If you are enabling persistent audit logging on an existing database, also run:
 
 1. `prisma/add-audit-logs.sql`
+
+If you are enabling revocable server-side auth sessions on an existing database, also run:
+
+1. `prisma/add-auth-sessions.sql`
+
+If you are enabling privileged-role MFA on an existing database, also run:
+
+1. `prisma/add-user-mfa.sql`
 
 ### 4. Start development server
 
@@ -183,7 +193,16 @@ Auth and admin routes:
 
 - `POST /api/v1/auth/register`
 - `POST /api/v1/auth/login`
+- `POST /api/v1/auth/password-reset/request`
+- `POST /api/v1/auth/password-reset/confirm`
+- `POST /api/v1/auth/mfa/setup`
+- `POST /api/v1/auth/mfa/enable`
+- `POST /api/v1/auth/mfa/disable`
+- `POST /api/v1/auth/refresh`
 - `GET /api/v1/auth/me`
+- `GET /api/v1/auth/sessions`
+- `POST /api/v1/auth/logout`
+- `DELETE /api/v1/auth/sessions/:id`
 - `POST /api/v1/citizens/link-me`
 - `POST /api/v1/incidents/report`
 - `GET /api/v1/admin/users` (admin roles only)
@@ -280,7 +299,29 @@ JWT auth is used for human users and role-aware dashboard/mobile access.
 - Public JWT bootstrap endpoints:
   - `POST /api/v1/auth/register`
   - `POST /api/v1/auth/login`
-- Current user endpoint: `GET /api/v1/auth/me` with `Authorization: Bearer <token>`
+  - `POST /api/v1/auth/password-reset/request`
+  - `POST /api/v1/auth/password-reset/confirm`
+  - `POST /api/v1/auth/refresh`
+- Session endpoints:
+  - `GET /api/v1/auth/me` with `Authorization: Bearer <token>`
+  - `GET /api/v1/auth/sessions` with `Authorization: Bearer <token>`
+  - `POST /api/v1/auth/logout` with `Authorization: Bearer <token>`
+  - `DELETE /api/v1/auth/sessions/:id` with `Authorization: Bearer <token>`
+- Privileged-role MFA management endpoints:
+  - `POST /api/v1/auth/mfa/setup`
+  - `POST /api/v1/auth/mfa/enable`
+  - `POST /api/v1/auth/mfa/disable`
+- Successful login, registration, and refresh responses include `sessionId`, `expiresAt`, and `refreshExpiresAt` for the active server-side auth session.
+- Login and registration now also return a `refreshToken`; `POST /api/v1/auth/refresh` rotates that token and returns a replacement pair.
+- `POST /api/v1/auth/password-reset/request` always returns a generic acceptance response. Outside production, it also returns a temporary reset token for local development/testing flows until email delivery is added.
+- `POST /api/v1/auth/password-reset/confirm` accepts the one-time reset token plus a new password, updates the password, and revokes all active sessions for that user.
+- JWTs are now backed by persistent `auth_sessions` rows and are revoked immediately on logout.
+- Refresh tokens are one-time rotation tokens bound to the same server-side auth session.
+- `GET /api/v1/auth/sessions` returns the caller's session inventory for account security UI, including `isCurrent`, expiry timestamps, revocation state, user agent, and IP address metadata.
+- `DELETE /api/v1/auth/sessions/:id` revokes one owned session by id and is intended for targeted sign-out from other devices.
+- `SUPER_ADMIN`, `ADMIN`, and `DISPATCHER` accounts can enable TOTP MFA. Once enabled, login requires `mfaCode` in addition to email and password.
+- Enabling or disabling MFA revokes all active sessions for that user.
+- Password changes and role changes revoke all active sessions for the affected user.
 - Admin-only JWT routes include:
   - `GET /api/v1/admin/users`
   - `GET /api/v1/audit-logs`
@@ -314,23 +355,25 @@ Role values:
 
 The table below summarizes the current route protection model. When `API_KEYS` or `API_KEY` is configured, assume `x-api-key` is also required for every versioned route except the explicit public bypasses under `/health`, `/openapi.json`, `/docs`, and `/auth/*`.
 
-| Route Group | Read Access | Write Access |
-| --- | --- | --- |
-| `/api/v1/auth/register`, `/api/v1/auth/login` | Public | Public |
-| `/api/v1/auth/me` | Any authenticated JWT user | N/A |
-| `/api/v1/citizens` | `SUPER_ADMIN`, `ADMIN` | `SUPER_ADMIN`, `ADMIN` |
-| `/api/v1/citizens/link-me` | N/A | `VIEWER` |
-| `/api/v1/agencies` | `SUPER_ADMIN`, `ADMIN`, `DISPATCHER` | `SUPER_ADMIN`, `ADMIN` |
-| `/api/v1/responders` | `SUPER_ADMIN`, `ADMIN`, `DISPATCHER` | `SUPER_ADMIN`, `ADMIN` |
-| `/api/v1/statuses` | Any authenticated JWT user | `SUPER_ADMIN`, `ADMIN` |
-| `/api/v1/categories` | Any authenticated JWT user | `SUPER_ADMIN`, `ADMIN` |
-| `/api/v1/severities` | Any authenticated JWT user | `SUPER_ADMIN`, `ADMIN` |
-| `/api/v1/incidents` | Any authenticated JWT user. `VIEWER` is scoped to own incidents only. | `SUPER_ADMIN`, `ADMIN`, `DISPATCHER`, `RESPONDER` |
-| `/api/v1/incidents/report` | N/A | `VIEWER` |
-| `/api/v1/assignments` | `SUPER_ADMIN`, `ADMIN`, `DISPATCHER` | `SUPER_ADMIN`, `ADMIN`, `DISPATCHER` |
-| `/api/v1/users`, `/api/v1/users/capabilities` | `SUPER_ADMIN`, `ADMIN` | `SUPER_ADMIN`, `ADMIN` |
-| `/api/v1/admin/users` | `SUPER_ADMIN`, `ADMIN` | N/A |
-| `/api/v1/audit-logs` | `SUPER_ADMIN`, `ADMIN` | Read-only |
+| Route Group                                                                                                                                         | Read Access                                                           | Write Access                                       |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------- |
+| `/api/v1/auth/register`, `/api/v1/auth/login`, `/api/v1/auth/refresh`, `/api/v1/auth/password-reset/request`, `/api/v1/auth/password-reset/confirm` | Public                                                                | Public                                             |
+| `/api/v1/auth/me`, `/api/v1/auth/sessions`, `/api/v1/auth/logout`                                                                                   | Any authenticated JWT user                                            | Current session only                               |
+| `/api/v1/auth/sessions/:id`                                                                                                                         | N/A                                                                   | Any authenticated JWT user, limited to own session |
+| `/api/v1/auth/mfa/setup`, `/api/v1/auth/mfa/enable`, `/api/v1/auth/mfa/disable`                                                                     | `SUPER_ADMIN`, `ADMIN`, `DISPATCHER`                                  | Current session only                               |
+| `/api/v1/citizens`                                                                                                                                  | `SUPER_ADMIN`, `ADMIN`                                                | `SUPER_ADMIN`, `ADMIN`                             |
+| `/api/v1/citizens/link-me`                                                                                                                          | N/A                                                                   | `VIEWER`                                           |
+| `/api/v1/agencies`                                                                                                                                  | `SUPER_ADMIN`, `ADMIN`, `DISPATCHER`                                  | `SUPER_ADMIN`, `ADMIN`                             |
+| `/api/v1/responders`                                                                                                                                | `SUPER_ADMIN`, `ADMIN`, `DISPATCHER`                                  | `SUPER_ADMIN`, `ADMIN`                             |
+| `/api/v1/statuses`                                                                                                                                  | Any authenticated JWT user                                            | `SUPER_ADMIN`, `ADMIN`                             |
+| `/api/v1/categories`                                                                                                                                | Any authenticated JWT user                                            | `SUPER_ADMIN`, `ADMIN`                             |
+| `/api/v1/severities`                                                                                                                                | Any authenticated JWT user                                            | `SUPER_ADMIN`, `ADMIN`                             |
+| `/api/v1/incidents`                                                                                                                                 | Any authenticated JWT user. `VIEWER` is scoped to own incidents only. | `SUPER_ADMIN`, `ADMIN`, `DISPATCHER`, `RESPONDER`  |
+| `/api/v1/incidents/report`                                                                                                                          | N/A                                                                   | `VIEWER`                                           |
+| `/api/v1/assignments`                                                                                                                               | `SUPER_ADMIN`, `ADMIN`, `DISPATCHER`                                  | `SUPER_ADMIN`, `ADMIN`, `DISPATCHER`               |
+| `/api/v1/users`, `/api/v1/users/capabilities`                                                                                                       | `SUPER_ADMIN`, `ADMIN`                                                | `SUPER_ADMIN`, `ADMIN`                             |
+| `/api/v1/admin/users`                                                                                                                               | `SUPER_ADMIN`, `ADMIN`                                                | N/A                                                |
+| `/api/v1/audit-logs`                                                                                                                                | `SUPER_ADMIN`, `ADMIN`                                                | Read-only                                          |
 
 Notes:
 
@@ -349,6 +392,14 @@ Persistent audit logging is enabled through the API layer and stored in the `aud
 - The backend records selected auth and mutation events, including:
   - `POST /api/v1/auth/login`
   - `POST /api/v1/auth/register`
+  - `POST /api/v1/auth/password-reset/request`
+  - `POST /api/v1/auth/password-reset/confirm`
+  - `POST /api/v1/auth/mfa/setup`
+  - `POST /api/v1/auth/mfa/enable`
+  - `POST /api/v1/auth/mfa/disable`
+  - `POST /api/v1/auth/refresh`
+  - `POST /api/v1/auth/logout`
+  - `DELETE /api/v1/auth/sessions/:id`
   - `POST /api/v1/citizens/link-me`
   - `POST /api/v1/incidents/report`
   - create/update/delete operations for core managed resources
