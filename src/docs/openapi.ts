@@ -78,6 +78,63 @@ const paginationParameters: OpenAPIV3.ParameterObject[] = [
   },
 ];
 
+const auditLogPaginationParameters: OpenAPIV3.ParameterObject[] = paginationParameters.map(
+  (parameter) => {
+    if (parameter.name !== 'sortBy') {
+      return parameter;
+    }
+
+    return {
+      ...parameter,
+      description:
+        'Sortable field name for audit logs. Unsupported fields return 422. Defaults to timestamp.',
+      schema: { type: 'string', default: 'timestamp' },
+    };
+  },
+);
+
+const auditLogExample: OpenAPIV3.ExampleObject = {
+  summary: 'Successful citizen creation audit record',
+  value: {
+    id: '6ee87a02-7d53-4bba-8ab8-08b7d5fb70cf',
+    createdAt: '2026-03-29T09:15:12.418Z',
+    updatedAt: '2026-03-29T09:15:12.418Z',
+    timestamp: '2026-03-29T09:15:12.408Z',
+    action: 'create',
+    summary: 'create citizens (0e9189c3-4465-4fa4-823c-2452a021cd05) succeeded',
+    outcome: 'success',
+    actorUserId: '70000000-0000-0000-0000-000000000001',
+    actorEmail: 'admin@xypes.local',
+    actorRole: 'ADMIN',
+    resource: 'citizens',
+    method: 'POST',
+    path: '/citizens',
+    statusCode: 201,
+    targetId: '0e9189c3-4465-4fa4-823c-2452a021cd05',
+    ipAddress: '::1',
+    userAgent: 'Mozilla/5.0',
+    requestId: '5bc9d7da-a615-4998-bdc6-6be4340656eb',
+    metadata: {
+      message: 'Citizen created successfully',
+    },
+  },
+};
+
+const paginatedAuditLogListExample: OpenAPIV3.ExampleObject = {
+  summary: 'Paginated audit log list',
+  value: {
+    data: [auditLogExample.value],
+    pagination: {
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPrevPage: false,
+    },
+  },
+};
+
 function jsonResponse(
   schema: OpenAPIV3.ReferenceObject | OpenAPIV3.SchemaObject,
   description: string,
@@ -767,10 +824,30 @@ export const openApiDocument: OpenAPIV3.Document = {
       get: {
         tags: ['AuditLog'],
         summary: 'List audit logs',
+        description:
+          'Returns persistent audit records for admin users. Supports the standard list query contract, including pagination, search, sorting, timestamp windows, and JSON filter expressions.',
         security: apiKeyAndBearerSecurity,
-        parameters: paginationParameters,
+        parameters: auditLogPaginationParameters,
         responses: {
-          '200': listResponse('AuditLog'),
+          '200': {
+            ...listResponse('AuditLog'),
+            content: {
+              'application/json': {
+                schema: {
+                  oneOf: [
+                    {
+                      type: 'array',
+                      items: { $ref: '#/components/schemas/AuditLog' },
+                    },
+                    { $ref: '#/components/schemas/PaginatedAuditLogList' },
+                  ],
+                },
+                examples: {
+                  paginated: paginatedAuditLogListExample,
+                },
+              },
+            },
+          },
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
           '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
           '422': jsonResponse(
@@ -784,10 +861,21 @@ export const openApiDocument: OpenAPIV3.Document = {
       get: {
         tags: ['AuditLog'],
         summary: 'Get audit log by id',
+        description: 'Returns a single persistent audit log record for admin users.',
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
-          '200': jsonResponse({ $ref: '#/components/schemas/AuditLog' }, 'Audit log found.'),
+          '200': {
+            ...jsonResponse({ $ref: '#/components/schemas/AuditLog' }, 'Audit log found.'),
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/AuditLog' },
+                examples: {
+                  auditLog: auditLogExample,
+                },
+              },
+            },
+          },
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
           '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
           '404': jsonResponse(
@@ -873,6 +961,8 @@ export const openApiDocument: OpenAPIV3.Document = {
       },
       AuditLog: {
         type: 'object',
+        description:
+          'Persistent server-side audit record captured for selected authentication and mutating API operations.',
         properties: {
           id: { type: 'string', format: 'uuid' },
           createdAt: { type: 'string', format: 'date-time' },
@@ -883,7 +973,10 @@ export const openApiDocument: OpenAPIV3.Document = {
           outcome: { type: 'string', enum: ['success', 'failure'] },
           actorUserId: { type: 'string', format: 'uuid', nullable: true },
           actorEmail: { type: 'string', nullable: true },
-          actorRole: { $ref: '#/components/schemas/UserRole' },
+          actorRole: {
+            allOf: [{ $ref: '#/components/schemas/UserRole' }],
+            nullable: true,
+          },
           resource: { type: 'string' },
           method: { type: 'string' },
           path: { type: 'string' },
