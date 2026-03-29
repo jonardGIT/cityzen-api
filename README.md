@@ -310,6 +310,34 @@ Role values:
 - `RESPONDER`
 - `VIEWER`
 
+## Access Matrix
+
+The table below summarizes the current route protection model. When `API_KEYS` or `API_KEY` is configured, assume `x-api-key` is also required for every versioned route except the explicit public bypasses under `/health`, `/openapi.json`, `/docs`, and `/auth/*`.
+
+| Route Group | Read Access | Write Access |
+| --- | --- | --- |
+| `/api/v1/auth/register`, `/api/v1/auth/login` | Public | Public |
+| `/api/v1/auth/me` | Any authenticated JWT user | N/A |
+| `/api/v1/citizens` | `SUPER_ADMIN`, `ADMIN` | `SUPER_ADMIN`, `ADMIN` |
+| `/api/v1/citizens/link-me` | N/A | `VIEWER` |
+| `/api/v1/agencies` | `SUPER_ADMIN`, `ADMIN`, `DISPATCHER` | `SUPER_ADMIN`, `ADMIN` |
+| `/api/v1/responders` | `SUPER_ADMIN`, `ADMIN`, `DISPATCHER` | `SUPER_ADMIN`, `ADMIN` |
+| `/api/v1/statuses` | Any authenticated JWT user | `SUPER_ADMIN`, `ADMIN` |
+| `/api/v1/categories` | Any authenticated JWT user | `SUPER_ADMIN`, `ADMIN` |
+| `/api/v1/severities` | Any authenticated JWT user | `SUPER_ADMIN`, `ADMIN` |
+| `/api/v1/incidents` | Any authenticated JWT user. `VIEWER` is scoped to own incidents only. | `SUPER_ADMIN`, `ADMIN`, `DISPATCHER`, `RESPONDER` |
+| `/api/v1/incidents/report` | N/A | `VIEWER` |
+| `/api/v1/assignments` | `SUPER_ADMIN`, `ADMIN`, `DISPATCHER` | `SUPER_ADMIN`, `ADMIN`, `DISPATCHER` |
+| `/api/v1/users`, `/api/v1/users/capabilities` | `SUPER_ADMIN`, `ADMIN` | `SUPER_ADMIN`, `ADMIN` |
+| `/api/v1/admin/users` | `SUPER_ADMIN`, `ADMIN` | N/A |
+| `/api/v1/audit-logs` | `SUPER_ADMIN`, `ADMIN` | Read-only |
+
+Notes:
+
+- API key middleware and JWT middleware are layered. Passing one does not satisfy the other when both are required.
+- `VIEWER` users can bootstrap citizen/mobile flows through registration, `link-me`, and `incidents/report`, but cannot access admin-managed resources.
+- `API_KEY` and `API_KEYS` are merged by the middleware. If both are set, values from both sources remain valid.
+
 ## Audit Logging
 
 Persistent audit logging is enabled through the API layer and stored in the `audit_logs` table.
