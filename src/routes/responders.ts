@@ -10,12 +10,12 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { validateRequest } from '../middleware/validateRequest.js';
 import { createResponderValidator, updateResponderValidator } from '../validators/bodyValidators.js';
 import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
-import { ADMIN_ROLES } from '../types/auth.js';
+import { ADMIN_ROLES, DISPATCH_ROLES } from '../types/auth.js';
 
 const router = Router();
 
-router.get('/', asyncHandler(getResponders));
-router.get('/:id', asyncHandler(getResponderById));
+router.get('/', requireJwtAuth, requireRole(...DISPATCH_ROLES), asyncHandler(getResponders));
+router.get('/:id', requireJwtAuth, requireRole(...DISPATCH_ROLES), asyncHandler(getResponderById));
 router.post(
   '/',
   requireJwtAuth,

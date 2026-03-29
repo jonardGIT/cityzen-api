@@ -14,8 +14,8 @@ import { DISPATCH_ROLES } from '../types/auth.js';
 
 const router = Router();
 
-router.get('/', asyncHandler(getAssignments));
-router.get('/:id', asyncHandler(getAssignmentById));
+router.get('/', requireJwtAuth, requireRole(...DISPATCH_ROLES), asyncHandler(getAssignments));
+router.get('/:id', requireJwtAuth, requireRole(...DISPATCH_ROLES), asyncHandler(getAssignmentById));
 router.post(
   '/',
   requireJwtAuth,

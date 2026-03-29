@@ -16,8 +16,10 @@ Functional requirements:
 
 - Use Bearer token auth with Authorization header.
 - Add login flow using POST /api/v1/auth/login.
-- Persist token securely in app state (and optionally local storage).
+- Add current-user bootstrap using GET /api/v1/auth/me.
+- Persist the token securely in app state or a server-managed session. Avoid long-lived localStorage storage for sensitive admin sessions when possible.
 - Attach token to all authRequired endpoints.
+- Do not expose deployment API keys in client-side code. For non-auth API-key-protected routes, prefer a Next.js server-side proxy or BFF that injects `x-api-key` from server environment variables.
 
 2. Authorization and UI gating
 
@@ -26,6 +28,7 @@ Functional requirements:
 - List and Get views should remain visible where config allows unauthenticated access.
 - Add a reusable hasPermission(endpoint, role) helper.
 - For incident list/get when role is VIEWER, show only the logged-in user's own incidents.
+- Citizens list/get/create/update/delete are admin-only; keep `citizens/link-me` as a dedicated viewer action rather than a normal admin CRUD form.
 
 3. Dynamic resource pages
 
@@ -46,6 +49,7 @@ Functional requirements:
 - Build a typed API layer that accepts method, fullPath, body, params, token.
 - Replace {id} placeholders safely.
 - Centralize error handling for 401, 403, 404, 409, 422.
+- Also handle 429 consistently for rate-limited responses.
 - Return normalized result shape:
   - success: boolean
   - data: unknown
@@ -98,6 +102,7 @@ Functional requirements:
 - 403: show not authorized banner.
 - 409: show conflict message (e.g., duplicate or foreign key conflict).
 - 422: show validation errors near fields when possible.
+- 429: show a retry message and honor Retry-After when present.
 
 11. List query contract integration
 
@@ -137,6 +142,13 @@ Mobile citizen flow requirements:
 2. App calls /api/v1/citizens/link-me to create/update citizen profile linked to auth email.
 3. Citizen creates incident via /api/v1/incidents/report.
 4. Citizen views own incidents via /api/v1/incidents and /api/v1/incidents/{id} only.
+
+Security alignment notes:
+
+- `/api/v1/auth/register` and `/api/v1/auth/login` are public bootstrap routes.
+- `/api/v1/auth/me` requires JWT bearer auth.
+- Most non-auth API routes also require `x-api-key` when the backend is configured with API keys.
+- Audit logs are admin-only and are handled separately by `docs/dashboard-audit-log-implementation-prompt.md`.
 
 5. Deliverables
 

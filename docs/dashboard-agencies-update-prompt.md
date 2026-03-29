@@ -36,7 +36,7 @@ Dashboard implementation requirements:
 - Remove free-text agency input.
 - Add an agency selector bound to agencyId.
 - Populate options from GET /api/v1/agencies.
-- Submit agencyId as a number.
+- Submit agencyId as a UUID string.
 - Do not send agency in request payload anymore.
 
 3. Update responder list/details UI
@@ -55,8 +55,8 @@ Dashboard implementation requirements:
 - Update responder client types from:
   - agency: string
 - To:
-  - agencyId: number
-  - agency?: { id: number; name: string }
+  - agencyId: string
+  - agency?: { id: string; name: string }
 
 7. Suggested field config update
 - agencies: name

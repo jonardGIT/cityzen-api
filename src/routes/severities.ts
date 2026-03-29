@@ -14,8 +14,8 @@ import { ADMIN_ROLES } from '../types/auth.js';
 
 const router = Router();
 
-router.get('/', asyncHandler(getSeverities));
-router.get('/:id', asyncHandler(getSeverityById));
+router.get('/', requireJwtAuth, asyncHandler(getSeverities));
+router.get('/:id', requireJwtAuth, asyncHandler(getSeverityById));
 router.post(
   '/',
   requireJwtAuth,

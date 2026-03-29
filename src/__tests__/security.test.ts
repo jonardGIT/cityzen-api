@@ -28,7 +28,18 @@ describe('API key authentication', () => {
   it('allows access to protected route with valid API key', async () => {
     const { default: app, API_V1 } = await import('../app.js');
 
-    const response = await request(app).get(`${API_V1}/statuses`).set('x-api-key', 'test-key');
+    const loginResponse = await request(app).post(`${API_V1}/auth/login`).send({
+      email: 'analyst@xypes.local',
+      password: 'Password123!',
+    });
+
+    expect(loginResponse.status).toBe(200);
+    expect(loginResponse.body).toHaveProperty('token');
+
+    const response = await request(app)
+      .get(`${API_V1}/statuses`)
+      .set('x-api-key', 'test-key')
+      .set('Authorization', `Bearer ${loginResponse.body.token as string}`);
 
     expect(response.status).toBe(200);
     expect(Array.isArray(response.body)).toBe(true);

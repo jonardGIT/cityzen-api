@@ -21,7 +21,9 @@ Core features:
 - Prisma-based PostgreSQL persistence
 - Input validation with express-validator
 - Centralized 404 and error handling
-- API key protection and request rate limiting
+- API key protection, JWT auth, and role-based access control
+- Persistent server-side audit logging for auth and selected mutating operations
+- Shared whitelist-based list query filtering, sorting, and pagination
 - Swagger/OpenAPI docs in development
 - Jest + Supertest test coverage
 
@@ -41,10 +43,10 @@ Core features:
 
 - `src/server.ts`: process entrypoint that starts the HTTP server.
 - `src/app.ts`: Express app bootstrap, middleware wiring, route registration, docs mounting.
-- `src/controllers/`: request handlers per resource (list/get/create) using Prisma queries.
+- `src/controllers/`: request handlers per resource and admin/auth/audit endpoints using Prisma queries.
 - `src/routes/`: Express routers mapping URLs to controller functions.
 - `src/lib/prisma.ts`: shared Prisma client instance used by controllers.
-- `src/middleware/`: custom middleware for API key auth, rate limits, 404, and centralized errors.
+- `src/middleware/`: custom middleware for API key auth, JWT auth, audit logging, rate limits, 404, and centralized errors.
 - `src/docs/openapi.ts`: OpenAPI document definition used by Swagger UI.
 - `src/validators/`: body validation chains for incoming payloads.
 - `src/utils/`: helper utilities (e.g., route parameter parsing, async wrappers).
@@ -55,7 +57,7 @@ Core features:
 ### prisma folder
 
 - `prisma/schema.prisma`: single source of truth for data models and relations.
-  - Defines models: `User`, `Citizen`, `Agency`, `Responder`, `Status`, `Category`, `Severity`, `CitizenIncident`, `Assignment`.
+  - Defines models: `User`, `Citizen`, `Agency`, `Responder`, `Status`, `Category`, `Severity`, `CitizenIncident`, `Assignment`, `AuditLog`.
   - Uses `@@map(...)` for mapped table names used in PostgreSQL.
 
 - `prisma/reset-prisma-schema.sql`: one-time database reset script.
@@ -107,6 +109,7 @@ API_KEYS=local-dev-key
 RATE_LIMIT_ENABLED=true
 RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX_REQUESTS=100
+JWT_SECRET=replace-with-a-long-random-secret
 ```
 
 Important variables:
@@ -130,7 +133,7 @@ Run in this order:
 1. `prisma/reset-prisma-schema.sql` (one-time reset)
 2. `prisma/seed-data.sql` (sample records)
 
-If your database already exists and you do not want a full reset, run `prisma/add-timestamps.sql` instead of the reset script.
+If your database already exists and you do not want a full reset, use the additive SQL scripts that match the features you need instead of the reset script.
 
 If you are adopting the incident coordinate/address snapshot contract on an existing database, also run:
 
@@ -163,12 +166,6 @@ Health check: `GET /api/v1/health`
 
 ## Route Summary
 
-Each resource supports:
-
-- `GET /` list all
-- `GET /:id` get one by ID
-- `POST /` create
-
 Resources:
 
 - `/api/v1/citizens`
@@ -184,16 +181,20 @@ Resources:
 
 Auth and admin routes:
 
+- `POST /api/v1/auth/register`
 - `POST /api/v1/auth/login`
 - `GET /api/v1/auth/me`
+- `POST /api/v1/citizens/link-me`
+- `POST /api/v1/incidents/report`
 - `GET /api/v1/admin/users` (admin roles only)
-- `GET /api/v1/audit-logs` (admin roles only)
+- `GET /api/v1/audit-logs` and `GET /api/v1/audit-logs/:id` (admin roles only)
 
 Notes:
 
+- Read/write method availability varies by resource. Most CRUD resources support `GET`, `POST`, `PATCH`, and `DELETE`, while auth and special-purpose routes expose narrower operations.
 - `incidents` and `assignments` validate foreign key references before insert.
 - Validation failures return HTTP 422.
-- Selected write endpoints require JWT bearer auth with role checks.
+- Role requirements differ by route and are documented in OpenAPI.
 
 ## List Query Contract
 
@@ -259,7 +260,7 @@ Separate eLGU admin scaffold:
 
 ## API Key Authentication
 
-When `API_KEYS` or `API_KEY` is configured, include this header:
+When `API_KEYS` or `API_KEY` is configured, all versioned API routes require this header unless the path is explicitly bypassed:
 
 `x-api-key: your-api-key`
 
@@ -268,17 +269,30 @@ Public paths (no key required):
 - `/api/v1/health`
 - `/api/v1/openapi.json`
 - `/api/v1/docs`
+- `/api/v1/auth/*`
 
 Invalid or missing key returns HTTP 401.
 
 ## JWT Auth and Roles
 
-JWT auth is used for role-aware dashboard access.
+JWT auth is used for human users and role-aware dashboard/mobile access.
 
-- Login endpoint: `POST /api/v1/auth/login`
+- Public JWT bootstrap endpoints:
+  - `POST /api/v1/auth/register`
+  - `POST /api/v1/auth/login`
 - Current user endpoint: `GET /api/v1/auth/me` with `Authorization: Bearer <token>`
-- Admin example endpoint: `GET /api/v1/admin/users` (requires `SUPER_ADMIN` or `ADMIN`)
-- Citizen list, get, create, update, and delete routes require an admin JWT.
+- Admin-only JWT routes include:
+  - `GET /api/v1/admin/users`
+  - `GET /api/v1/audit-logs`
+  - `GET /api/v1/audit-logs/:id`
+  - citizen create/list/get/update/delete
+  - user CRUD and capabilities
+  - agency/responder/status/category/severity writes
+- Incident access uses JWT for all list/get/write operations:
+  - `VIEWER` can use `/api/v1/incidents/report`
+  - `VIEWER` incident list/get is scoped by backend logic to that user's own incidents
+  - `SUPER_ADMIN`, `ADMIN`, `DISPATCHER`, and `RESPONDER` can create/update/delete incidents
+- `POST /api/v1/citizens/link-me` requires a `VIEWER` JWT and links the citizen profile to the authenticated email.
 
 Password policy:
 
@@ -295,6 +309,22 @@ Role values:
 - `DISPATCHER`
 - `RESPONDER`
 - `VIEWER`
+
+## Audit Logging
+
+Persistent audit logging is enabled through the API layer and stored in the `audit_logs` table.
+
+- Audit log read routes:
+  - `GET /api/v1/audit-logs`
+  - `GET /api/v1/audit-logs/:id`
+- Audit log reads require both a valid API key when configured and an admin JWT.
+- The backend records selected auth and mutation events, including:
+  - `POST /api/v1/auth/login`
+  - `POST /api/v1/auth/register`
+  - `POST /api/v1/citizens/link-me`
+  - `POST /api/v1/incidents/report`
+  - create/update/delete operations for core managed resources
+- Audit responses include `requestId`, actor context, outcome, target identifiers, and sanitized metadata.
 
 ## Request Rate Limiting
 
@@ -354,7 +384,8 @@ npx prisma generate
   - Then run `prisma/seed-data.sql`.
 
 - API returns 401:
-  - Include `x-api-key` matching `API_KEYS` or `API_KEY`.
+  - For non-auth routes, include `x-api-key` matching `API_KEYS` or `API_KEY`.
+  - For JWT-protected routes, also include `Authorization: Bearer <token>`.
 
 - API returns 429:
   - Reduce request rate or tune `RATE_LIMIT_WINDOW_MS` and `RATE_LIMIT_MAX_REQUESTS`.

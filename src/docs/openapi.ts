@@ -381,7 +381,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       'Agency',
       'CreateAgencyRequest',
       'UpdateAgencyRequest',
-      apiKeySecurity,
+      apiKeyAndBearerSecurity,
       apiKeyAndBearerSecurity,
     ),
     ...resourcePath(
@@ -389,7 +389,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       'Responder',
       'CreateResponderRequest',
       'UpdateResponderRequest',
-      apiKeySecurity,
+      apiKeyAndBearerSecurity,
       apiKeyAndBearerSecurity,
     ),
     ...resourcePath(
@@ -397,7 +397,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       'Status',
       'CreateStatusRequest',
       'UpdateStatusRequest',
-      apiKeySecurity,
+      apiKeyAndBearerSecurity,
       apiKeyAndBearerSecurity,
     ),
     ...resourcePath(
@@ -405,7 +405,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       'Category',
       'CreateCategoryRequest',
       'UpdateCategoryRequest',
-      apiKeySecurity,
+      apiKeyAndBearerSecurity,
       apiKeyAndBearerSecurity,
     ),
     ...resourcePath(
@@ -413,7 +413,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       'Severity',
       'CreateSeverityRequest',
       'UpdateSeverityRequest',
-      apiKeySecurity,
+      apiKeyAndBearerSecurity,
       apiKeyAndBearerSecurity,
     ),
     '/incidents': {
@@ -552,11 +552,12 @@ export const openApiDocument: OpenAPIV3.Document = {
       get: {
         tags: ['Assignment'],
         summary: 'List assignments',
-        security: apiKeySecurity,
+        security: apiKeyAndBearerSecurity,
         parameters: paginationParameters,
         responses: {
           '200': listResponse('Assignment'),
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
         },
       },
       post: {
@@ -587,11 +588,12 @@ export const openApiDocument: OpenAPIV3.Document = {
       get: {
         tags: ['Assignment'],
         summary: 'Get assignment by id',
-        security: apiKeySecurity,
+        security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
           '200': jsonResponse({ $ref: '#/components/schemas/Assignment' }, 'Assignment found.'),
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
           '404': jsonResponse(
             { $ref: '#/components/schemas/ErrorResponse' },
             'Assignment not found.',
@@ -799,7 +801,9 @@ export const openApiDocument: OpenAPIV3.Document = {
       get: {
         tags: ['Auth'],
         summary: 'Return the authenticated user',
-        security: apiKeyAndBearerSecurity,
+        description:
+          'Returns the authenticated user for a valid JWT. Auth routes bypass API key enforcement.',
+        security: [{ BearerAuth: [] }],
         responses: {
           '200': jsonResponse({ $ref: '#/components/schemas/AuthUser' }, 'Authenticated user.'),
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),

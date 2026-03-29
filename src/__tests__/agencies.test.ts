@@ -4,24 +4,37 @@ import { getAdminToken, getTokenForRole } from './helpers/auth.js';
 
 const BASE = `${API_V1}/agencies`;
 let adminToken = '';
+let dispatcherToken = '';
 
 beforeAll(async () => {
   adminToken = await getAdminToken();
+  dispatcherToken = await getTokenForRole('dispatcher@xypes.local');
 });
 
 describe(`GET ${BASE}`, () => {
   it('should return 200 with array', async () => {
-    const res = await request(app).get(BASE);
+    const res = await request(app).get(BASE).set('Authorization', `Bearer ${dispatcherToken}`);
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
   });
 
   it('should include contactNumber field in response', async () => {
-    const res = await request(app).get(BASE);
+    const res = await request(app).get(BASE).set('Authorization', `Bearer ${dispatcherToken}`);
     expect(res.status).toBe(200);
     if (res.body.length > 0) {
       expect(res.body[0]).toHaveProperty('contactNumber');
     }
+  });
+
+  it('should return 401 without auth token', async () => {
+    const res = await request(app).get(BASE);
+    expect(res.status).toBe(401);
+  });
+
+  it('should return 403 for VIEWER role', async () => {
+    const viewerToken = await getTokenForRole('analyst@xypes.local');
+    const res = await request(app).get(BASE).set('Authorization', `Bearer ${viewerToken}`);
+    expect(res.status).toBe(403);
   });
 });
 
@@ -38,13 +51,17 @@ describe(`GET ${BASE}/:id`, () => {
   });
 
   it('should return 200 for valid id', async () => {
-    const res = await request(app).get(`${BASE}/${createdId}`);
+    const res = await request(app)
+      .get(`${BASE}/${createdId}`)
+      .set('Authorization', `Bearer ${dispatcherToken}`);
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('id', createdId);
   });
 
   it('should include contactNumber field', async () => {
-    const res = await request(app).get(`${BASE}/${createdId}`);
+    const res = await request(app)
+      .get(`${BASE}/${createdId}`)
+      .set('Authorization', `Bearer ${dispatcherToken}`);
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('contactNumber');
   });
@@ -52,7 +69,9 @@ describe(`GET ${BASE}/:id`, () => {
   it('should return 404 for unknown id', async () => {
     // Use a random UUID
     const unknownId = '11111111-1111-4111-8111-111111111111';
-    const res = await request(app).get(`${BASE}/${unknownId}`);
+    const res = await request(app)
+      .get(`${BASE}/${unknownId}`)
+      .set('Authorization', `Bearer ${dispatcherToken}`);
     expect(res.status).toBe(404);
   });
 });
@@ -162,7 +181,9 @@ describe(`POST ${BASE} (auth)`, () => {
 
 describe(`GET ${BASE} (pagination)`, () => {
   it('should return paginated result when page and pageSize are provided', async () => {
-    const res = await request(app).get(`${BASE}?page=1&pageSize=2`);
+    const res = await request(app)
+      .get(`${BASE}?page=1&pageSize=2`)
+      .set('Authorization', `Bearer ${dispatcherToken}`);
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.data)).toBe(true);
     expect(res.body.pagination).toMatchObject({ page: 1, pageSize: 2 });
