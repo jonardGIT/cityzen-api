@@ -7,6 +7,18 @@ jest.setTimeout(20000);
 const BASE = `${API_V1}/assignments`;
 let adminToken = '';
 
+function buildIncidentLocationSnapshot() {
+  return {
+    latitude: 14.5995,
+    longitude: 120.9842,
+    addressLine1: '123 Rizal Ave',
+    cityName: 'Manila',
+    provinceName: 'Metro Manila',
+    regionName: 'NCR',
+    barangay: 'Barangay 123',
+  };
+}
+
 beforeAll(async () => {
   adminToken = await getAdminToken();
 });
@@ -37,18 +49,13 @@ describe(`GET ${BASE}/:id`, () => {
 
     const citizenRes = await request(app)
       .post(`${API_V1}/citizens`)
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({
         name: `TestCitizen-${Date.now()}`,
         contactInfo: `test${Date.now()}@mail.com`,
         preferredChannel: 'app',
       });
     const citizenId = citizenRes.body.id;
-
-    const locationRes = await request(app)
-      .post(`${API_V1}/locations`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ district: 'Test', city: 'Test', province: 'Test', region: 'Test' });
-    const locationId = locationRes.body.id;
 
     const categoryRes = await request(app)
       .post(`${API_V1}/categories`)
@@ -69,9 +76,9 @@ describe(`GET ${BASE}/:id`, () => {
         description: 'Test assignment incident',
         statusId,
         citizenId,
-        locationId,
         categoryId,
         severityId,
+        ...buildIncidentLocationSnapshot(),
       });
     incidentId = incidentRes.body.id;
 

@@ -1,7 +1,13 @@
 // Handles CRUD operations for emergency responders.
 import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
-import { buildPaginatedResponse, getPaginationQuery, getParamId, getTimestampQuery } from '../utils/request.js';
+import {
+  buildPaginatedResponse,
+  getListQuery,
+  getPaginationQuery,
+  getParamId,
+} from '../utils/request.js';
+import { respondersListQueryConfig } from '../utils/listQueryConfig.js';
 import type { Responder } from '../types/models.js';
 
 const responderInclude = {
@@ -11,17 +17,21 @@ const responderInclude = {
 // Returns all responders from the database.
 export async function getResponders(req: Request, res: Response): Promise<void> {
   const pagination = getPaginationQuery(req);
-  const timestampQuery = getTimestampQuery(req);
+  const listQuery = getListQuery(req, res, respondersListQueryConfig);
+  if (!listQuery) {
+    return;
+  }
+
   if (pagination.enabled) {
     const [responders, total] = await Promise.all([
       prisma.responder.findMany({
         include: responderInclude,
-        where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined,
-        orderBy: timestampQuery.orderBy as any,
+        where: listQuery.where as any,
+        orderBy: listQuery.orderBy as any,
         skip: pagination.skip,
         take: pagination.take,
       }),
-      prisma.responder.count({ where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined }),
+      prisma.responder.count({ where: listQuery.where as any }),
     ]);
     res.json(buildPaginatedResponse(responders, total, pagination));
     return;
@@ -29,8 +39,8 @@ export async function getResponders(req: Request, res: Response): Promise<void> 
 
   const responders = await prisma.responder.findMany({
     include: responderInclude,
-    where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined,
-    orderBy: timestampQuery.orderBy as any,
+    where: listQuery.where as any,
+    orderBy: listQuery.orderBy as any,
   });
   res.json(responders);
 }
@@ -59,7 +69,6 @@ export async function getResponderById(req: Request, res: Response): Promise<voi
 // Creates a new responder record. Requires name, agencyId, role, and contactInfo.
 export async function createResponder(req: Request, res: Response): Promise<void> {
   const { name, agencyId, role, contactInfo } = req.body as Partial<Responder>;
-
 
   if (!name || !agencyId || !role || !contactInfo) {
     res.status(422).json({ message: 'name, agencyId, role, and contactInfo are required' });

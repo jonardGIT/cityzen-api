@@ -10,7 +10,6 @@ import respondersRouter from './routes/responders.js';
 import statusesRouter from './routes/statuses.js';
 import categoriesRouter from './routes/categories.js';
 import severitiesRouter from './routes/severities.js';
-import locationsRouter from './routes/locations.js';
 import incidentsRouter from './routes/incidents.js';
 import assignmentsRouter from './routes/assignments.js';
 import usersRouter from './routes/users.js';
@@ -22,19 +21,54 @@ import { createRateLimitMiddleware } from './middleware/rateLimit.js';
 import { notFoundHandler } from './middleware/notFound.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
-// Use dedicated env files per runtime mode (dev/prod).
-const envFile = process.env.NODE_ENV === 'production' ? '.env' : '.env.development';
+function parseBooleanEnv(value: string | undefined, fallback: boolean): boolean {
+  if (!value) {
+    return fallback;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'true') {
+    return true;
+  }
+
+  if (normalized === 'false') {
+    return false;
+  }
+
+  return fallback;
+}
+
+function requireEnv(name: string): string {
+  const value = process.env[name]?.trim();
+  if (!value) {
+    throw new Error(`${name} must be configured`);
+  }
+
+  return value;
+}
+
+// Use dedicated env files per runtime mode so test runs are isolated from local dev settings.
+const envFile =
+  process.env.NODE_ENV === 'production'
+    ? '.env'
+    : process.env.NODE_ENV === 'test'
+      ? '.env.test'
+      : '.env.development';
 dotenv.config({ path: envFile });
 
 const app = express();
 export const API_V1 = process.env.API_BASE_PATH ?? '/api/v1';
 const isProduction = process.env.NODE_ENV === 'production';
-const publicApiPaths = ['/health', '/openapi.json', '/docs', '/auth', '/admin'];
+const apiKeyBypassPaths = ['/health', '/openapi.json', '/docs', '/auth'];
+const rateLimitBypassPaths = ['/health', '/openapi.json', '/docs'];
 const corsOriginConfig = process.env.CORS_ORIGIN ?? '*';
 const allowedCorsOrigins = corsOriginConfig
   .split(',')
   .map((origin) => origin.trim())
   .filter((origin) => origin.length > 0);
+
+requireEnv('JWT_SECRET');
+app.set('trust proxy', parseBooleanEnv(process.env.TRUST_PROXY, false));
 
 if (!isProduction) {
   app.disable('etag');
@@ -60,7 +94,7 @@ app.use(
 
       callback(new Error('Not allowed by CORS'));
     },
-  })
+  }),
 );
 // Log incoming HTTP requests in development-friendly format.
 app.use(morgan(isProduction ? 'combined' : 'dev'));
@@ -73,9 +107,9 @@ app.get(`${API_V1}/health`, (_req, res) => {
 });
 
 // Enforce per-client request limits for versioned API routes.
-app.use(API_V1, createRateLimitMiddleware(publicApiPaths));
+app.use(API_V1, createRateLimitMiddleware(rateLimitBypassPaths));
 // Require valid API keys on protected versioned API routes.
-app.use(API_V1, createApiKeyAuthMiddleware(publicApiPaths));
+app.use(API_V1, createApiKeyAuthMiddleware(apiKeyBypassPaths));
 
 if (!isProduction) {
   app.get(`${API_V1}/openapi.json`, (_req, res) => {
@@ -98,8 +132,6 @@ app.use(`${API_V1}/statuses`, statusesRouter);
 app.use(`${API_V1}/categories`, categoriesRouter);
 // Mount severities resource routes.
 app.use(`${API_V1}/severities`, severitiesRouter);
-// Mount locations resource routes.
-app.use(`${API_V1}/locations`, locationsRouter);
 // Mount incidents resource routes.
 app.use(`${API_V1}/incidents`, incidentsRouter);
 // Mount assignments resource routes.

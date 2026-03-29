@@ -1,30 +1,40 @@
 // Handles CRUD operations for responder assignments to incidents.
 import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
-import { buildPaginatedResponse, getPaginationQuery, getParamId, getTimestampQuery } from '../utils/request.js';
+import {
+  buildPaginatedResponse,
+  getListQuery,
+  getPaginationQuery,
+  getParamId,
+} from '../utils/request.js';
+import { assignmentsListQueryConfig } from '../utils/listQueryConfig.js';
 import type { Assignment } from '../types/models.js';
 
 // Returns all assignments from the database.
 export async function getAssignments(req: Request, res: Response): Promise<void> {
   const pagination = getPaginationQuery(req);
-  const timestampQuery = getTimestampQuery(req);
+  const listQuery = getListQuery(req, res, assignmentsListQueryConfig);
+  if (!listQuery) {
+    return;
+  }
+
   if (pagination.enabled) {
     const [assignments, total] = await Promise.all([
       prisma.assignment.findMany({
-        where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined,
-        orderBy: timestampQuery.orderBy as any,
+        where: listQuery.where as any,
+        orderBy: listQuery.orderBy as any,
         skip: pagination.skip,
         take: pagination.take,
       }),
-      prisma.assignment.count({ where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined }),
+      prisma.assignment.count({ where: listQuery.where as any }),
     ]);
     res.json(buildPaginatedResponse(assignments, total, pagination));
     return;
   }
 
   const assignments = await prisma.assignment.findMany({
-    where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined,
-    orderBy: timestampQuery.orderBy as any,
+    where: listQuery.where as any,
+    orderBy: listQuery.orderBy as any,
   });
   res.json(assignments);
 }
@@ -51,16 +61,8 @@ export async function getAssignmentById(req: Request, res: Response): Promise<vo
 // Creates a new assignment linking a responder to an incident.
 // Validates that both the incident and responder exist before persisting.
 export async function createAssignment(req: Request, res: Response): Promise<void> {
-  const {
-    incidentId,
-    responderId,
-    assignedDate,
-    responseStart,
-    responseEnd,
-    outcome,
-    notes,
-  } = req.body as Partial<Assignment>;
-
+  const { incidentId, responderId, assignedDate, responseStart, responseEnd, outcome, notes } =
+    req.body as Partial<Assignment>;
 
   if (!incidentId || !responderId) {
     res.status(422).json({ message: 'incidentId and responderId are required' });
@@ -109,15 +111,8 @@ export async function updateAssignment(req: Request, res: Response): Promise<voi
     return;
   }
 
-  const {
-    incidentId,
-    responderId,
-    assignedDate,
-    responseStart,
-    responseEnd,
-    outcome,
-    notes,
-  } = req.body as Partial<Assignment>;
+  const { incidentId, responderId, assignedDate, responseStart, responseEnd, outcome, notes } =
+    req.body as Partial<Assignment>;
 
   const existingAssignment = await prisma.assignment.findUnique({ where: { id } });
   if (!existingAssignment) {
@@ -125,11 +120,17 @@ export async function updateAssignment(req: Request, res: Response): Promise<voi
     return;
   }
 
-  if (incidentId !== undefined && !(await prisma.citizenIncident.findUnique({ where: { id: incidentId } }))) {
+  if (
+    incidentId !== undefined &&
+    !(await prisma.citizenIncident.findUnique({ where: { id: incidentId } }))
+  ) {
     res.status(422).json({ message: 'incidentId does not reference a valid CitizenIncident' });
     return;
   }
-  if (responderId !== undefined && !(await prisma.responder.findUnique({ where: { id: responderId } }))) {
+  if (
+    responderId !== undefined &&
+    !(await prisma.responder.findUnique({ where: { id: responderId } }))
+  ) {
     res.status(422).json({ message: 'responderId does not reference a valid Responder' });
     return;
   }

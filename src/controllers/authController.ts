@@ -6,7 +6,22 @@ import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
 import { USER_ROLES } from '../types/auth.js';
 
 function getJwtSecret(): string {
-  return process.env.JWT_SECRET ?? 'dev-only-secret-change-me';
+  const secret = process.env.JWT_SECRET?.trim();
+  if (!secret) {
+    throw new Error('JWT_SECRET must be configured');
+  }
+
+  return secret;
+}
+
+function isStrongPassword(password: string): boolean {
+  return (
+    password.length >= 12 &&
+    /[a-z]/.test(password) &&
+    /[A-Z]/.test(password) &&
+    /\d/.test(password) &&
+    /[^A-Za-z0-9]/.test(password)
+  );
 }
 
 // Registers a new user (public endpoint for self-registration).
@@ -19,6 +34,14 @@ export async function register(req: Request, res: Response): Promise<void> {
 
   if (!name || !email || !password) {
     res.status(422).json({ message: 'name, email, and password are required' });
+    return;
+  }
+
+  if (!isStrongPassword(password)) {
+    res.status(422).json({
+      message:
+        'password must be at least 12 characters and include uppercase, lowercase, number, and special character',
+    });
     return;
   }
 

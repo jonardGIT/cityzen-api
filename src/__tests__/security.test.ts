@@ -19,7 +19,7 @@ describe('API key authentication', () => {
   it('returns 401 for protected route without API key', async () => {
     const { default: app, API_V1 } = await import('../app.js');
 
-    const response = await request(app).get(`${API_V1}/citizens`);
+    const response = await request(app).get(`${API_V1}/statuses`);
 
     expect(response.status).toBe(401);
     expect(response.body).toHaveProperty('message');
@@ -28,7 +28,7 @@ describe('API key authentication', () => {
   it('allows access to protected route with valid API key', async () => {
     const { default: app, API_V1 } = await import('../app.js');
 
-    const response = await request(app).get(`${API_V1}/citizens`).set('x-api-key', 'test-key');
+    const response = await request(app).get(`${API_V1}/statuses`).set('x-api-key', 'test-key');
 
     expect(response.status).toBe(200);
     expect(Array.isArray(response.body)).toBe(true);
@@ -64,12 +64,21 @@ describe('Rate limiting', () => {
   it('returns 429 after exceeding configured request limit', async () => {
     const { default: app, API_V1 } = await import('../app.js');
 
-    const first = await request(app).get(`${API_V1}/citizens`);
-    const second = await request(app).get(`${API_V1}/citizens`);
-    const third = await request(app).get(`${API_V1}/citizens`);
+    const first = await request(app).post(`${API_V1}/auth/login`).send({
+      email: 'admin@xypes.local',
+      password: 'WrongPassword!',
+    });
+    const second = await request(app).post(`${API_V1}/auth/login`).send({
+      email: 'admin@xypes.local',
+      password: 'WrongPassword!',
+    });
+    const third = await request(app).post(`${API_V1}/auth/login`).send({
+      email: 'admin@xypes.local',
+      password: 'WrongPassword!',
+    });
 
-    expect(first.status).toBe(200);
-    expect(second.status).toBe(200);
+    expect(first.status).toBe(401);
+    expect(second.status).toBe(401);
     expect(third.status).toBe(429);
     expect(third.body).toHaveProperty('message');
     expect(third.headers['retry-after']).toBeDefined();

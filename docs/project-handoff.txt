@@ -7,7 +7,7 @@ This is a TypeScript + Express REST API for a Citizen Incident Reporting System 
 
 Current capabilities:
 - Resource operations include GET list, GET by id, and POST create
-- Resources: citizens, responders, statuses, categories, severities, locations, incidents, assignments, users
+- Resources: citizens, responders, statuses, categories, severities, incidents, assignments, users
 - Input validation with express-validator
 - Centralized error handling and 404 handling
 - Swagger/OpenAPI docs in non-production
@@ -61,7 +61,7 @@ Integration context:
 - Backend service: Xypes CIRS API
 - API style: REST
 - Base path: /api/v1
-- Main resources: citizens, responders, statuses, categories, severities, locations, incidents, assignments, users
+- Main resources: citizens, responders, statuses, categories, severities, incidents, assignments, users
 
 Important API behavior:
 - Protected routes require x-api-key when API_KEYS or API_KEY is configured on the backend
@@ -99,13 +99,12 @@ This dashboard consumes the Xypes CIRS API.
 Backend overview:
 - TypeScript + Express REST API
 - Base path: /api/v1
-- Resources:
+Resources:
   - citizens
   - responders
   - statuses
   - categories
   - severities
-  - locations
   - incidents
   - assignments
   - users
@@ -143,3 +142,23 @@ Recommended future alignment:
 - Add role/scope awareness once backend RBAC is implemented
 - Introduce JWT + refresh token strategy for human clients
 - Add CI pipeline for lint/build/test and optional deploy steps
+
+Section 4: List Query Contract Follow-up
+
+Backend follow-up if new fields are requested:
+- Add the field to the backend whitelist for that resource as sortable and/or filterable.
+- Ensure backend query validation keeps returning HTTP 422 with field paths in the current shape:
+  - filters[i].field
+  - filters[i].operator
+  - filters[i].value
+  - sortBy
+  - sortOrder
+- Keep these paths stable because dashboard controls map validation errors directly to those keys.
+
+Operator expansion rule:
+- If backend adds an operator beyond the current set, update the frontend operator map in CrudTable.tsx so users can select and send it.
+
+Incident location contract:
+- Incident create/update/report now use incident-owned coordinate/address snapshot fields.
+- `locationId` and the standalone `locations` resource are removed from the backend contract.
+- Reverse geocoding, if used, is currently a client-side responsibility; backend validates and persists the submitted snapshot.

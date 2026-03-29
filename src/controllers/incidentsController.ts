@@ -1,9 +1,31 @@
 // Handles CRUD operations for citizen-reported incidents.
 import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
-import { buildPaginatedResponse, getPaginationQuery, getParamId, getTimestampQuery } from '../utils/request.js';
+import {
+  buildPaginatedResponse,
+  getListQuery,
+  getPaginationQuery,
+  getParamId,
+} from '../utils/request.js';
+import { incidentsListQueryConfig } from '../utils/listQueryConfig.js';
 import type { CitizenIncident } from '../types/models.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
+
+function buildIncidentLocationSnapshot(input: Partial<CitizenIncident>) {
+  return {
+    latitude: input.latitude,
+    longitude: input.longitude,
+    addressLine1: input.addressLine1,
+    addressLine2: input.addressLine2,
+    barangay: input.barangay,
+    districtName: input.districtName,
+    cityName: input.cityName,
+    provinceName: input.provinceName,
+    regionName: input.regionName,
+    postalCode: input.postalCode,
+    landmark: input.landmark,
+  };
+}
 
 async function getLinkedCitizenIdByAuthEmail(email: string): Promise<string | null> {
   const citizen = await prisma.citizen.findFirst({
@@ -22,24 +44,31 @@ export async function getIncidents(req: Request, res: Response): Promise<void> {
   }
 
   const pagination = getPaginationQuery(req);
-  const timestampQuery = getTimestampQuery(req);
+  const listQuery = getListQuery(req, res, incidentsListQueryConfig);
+  if (!listQuery) {
+    return;
+  }
 
-  let where: { citizenId?: string } = {};
+  let where = (listQuery.where ?? {}) as Record<string, unknown>;
 
   let incidents;
   if (authUser.role === 'VIEWER') {
     const citizenId = await getLinkedCitizenIdByAuthEmail(authUser.email);
     if (!citizenId) {
       res.status(422).json({
-        message: 'No citizen profile is linked to this account email. Create a citizen profile first.',
+        message:
+          'No citizen profile is linked to this account email. Create a citizen profile first.',
       });
       return;
     }
 
-    where = { citizenId };
+    const scopedWhereClauses =
+      where.AND && Array.isArray(where.AND)
+        ? [...(where.AND as Record<string, unknown>[]), { citizenId }]
+        : [{ citizenId }];
+
     where = {
-      ...timestampQuery.where,
-      citizenId,
+      AND: scopedWhereClauses,
     };
   }
 
@@ -47,7 +76,7 @@ export async function getIncidents(req: Request, res: Response): Promise<void> {
     const [paginatedIncidents, total] = await Promise.all([
       prisma.citizenIncident.findMany({
         where,
-        orderBy: timestampQuery.orderBy as any,
+        orderBy: listQuery.orderBy as any,
         skip: pagination.skip,
         take: pagination.take,
       }),
@@ -59,7 +88,7 @@ export async function getIncidents(req: Request, res: Response): Promise<void> {
 
   incidents = await prisma.citizenIncident.findMany({
     where,
-    orderBy: timestampQuery.orderBy as any,
+    orderBy: listQuery.orderBy as any,
   });
 
   res.json(incidents);
@@ -91,7 +120,8 @@ export async function getIncidentById(req: Request, res: Response): Promise<void
     const citizenId = await getLinkedCitizenIdByAuthEmail(authUser.email);
     if (!citizenId) {
       res.status(422).json({
-        message: 'No citizen profile is linked to this account email. Create a citizen profile first.',
+        message:
+          'No citizen profile is linked to this account email. Create a citizen profile first.',
       });
       return;
     }
@@ -105,23 +135,32 @@ export async function getIncidentById(req: Request, res: Response): Promise<void
   res.json(incident);
 }
 
-// Creates a new incident. Validates all FK references (status, citizen, location,
-// category, severity) before persisting to the database.
+// Creates a new incident. Validates all FK references before persisting to the database.
 export async function createIncident(req: Request, res: Response): Promise<void> {
   const {
     description,
     mediaUrl,
     dateReported,
+    latitude,
+    longitude,
+    addressLine1,
+    addressLine2,
+    barangay,
+    districtName,
+    cityName,
+    provinceName,
+    regionName,
+    postalCode,
+    landmark,
     statusId,
     citizenId,
-    locationId,
     categoryId,
     severityId,
   } = req.body as Partial<CitizenIncident>;
 
-  if (!description || !statusId || !citizenId || !locationId || !categoryId || !severityId) {
+  if (!description || !statusId || !citizenId || !categoryId || !severityId) {
     res.status(400).json({
-      message: 'description, statusId, citizenId, locationId, categoryId, and severityId are required',
+      message: 'description, statusId, citizenId, categoryId, and severityId are required',
     });
     return;
   }
@@ -134,10 +173,6 @@ export async function createIncident(req: Request, res: Response): Promise<void>
       res.status(400).json({ message: 'citizenId does not reference a valid Citizen' });
       return;
     }
-    if (!(await prisma.location.findUnique({ where: { id: locationId } }))) {
-      res.status(400).json({ message: 'locationId does not reference a valid Location' });
-      return;
-    }
     if (!(await prisma.category.findUnique({ where: { id: categoryId } }))) {
       res.status(400).json({ message: 'categoryId does not reference a valid Category' });
       return;
@@ -151,16 +186,30 @@ export async function createIncident(req: Request, res: Response): Promise<void>
         description,
         mediaUrl,
         dateReported: dateReported ? new Date(dateReported) : new Date(),
+        ...buildIncidentLocationSnapshot({
+          latitude,
+          longitude,
+          addressLine1,
+          addressLine2,
+          barangay,
+          districtName,
+          cityName,
+          provinceName,
+          regionName,
+          postalCode,
+          landmark,
+        }),
         statusId,
         citizenId,
-        locationId,
         categoryId,
         severityId,
       },
     });
     res.status(201).json(incident);
   } catch (err) {
-    res.status(400).json({ message: 'Invalid input or foreign key reference', error: (err as Error)?.message });
+    res
+      .status(400)
+      .json({ message: 'Invalid input or foreign key reference', error: (err as Error)?.message });
   }
 }
 
@@ -172,11 +221,28 @@ export async function createCitizenIncidentReport(req: Request, res: Response): 
     return;
   }
 
-  const { description, mediaUrl, dateReported, locationId, categoryId, severityId } = req.body as Partial<CitizenIncident>;
+  const {
+    description,
+    mediaUrl,
+    dateReported,
+    latitude,
+    longitude,
+    addressLine1,
+    addressLine2,
+    barangay,
+    districtName,
+    cityName,
+    provinceName,
+    regionName,
+    postalCode,
+    landmark,
+    categoryId,
+    severityId,
+  } = req.body as Partial<CitizenIncident>;
 
-  if (!description || !locationId || !categoryId || !severityId) {
+  if (!description || !categoryId || !severityId) {
     res.status(400).json({
-      message: 'description, locationId, categoryId, and severityId are required',
+      message: 'description, categoryId, and severityId are required',
     });
     return;
   }
@@ -184,20 +250,19 @@ export async function createCitizenIncidentReport(req: Request, res: Response): 
     const citizenId = await getLinkedCitizenIdByAuthEmail(authUser.email);
     if (!citizenId) {
       res.status(422).json({
-        message: 'No citizen profile is linked to this account email. Create a citizen profile first.',
+        message:
+          'No citizen profile is linked to this account email. Create a citizen profile first.',
       });
       return;
     }
     const reportedStatus = await prisma.status.findFirst({ where: { name: 'Reported' } });
     if (!reportedStatus) {
-      res.status(500).json({ message: 'Default status "Reported" not found. Contact an administrator.' });
+      res
+        .status(500)
+        .json({ message: 'Default status "Reported" not found. Contact an administrator.' });
       return;
     }
     const statusId = reportedStatus.id;
-    if (!(await prisma.location.findUnique({ where: { id: locationId } }))) {
-      res.status(400).json({ message: 'locationId does not reference a valid Location' });
-      return;
-    }
     if (!(await prisma.category.findUnique({ where: { id: categoryId } }))) {
       res.status(400).json({ message: 'categoryId does not reference a valid Category' });
       return;
@@ -211,9 +276,21 @@ export async function createCitizenIncidentReport(req: Request, res: Response): 
         description,
         mediaUrl,
         dateReported: dateReported ? new Date(dateReported) : new Date(),
+        ...buildIncidentLocationSnapshot({
+          latitude,
+          longitude,
+          addressLine1,
+          addressLine2,
+          barangay,
+          districtName,
+          cityName,
+          provinceName,
+          regionName,
+          postalCode,
+          landmark,
+        }),
         statusId,
         citizenId,
-        locationId,
         categoryId,
         severityId,
       },
@@ -243,9 +320,19 @@ export async function updateIncident(req: Request, res: Response): Promise<void>
     description,
     mediaUrl,
     dateReported,
+    latitude,
+    longitude,
+    addressLine1,
+    addressLine2,
+    barangay,
+    districtName,
+    cityName,
+    provinceName,
+    regionName,
+    postalCode,
+    landmark,
     statusId,
     citizenId,
-    locationId,
     categoryId,
     severityId,
   } = req.body as Partial<CitizenIncident>;
@@ -264,15 +351,17 @@ export async function updateIncident(req: Request, res: Response): Promise<void>
     res.status(400).json({ message: 'citizenId does not reference a valid Citizen' });
     return;
   }
-  if (locationId !== undefined && !(await prisma.location.findUnique({ where: { id: locationId } }))) {
-    res.status(400).json({ message: 'locationId does not reference a valid Location' });
-    return;
-  }
-  if (categoryId !== undefined && !(await prisma.category.findUnique({ where: { id: categoryId } }))) {
+  if (
+    categoryId !== undefined &&
+    !(await prisma.category.findUnique({ where: { id: categoryId } }))
+  ) {
     res.status(400).json({ message: 'categoryId does not reference a valid Category' });
     return;
   }
-  if (severityId !== undefined && !(await prisma.severity.findUnique({ where: { id: severityId } }))) {
+  if (
+    severityId !== undefined &&
+    !(await prisma.severity.findUnique({ where: { id: severityId } }))
+  ) {
     res.status(400).json({ message: 'severityId does not reference a valid Severity' });
     return;
   }
@@ -283,9 +372,21 @@ export async function updateIncident(req: Request, res: Response): Promise<void>
       description,
       mediaUrl,
       dateReported: dateReported ? new Date(dateReported) : undefined,
+      ...buildIncidentLocationSnapshot({
+        latitude,
+        longitude,
+        addressLine1,
+        addressLine2,
+        barangay,
+        districtName,
+        cityName,
+        provinceName,
+        regionName,
+        postalCode,
+        landmark,
+      }),
       statusId,
       citizenId,
-      locationId,
       categoryId,
       severityId,
     },

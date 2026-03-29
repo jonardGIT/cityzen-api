@@ -10,7 +10,6 @@ DROP TABLE IF EXISTS citizens CASCADE;
 DROP TABLE IF EXISTS statuses CASCADE;
 DROP TABLE IF EXISTS categories CASCADE;
 DROP TABLE IF EXISTS severities CASCADE;
-DROP TABLE IF EXISTS locations CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS "User" CASCADE;
 
@@ -77,16 +76,6 @@ CREATE TABLE severities (
   definition text
 );
 
-CREATE TABLE locations (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  "createdAt" timestamptz NOT NULL DEFAULT NOW(),
-  "updatedAt" timestamptz NOT NULL DEFAULT NOW(),
-  district text NOT NULL,
-  city text NOT NULL,
-  province text NOT NULL,
-  region text NOT NULL
-);
-
 CREATE TABLE incidents (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "createdAt" timestamptz NOT NULL DEFAULT NOW(),
@@ -94,9 +83,19 @@ CREATE TABLE incidents (
   description text NOT NULL,
   "mediaUrl" text,
   "dateReported" timestamptz NOT NULL DEFAULT NOW(),
+  latitude numeric(10, 7),
+  longitude numeric(10, 7),
+  "addressLine1" text,
+  "addressLine2" text,
+  barangay text,
+  "districtName" text,
+  "cityName" text,
+  "provinceName" text,
+  "regionName" text,
+  "postalCode" text,
+  landmark text,
   "statusId" uuid NOT NULL REFERENCES statuses(id),
   "citizenId" uuid NOT NULL REFERENCES citizens(id),
-  "locationId" uuid NOT NULL REFERENCES locations(id),
   "categoryId" uuid NOT NULL REFERENCES categories(id),
   "severityId" uuid NOT NULL REFERENCES severities(id)
 );
@@ -116,7 +115,6 @@ CREATE TABLE assignments (
 
 CREATE INDEX incidents_status_id_idx ON incidents ("statusId");
 CREATE INDEX incidents_citizen_id_idx ON incidents ("citizenId");
-CREATE INDEX incidents_location_id_idx ON incidents ("locationId");
 CREATE INDEX incidents_category_id_idx ON incidents ("categoryId");
 CREATE INDEX incidents_severity_id_idx ON incidents ("severityId");
 CREATE INDEX responders_agency_id_idx ON responders ("agencyId");
@@ -165,11 +163,6 @@ EXECUTE FUNCTION set_updated_at();
 
 CREATE TRIGGER set_severities_updated_at
 BEFORE UPDATE ON severities
-FOR EACH ROW
-EXECUTE FUNCTION set_updated_at();
-
-CREATE TRIGGER set_locations_updated_at
-BEFORE UPDATE ON locations
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 

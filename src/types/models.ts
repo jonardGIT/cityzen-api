@@ -3,9 +3,19 @@ export interface CitizenIncident {
   description: string;
   mediaUrl?: string;
   dateReported: Date;
+  latitude?: number;
+  longitude?: number;
+  addressLine1?: string;
+  addressLine2?: string;
+  barangay?: string;
+  districtName?: string;
+  cityName?: string;
+  provinceName?: string;
+  regionName?: string;
+  postalCode?: string;
+  landmark?: string;
   statusId: string;
   citizenId: string;
-  locationId: string;
   categoryId: string;
   severityId: string;
 }
@@ -58,12 +68,4 @@ export interface Severity {
   id: string;
   level: string;
   definition?: string;
-}
-
-export interface Location {
-  id: string;
-  district: string;
-  city: string;
-  province: string;
-  region: string;
 }

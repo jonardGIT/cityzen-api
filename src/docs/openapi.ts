@@ -24,11 +24,18 @@ const paginationParameters: OpenAPIV3.ParameterObject[] = [
     schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
   },
   {
+    name: 'search',
+    in: 'query',
+    required: false,
+    description: 'Free-text search over resource-specific searchable fields.',
+    schema: { type: 'string' },
+  },
+  {
     name: 'sortBy',
     in: 'query',
     required: false,
-    description: 'Timestamp field used for sorting.',
-    schema: { type: 'string', enum: ['createdAt', 'updatedAt'], default: 'createdAt' },
+    description: 'Sortable field name for the resource. Unsupported fields return 422.',
+    schema: { type: 'string', default: 'createdAt' },
   },
   {
     name: 'sortOrder',
@@ -36,6 +43,14 @@ const paginationParameters: OpenAPIV3.ParameterObject[] = [
     required: false,
     description: 'Sort direction.',
     schema: { type: 'string', enum: ['asc', 'desc'], default: 'desc' },
+  },
+  {
+    name: 'filters',
+    in: 'query',
+    required: false,
+    description:
+      'JSON string for arbitrary column filters. Example: [{"field":"name","operator":"contains","value":"juan"}]. Operators: equals, contains, in, gt, gte, lt, lte, between.',
+    schema: { type: 'string' },
   },
   {
     name: 'createdFrom',
@@ -92,11 +107,17 @@ function listResponse(schemaName: string): OpenAPIV3.ResponseObject {
   );
 }
 
+const apiKeySecurity: OpenAPIV3.SecurityRequirementObject[] = [{ ApiKeyAuth: [] }];
+const apiKeyAndBearerSecurity: OpenAPIV3.SecurityRequirementObject[] = [
+  { ApiKeyAuth: [], BearerAuth: [] },
+];
+
 function resourcePath(
   pathSegment: string,
   schemaName: string,
   createRequestName: string,
   updateRequestName: string,
+  readSecurity?: OpenAPIV3.SecurityRequirementObject[],
   writeSecurity?: OpenAPIV3.SecurityRequirementObject[],
 ): Record<string, OpenAPIV3.PathItemObject> {
   const pluralPath = `/${pathSegment}`;
@@ -105,9 +126,23 @@ function resourcePath(
       get: {
         tags: [schemaName],
         summary: `List ${schemaName.toLowerCase()}s`,
+        security: readSecurity,
         parameters: paginationParameters,
         responses: {
           '200': listResponse(schemaName),
+          ...(readSecurity
+            ? {
+                '401': jsonResponse(
+                  { $ref: '#/components/schemas/ErrorResponse' },
+                  'Unauthorized.',
+                ),
+                '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+              }
+            : {}),
+          '422': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Invalid list query parameters.',
+          ),
         },
       },
       post: {
@@ -138,12 +173,22 @@ function resourcePath(
       get: {
         tags: [schemaName],
         summary: `Get ${schemaName.toLowerCase()} by id`,
+        security: readSecurity,
         parameters: [idParameter],
         responses: {
           '200': jsonResponse(
             { $ref: `#/components/schemas/${schemaName}` },
             `${schemaName} found.`,
           ),
+          ...(readSecurity
+            ? {
+                '401': jsonResponse(
+                  { $ref: '#/components/schemas/ErrorResponse' },
+                  'Unauthorized.',
+                ),
+                '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+              }
+            : {}),
           '404': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Not found.'),
         },
       },
@@ -206,7 +251,6 @@ export const openApiDocument: OpenAPIV3.Document = {
     { name: 'Status' },
     { name: 'Category' },
     { name: 'Severity' },
-    { name: 'Location' },
     { name: 'Incident' },
     { name: 'Assignment' },
     { name: 'User' },
@@ -242,12 +286,19 @@ export const openApiDocument: OpenAPIV3.Document = {
         },
       },
     },
-    ...resourcePath('citizens', 'Citizen', 'CreateCitizenRequest', 'UpdateCitizenRequest'),
+    ...resourcePath(
+      'citizens',
+      'Citizen',
+      'CreateCitizenRequest',
+      'UpdateCitizenRequest',
+      apiKeyAndBearerSecurity,
+      apiKeyAndBearerSecurity,
+    ),
     '/citizens/link-me': {
       post: {
         tags: ['Citizen'],
         summary: "Create or update the authenticated viewer's citizen profile",
-        security: [{ BearerAuth: [] }],
+        security: apiKeyAndBearerSecurity,
         requestBody: {
           required: true,
           content: {
@@ -260,33 +311,56 @@ export const openApiDocument: OpenAPIV3.Document = {
           '200': jsonResponse({ $ref: '#/components/schemas/Citizen' }, 'Citizen profile updated.'),
           '201': jsonResponse({ $ref: '#/components/schemas/Citizen' }, 'Citizen profile created.'),
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
           '422': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Validation error.'),
         },
       },
     },
-    ...resourcePath('agencies', 'Agency', 'CreateAgencyRequest', 'UpdateAgencyRequest', [
-      { BearerAuth: [] },
-    ]),
-    ...resourcePath('responders', 'Responder', 'CreateResponderRequest', 'UpdateResponderRequest', [
-      { BearerAuth: [] },
-    ]),
-    ...resourcePath('statuses', 'Status', 'CreateStatusRequest', 'UpdateStatusRequest', [
-      { BearerAuth: [] },
-    ]),
-    ...resourcePath('categories', 'Category', 'CreateCategoryRequest', 'UpdateCategoryRequest', [
-      { BearerAuth: [] },
-    ]),
-    ...resourcePath('severities', 'Severity', 'CreateSeverityRequest', 'UpdateSeverityRequest', [
-      { BearerAuth: [] },
-    ]),
-    ...resourcePath('locations', 'Location', 'CreateLocationRequest', 'UpdateLocationRequest', [
-      { BearerAuth: [] },
-    ]),
+    ...resourcePath(
+      'agencies',
+      'Agency',
+      'CreateAgencyRequest',
+      'UpdateAgencyRequest',
+      apiKeySecurity,
+      apiKeyAndBearerSecurity,
+    ),
+    ...resourcePath(
+      'responders',
+      'Responder',
+      'CreateResponderRequest',
+      'UpdateResponderRequest',
+      apiKeySecurity,
+      apiKeyAndBearerSecurity,
+    ),
+    ...resourcePath(
+      'statuses',
+      'Status',
+      'CreateStatusRequest',
+      'UpdateStatusRequest',
+      apiKeySecurity,
+      apiKeyAndBearerSecurity,
+    ),
+    ...resourcePath(
+      'categories',
+      'Category',
+      'CreateCategoryRequest',
+      'UpdateCategoryRequest',
+      apiKeySecurity,
+      apiKeyAndBearerSecurity,
+    ),
+    ...resourcePath(
+      'severities',
+      'Severity',
+      'CreateSeverityRequest',
+      'UpdateSeverityRequest',
+      apiKeySecurity,
+      apiKeyAndBearerSecurity,
+    ),
     '/incidents': {
       get: {
         tags: ['Incident'],
         summary: 'List incidents',
-        security: [{ BearerAuth: [] }],
+        security: apiKeyAndBearerSecurity,
         parameters: paginationParameters,
         responses: {
           '200': listResponse('CitizenIncident'),
@@ -300,7 +374,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       post: {
         tags: ['Incident'],
         summary: 'Create incident',
-        security: [{ BearerAuth: [] }],
+        security: apiKeyAndBearerSecurity,
         requestBody: {
           required: true,
           content: {
@@ -327,7 +401,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       post: {
         tags: ['Incident'],
         summary: 'Create an incident report for the authenticated viewer',
-        security: [{ BearerAuth: [] }],
+        security: apiKeyAndBearerSecurity,
         requestBody: {
           required: true,
           content: {
@@ -357,7 +431,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       get: {
         tags: ['Incident'],
         summary: 'Get incident by id',
-        security: [{ BearerAuth: [] }],
+        security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
           '200': jsonResponse({ $ref: '#/components/schemas/CitizenIncident' }, 'Incident found.'),
@@ -371,7 +445,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       patch: {
         tags: ['Incident'],
         summary: 'Update incident',
-        security: [{ BearerAuth: [] }],
+        security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         requestBody: {
           required: true,
@@ -401,7 +475,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       delete: {
         tags: ['Incident'],
         summary: 'Delete incident',
-        security: [{ BearerAuth: [] }],
+        security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
           '204': { description: 'Incident deleted.' },
@@ -418,15 +492,17 @@ export const openApiDocument: OpenAPIV3.Document = {
       get: {
         tags: ['Assignment'],
         summary: 'List assignments',
+        security: apiKeySecurity,
         parameters: paginationParameters,
         responses: {
           '200': listResponse('Assignment'),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
         },
       },
       post: {
         tags: ['Assignment'],
         summary: 'Create assignment',
-        security: [{ BearerAuth: [] }],
+        security: apiKeyAndBearerSecurity,
         requestBody: {
           required: true,
           content: {
@@ -451,9 +527,11 @@ export const openApiDocument: OpenAPIV3.Document = {
       get: {
         tags: ['Assignment'],
         summary: 'Get assignment by id',
+        security: apiKeySecurity,
         parameters: [idParameter],
         responses: {
           '200': jsonResponse({ $ref: '#/components/schemas/Assignment' }, 'Assignment found.'),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
           '404': jsonResponse(
             { $ref: '#/components/schemas/ErrorResponse' },
             'Assignment not found.',
@@ -463,7 +541,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       patch: {
         tags: ['Assignment'],
         summary: 'Update assignment',
-        security: [{ BearerAuth: [] }],
+        security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         requestBody: {
           required: true,
@@ -490,7 +568,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       delete: {
         tags: ['Assignment'],
         summary: 'Delete assignment',
-        security: [{ BearerAuth: [] }],
+        security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
           '204': { description: 'Assignment deleted.' },
@@ -507,7 +585,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       get: {
         tags: ['User'],
         summary: 'Get user-management capabilities',
-        security: [{ BearerAuth: [] }],
+        security: apiKeyAndBearerSecurity,
         responses: {
           '200': jsonResponse(
             { $ref: '#/components/schemas/UserCapabilities' },
@@ -522,7 +600,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       get: {
         tags: ['User'],
         summary: 'List users',
-        security: [{ BearerAuth: [] }],
+        security: apiKeyAndBearerSecurity,
         parameters: paginationParameters,
         responses: {
           '200': listResponse('UserSummary'),
@@ -533,7 +611,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       post: {
         tags: ['User'],
         summary: 'Create user',
-        security: [{ BearerAuth: [] }],
+        security: apiKeyAndBearerSecurity,
         requestBody: {
           required: true,
           content: {
@@ -558,7 +636,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       get: {
         tags: ['User'],
         summary: 'Get user by id',
-        security: [{ BearerAuth: [] }],
+        security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
           '200': jsonResponse({ $ref: '#/components/schemas/UserSummary' }, 'User found.'),
@@ -570,7 +648,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       patch: {
         tags: ['User'],
         summary: 'Update user',
-        security: [{ BearerAuth: [] }],
+        security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         requestBody: {
           required: true,
@@ -595,7 +673,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       delete: {
         tags: ['User'],
         summary: 'Delete user',
-        security: [{ BearerAuth: [] }],
+        security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
           '204': { description: 'User deleted.' },
@@ -661,7 +739,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       get: {
         tags: ['Auth'],
         summary: 'Return the authenticated user',
-        security: [{ BearerAuth: [] }],
+        security: apiKeyAndBearerSecurity,
         responses: {
           '200': jsonResponse({ $ref: '#/components/schemas/AuthUser' }, 'Authenticated user.'),
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
@@ -673,7 +751,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       get: {
         tags: ['Admin'],
         summary: 'List users for admin dashboard',
-        security: [{ BearerAuth: [] }],
+        security: apiKeyAndBearerSecurity,
         parameters: paginationParameters,
         responses: {
           '200': listResponse('UserSummary'),
@@ -702,6 +780,16 @@ export const openApiDocument: OpenAPIV3.Document = {
         type: 'object',
         properties: {
           message: { type: 'string' },
+          errors: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                field: { type: 'string' },
+                message: { type: 'string' },
+              },
+            },
+          },
         },
         required: ['message'],
       },
@@ -818,19 +906,6 @@ export const openApiDocument: OpenAPIV3.Document = {
         },
         required: ['id', 'createdAt', 'updatedAt', 'level'],
       },
-      Location: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', format: 'uuid' },
-          createdAt: { type: 'string', format: 'date-time' },
-          updatedAt: { type: 'string', format: 'date-time' },
-          district: { type: 'string' },
-          city: { type: 'string' },
-          province: { type: 'string' },
-          region: { type: 'string' },
-        },
-        required: ['id', 'createdAt', 'updatedAt', 'district', 'city', 'province', 'region'],
-      },
       CitizenIncident: {
         type: 'object',
         properties: {
@@ -840,9 +915,19 @@ export const openApiDocument: OpenAPIV3.Document = {
           description: { type: 'string' },
           mediaUrl: { type: 'string', nullable: true },
           dateReported: { type: 'string', format: 'date-time' },
+          latitude: { type: 'number', format: 'double', nullable: true },
+          longitude: { type: 'number', format: 'double', nullable: true },
+          addressLine1: { type: 'string', nullable: true },
+          addressLine2: { type: 'string', nullable: true },
+          barangay: { type: 'string', nullable: true },
+          districtName: { type: 'string', nullable: true },
+          cityName: { type: 'string', nullable: true },
+          provinceName: { type: 'string', nullable: true },
+          regionName: { type: 'string', nullable: true },
+          postalCode: { type: 'string', nullable: true },
+          landmark: { type: 'string', nullable: true },
           statusId: { type: 'string', format: 'uuid' },
           citizenId: { type: 'string', format: 'uuid' },
-          locationId: { type: 'string', format: 'uuid' },
           categoryId: { type: 'string', format: 'uuid' },
           severityId: { type: 'string', format: 'uuid' },
         },
@@ -854,7 +939,6 @@ export const openApiDocument: OpenAPIV3.Document = {
           'dateReported',
           'statusId',
           'citizenId',
-          'locationId',
           'categoryId',
           'severityId',
         ],
@@ -888,7 +972,7 @@ export const openApiDocument: OpenAPIV3.Document = {
         properties: {
           name: { type: 'string' },
           email: { type: 'string', format: 'email' },
-          password: { type: 'string', minLength: 8 },
+          password: { type: 'string', minLength: 12 },
         },
         required: ['name', 'email', 'password'],
       },
@@ -1010,45 +1094,30 @@ export const openApiDocument: OpenAPIV3.Document = {
           definition: { type: 'string', nullable: true },
         },
       },
-      CreateLocationRequest: {
-        type: 'object',
-        properties: {
-          district: { type: 'string' },
-          city: { type: 'string' },
-          province: { type: 'string' },
-          region: { type: 'string' },
-        },
-        required: ['district', 'city', 'province', 'region'],
-      },
-      UpdateLocationRequest: {
-        type: 'object',
-        properties: {
-          district: { type: 'string' },
-          city: { type: 'string' },
-          province: { type: 'string' },
-          region: { type: 'string' },
-        },
-      },
       CreateIncidentRequest: {
         type: 'object',
         properties: {
           description: { type: 'string' },
           mediaUrl: { type: 'string' },
           dateReported: { type: 'string', format: 'date-time' },
+          latitude: { type: 'number', format: 'double' },
+          longitude: { type: 'number', format: 'double' },
+          addressLine1: { type: 'string' },
+          addressLine2: { type: 'string' },
+          barangay: { type: 'string' },
+          districtName: { type: 'string' },
+          cityName: { type: 'string' },
+          provinceName: { type: 'string' },
+          regionName: { type: 'string' },
+          postalCode: { type: 'string' },
+          landmark: { type: 'string' },
           statusId: { type: 'string', format: 'uuid' },
           citizenId: { type: 'string', format: 'uuid' },
-          locationId: { type: 'string', format: 'uuid' },
           categoryId: { type: 'string', format: 'uuid' },
           severityId: { type: 'string', format: 'uuid' },
         },
-        required: [
-          'description',
-          'statusId',
-          'citizenId',
-          'locationId',
-          'categoryId',
-          'severityId',
-        ],
+        required: ['description', 'statusId', 'citizenId', 'categoryId', 'severityId'],
+        description: 'Incident creation requires a full coordinate/address snapshot payload.',
       },
       CreateCitizenIncidentReportRequest: {
         type: 'object',
@@ -1056,11 +1125,23 @@ export const openApiDocument: OpenAPIV3.Document = {
           description: { type: 'string' },
           mediaUrl: { type: 'string' },
           dateReported: { type: 'string', format: 'date-time' },
-          locationId: { type: 'string', format: 'uuid' },
+          latitude: { type: 'number', format: 'double' },
+          longitude: { type: 'number', format: 'double' },
+          addressLine1: { type: 'string' },
+          addressLine2: { type: 'string' },
+          barangay: { type: 'string' },
+          districtName: { type: 'string' },
+          cityName: { type: 'string' },
+          provinceName: { type: 'string' },
+          regionName: { type: 'string' },
+          postalCode: { type: 'string' },
+          landmark: { type: 'string' },
           categoryId: { type: 'string', format: 'uuid' },
           severityId: { type: 'string', format: 'uuid' },
         },
-        required: ['description', 'locationId', 'categoryId', 'severityId'],
+        required: ['description', 'categoryId', 'severityId'],
+        description:
+          'Incident report creation requires a full coordinate/address snapshot payload.',
       },
       UpdateIncidentRequest: {
         type: 'object',
@@ -1068,12 +1149,24 @@ export const openApiDocument: OpenAPIV3.Document = {
           description: { type: 'string' },
           mediaUrl: { type: 'string' },
           dateReported: { type: 'string', format: 'date-time' },
+          latitude: { type: 'number', format: 'double' },
+          longitude: { type: 'number', format: 'double' },
+          addressLine1: { type: 'string' },
+          addressLine2: { type: 'string' },
+          barangay: { type: 'string' },
+          districtName: { type: 'string' },
+          cityName: { type: 'string' },
+          provinceName: { type: 'string' },
+          regionName: { type: 'string' },
+          postalCode: { type: 'string' },
+          landmark: { type: 'string' },
           statusId: { type: 'string', format: 'uuid' },
           citizenId: { type: 'string', format: 'uuid' },
-          locationId: { type: 'string', format: 'uuid' },
           categoryId: { type: 'string', format: 'uuid' },
           severityId: { type: 'string', format: 'uuid' },
         },
+        description:
+          'Incident updates may modify snapshot fields directly; there is no location lookup resource.',
       },
       CreateAssignmentRequest: {
         type: 'object',
@@ -1105,7 +1198,7 @@ export const openApiDocument: OpenAPIV3.Document = {
         properties: {
           name: { type: 'string' },
           email: { type: 'string', format: 'email' },
-          password: { type: 'string', minLength: 8 },
+          password: { type: 'string', minLength: 12 },
           role: { $ref: '#/components/schemas/UserRole' },
         },
         required: ['name', 'email', 'password'],
@@ -1115,7 +1208,7 @@ export const openApiDocument: OpenAPIV3.Document = {
         properties: {
           name: { type: 'string' },
           email: { type: 'string', format: 'email' },
-          password: { type: 'string', minLength: 8 },
+          password: { type: 'string', minLength: 12 },
           role: { $ref: '#/components/schemas/UserRole' },
         },
       },
@@ -1163,14 +1256,6 @@ export const openApiDocument: OpenAPIV3.Document = {
         type: 'object',
         properties: {
           data: { type: 'array', items: { $ref: '#/components/schemas/Severity' } },
-          pagination: { $ref: '#/components/schemas/PaginationMeta' },
-        },
-        required: ['data', 'pagination'],
-      },
-      PaginatedLocationList: {
-        type: 'object',
-        properties: {
-          data: { type: 'array', items: { $ref: '#/components/schemas/Location' } },
           pagination: { $ref: '#/components/schemas/PaginationMeta' },
         },
         required: ['data', 'pagination'],

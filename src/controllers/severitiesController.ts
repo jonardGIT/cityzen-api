@@ -1,29 +1,39 @@
 // Handles CRUD operations for incident severity lookup values.
 import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
-import { buildPaginatedResponse, getPaginationQuery, getParamId, getTimestampQuery } from '../utils/request.js';
+import {
+  buildPaginatedResponse,
+  getListQuery,
+  getPaginationQuery,
+  getParamId,
+} from '../utils/request.js';
+import { severitiesListQueryConfig } from '../utils/listQueryConfig.js';
 
 // Returns all severities from the database.
 export async function getSeverities(req: Request, res: Response): Promise<void> {
   const pagination = getPaginationQuery(req);
-  const timestampQuery = getTimestampQuery(req);
+  const listQuery = getListQuery(req, res, severitiesListQueryConfig);
+  if (!listQuery) {
+    return;
+  }
+
   if (pagination.enabled) {
     const [severities, total] = await Promise.all([
       prisma.severity.findMany({
-        where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined,
-        orderBy: timestampQuery.orderBy as any,
+        where: listQuery.where as any,
+        orderBy: listQuery.orderBy as any,
         skip: pagination.skip,
         take: pagination.take,
       }),
-      prisma.severity.count({ where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined }),
+      prisma.severity.count({ where: listQuery.where as any }),
     ]);
     res.json(buildPaginatedResponse(severities, total, pagination));
     return;
   }
 
   const severities = await prisma.severity.findMany({
-    where: timestampQuery.hasFilters ? (timestampQuery.where as any) : undefined,
-    orderBy: timestampQuery.orderBy as any,
+    where: listQuery.where as any,
+    orderBy: listQuery.orderBy as any,
   });
   res.json(severities);
 }

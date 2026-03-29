@@ -7,6 +7,69 @@ jest.setTimeout(20000);
 const BASE = `${API_V1}/incidents`;
 let adminToken = '';
 
+function buildIncidentLocationSnapshot() {
+  return {
+    latitude: 14.5995,
+    longitude: 120.9842,
+    addressLine1: '123 Rizal Ave',
+    cityName: 'Manila',
+    provinceName: 'Metro Manila',
+    regionName: 'NCR',
+    barangay: 'Barangay 123',
+  };
+}
+
+async function createCitizen() {
+  const nonce = `${Date.now()}-${Math.random()}`;
+  const res = await request(app)
+    .post(`${API_V1}/citizens`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({
+      name: `Citizen-${nonce}`,
+      contactInfo: `citizen-${nonce}@mail.com`,
+      preferredChannel: 'app',
+    });
+
+  expect(res.status).toBe(201);
+  return res.body.id as string;
+}
+
+async function createCategory() {
+  const res = await request(app)
+    .post(`${API_V1}/categories`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ name: `Category-${Date.now()}-${Math.random()}` });
+
+  expect(res.status).toBe(201);
+  return res.body.id as string;
+}
+
+async function createSeverity() {
+  const res = await request(app)
+    .post(`${API_V1}/severities`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ level: `Severity-${Date.now()}-${Math.random()}` });
+
+  expect(res.status).toBe(201);
+  return res.body.id as string;
+}
+
+async function getStatusId(name?: string) {
+  const res = await request(app)
+    .get(`${API_V1}/statuses`)
+    .set('Authorization', `Bearer ${adminToken}`);
+
+  expect(res.status).toBe(200);
+
+  if (!name) {
+    return res.body[0].id as string;
+  }
+
+  const match = res.body.find((status: { name: string }) => status.name === name);
+  expect(match).toBeTruthy();
+  return match.id as string;
+}
+
 beforeAll(async () => {
   adminToken = await getAdminToken();
 });
@@ -20,69 +83,14 @@ describe(`GET ${BASE}`, () => {
 });
 
 describe(`GET ${BASE}/:id`, () => {
-  let createdId: string;
+  let createdId = '';
 
   beforeAll(async () => {
-    // Fetch the first available status
-    const statusesRes = await request(app)
-      .get(`${API_V1}/statuses`)
-      .set('Authorization', `Bearer ${adminToken}`);
-    expect(statusesRes.status).toBe(200);
-    const statusId = statusesRes.body[0].id;
+    const statusId = await getStatusId();
+    const citizenId = await createCitizen();
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
 
-    // Always create a valid citizen
-    const citizenRes = await request(app)
-      .post(`${API_V1}/citizens`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: `TestCitizen-${Date.now()}`, contactInfo: `test${Date.now()}@mail.com`, preferredChannel: 'app' });
-    const citizenId = citizenRes.body.id;
-
-    const locationRes = await request(app)
-      .post(`${API_V1}/locations`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ district: 'Test', city: 'Test', province: 'Test', region: 'Test' });
-    const locationId = locationRes.body.id;
-
-    const categoryRes = await request(app)
-      .post(`${API_V1}/categories`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: `TestCategory-${Date.now()}` });
-    const categoryId = categoryRes.body.id;
-
-    const severityRes = await request(app)
-      .post(`${API_V1}/severities`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ level: `TestLevel-${Date.now()}` });
-    const severityId = severityRes.body.id;
-
-    // Explicitly check all referenced entities exist
-    const statusCheck = await request(app).get(`${API_V1}/statuses/${statusId}`).set('Authorization', `Bearer ${adminToken}`);
-    if (statusCheck.status !== 200) {
-      console.error('Status not found:', statusId, statusCheck.body);
-      throw new Error('Status not found');
-    }
-    const citizenCheck = await request(app).get(`${API_V1}/citizens/${citizenId}`).set('Authorization', `Bearer ${adminToken}`);
-    if (citizenCheck.status !== 200) {
-      console.error('Citizen not found:', citizenId, citizenCheck.body);
-      throw new Error('Citizen not found');
-    }
-    const locationCheck = await request(app).get(`${API_V1}/locations/${locationId}`).set('Authorization', `Bearer ${adminToken}`);
-    if (locationCheck.status !== 200) {
-      console.error('Location not found:', locationId, locationCheck.body);
-      throw new Error('Location not found');
-    }
-    const categoryCheck = await request(app).get(`${API_V1}/categories/${categoryId}`).set('Authorization', `Bearer ${adminToken}`);
-    if (categoryCheck.status !== 200) {
-      console.error('Category not found:', categoryId, categoryCheck.body);
-      throw new Error('Category not found');
-    }
-    const severityCheck = await request(app).get(`${API_V1}/severities/${severityId}`).set('Authorization', `Bearer ${adminToken}`);
-    if (severityCheck.status !== 200) {
-      console.error('Severity not found:', severityId, severityCheck.body);
-      throw new Error('Severity not found');
-    }
-
-    // Now create the incident
     const incidentRes = await request(app)
       .post(BASE)
       .set('Authorization', `Bearer ${adminToken}`)
@@ -90,98 +98,95 @@ describe(`GET ${BASE}/:id`, () => {
         description: 'Test incident for GET by id',
         statusId,
         citizenId,
-        locationId,
         categoryId,
         severityId,
+        ...buildIncidentLocationSnapshot(),
       });
+
+    expect(incidentRes.status).toBe(201);
     createdId = incidentRes.body.id;
   });
 
   it('should return 200 for valid id', async () => {
-    const res = await request(app).get(`${BASE}/${createdId}`).set('Authorization', `Bearer ${adminToken}`);
+    const res = await request(app)
+      .get(`${BASE}/${createdId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('id', createdId);
   });
 
   it('should return 404 for unknown id', async () => {
-    // Use a random UUID
     const unknownId = '11111111-1111-4111-8111-111111111111';
-    const res = await request(app).get(`${BASE}/${unknownId}`).set('Authorization', `Bearer ${adminToken}`);
+    const res = await request(app)
+      .get(`${BASE}/${unknownId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).toBe(404);
   });
 });
 
 describe(`POST ${BASE}`, () => {
   it('should create and return 201 with valid referenced ids', async () => {
-    // Fetch the first available status
-    const statusesRes = await request(app)
-      .get(`${API_V1}/statuses`)
-      .set('Authorization', `Bearer ${adminToken}`);
-    expect(statusesRes.status).toBe(200);
-    const statusId = statusesRes.body[0].id;
+    const statusId = await getStatusId();
+    const citizenId = await createCitizen();
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
 
-    // Always create a valid citizen
-    const citizenRes = await request(app)
-      .post(`${API_V1}/citizens`)
+    const res = await request(app)
+      .post(BASE)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: `TestCitizen-${Date.now()}`, contactInfo: `test${Date.now()}@mail.com`, preferredChannel: 'app' });
-    const citizenId = citizenRes.body.id;
+      .send({
+        description: 'Test incident',
+        statusId,
+        citizenId,
+        categoryId,
+        severityId,
+        ...buildIncidentLocationSnapshot(),
+      });
 
-    const locationRes = await request(app)
-      .post(`${API_V1}/locations`)
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ description: 'Test incident' });
+    expect(res.body).toHaveProperty('latitude');
+  });
+
+  it('should create and return 201 with incident location snapshot', async () => {
+    const statusId = await getStatusId();
+    const citizenId = await createCitizen();
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const res = await request(app)
+      .post(BASE)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ district: 'Test', city: 'Test', province: 'Test', region: 'Test' });
-    const locationId = locationRes.body.id;
+      .send({
+        description: 'Test incident with coordinate snapshot',
+        statusId,
+        citizenId,
+        categoryId,
+        severityId,
+        ...buildIncidentLocationSnapshot(),
+      });
 
-    const categoryRes = await request(app)
-      .post(`${API_V1}/categories`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: `TestCategory-${Date.now()}` });
-    const categoryId = categoryRes.body.id;
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty('latitude');
+    expect(res.body).toHaveProperty('longitude');
+  });
 
-    const severityRes = await request(app)
-      .post(`${API_V1}/severities`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ level: `TestLevel-${Date.now()}` });
-    const severityId = severityRes.body.id;
-
-    // Explicitly check all referenced entities exist
-    const statusCheck = await request(app).get(`${API_V1}/statuses/${statusId}`).set('Authorization', `Bearer ${adminToken}`);
-    if (statusCheck.status !== 200) {
-      console.error('Status not found:', statusId, statusCheck.body);
-      throw new Error('Status not found');
-    }
-    const citizenCheck = await request(app).get(`${API_V1}/citizens/${citizenId}`).set('Authorization', `Bearer ${adminToken}`);
-    if (citizenCheck.status !== 200) {
-      console.error('Citizen not found:', citizenId, citizenCheck.body);
-      throw new Error('Citizen not found');
-    }
-    const locationCheck = await request(app).get(`${API_V1}/locations/${locationId}`).set('Authorization', `Bearer ${adminToken}`);
-    if (locationCheck.status !== 200) {
-      console.error('Location not found:', locationId, locationCheck.body);
-      throw new Error('Location not found');
-    }
-    const categoryCheck = await request(app).get(`${API_V1}/categories/${categoryId}`).set('Authorization', `Bearer ${adminToken}`);
-    if (categoryCheck.status !== 200) {
-      console.error('Category not found:', categoryId, categoryCheck.body);
-      throw new Error('Category not found');
-    }
-    const severityCheck = await request(app).get(`${API_V1}/severities/${severityId}`).set('Authorization', `Bearer ${adminToken}`);
-    if (severityCheck.status !== 200) {
-      console.error('Severity not found:', severityId, severityCheck.body);
-      throw new Error('Severity not found');
-    }
+  it('should return 400 when snapshot fields are not provided', async () => {
+    const statusId = await getStatusId();
+    const citizenId = await createCitizen();
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
 
     const res = await request(app).post(BASE).set('Authorization', `Bearer ${adminToken}`).send({
-      description: 'Test incident',
+      description: 'Missing incident location snapshot',
       statusId,
       citizenId,
-      locationId,
       categoryId,
       severityId,
     });
-    expect(res.status).toBe(201);
-    expect(res.body).toMatchObject({ description: 'Test incident' });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty('errors');
   });
 
   it('should return 400 when required fields are missing', async () => {
@@ -194,39 +199,22 @@ describe(`POST ${BASE}`, () => {
   });
 
   it('should return 400 for invalid foreign key reference', async () => {
-    // Create valid referenced entities for all except statusId
-    const citizenRes = await request(app)
-      .post(`${API_V1}/citizens`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: `TestCitizen-${Date.now()}`, contactInfo: `test${Date.now()}@mail.com`, preferredChannel: 'app' });
-    const citizenId = citizenRes.body.id;
+    const citizenId = await createCitizen();
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
 
-    const locationRes = await request(app)
-      .post(`${API_V1}/locations`)
+    const res = await request(app)
+      .post(BASE)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ district: 'Test', city: 'Test', province: 'Test', region: 'Test' });
-    const locationId = locationRes.body.id;
+      .send({
+        description: 'Bad ref',
+        statusId: 'not-a-real-uuid',
+        citizenId,
+        categoryId,
+        severityId,
+        ...buildIncidentLocationSnapshot(),
+      });
 
-    const categoryRes = await request(app)
-      .post(`${API_V1}/categories`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: `TestCategory-${Date.now()}` });
-    const categoryId = categoryRes.body.id;
-
-    const severityRes = await request(app)
-      .post(`${API_V1}/severities`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ level: `TestLevel-${Date.now()}` });
-    const severityId = severityRes.body.id;
-
-    const res = await request(app).post(BASE).set('Authorization', `Bearer ${adminToken}`).send({
-      description: 'Bad ref',
-      statusId: 'not-a-real-uuid',
-      citizenId,
-      locationId,
-      categoryId,
-      severityId,
-    });
     expect(res.status).toBe(400);
   });
 });
@@ -235,7 +223,6 @@ describe('VIEWER incident scoping', () => {
   let viewerToken = '';
   let viewerIncidentId = '';
   let viewerCitizenId = '';
-  let viewerLocationId = '';
   let viewerCategoryId = '';
   let viewerSeverityId = '';
 
@@ -243,36 +230,13 @@ describe('VIEWER incident scoping', () => {
     const unique = Date.now();
     const email = `viewer.${unique}@postman.local`;
 
-    // Ensure only one 'Reported' status exists
-    let reportedStatusId = '00000000-0000-0000-0000-000000000101';
-    const allStatuses = await request(app)
-      .get(`${API_V1}/statuses`)
-      .set('Authorization', `Bearer ${adminToken}`);
-    expect(allStatuses.status).toBe(200);
-    const reportedStatuses = allStatuses.body.filter((s: any) => s.name === 'Reported');
-    if (reportedStatuses.length === 0) {
-      // Create if not present
-      const createStatus = await request(app)
-        .post(`${API_V1}/statuses`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Reported' });
-      expect(createStatus.status === 201 || createStatus.status === 409).toBe(true);
-      reportedStatusId = createStatus.body.id || reportedStatusId;
-    } else {
-      // Delete all but one
-      reportedStatusId = reportedStatuses[0].id;
-      for (let i = 1; i < reportedStatuses.length; i++) {
-        await request(app)
-          .delete(`${API_V1}/statuses/${reportedStatuses[i].id}`)
-          .set('Authorization', `Bearer ${adminToken}`);
-      }
-    }
-
-    const registerRes = await request(app).post(`${API_V1}/auth/register`).send({
-      name: `Viewer ${unique}`,
-      email,
-      password: 'Password123!',
-    });
+    const registerRes = await request(app)
+      .post(`${API_V1}/auth/register`)
+      .send({
+        name: `Viewer ${unique}`,
+        email,
+        password: 'Password123!',
+      });
     expect(registerRes.status).toBe(201);
     viewerToken = registerRes.body.token;
 
@@ -286,36 +250,17 @@ describe('VIEWER incident scoping', () => {
     expect([200, 201]).toContain(linkRes.status);
     viewerCitizenId = linkRes.body.id;
 
-    // Dynamically create referenced entities for the viewer using admin privileges
-    const locationRes = await request(app)
-      .post(`${API_V1}/locations`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ district: 'ViewerTest', city: 'ViewerTest', province: 'ViewerTest', region: 'ViewerTest' });
-    expect(locationRes.status).toBe(201);
-    viewerLocationId = locationRes.body.id;
-
-    const categoryRes = await request(app)
-      .post(`${API_V1}/categories`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: `ViewerCategory-${unique}` });
-    expect(categoryRes.status).toBe(201);
-    viewerCategoryId = categoryRes.body.id;
-
-    const severityRes = await request(app)
-      .post(`${API_V1}/severities`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ level: `ViewerLevel-${unique}` });
-    expect(severityRes.status).toBe(201);
-    viewerSeverityId = severityRes.body.id;
+    viewerCategoryId = await createCategory();
+    viewerSeverityId = await createSeverity();
 
     const reportRes = await request(app)
       .post(`${API_V1}/incidents/report`)
       .set('Authorization', `Bearer ${viewerToken}`)
       .send({
         description: 'Viewer-owned incident',
-        locationId: viewerLocationId,
         categoryId: viewerCategoryId,
         severityId: viewerSeverityId,
+        ...buildIncidentLocationSnapshot(),
       });
     expect(reportRes.status).toBe(201);
     viewerIncidentId = reportRes.body.id;
@@ -337,36 +282,10 @@ describe('VIEWER incident scoping', () => {
       .set('Authorization', `Bearer ${viewerToken}`);
     expect(ownIncident.status).toBe(200);
 
-    // Dynamically create referenced entities for admin
-    const statusRes = await request(app)
-      .post(`${API_V1}/statuses`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: `AdminStatus-${Date.now()}` });
-    const statusId = statusRes.body.id;
-
-    const citizenRes = await request(app)
-      .post(`${API_V1}/citizens`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: `AdminCitizen-${Date.now()}`, contactInfo: `admin${Date.now()}@mail.com`, preferredChannel: 'app' });
-    const citizenId = citizenRes.body.id;
-
-    const locationRes = await request(app)
-      .post(`${API_V1}/locations`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ district: 'AdminTest', city: 'AdminTest', province: 'AdminTest', region: 'AdminTest' });
-    const locationId = locationRes.body.id;
-
-    const categoryRes = await request(app)
-      .post(`${API_V1}/categories`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: `AdminCategory-${Date.now()}` });
-    const categoryId = categoryRes.body.id;
-
-    const severityRes = await request(app)
-      .post(`${API_V1}/severities`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ level: `AdminLevel-${Date.now()}` });
-    const severityId = severityRes.body.id;
+    const statusId = await getStatusId();
+    const citizenId = await createCitizen();
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
 
     const otherIncidentRes = await request(app)
       .post(BASE)
@@ -375,9 +294,9 @@ describe('VIEWER incident scoping', () => {
         description: 'Admin-owned incident for viewer-scope test',
         statusId,
         citizenId,
-        locationId,
         categoryId,
         severityId,
+        ...buildIncidentLocationSnapshot(),
       });
     expect(otherIncidentRes.status).toBe(201);
 
@@ -408,9 +327,9 @@ describe('VIEWER incident scoping', () => {
       .send({
         description: 'Should fail because citizenId is forbidden',
         citizenId: 'not-a-real-uuid',
-        locationId: viewerLocationId,
         categoryId: viewerCategoryId,
         severityId: viewerSeverityId,
+        ...buildIncidentLocationSnapshot(),
       });
 
     expect(res.status).toBe(400);
@@ -424,54 +343,70 @@ describe('VIEWER incident scoping', () => {
       .send({
         description: 'Should fail because statusId is forbidden',
         statusId: 'uuid-status-1',
-        locationId: viewerLocationId,
         categoryId: viewerCategoryId,
         severityId: viewerSeverityId,
+        ...buildIncidentLocationSnapshot(),
       });
 
     expect(res.status).toBe(400);
     expect(res.body).toHaveProperty('errors');
   });
 
+  it('POST /incidents/report accepts coordinate snapshot payload', async () => {
+    const res = await request(app)
+      .post(`${API_V1}/incidents/report`)
+      .set('Authorization', `Bearer ${viewerToken}`)
+      .send({
+        description: 'Viewer geo incident',
+        categoryId: viewerCategoryId,
+        severityId: viewerSeverityId,
+        ...buildIncidentLocationSnapshot(),
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty('latitude');
+  });
+
   it('POST /incidents/report auto-assigns Reported status', async () => {
+    const reportedStatusId = await getStatusId('Reported');
     const res = await request(app)
       .post(`${API_V1}/incidents/report`)
       .set('Authorization', `Bearer ${viewerToken}`)
       .send({
         description: 'Auto status test',
-        locationId: viewerLocationId,
         categoryId: viewerCategoryId,
         severityId: viewerSeverityId,
+        ...buildIncidentLocationSnapshot(),
       });
 
     expect(res.status).toBe(201);
-    expect(res.body).toHaveProperty('statusId');
+    expect(res.body).toHaveProperty('statusId', reportedStatusId);
   });
 
-  it('POST /incidents/report accepts numeric string IDs', async () => {
+  it('POST /incidents/report accepts valid UUID IDs', async () => {
     const res = await request(app)
       .post(`${API_V1}/incidents/report`)
       .set('Authorization', `Bearer ${viewerToken}`)
       .send({
-        description: 'Numeric string id payload',
-        locationId: viewerLocationId,
+        description: 'Valid UUID id payload',
         categoryId: viewerCategoryId,
         severityId: viewerSeverityId,
+        ...buildIncidentLocationSnapshot(),
       });
 
     expect(res.status).toBe(201);
     expect(res.body).toHaveProperty('id');
   });
 
-  it('POST /incidents/report returns 422 for non-numeric string IDs', async () => {
+  it('POST /incidents/report returns 400 for invalid UUID IDs', async () => {
     const res = await request(app)
       .post(`${API_V1}/incidents/report`)
       .set('Authorization', `Bearer ${viewerToken}`)
       .send({
         description: 'Bad string id payload',
-        locationId: 'not-a-real-uuid',
         categoryId: 'uuid-category-1',
         severityId: 'uuid-severity-1',
+        ...buildIncidentLocationSnapshot(),
       });
 
     expect(res.status).toBe(400);
