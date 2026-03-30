@@ -270,6 +270,7 @@ Enabled only when `NODE_ENV` is not `production`.
 
 - OpenAPI JSON: `/api/v1/openapi.json`
 - Swagger UI: `/api/v1/docs`
+- Dashboard AI prompt for the current role/capability model: `docs/dashboard-role-capability-update-prompt.md`
 
 Separate eLGU admin scaffold:
 
@@ -319,21 +320,21 @@ JWT auth is used for human users and role-aware dashboard/mobile access.
 - Refresh tokens are one-time rotation tokens bound to the same server-side auth session.
 - `GET /api/v1/auth/sessions` returns the caller's session inventory for account security UI, including `isCurrent`, expiry timestamps, revocation state, user agent, and IP address metadata.
 - `DELETE /api/v1/auth/sessions/:id` revokes one owned session by id and is intended for targeted sign-out from other devices.
-- `SUPER_ADMIN`, `ADMIN`, and `DISPATCHER` accounts can enable TOTP MFA. Once enabled, login requires `mfaCode` in addition to email and password.
+- `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, and `DISPATCHER` accounts can enable TOTP MFA. Once enabled, login requires `mfaCode` in addition to email and password.
 - Enabling or disabling MFA revokes all active sessions for that user.
 - Password changes and role changes revoke all active sessions for the affected user.
-- Admin-only JWT routes include:
-  - `GET /api/v1/admin/users`
-  - `GET /api/v1/audit-logs`
-  - `GET /api/v1/audit-logs/:id`
-  - citizen create/list/get/update/delete
-  - user CRUD and capabilities
-  - agency/responder/status/category/severity writes
+- Elevated JWT routes include:
+  - `GET /api/v1/admin/users` for `SYSTEM_ADMIN` and `DEPARTMENT_MANAGER`
+  - `GET /api/v1/audit-logs` and `GET /api/v1/audit-logs/:id` for `SYSTEM_ADMIN` and `AUDITOR`
+  - citizen create/list/get/update/delete for admin roles
+  - user CRUD for admin roles
+  - agency/responder/status/category/severity writes for admin roles
+- `GET /api/v1/users/capabilities` is available to any authenticated user and returns role metadata, permissions, scope, and convenience booleans.
 - Incident access uses JWT for all list/get/write operations:
-  - `VIEWER` can use `/api/v1/incidents/report`
-  - `VIEWER` incident list/get is scoped by backend logic to that user's own incidents
-  - `SUPER_ADMIN`, `ADMIN`, `DISPATCHER`, and `RESPONDER` can create/update/delete incidents
-- `POST /api/v1/citizens/link-me` requires a `VIEWER` JWT and links the citizen profile to the authenticated email.
+  - `CITIZEN_REPORTER` can use `/api/v1/incidents/report`
+  - `CITIZEN_REPORTER` incident list/get is scoped by backend logic to that user's own incidents
+  - `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`, and `RESPONDER` can access broader incident operations based on route requirements
+- `POST /api/v1/citizens/link-me` requires a `CITIZEN_REPORTER` JWT and links the citizen profile to the authenticated email.
 
 Password policy:
 
@@ -341,15 +342,17 @@ Password policy:
 
 Seeded development login:
 
-- `admin@xypes.local` / `Password123!` (role: `SUPER_ADMIN`)
+- `admin@xypes.local` / `Password123!` (role: `SYSTEM_ADMIN`)
 
 Role values:
 
-- `SUPER_ADMIN`
-- `ADMIN`
+- `SYSTEM_ADMIN`
+- `DEPARTMENT_MANAGER`
+- `SUPERVISOR`
 - `DISPATCHER`
 - `RESPONDER`
-- `VIEWER`
+- `CITIZEN_REPORTER`
+- `AUDITOR`
 
 ## Access Matrix
 
@@ -360,25 +363,26 @@ The table below summarizes the current route protection model. When `API_KEYS` o
 | `/api/v1/auth/register`, `/api/v1/auth/login`, `/api/v1/auth/refresh`, `/api/v1/auth/password-reset/request`, `/api/v1/auth/password-reset/confirm` | Public                                                                | Public                                             |
 | `/api/v1/auth/me`, `/api/v1/auth/sessions`, `/api/v1/auth/logout`                                                                                   | Any authenticated JWT user                                            | Current session only                               |
 | `/api/v1/auth/sessions/:id`                                                                                                                         | N/A                                                                   | Any authenticated JWT user, limited to own session |
-| `/api/v1/auth/mfa/setup`, `/api/v1/auth/mfa/enable`, `/api/v1/auth/mfa/disable`                                                                     | `SUPER_ADMIN`, `ADMIN`, `DISPATCHER`                                  | Current session only                               |
-| `/api/v1/citizens`                                                                                                                                  | `SUPER_ADMIN`, `ADMIN`                                                | `SUPER_ADMIN`, `ADMIN`                             |
-| `/api/v1/citizens/link-me`                                                                                                                          | N/A                                                                   | `VIEWER`                                           |
-| `/api/v1/agencies`                                                                                                                                  | `SUPER_ADMIN`, `ADMIN`, `DISPATCHER`                                  | `SUPER_ADMIN`, `ADMIN`                             |
-| `/api/v1/responders`                                                                                                                                | `SUPER_ADMIN`, `ADMIN`, `DISPATCHER`                                  | `SUPER_ADMIN`, `ADMIN`                             |
-| `/api/v1/statuses`                                                                                                                                  | Any authenticated JWT user                                            | `SUPER_ADMIN`, `ADMIN`                             |
-| `/api/v1/categories`                                                                                                                                | Any authenticated JWT user                                            | `SUPER_ADMIN`, `ADMIN`                             |
-| `/api/v1/severities`                                                                                                                                | Any authenticated JWT user                                            | `SUPER_ADMIN`, `ADMIN`                             |
-| `/api/v1/incidents`                                                                                                                                 | Any authenticated JWT user. `VIEWER` is scoped to own incidents only. | `SUPER_ADMIN`, `ADMIN`, `DISPATCHER`, `RESPONDER`  |
-| `/api/v1/incidents/report`                                                                                                                          | N/A                                                                   | `VIEWER`                                           |
-| `/api/v1/assignments`                                                                                                                               | `SUPER_ADMIN`, `ADMIN`, `DISPATCHER`                                  | `SUPER_ADMIN`, `ADMIN`, `DISPATCHER`               |
-| `/api/v1/users`, `/api/v1/users/capabilities`                                                                                                       | `SUPER_ADMIN`, `ADMIN`                                                | `SUPER_ADMIN`, `ADMIN`                             |
-| `/api/v1/admin/users`                                                                                                                               | `SUPER_ADMIN`, `ADMIN`                                                | N/A                                                |
-| `/api/v1/audit-logs`                                                                                                                                | `SUPER_ADMIN`, `ADMIN`                                                | Read-only                                          |
+| `/api/v1/auth/mfa/setup`, `/api/v1/auth/mfa/enable`, `/api/v1/auth/mfa/disable`                                                                     | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`      | Current session only                               |
+| `/api/v1/citizens`                                                                                                                                  | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                  | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`               |
+| `/api/v1/citizens/link-me`                                                                                                                          | N/A                                                                   | `CITIZEN_REPORTER`                                 |
+| `/api/v1/agencies`                                                                                                                                  | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`      | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`               |
+| `/api/v1/responders`                                                                                                                                | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`      | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`               |
+| `/api/v1/statuses`                                                                                                                                  | Any authenticated JWT user                                            | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`               |
+| `/api/v1/categories`                                                                                                                                | Any authenticated JWT user                                            | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`               |
+| `/api/v1/severities`                                                                                                                                | Any authenticated JWT user                                            | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`               |
+| `/api/v1/incidents`                                                                                                                                 | Any authenticated JWT user. `CITIZEN_REPORTER` is scoped to own incidents only. | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`, `RESPONDER` |
+| `/api/v1/incidents/report`                                                                                                                          | N/A                                                                   | `CITIZEN_REPORTER`                                 |
+| `/api/v1/assignments`                                                                                                                               | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`      | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER` |
+| `/api/v1/users`                                                                                                                                     | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                  | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`               |
+| `/api/v1/users/capabilities`                                                                                                                        | Any authenticated JWT user                                            | N/A                                                |
+| `/api/v1/admin/users`                                                                                                                               | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                  | N/A                                                |
+| `/api/v1/audit-logs`                                                                                                                                | `SYSTEM_ADMIN`, `AUDITOR`                                             | Read-only                                          |
 
 Notes:
 
 - API key middleware and JWT middleware are layered. Passing one does not satisfy the other when both are required.
-- `VIEWER` users can bootstrap citizen/mobile flows through registration, `link-me`, and `incidents/report`, but cannot access admin-managed resources.
+- `CITIZEN_REPORTER` users can bootstrap citizen/mobile flows through registration, `link-me`, and `incidents/report`, but cannot access admin-managed resources.
 - `API_KEY` and `API_KEYS` are merged by the middleware. If both are set, values from both sources remain valid.
 
 ## Audit Logging
@@ -388,7 +392,7 @@ Persistent audit logging is enabled through the API layer and stored in the `aud
 - Audit log read routes:
   - `GET /api/v1/audit-logs`
   - `GET /api/v1/audit-logs/:id`
-- Audit log reads require both a valid API key when configured and an admin JWT.
+- Audit log reads require both a valid API key when configured and a JWT for `SYSTEM_ADMIN` or `AUDITOR`.
 - The backend records selected auth and mutation events, including:
   - `POST /api/v1/auth/login`
   - `POST /api/v1/auth/register`

@@ -135,6 +135,30 @@ const paginatedAuditLogListExample: OpenAPIV3.ExampleObject = {
   },
 };
 
+const systemAdminCapabilitiesExample: OpenAPIV3.ExampleObject = {
+  summary: 'System admin capabilities',
+  value: {
+    role: 'SYSTEM_ADMIN',
+    label: 'System Admin',
+    permissions: ['user:manage', 'role:manage', 'settings:manage', 'incident:delete'],
+    scope: 'global',
+    canUpdateUser: true,
+    canDeleteUser: true,
+  },
+};
+
+const citizenReporterCapabilitiesExample: OpenAPIV3.ExampleObject = {
+  summary: 'Citizen reporter capabilities',
+  value: {
+    role: 'CITIZEN_REPORTER',
+    label: 'Citizen Reporter',
+    permissions: ['incident:create', 'incident:read', 'incident:update:own', 'media:upload'],
+    scope: 'own',
+    canUpdateUser: false,
+    canDeleteUser: false,
+  },
+};
+
 function jsonResponse(
   schema: OpenAPIV3.ReferenceObject | OpenAPIV3.SchemaObject,
   description: string,
@@ -655,10 +679,18 @@ export const openApiDocument: OpenAPIV3.Document = {
           'Returns the authenticated user role, label, scope, permission list, and dashboard-friendly booleans. This endpoint is available to any authenticated user, not only admin roles.',
         security: apiKeyAndBearerSecurity,
         responses: {
-          '200': jsonResponse(
-            { $ref: '#/components/schemas/UserCapabilities' },
-            'Role capability metadata.',
-          ),
+          '200': {
+            description: 'Role capability metadata.',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/UserCapabilities' },
+                examples: {
+                  systemAdmin: systemAdminCapabilitiesExample,
+                  citizenReporter: citizenReporterCapabilitiesExample,
+                },
+              },
+            },
+          },
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
         },
       },
