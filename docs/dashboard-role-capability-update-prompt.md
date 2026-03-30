@@ -28,6 +28,13 @@ Use these backend facts as source of truth:
   - `scope`
   - `canUpdateUser`
   - `canDeleteUser`
+- Permission keys are now domain-specific and scope-aware, for example:
+  - `citizen:link:self`
+  - `incident:create:self`
+  - `incident:read:department`
+  - `assignment:create:department`
+  - `user:manage:global`
+  - `audit:read:global`
 - `GET /audit-logs` and `GET /audit-logs/{id}` are allowed only for `SYSTEM_ADMIN` and `AUDITOR`.
 - `GET /admin/users` is allowed for `SYSTEM_ADMIN` and `DEPARTMENT_MANAGER`.
 - `POST /citizens/link-me` and `POST /incidents/report` are citizen self-service flows for `CITIZEN_REPORTER` users.
@@ -40,6 +47,7 @@ Update the dashboard with these requirements:
 2. Stop treating `VIEWER` as a valid backend role; use `CITIZEN_REPORTER` instead.
 3. Stop treating `/users/capabilities` as an admin-only endpoint.
 4. Use the returned `permissions` and `scope` fields to drive navigation, page access, empty states, and CTA visibility.
+  - Do not depend on old broad keys like `incident:read` or `user:manage` without scope suffixes.
 5. Restrict audit log pages, audit exports, and audit navigation to `SYSTEM_ADMIN` and `AUDITOR`.
 6. Restrict admin user-management screens to `SYSTEM_ADMIN` and `DEPARTMENT_MANAGER`.
 7. Route citizen self-service users toward incident reporting and citizen profile linking flows.

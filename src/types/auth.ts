@@ -18,6 +18,8 @@ export interface RoleProfile {
   scope: AccessScope;
 }
 
+type AdminManageableRole = Exclude<UserRole, 'SYSTEM_ADMIN' | 'AUDITOR'>;
+
 const ROLE_ALIASES: Record<string, UserRole> = {
   SYSTEM_ADMIN: 'SYSTEM_ADMIN',
   'SYSTEM ADMIN': 'SYSTEM_ADMIN',
@@ -37,65 +39,101 @@ const ROLE_ALIASES: Record<string, UserRole> = {
 export const ROLE_PROFILES: Record<UserRole, RoleProfile> = {
   CITIZEN_REPORTER: {
     label: 'Citizen Reporter',
-    permissions: ['incident:create', 'incident:read', 'incident:update:own', 'media:upload'],
+    permissions: [
+      'citizen:link:self',
+      'incident:create:self',
+      'incident:read:self',
+      'incident:update:self',
+      'media:upload:self',
+    ],
     scope: 'own',
   },
   RESPONDER: {
     label: 'Responder',
-    permissions: ['incident:read', 'incident:update:assigned', 'comment:create'],
+    permissions: [
+      'incident:read:assigned',
+      'incident:update:assigned',
+      'assignment:read:own',
+      'comment:create:team',
+    ],
     scope: 'team',
   },
   DISPATCHER: {
     label: 'Dispatcher',
-    permissions: ['incident:read', 'incident:assign', 'incident:update:priority'],
+    permissions: [
+      'incident:read:department',
+      'incident:assign:department',
+      'incident:update:priority:department',
+      'assignment:create:department',
+      'assignment:update:department',
+    ],
     scope: 'department',
   },
   SUPERVISOR: {
     label: 'Supervisor',
-    permissions: ['incident:read', 'incident:reassign', 'incident:close', 'report:generate'],
+    permissions: [
+      'incident:read:region',
+      'incident:reassign:region',
+      'incident:close:region',
+      'assignment:override:region',
+      'report:generate:region',
+    ],
     scope: 'region',
   },
   DEPARTMENT_MANAGER: {
     label: 'Department Manager',
     permissions: [
-      'user:create',
-      'user:read',
-      'user:update',
-      'user:reset_password',
-      'incident:read',
-      'incident:assign',
+      'user:create:department',
+      'user:read:department',
+      'user:update:department',
+      'user:reset_password:department',
+      'reference:manage:department',
+      'incident:read:department',
     ],
     scope: 'department',
   },
   SYSTEM_ADMIN: {
     label: 'System Admin',
-    permissions: ['user:manage', 'role:manage', 'settings:manage', 'incident:delete'],
+    permissions: [
+      'user:manage:global',
+      'role:manage:global',
+      'settings:manage:global',
+      'incident:delete:global',
+      'audit:read:global',
+      'audit:export:global',
+    ],
     scope: 'global',
   },
   AUDITOR: {
     label: 'Auditor',
-    permissions: ['incident:read', 'audit:export'],
+    permissions: [
+      'incident:read:global',
+      'audit:read:global',
+      'audit:export:global',
+      'user:read:redacted',
+    ],
     scope: 'global',
   },
 };
 
-export const ROLE_LEVELS: Record<UserRole, number> = {
-  SYSTEM_ADMIN: 7,
-  DEPARTMENT_MANAGER: 6,
-  SUPERVISOR: 5,
-  DISPATCHER: 4,
-  RESPONDER: 3,
-  AUDITOR: 2,
-  CITIZEN_REPORTER: 1,
+export const ADMIN_MANAGEMENT_LEVELS: Partial<Record<UserRole, number>> = {
+  SYSTEM_ADMIN: 3,
+  DEPARTMENT_MANAGER: 2,
 };
 
-export const ADMIN_ROLES: UserRole[] = ['SYSTEM_ADMIN', 'DEPARTMENT_MANAGER'];
-export const DISPATCH_ROLES: UserRole[] = [
+export const USER_ADMIN_ROLES: UserRole[] = ['SYSTEM_ADMIN', 'DEPARTMENT_MANAGER'];
+export const ADMIN_ROLES: UserRole[] = USER_ADMIN_ROLES;
+
+export const DISPATCH_OVERSIGHT_ROLES: UserRole[] = [
   'SYSTEM_ADMIN',
   'DEPARTMENT_MANAGER',
   'SUPERVISOR',
   'DISPATCHER',
 ];
+export const DISPATCH_ROLES: UserRole[] = DISPATCH_OVERSIGHT_ROLES;
+
+export const ASSIGNMENT_MANAGEMENT_ROLES: UserRole[] = DISPATCH_OVERSIGHT_ROLES;
+
 export const INCIDENT_WRITE_ROLES: UserRole[] = [
   'SYSTEM_ADMIN',
   'DEPARTMENT_MANAGER',
@@ -110,6 +148,8 @@ export const MFA_REQUIRED_ROLES: UserRole[] = [
   'DISPATCHER',
 ];
 
+export const AUDIT_READ_ROLES: UserRole[] = ['SYSTEM_ADMIN', 'AUDITOR'];
+
 export function normalizeUserRoleInput(value: string | null | undefined): UserRole | null {
   if (!value) {
     return null;
@@ -123,8 +163,22 @@ export function isUserRole(value: string): value is UserRole {
   return normalizeUserRoleInput(value) !== null;
 }
 
-export function hasHigherAccessLevel(actorRole: UserRole, targetRole: UserRole): boolean {
-  return ROLE_LEVELS[actorRole] > ROLE_LEVELS[targetRole];
+export function canManageRole(actorRole: UserRole, targetRole: UserRole): boolean {
+  if (actorRole === 'SYSTEM_ADMIN') {
+    return targetRole !== 'SYSTEM_ADMIN' && targetRole !== 'AUDITOR';
+  }
+
+  if (actorRole === 'DEPARTMENT_MANAGER') {
+    const manageableRoles: AdminManageableRole[] = [
+      'SUPERVISOR',
+      'DISPATCHER',
+      'RESPONDER',
+      'CITIZEN_REPORTER',
+    ];
+    return manageableRoles.includes(targetRole as AdminManageableRole);
+  }
+
+  return false;
 }
 
 export interface AuthUser {

@@ -34,7 +34,13 @@ describe(`GET ${CAPABILITIES}`, () => {
       canDeleteUser: false,
     });
     expect(res.body.permissions).toEqual(
-      expect.arrayContaining(['incident:create', 'incident:read', 'incident:update:own', 'media:upload']),
+      expect.arrayContaining([
+        'citizen:link:self',
+        'incident:create:self',
+        'incident:read:self',
+        'incident:update:self',
+        'media:upload:self',
+      ]),
     );
   });
 
@@ -51,7 +57,12 @@ describe(`GET ${CAPABILITIES}`, () => {
       canDeleteUser: true,
     });
     expect(res.body.permissions).toEqual(
-      expect.arrayContaining(['user:manage', 'role:manage', 'settings:manage', 'incident:delete']),
+      expect.arrayContaining([
+        'user:manage:global',
+        'role:manage:global',
+        'settings:manage:global',
+        'incident:delete:global',
+      ]),
     );
   });
 
@@ -78,7 +89,11 @@ describe(`GET ${CAPABILITIES}`, () => {
       canDeleteUser: false,
     });
     expect(res.body.permissions).toEqual(
-      expect.arrayContaining(['incident:read', 'incident:assign', 'incident:update:priority']),
+      expect.arrayContaining([
+        'incident:read:department',
+        'incident:assign:department',
+        'incident:update:priority:department',
+      ]),
     );
   });
 });

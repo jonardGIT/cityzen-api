@@ -140,7 +140,14 @@ const systemAdminCapabilitiesExample: OpenAPIV3.ExampleObject = {
   value: {
     role: 'SYSTEM_ADMIN',
     label: 'System Admin',
-    permissions: ['user:manage', 'role:manage', 'settings:manage', 'incident:delete'],
+    permissions: [
+      'user:manage:global',
+      'role:manage:global',
+      'settings:manage:global',
+      'incident:delete:global',
+      'audit:read:global',
+      'audit:export:global',
+    ],
     scope: 'global',
     canUpdateUser: true,
     canDeleteUser: true,
@@ -152,7 +159,13 @@ const citizenReporterCapabilitiesExample: OpenAPIV3.ExampleObject = {
   value: {
     role: 'CITIZEN_REPORTER',
     label: 'Citizen Reporter',
-    permissions: ['incident:create', 'incident:read', 'incident:update:own', 'media:upload'],
+    permissions: [
+      'citizen:link:self',
+      'incident:create:self',
+      'incident:read:self',
+      'incident:update:self',
+      'media:upload:self',
+    ],
     scope: 'own',
     canUpdateUser: false,
     canDeleteUser: false,

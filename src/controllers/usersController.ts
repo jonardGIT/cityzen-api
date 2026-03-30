@@ -7,7 +7,7 @@ import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
 import { revokeAllUserSessions } from '../services/authSessionService.js';
 import {
   ROLE_PROFILES,
-  hasHigherAccessLevel,
+  canManageRole,
   normalizeUserRoleInput,
 } from '../types/auth.js';
 import { buildPaginatedResponse, getListQuery, getPaginationQuery } from '../utils/request.js';
@@ -65,8 +65,10 @@ export async function getUserCapabilities(req: Request, res: Response): Promise<
     label: profile.label,
     permissions: profile.permissions,
     scope: profile.scope,
-    canUpdateUser: profile.permissions.includes('user:update') || profile.permissions.includes('user:manage'),
-    canDeleteUser: profile.permissions.includes('user:manage'),
+    canUpdateUser:
+      profile.permissions.includes('user:update:department') ||
+      profile.permissions.includes('user:manage:global'),
+    canDeleteUser: profile.permissions.includes('user:manage:global'),
   });
 }
 
@@ -145,9 +147,9 @@ export async function createUser(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  if (!hasHigherAccessLevel(authUser.role, normalizedRole)) {
+  if (!canManageRole(authUser.role, normalizedRole)) {
     res.status(403).json({
-      message: 'Forbidden: you can only create users with a lower access level than your own',
+      message: 'Forbidden: you are not allowed to create a user with that role',
     });
     return;
   }
@@ -205,9 +207,9 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
   }
 
   const isSelfUpdate = String(authUser.id) === String(existingUser.id);
-  if (!isSelfUpdate && !hasHigherAccessLevel(authUser.role, existingUserRole)) {
+  if (!isSelfUpdate && !canManageRole(authUser.role, existingUserRole)) {
     res.status(403).json({
-      message: 'Forbidden: you can only edit users with a lower access level than your own',
+      message: 'Forbidden: you are not allowed to edit that user role',
     });
     return;
   }
@@ -226,9 +228,9 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  if (normalizedRole && !hasHigherAccessLevel(authUser.role, normalizedRole)) {
+  if (normalizedRole && !canManageRole(authUser.role, normalizedRole)) {
     res.status(403).json({
-      message: 'Forbidden: you can only assign a lower access level than your own',
+      message: 'Forbidden: you are not allowed to assign that role',
     });
     return;
   }
@@ -306,9 +308,9 @@ export async function deleteUser(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  if (!hasHigherAccessLevel(authUser.role, existingUserRole)) {
+  if (!canManageRole(authUser.role, existingUserRole)) {
     res.status(403).json({
-      message: 'Forbidden: you can only delete users with a lower access level than your own',
+      message: 'Forbidden: you are not allowed to delete that user role',
     });
     return;
   }
