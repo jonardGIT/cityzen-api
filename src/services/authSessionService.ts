@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'crypto';
 import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma.js';
-import { isUserRole, type UserRole } from '../types/auth.js';
+import { normalizeUserRoleInput, type UserRole } from '../types/auth.js';
 
 const ACCESS_TOKEN_TTL_HOURS = 12;
 const REFRESH_TOKEN_TTL_DAYS = 30;
@@ -74,7 +74,7 @@ export async function createAuthSession(input: {
   userAgent: string | null;
   ipAddress: string | null;
 }): Promise<SessionTokenBundle> {
-  const normalizedRole: UserRole = isUserRole(input.role) ? input.role : 'VIEWER';
+  const normalizedRole: UserRole = normalizeUserRoleInput(input.role) ?? 'CITIZEN_REPORTER';
   const expiresAt = buildSessionExpiry();
   const refreshExpiresAt = buildRefreshExpiry();
   const refreshToken = generateRefreshToken();
@@ -136,7 +136,8 @@ export async function refreshAuthSession(input: {
     return null;
   }
 
-  const normalizedRole: UserRole = isUserRole(session.user.role) ? session.user.role : 'VIEWER';
+  const normalizedRole: UserRole =
+    normalizeUserRoleInput(session.user.role) ?? 'CITIZEN_REPORTER';
   const nextRefreshToken = generateRefreshToken();
   const nextRefreshExpiresAt = buildRefreshExpiry();
   const nextAccessExpiresAt = buildSessionExpiry();

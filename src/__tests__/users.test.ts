@@ -6,10 +6,10 @@ const CAPABILITIES = `${API_V1}/users/capabilities`;
 const USERS = `${API_V1}/users`;
 
 let adminToken = '';
-let viewerToken = '';
+let citizenReporterToken = '';
 
 beforeAll(async () => {
-  [adminToken, viewerToken] = await Promise.all([
+  [adminToken, citizenReporterToken] = await Promise.all([
     getAdminToken(),
     getTokenForRole('analyst@xypes.local'),
   ]);
@@ -21,20 +21,38 @@ describe(`GET ${CAPABILITIES}`, () => {
     expect(res.status).toBe(401);
   });
 
-  it('should return 403 for VIEWER role', async () => {
+  it('should return 200 with own capability metadata for CITIZEN_REPORTER', async () => {
     const res = await request(app)
       .get(CAPABILITIES)
-      .set('Authorization', `Bearer ${viewerToken}`);
-    expect(res.status).toBe(403);
+      .set('Authorization', `Bearer ${citizenReporterToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      role: 'CITIZEN_REPORTER',
+      label: 'Citizen Reporter',
+      scope: 'own',
+      canUpdateUser: false,
+      canDeleteUser: false,
+    });
+    expect(res.body.permissions).toEqual(
+      expect.arrayContaining(['incident:create', 'incident:read', 'incident:update:own', 'media:upload']),
+    );
   });
 
-  it('should return 200 with capability flags for ADMIN', async () => {
+  it('should return 200 with capability metadata for SYSTEM_ADMIN', async () => {
     const res = await request(app)
       .get(CAPABILITIES)
       .set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty('canUpdateUser', true);
-    expect(res.body).toHaveProperty('canDeleteUser', true);
+    expect(res.body).toMatchObject({
+      role: 'SYSTEM_ADMIN',
+      label: 'System Admin',
+      scope: 'global',
+      canUpdateUser: true,
+      canDeleteUser: true,
+    });
+    expect(res.body.permissions).toEqual(
+      expect.arrayContaining(['user:manage', 'role:manage', 'settings:manage', 'incident:delete']),
+    );
   });
 
   it('should return boolean values (not null or string)', async () => {
@@ -46,12 +64,22 @@ describe(`GET ${CAPABILITIES}`, () => {
     expect(typeof res.body.canDeleteUser).toBe('boolean');
   });
 
-  it('should return 403 for DISPATCHER role', async () => {
+  it('should return 200 with department-scoped capability metadata for DISPATCHER', async () => {
     const dispatcherToken = await getTokenForRole('dispatcher@xypes.local');
     const res = await request(app)
       .get(CAPABILITIES)
       .set('Authorization', `Bearer ${dispatcherToken}`);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      role: 'DISPATCHER',
+      label: 'Dispatcher',
+      scope: 'department',
+      canUpdateUser: false,
+      canDeleteUser: false,
+    });
+    expect(res.body.permissions).toEqual(
+      expect.arrayContaining(['incident:read', 'incident:assign', 'incident:update:priority']),
+    );
   });
 });
 

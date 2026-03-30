@@ -14,11 +14,13 @@ TRUNCATE TABLE
 RESTART IDENTITY CASCADE;
 
 INSERT INTO users (id, "createdAt", "updatedAt", name, email, "passwordHash", role) VALUES
-  ('10000000-0000-0000-0000-000000000001', NOW() - INTERVAL '14 days', NOW() - INTERVAL '2 days', 'Admin User', 'admin@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'SUPER_ADMIN'),
-  ('10000000-0000-0000-0000-000000000002', NOW() - INTERVAL '12 days', NOW() - INTERVAL '3 days', 'Ops Lead', 'ops.lead@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'ADMIN'),
+  ('10000000-0000-0000-0000-000000000001', NOW() - INTERVAL '14 days', NOW() - INTERVAL '2 days', 'System Admin', 'admin@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'SYSTEM_ADMIN'),
+  ('10000000-0000-0000-0000-000000000002', NOW() - INTERVAL '12 days', NOW() - INTERVAL '3 days', 'Department Manager', 'ops.lead@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'DEPARTMENT_MANAGER'),
   ('10000000-0000-0000-0000-000000000003', NOW() - INTERVAL '10 days', NOW() - INTERVAL '1 day', 'Dispatcher', 'dispatcher@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'DISPATCHER'),
-  ('10000000-0000-0000-0000-000000000004', NOW() - INTERVAL '8 days', NOW() - INTERVAL '12 hours', 'Analyst', 'analyst@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'VIEWER'),
-  ('10000000-0000-0000-0000-000000000005', NOW() - INTERVAL '6 days', NOW() - INTERVAL '8 hours', 'Supervisor', 'supervisor@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'RESPONDER');
+  ('10000000-0000-0000-0000-000000000004', NOW() - INTERVAL '8 days', NOW() - INTERVAL '12 hours', 'Citizen Reporter', 'analyst@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'CITIZEN_REPORTER'),
+  ('10000000-0000-0000-0000-000000000005', NOW() - INTERVAL '6 days', NOW() - INTERVAL '8 hours', 'Supervisor', 'supervisor@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'SUPERVISOR'),
+  ('10000000-0000-0000-0000-000000000006', NOW() - INTERVAL '5 days', NOW() - INTERVAL '6 hours', 'Responder', 'responder@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'RESPONDER'),
+  ('10000000-0000-0000-0000-000000000007', NOW() - INTERVAL '4 days', NOW() - INTERVAL '4 hours', 'Auditor', 'auditor@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'AUDITOR');
 
 INSERT INTO statuses (id, "createdAt", "updatedAt", name) VALUES
   ('20000000-0000-0000-0000-000000000001', NOW() - INTERVAL '16 days', NOW() - INTERVAL '16 days', 'Reported'),

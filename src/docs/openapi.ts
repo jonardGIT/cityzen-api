@@ -1133,7 +1133,15 @@ export const openApiDocument: OpenAPIV3.Document = {
       },
       UserRole: {
         type: 'string',
-        enum: ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER', 'RESPONDER', 'VIEWER'],
+        enum: [
+          'SYSTEM_ADMIN',
+          'DEPARTMENT_MANAGER',
+          'SUPERVISOR',
+          'DISPATCHER',
+          'RESPONDER',
+          'CITIZEN_REPORTER',
+          'AUDITOR',
+        ],
       },
       User: {
         type: 'object',
@@ -1372,10 +1380,20 @@ export const openApiDocument: OpenAPIV3.Document = {
       UserCapabilities: {
         type: 'object',
         properties: {
+          role: { $ref: '#/components/schemas/UserRole' },
+          label: { type: 'string' },
+          permissions: {
+            type: 'array',
+            items: { type: 'string' },
+          },
+          scope: {
+            type: 'string',
+            enum: ['own', 'team', 'department', 'region', 'global'],
+          },
           canUpdateUser: { type: 'boolean' },
           canDeleteUser: { type: 'boolean' },
         },
-        required: ['canUpdateUser', 'canDeleteUser'],
+        required: ['role', 'label', 'permissions', 'scope', 'canUpdateUser', 'canDeleteUser'],
       },
       RegisterRequest: {
         type: 'object',

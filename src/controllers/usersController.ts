@@ -5,7 +5,11 @@ import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
 import { revokeAllUserSessions } from '../services/authSessionService.js';
-import { hasHigherAccessLevel, isUserRole } from '../types/auth.js';
+import {
+  ROLE_PROFILES,
+  hasHigherAccessLevel,
+  normalizeUserRoleInput,
+} from '../types/auth.js';
 import { buildPaginatedResponse, getListQuery, getPaginationQuery } from '../utils/request.js';
 import { usersListQueryConfig } from '../utils/listQueryConfig.js';
 
@@ -36,27 +40,33 @@ function getAuthUser(req: Request) {
 }
 
 function normalizeRole(role?: string) {
-  if (!role) {
-    return null;
-  }
-
-  const normalizedRole = role.toUpperCase();
-  return isUserRole(normalizedRole) ? normalizedRole : null;
+  return normalizeUserRoleInput(role);
 }
 
 function getStoredUserRole(role: string) {
-  return isUserRole(role) ? role : null;
+  return normalizeUserRoleInput(role);
 }
 
 function isUniqueConstraintError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }
 
-// Returns capability flags for user management operations based on the authenticated admin's role.
-export async function getUserCapabilities(_req: Request, res: Response): Promise<void> {
+// Returns capability metadata for the authenticated user role.
+export async function getUserCapabilities(req: Request, res: Response): Promise<void> {
+  const authUser = getAuthUser(req);
+  if (!authUser) {
+    res.status(401).json({ message: 'Unauthorized: missing authentication context' });
+    return;
+  }
+
+  const profile = ROLE_PROFILES[authUser.role];
   res.json({
-    canUpdateUser: true,
-    canDeleteUser: true,
+    role: authUser.role,
+    label: profile.label,
+    permissions: profile.permissions,
+    scope: profile.scope,
+    canUpdateUser: profile.permissions.includes('user:update') || profile.permissions.includes('user:manage'),
+    canDeleteUser: profile.permissions.includes('user:manage'),
   });
 }
 
@@ -126,10 +136,11 @@ export async function createUser(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const normalizedRole = normalizeRole(role ?? 'VIEWER');
+  const normalizedRole = normalizeRole(role ?? 'CITIZEN_REPORTER');
   if (!normalizedRole) {
     res.status(422).json({
-      message: 'role must be one of SUPER_ADMIN, ADMIN, DISPATCHER, RESPONDER, VIEWER',
+      message:
+        'role must be one of SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
     });
     return;
   }
@@ -204,7 +215,8 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
   const normalizedRole = normalizeRole(role);
   if (role !== undefined && !normalizedRole) {
     res.status(422).json({
-      message: 'role must be one of SUPER_ADMIN, ADMIN, DISPATCHER, RESPONDER, VIEWER',
+      message:
+        'role must be one of SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
     });
     return;
   }

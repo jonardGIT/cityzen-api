@@ -1,11 +1,10 @@
 import { Router } from 'express';
 import { getAuditLogById, getAuditLogs } from '../controllers/auditLogsController.js';
 import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
-import { ADMIN_ROLES } from '../types/auth.js';
 
 const router = Router();
 
-router.get('/', requireJwtAuth, requireRole(...ADMIN_ROLES), getAuditLogs);
-router.get('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), getAuditLogById);
+router.get('/', requireJwtAuth, requireRole('SYSTEM_ADMIN', 'AUDITOR'), getAuditLogs);
+router.get('/:id', requireJwtAuth, requireRole('SYSTEM_ADMIN', 'AUDITOR'), getAuditLogById);
 
 export default router;

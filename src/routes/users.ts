@@ -7,7 +7,7 @@ import { createUserValidator, updateUserValidator } from '../validators/bodyVali
 
 const router = Router();
 
-router.get('/capabilities', requireJwtAuth, requireRole(...ADMIN_ROLES), getUserCapabilities);
+router.get('/capabilities', requireJwtAuth, getUserCapabilities);
 router.get('/', requireJwtAuth, requireRole(...ADMIN_ROLES), getUsers);
 router.get('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), getUserById);
 router.post('/', requireJwtAuth, requireRole(...ADMIN_ROLES), createUserValidator, validateRequest, createUser);

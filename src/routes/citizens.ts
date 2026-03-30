@@ -32,7 +32,7 @@ router.post(
 router.post(
   '/link-me',
   requireJwtAuth,
-  requireRole('VIEWER'),
+  requireRole('CITIZEN_REPORTER'),
   linkMyCitizenProfileValidator,
   validateRequest,
   asyncHandler(linkMyCitizenProfile),
