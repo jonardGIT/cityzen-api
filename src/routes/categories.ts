@@ -14,8 +14,8 @@ import { ADMIN_ROLES } from '../types/auth.js';
 
 const router = Router();
 
-router.get('/', asyncHandler(getCategories));
-router.get('/:id', asyncHandler(getCategoryById));
+router.get('/', requireJwtAuth, asyncHandler(getCategories));
+router.get('/:id', requireJwtAuth, asyncHandler(getCategoryById));
 router.post(
   '/',
   requireJwtAuth,

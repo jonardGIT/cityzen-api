@@ -13,11 +13,13 @@ import severitiesRouter from './routes/severities.js';
 import incidentsRouter from './routes/incidents.js';
 import assignmentsRouter from './routes/assignments.js';
 import usersRouter from './routes/users.js';
+import auditLogsRouter from './routes/auditLogs.js';
 import authRouter from './routes/auth.js';
 import adminRouter from './routes/admin.js';
 import { openApiDocument } from './docs/openapi.js';
 import { createApiKeyAuthMiddleware } from './middleware/apiKeyAuth.js';
 import { createRateLimitMiddleware } from './middleware/rateLimit.js';
+import { auditLogMiddleware } from './middleware/auditLog.js';
 import { notFoundHandler } from './middleware/notFound.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
@@ -101,6 +103,8 @@ app.use(morgan(isProduction ? 'combined' : 'dev'));
 
 // Parse JSON request bodies for API handlers.
 app.use(express.json());
+// Persist audit records for configured auth and mutating API operations.
+app.use(API_V1, auditLogMiddleware);
 
 app.get(`${API_V1}/health`, (_req, res) => {
   res.json({ status: 'ok' });
@@ -138,6 +142,8 @@ app.use(`${API_V1}/incidents`, incidentsRouter);
 app.use(`${API_V1}/assignments`, assignmentsRouter);
 // Mount users resource routes.
 app.use(`${API_V1}/users`, usersRouter);
+// Mount audit log read routes.
+app.use(`${API_V1}/audit-logs`, auditLogsRouter);
 // Mount auth endpoints (JWT login/me).
 app.use(`${API_V1}/auth`, authRouter);
 // Mount admin endpoints (JWT + role-protected).

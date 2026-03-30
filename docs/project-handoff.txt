@@ -6,18 +6,27 @@ Summary:
 This is a TypeScript + Express REST API for a Citizen Incident Reporting System (CIRS). It exposes versioned endpoints under /api/v1 and now uses Prisma with PostgreSQL (Supabase) for persistence.
 
 Current capabilities:
-- Resource operations include GET list, GET by id, and POST create
-- Resources: citizens, responders, statuses, categories, severities, incidents, assignments, users
+- Resource operations now include the full route set used by the current backend: list, get, create, update, delete, plus auth and special-purpose flows.
+- Resources: citizens, agencies, responders, statuses, categories, severities, incidents, assignments, users, audit-logs
 - Input validation with express-validator
 - Centralized error handling and 404 handling
+- Shared whitelist-based list query filtering, sorting, and pagination
+- JWT authentication with role-based access control
+- Persistent audit logging for selected auth and write operations
 - Swagger/OpenAPI docs in non-production
-- API key protection for protected endpoints
+- API key protection for non-bypassed versioned endpoints
 - Request rate limiting with standard rate-limit headers
 - Jest + Supertest test coverage
 - Prisma Client integration across all controllers
 
 Authentication:
-- Protected routes use x-api-key when API_KEYS or API_KEY is configured
+- Public auth bootstrap endpoints:
+  - POST /api/v1/auth/register
+  - POST /api/v1/auth/login
+- JWT-protected endpoint:
+  - GET /api/v1/auth/me
+- Protected non-auth routes use x-api-key when API_KEYS or API_KEY is configured
+- Many protected routes also require JWT role checks
 - Public endpoints:
   - /api/v1/health
   - /api/v1/openapi.json
@@ -35,6 +44,7 @@ Database and persistence:
 - Prisma client bootstrap: src/lib/prisma.ts
 - One-time schema reset script: prisma/reset-prisma-schema.sql
 - Re-runnable seed script: prisma/seed-data.sql
+- Additive audit log script: prisma/add-audit-logs.sql
 - Current seeding target: minimum 10 rows for main domain tables; smaller set for users
 
 Build/runtime status:
@@ -42,9 +52,11 @@ Build/runtime status:
 - Prisma Client generation passes
 - API health endpoint is reachable
 - Data endpoints use live database via Prisma
+- Full Jest suite passes
 
 Current limitations:
-- Full JWT auth and RBAC are not yet implemented
+- API keys are still part of the deployment model for non-auth routes; browser dashboards should usually proxy these server-side instead of exposing them client-side
+- No refresh-token/session layer is implemented in this repo; login returns a JWT directly
 - CI/CD workflow file is not yet added
 - Some environments may block direct DB port access; Supabase SQL Editor can be used for schema/seed scripts
 
@@ -64,20 +76,27 @@ Integration context:
 - Main resources: citizens, responders, statuses, categories, severities, incidents, assignments, users
 
 Important API behavior:
-- Protected routes require x-api-key when API_KEYS or API_KEY is configured on the backend
+- Protected non-auth routes require x-api-key when API_KEYS or API_KEY is configured on the backend
+- Many dashboard routes also require Authorization: Bearer <jwt>
 - Public routes:
   - /api/v1/health
   - /api/v1/openapi.json
   - /api/v1/docs
+- Auth bootstrap routes are public:
+  - /api/v1/auth/register
+  - /api/v1/auth/login
 - Rate limiting is enabled by default and may return HTTP 429 with Retry-After and X-RateLimit-* headers
 - Validation failures commonly return HTTP 422 with structured payloads
+- Audit log routes are admin-only:
+  - /api/v1/audit-logs
+  - /api/v1/audit-logs/{id}
 
 Architecture assumptions for this project:
 - Treat the CIRS API as the source of truth
 - Do not duplicate backend business rules in frontend code unless needed for UX
 - Prefer typed API clients and shared request/response contracts where possible
-- Prepare for future RBAC/scoped permissions
-- Assume future migration from API key auth to stronger user auth for web/mobile clients
+- Respect current RBAC and route-specific access rules
+- Prefer server-side proxy/BFF patterns for API-key-protected dashboard traffic
 
 Implementation preferences:
 - Keep API access centralized in one client/service layer
@@ -128,19 +147,19 @@ Expected frontend needs:
 Recommended frontend architecture:
 - Use Next.js for dashboard
 - Keep API access in a dedicated service/client layer
-- Use server-side environment variables for backend base URL and keys where appropriate
+- Use server-side environment variables for backend base URL and API keys where appropriate
 - Do not hardcode backend business rules in UI
-- Prepare code structure for future JWT and RBAC support
+- Keep code structure ready for future token/session improvements, but assume current JWT + role behavior is live now
 
 Known backend gaps:
-- RBAC is planned but not yet implemented
-- Current auth is API-key based, which may later be replaced or supplemented for human users
+- No refresh-token/session lifecycle is implemented yet
+- Audit retention/archival policy is not yet implemented in this repo
 - CI/CD automation is still pending
 
 Recommended future alignment:
 - Generate a typed API client from OpenAPI
-- Add role/scope awareness once backend RBAC is implemented
-- Introduce JWT + refresh token strategy for human clients
+- Keep role/scope awareness aligned to the current JWT role model
+- Introduce JWT refresh or session strategy if longer-lived dashboard sessions are required
 - Add CI pipeline for lint/build/test and optional deploy steps
 
 Section 4: List Query Contract Follow-up
@@ -162,3 +181,8 @@ Incident location contract:
 - Incident create/update/report now use incident-owned coordinate/address snapshot fields.
 - `locationId` and the standalone `locations` resource are removed from the backend contract.
 - Reverse geocoding, if used, is currently a client-side responsibility; backend validates and persists the submitted snapshot.
+
+Audit logging contract:
+- The API persists server-side audit records for selected auth and mutation events.
+- Audit reads are exposed through `/api/v1/audit-logs` and `/api/v1/audit-logs/{id}`.
+- Audit data is admin-only and should not be mirrored to browser localStorage.

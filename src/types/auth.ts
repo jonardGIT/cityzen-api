@@ -13,6 +13,7 @@ export const ROLE_LEVELS: Record<UserRole, number> = {
 export const ADMIN_ROLES: UserRole[] = ['SUPER_ADMIN', 'ADMIN'];
 export const DISPATCH_ROLES: UserRole[] = ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER'];
 export const INCIDENT_WRITE_ROLES: UserRole[] = ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER', 'RESPONDER'];
+export const MFA_REQUIRED_ROLES: UserRole[] = ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER'];
 
 export function isUserRole(value: string): value is UserRole {
   return USER_ROLES.includes(value as UserRole);

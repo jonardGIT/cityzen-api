@@ -78,6 +78,63 @@ const paginationParameters: OpenAPIV3.ParameterObject[] = [
   },
 ];
 
+const auditLogPaginationParameters: OpenAPIV3.ParameterObject[] = paginationParameters.map(
+  (parameter) => {
+    if (parameter.name !== 'sortBy') {
+      return parameter;
+    }
+
+    return {
+      ...parameter,
+      description:
+        'Sortable field name for audit logs. Unsupported fields return 422. Defaults to timestamp.',
+      schema: { type: 'string', default: 'timestamp' },
+    };
+  },
+);
+
+const auditLogExample: OpenAPIV3.ExampleObject = {
+  summary: 'Successful citizen creation audit record',
+  value: {
+    id: '6ee87a02-7d53-4bba-8ab8-08b7d5fb70cf',
+    createdAt: '2026-03-29T09:15:12.418Z',
+    updatedAt: '2026-03-29T09:15:12.418Z',
+    timestamp: '2026-03-29T09:15:12.408Z',
+    action: 'create',
+    summary: 'create citizens (0e9189c3-4465-4fa4-823c-2452a021cd05) succeeded',
+    outcome: 'success',
+    actorUserId: '70000000-0000-0000-0000-000000000001',
+    actorEmail: 'admin@xypes.local',
+    actorRole: 'ADMIN',
+    resource: 'citizens',
+    method: 'POST',
+    path: '/citizens',
+    statusCode: 201,
+    targetId: '0e9189c3-4465-4fa4-823c-2452a021cd05',
+    ipAddress: '::1',
+    userAgent: 'Mozilla/5.0',
+    requestId: '5bc9d7da-a615-4998-bdc6-6be4340656eb',
+    metadata: {
+      message: 'Citizen created successfully',
+    },
+  },
+};
+
+const paginatedAuditLogListExample: OpenAPIV3.ExampleObject = {
+  summary: 'Paginated audit log list',
+  value: {
+    data: [auditLogExample.value],
+    pagination: {
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPrevPage: false,
+    },
+  },
+};
+
 function jsonResponse(
   schema: OpenAPIV3.ReferenceObject | OpenAPIV3.SchemaObject,
   description: string,
@@ -112,6 +169,24 @@ const apiKeyAndBearerSecurity: OpenAPIV3.SecurityRequirementObject[] = [
   { ApiKeyAuth: [], BearerAuth: [] },
 ];
 
+function getAuthResponses(
+  security?: OpenAPIV3.SecurityRequirementObject[],
+): Record<string, OpenAPIV3.ResponseObject> {
+  if (!security) {
+    return {};
+  }
+
+  const requiresBearer = security.some((requirement) => 'BearerAuth' in requirement);
+  return {
+    '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+    ...(requiresBearer
+      ? {
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+        }
+      : {}),
+  };
+}
+
 function resourcePath(
   pathSegment: string,
   schemaName: string,
@@ -130,15 +205,7 @@ function resourcePath(
         parameters: paginationParameters,
         responses: {
           '200': listResponse(schemaName),
-          ...(readSecurity
-            ? {
-                '401': jsonResponse(
-                  { $ref: '#/components/schemas/ErrorResponse' },
-                  'Unauthorized.',
-                ),
-                '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
-              }
-            : {}),
+          ...getAuthResponses(readSecurity),
           '422': jsonResponse(
             { $ref: '#/components/schemas/ErrorResponse' },
             'Invalid list query parameters.',
@@ -180,15 +247,7 @@ function resourcePath(
             { $ref: `#/components/schemas/${schemaName}` },
             `${schemaName} found.`,
           ),
-          ...(readSecurity
-            ? {
-                '401': jsonResponse(
-                  { $ref: '#/components/schemas/ErrorResponse' },
-                  'Unauthorized.',
-                ),
-                '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
-              }
-            : {}),
+          ...getAuthResponses(readSecurity),
           '404': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Not found.'),
         },
       },
@@ -245,6 +304,7 @@ export const openApiDocument: OpenAPIV3.Document = {
     { name: 'Health' },
     { name: 'Auth' },
     { name: 'Admin' },
+    { name: 'AuditLog' },
     { name: 'Citizen' },
     { name: 'Agency' },
     { name: 'Responder' },
@@ -321,7 +381,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       'Agency',
       'CreateAgencyRequest',
       'UpdateAgencyRequest',
-      apiKeySecurity,
+      apiKeyAndBearerSecurity,
       apiKeyAndBearerSecurity,
     ),
     ...resourcePath(
@@ -329,7 +389,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       'Responder',
       'CreateResponderRequest',
       'UpdateResponderRequest',
-      apiKeySecurity,
+      apiKeyAndBearerSecurity,
       apiKeyAndBearerSecurity,
     ),
     ...resourcePath(
@@ -337,7 +397,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       'Status',
       'CreateStatusRequest',
       'UpdateStatusRequest',
-      apiKeySecurity,
+      apiKeyAndBearerSecurity,
       apiKeyAndBearerSecurity,
     ),
     ...resourcePath(
@@ -345,7 +405,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       'Category',
       'CreateCategoryRequest',
       'UpdateCategoryRequest',
-      apiKeySecurity,
+      apiKeyAndBearerSecurity,
       apiKeyAndBearerSecurity,
     ),
     ...resourcePath(
@@ -353,7 +413,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       'Severity',
       'CreateSeverityRequest',
       'UpdateSeverityRequest',
-      apiKeySecurity,
+      apiKeyAndBearerSecurity,
       apiKeyAndBearerSecurity,
     ),
     '/incidents': {
@@ -492,11 +552,12 @@ export const openApiDocument: OpenAPIV3.Document = {
       get: {
         tags: ['Assignment'],
         summary: 'List assignments',
-        security: apiKeySecurity,
+        security: apiKeyAndBearerSecurity,
         parameters: paginationParameters,
         responses: {
           '200': listResponse('Assignment'),
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
         },
       },
       post: {
@@ -527,11 +588,12 @@ export const openApiDocument: OpenAPIV3.Document = {
       get: {
         tags: ['Assignment'],
         summary: 'Get assignment by id',
-        security: apiKeySecurity,
+        security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
           '200': jsonResponse({ $ref: '#/components/schemas/Assignment' }, 'Assignment found.'),
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
           '404': jsonResponse(
             { $ref: '#/components/schemas/ErrorResponse' },
             'Assignment not found.',
@@ -712,7 +774,7 @@ export const openApiDocument: OpenAPIV3.Document = {
     '/auth/login': {
       post: {
         tags: ['Auth'],
-        summary: 'Authenticate user and return JWT',
+        summary: 'Authenticate user and return access and refresh tokens',
         security: [],
         requestBody: {
           required: true,
@@ -735,15 +797,214 @@ export const openApiDocument: OpenAPIV3.Document = {
         },
       },
     },
+    '/auth/password-reset/request': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Request a password reset token',
+        description:
+          'Accepts an email address and creates a one-time password reset token when the account exists. The response stays generic to avoid revealing whether the email exists. In non-production environments, the reset token is returned for local testing.',
+        security: [],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/PasswordResetRequestRequest' },
+            },
+          },
+        },
+        responses: {
+          '202': jsonResponse(
+            { $ref: '#/components/schemas/PasswordResetRequestResponse' },
+            'Password reset request accepted.',
+          ),
+          '422': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Validation error.'),
+        },
+      },
+    },
+    '/auth/password-reset/confirm': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Reset a password with a one-time token',
+        description:
+          'Accepts a valid one-time password reset token plus a new password, then revokes all existing sessions for the user.',
+        security: [],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/PasswordResetConfirmRequest' },
+            },
+          },
+        },
+        responses: {
+          '200': jsonResponse(
+            { $ref: '#/components/schemas/MessageResponse' },
+            'Password reset succeeded.',
+          ),
+          '401': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Invalid or expired password reset token.',
+          ),
+          '422': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Validation error.'),
+        },
+      },
+    },
+    '/auth/mfa/setup': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Create or reset MFA setup for a privileged account',
+        description:
+          'Creates a new TOTP seed for the authenticated privileged user and returns the shared secret plus otpauth URL for authenticator app enrollment.',
+        security: [{ BearerAuth: [] }],
+        responses: {
+          '200': jsonResponse(
+            { $ref: '#/components/schemas/MfaSetupResponse' },
+            'MFA setup created.',
+          ),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+        },
+      },
+    },
+    '/auth/mfa/enable': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Enable MFA for the authenticated privileged account',
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/MfaCodeRequest' },
+            },
+          },
+        },
+        responses: {
+          '200': jsonResponse(
+            { $ref: '#/components/schemas/MessageResponse' },
+            'MFA enabled. Current sessions were revoked.',
+          ),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '409': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'MFA setup must be created before enabling MFA.',
+          ),
+          '422': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Validation error.'),
+        },
+      },
+    },
+    '/auth/mfa/disable': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Disable MFA for the authenticated privileged account',
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/MfaCodeRequest' },
+            },
+          },
+        },
+        responses: {
+          '200': jsonResponse(
+            { $ref: '#/components/schemas/MessageResponse' },
+            'MFA disabled. Current sessions were revoked.',
+          ),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '409': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'MFA is not enabled for this account.',
+          ),
+          '422': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Validation error.'),
+        },
+      },
+    },
+    '/auth/refresh': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Rotate refresh token and return a new access token pair',
+        description:
+          'Accepts a valid refresh token for an active server-side auth session, rotates it, and returns a new access token plus replacement refresh token.',
+        security: [],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/RefreshRequest' },
+            },
+          },
+        },
+        responses: {
+          '200': jsonResponse({ $ref: '#/components/schemas/AuthResponse' }, 'Refresh succeeded.'),
+          '401': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Invalid or expired refresh token.',
+          ),
+          '422': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Validation error.'),
+        },
+      },
+    },
     '/auth/me': {
       get: {
         tags: ['Auth'],
         summary: 'Return the authenticated user',
-        security: apiKeyAndBearerSecurity,
+        description:
+          'Returns the authenticated user for a valid JWT backed by an active server-side auth session. Auth routes bypass API key enforcement.',
+        security: [{ BearerAuth: [] }],
         responses: {
           '200': jsonResponse({ $ref: '#/components/schemas/AuthUser' }, 'Authenticated user.'),
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
           '404': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'User not found.'),
+        },
+      },
+    },
+    '/auth/sessions': {
+      get: {
+        tags: ['Auth'],
+        summary: 'List the authenticated user sessions',
+        description:
+          "Returns the authenticated user's server-side auth sessions for account security UI, including current-session detection and revocation state.",
+        security: [{ BearerAuth: [] }],
+        responses: {
+          '200': jsonResponse(
+            {
+              type: 'array',
+              items: { $ref: '#/components/schemas/AuthSessionSummary' },
+            },
+            'Authenticated user sessions.',
+          ),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+        },
+      },
+    },
+    '/auth/logout': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Revoke the current auth session',
+        description:
+          'Revokes the current server-side auth session so the presented bearer token cannot be used again.',
+        security: [{ BearerAuth: [] }],
+        responses: {
+          '204': { description: 'Logout succeeded and the current session was revoked.' },
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+        },
+      },
+    },
+    '/auth/sessions/{id}': {
+      delete: {
+        tags: ['Auth'],
+        summary: 'Revoke one authenticated user session',
+        description:
+          'Revokes one server-side auth session owned by the authenticated user. Intended for device/session management UI.',
+        security: [{ BearerAuth: [] }],
+        parameters: [idParameter],
+        responses: {
+          '204': { description: 'Session revoked.' },
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '404': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Session not found.'),
         },
       },
     },
@@ -757,6 +1018,71 @@ export const openApiDocument: OpenAPIV3.Document = {
           '200': listResponse('UserSummary'),
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
           '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+        },
+      },
+    },
+    '/audit-logs': {
+      get: {
+        tags: ['AuditLog'],
+        summary: 'List audit logs',
+        description:
+          'Returns persistent audit records for admin users. Supports the standard list query contract, including pagination, search, sorting, timestamp windows, and JSON filter expressions.',
+        security: apiKeyAndBearerSecurity,
+        parameters: auditLogPaginationParameters,
+        responses: {
+          '200': {
+            ...listResponse('AuditLog'),
+            content: {
+              'application/json': {
+                schema: {
+                  oneOf: [
+                    {
+                      type: 'array',
+                      items: { $ref: '#/components/schemas/AuditLog' },
+                    },
+                    { $ref: '#/components/schemas/PaginatedAuditLogList' },
+                  ],
+                },
+                examples: {
+                  paginated: paginatedAuditLogListExample,
+                },
+              },
+            },
+          },
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '422': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Invalid list query parameters.',
+          ),
+        },
+      },
+    },
+    '/audit-logs/{id}': {
+      get: {
+        tags: ['AuditLog'],
+        summary: 'Get audit log by id',
+        description: 'Returns a single persistent audit log record for admin users.',
+        security: apiKeyAndBearerSecurity,
+        parameters: [idParameter],
+        responses: {
+          '200': {
+            ...jsonResponse({ $ref: '#/components/schemas/AuditLog' }, 'Audit log found.'),
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/AuditLog' },
+                examples: {
+                  auditLog: auditLogExample,
+                },
+              },
+            },
+          },
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '404': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Audit log not found.',
+          ),
         },
       },
     },
@@ -834,8 +1160,92 @@ export const openApiDocument: OpenAPIV3.Document = {
         },
         required: ['id', 'createdAt', 'updatedAt', 'name', 'email', 'role'],
       },
+      AuditLog: {
+        type: 'object',
+        description:
+          'Persistent server-side audit record captured for selected authentication and mutating API operations.',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' },
+          timestamp: { type: 'string', format: 'date-time' },
+          action: { type: 'string' },
+          summary: { type: 'string' },
+          outcome: { type: 'string', enum: ['success', 'failure'] },
+          actorUserId: { type: 'string', format: 'uuid', nullable: true },
+          actorEmail: { type: 'string', nullable: true },
+          actorRole: {
+            allOf: [{ $ref: '#/components/schemas/UserRole' }],
+            nullable: true,
+          },
+          resource: { type: 'string' },
+          method: { type: 'string' },
+          path: { type: 'string' },
+          statusCode: { type: 'integer', nullable: true },
+          targetId: { type: 'string', nullable: true },
+          ipAddress: { type: 'string', nullable: true },
+          userAgent: { type: 'string', nullable: true },
+          requestId: { type: 'string', nullable: true },
+          metadata: {
+            type: 'object',
+            nullable: true,
+            additionalProperties: true,
+          },
+        },
+        required: [
+          'id',
+          'createdAt',
+          'updatedAt',
+          'timestamp',
+          'action',
+          'summary',
+          'outcome',
+          'resource',
+          'method',
+          'path',
+        ],
+      },
       AuthUser: {
-        allOf: [{ $ref: '#/components/schemas/UserSummary' }],
+        allOf: [
+          { $ref: '#/components/schemas/UserSummary' },
+          {
+            type: 'object',
+            properties: {
+              mfaEnabled: { type: 'boolean' },
+              mfaEnabledAt: { type: 'string', format: 'date-time', nullable: true },
+            },
+            required: ['mfaEnabled'],
+          },
+        ],
+      },
+      AuthSessionSummary: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' },
+          expiresAt: { type: 'string', format: 'date-time' },
+          refreshExpiresAt: { type: 'string', format: 'date-time' },
+          refreshUsedAt: { type: 'string', format: 'date-time', nullable: true },
+          revokedAt: { type: 'string', format: 'date-time', nullable: true },
+          lastUsedAt: { type: 'string', format: 'date-time', nullable: true },
+          userAgent: { type: 'string', nullable: true },
+          ipAddress: { type: 'string', nullable: true },
+          isCurrent: { type: 'boolean' },
+        },
+        required: [
+          'id',
+          'createdAt',
+          'updatedAt',
+          'expiresAt',
+          'refreshExpiresAt',
+          'refreshUsedAt',
+          'revokedAt',
+          'lastUsedAt',
+          'userAgent',
+          'ipAddress',
+          'isCurrent',
+        ],
       },
       Citizen: {
         type: 'object',
@@ -981,17 +1391,104 @@ export const openApiDocument: OpenAPIV3.Document = {
         properties: {
           email: { type: 'string', format: 'email' },
           password: { type: 'string' },
+          mfaCode: {
+            type: 'string',
+            description: 'Required when the user has MFA enabled and belongs to a privileged role.',
+          },
         },
         required: ['email', 'password'],
+      },
+      PasswordResetRequestRequest: {
+        type: 'object',
+        properties: {
+          email: { type: 'string', format: 'email' },
+        },
+        required: ['email'],
+      },
+      PasswordResetRequestResponse: {
+        type: 'object',
+        properties: {
+          message: { type: 'string' },
+          resetToken: {
+            type: 'string',
+            nullable: true,
+            description:
+              'Returned only in non-production environments for local development and testing.',
+          },
+          resetExpiresAt: {
+            type: 'string',
+            format: 'date-time',
+            nullable: true,
+            description:
+              'Returned only in non-production environments for local development and testing.',
+          },
+        },
+        required: ['message'],
+      },
+      PasswordResetConfirmRequest: {
+        type: 'object',
+        properties: {
+          token: { type: 'string' },
+          password: { type: 'string', minLength: 12 },
+        },
+        required: ['token', 'password'],
+      },
+      MfaCodeRequest: {
+        type: 'object',
+        properties: {
+          code: { type: 'string' },
+        },
+        required: ['code'],
+      },
+      MfaSetupResponse: {
+        type: 'object',
+        properties: {
+          secret: { type: 'string' },
+          otpauthUrl: { type: 'string' },
+          issuer: { type: 'string' },
+          accountName: { type: 'string', format: 'email' },
+        },
+        required: ['secret', 'otpauthUrl', 'issuer', 'accountName'],
+      },
+      MessageResponse: {
+        type: 'object',
+        properties: {
+          message: { type: 'string' },
+        },
+        required: ['message'],
+      },
+      RefreshRequest: {
+        type: 'object',
+        properties: {
+          refreshToken: { type: 'string' },
+        },
+        required: ['refreshToken'],
       },
       AuthResponse: {
         type: 'object',
         properties: {
           token: { type: 'string' },
+          refreshToken: { type: 'string' },
           tokenType: { type: 'string', example: 'Bearer' },
+          sessionId: { type: 'string', format: 'uuid' },
+          expiresAt: { type: 'string', format: 'date-time' },
+          refreshExpiresAt: { type: 'string', format: 'date-time' },
+          mfaRequired: {
+            type: 'boolean',
+            description:
+              'Returned on failed login when the account requires MFA and no valid MFA code was supplied.',
+          },
           user: { $ref: '#/components/schemas/AuthUser' },
         },
-        required: ['token', 'tokenType', 'user'],
+        required: [
+          'token',
+          'refreshToken',
+          'tokenType',
+          'sessionId',
+          'expiresAt',
+          'refreshExpiresAt',
+          'user',
+        ],
       },
       CreateCitizenRequest: {
         type: 'object',
@@ -1280,6 +1777,14 @@ export const openApiDocument: OpenAPIV3.Document = {
         type: 'object',
         properties: {
           data: { type: 'array', items: { $ref: '#/components/schemas/UserSummary' } },
+          pagination: { $ref: '#/components/schemas/PaginationMeta' },
+        },
+        required: ['data', 'pagination'],
+      },
+      PaginatedAuditLogList: {
+        type: 'object',
+        properties: {
+          data: { type: 'array', items: { $ref: '#/components/schemas/AuditLog' } },
           pagination: { $ref: '#/components/schemas/PaginationMeta' },
         },
         required: ['data', 'pagination'],

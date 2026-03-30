@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
+import { revokeAllUserSessions } from '../services/authSessionService.js';
 import { hasHigherAccessLevel, isUserRole } from '../types/auth.js';
 import { buildPaginatedResponse, getListQuery, getPaginationQuery } from '../utils/request.js';
 import { usersListQueryConfig } from '../utils/listQueryConfig.js';
@@ -249,6 +250,10 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
       data,
       select: userSelect,
     });
+
+    if (password !== undefined || normalizedRole !== null) {
+      await revokeAllUserSessions(id);
+    }
 
     res.json(updatedUser);
   } catch (error) {

@@ -3,7 +3,7 @@
 You are implementing the dashboard data layer and table UX for the CIRS frontend.
 
 ## Goal
-Add filtering and sorting support for latest and recently updated records using new API query capabilities based on `createdAt` and `updatedAt`.
+Add filtering and sorting support for latest and recently updated records using the shared API list-query capabilities based on `createdAt` and `updatedAt`, while preserving the audit log module's `timestamp` default.
 
 ## API Behavior
 List endpoints support these query params:
@@ -35,9 +35,11 @@ Use the same query model across these dashboard tables:
 - `/api/v1/statuses`
 - `/api/v1/categories`
 - `/api/v1/severities`
-- `/api/v1/locations`
 - `/api/v1/incidents`
 - `/api/v1/assignments`
+
+Audit log note:
+- `/api/v1/audit-logs` also supports the shared pagination/search/filter model, but its default server sort is `sortBy=timestamp&sortOrder=desc` rather than `createdAt`.
 
 ## UX Requirements
 Implement these quick filters for each table. **`Latest` must be the active default on every initial page load**:
@@ -102,6 +104,9 @@ Always include `sortBy` and `sortOrder` in every request (never omit them, even 
 - Pagination metadata is honored when returned.
 - URL reflects current filter/sort/page state.
 - Refresh preserves selected filters and sort.
+
+Security note:
+- For non-auth routes, assume the dashboard reaches the backend through a server-side proxy or BFF that can add `x-api-key` where required.
 
 ## Deliverables
 - Reusable list-query hook or composable.

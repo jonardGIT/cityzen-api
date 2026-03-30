@@ -5,18 +5,31 @@ import { getAdminToken, getTokenForRole } from './helpers/auth.js';
 const BASE = `${API_V1}/responders`;
 
 let adminToken = '';
+let dispatcherToken = '';
 // Reference seeded agency from seed-data.sql
 const validAgencyId = '70000000-0000-0000-0000-000000000001';
 
 beforeAll(async () => {
   adminToken = await getAdminToken();
+  dispatcherToken = await getTokenForRole('dispatcher@xypes.local');
 });
 
 describe(`GET ${BASE}`, () => {
   it('should return 200 with an array of responders', async () => {
-    const res = await request(app).get(BASE);
+    const res = await request(app).get(BASE).set('Authorization', `Bearer ${dispatcherToken}`);
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  it('should return 401 without auth token', async () => {
+    const res = await request(app).get(BASE);
+    expect(res.status).toBe(401);
+  });
+
+  it('should return 403 for VIEWER role', async () => {
+    const viewerToken = await getTokenForRole('analyst@xypes.local');
+    const res = await request(app).get(BASE).set('Authorization', `Bearer ${viewerToken}`);
+    expect(res.status).toBe(403);
   });
 });
 
@@ -24,20 +37,26 @@ describe(`GET ${BASE}/:id`, () => {
   it('should return 200 for a valid id', async () => {
     // Use a real UUID from seed-data.sql
     const validResponderId = '80000000-0000-0000-0000-000000000001';
-    const res = await request(app).get(`${BASE}/${validResponderId}`);
+    const res = await request(app)
+      .get(`${BASE}/${validResponderId}`)
+      .set('Authorization', `Bearer ${dispatcherToken}`);
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('id', validResponderId);
     expect(res.body).toHaveProperty('agency.id');
   });
 
   it('should return 400 for an invalid id format', async () => {
-    const res = await request(app).get(`${BASE}/not-a-real-uuid`);
+    const res = await request(app)
+      .get(`${BASE}/not-a-real-uuid`)
+      .set('Authorization', `Bearer ${dispatcherToken}`);
     expect(res.status).toBe(400);
   });
 
   it('should return 404 for a non-existent id', async () => {
     const nonExistentId = '00000000-0000-0000-0000-000000006099';
-    const res = await request(app).get(`${BASE}/${nonExistentId}`);
+    const res = await request(app)
+      .get(`${BASE}/${nonExistentId}`)
+      .set('Authorization', `Bearer ${dispatcherToken}`);
     expect(res.status).toBe(404);
   });
 });

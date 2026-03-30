@@ -20,6 +20,28 @@ export interface CitizenIncident {
   severityId: string;
 }
 
+export interface AuditLog {
+  id: string;
+  createdAt: Date;
+  updatedAt: Date;
+  timestamp: Date;
+  action: string;
+  summary: string;
+  outcome: 'success' | 'failure';
+  actorUserId?: string;
+  actorEmail?: string;
+  actorRole?: string;
+  resource: string;
+  method: string;
+  path: string;
+  statusCode?: number;
+  targetId?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  requestId?: string;
+  metadata?: Record<string, unknown> | null;
+}
+
 export interface Citizen {
   id: string;
   name: string;

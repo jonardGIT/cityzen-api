@@ -21,7 +21,9 @@ Core features:
 - Prisma-based PostgreSQL persistence
 - Input validation with express-validator
 - Centralized 404 and error handling
-- API key protection and request rate limiting
+- API key protection, JWT auth, and role-based access control
+- Persistent server-side audit logging for auth and selected mutating operations
+- Shared whitelist-based list query filtering, sorting, and pagination
 - Swagger/OpenAPI docs in development
 - Jest + Supertest test coverage
 
@@ -41,10 +43,10 @@ Core features:
 
 - `src/server.ts`: process entrypoint that starts the HTTP server.
 - `src/app.ts`: Express app bootstrap, middleware wiring, route registration, docs mounting.
-- `src/controllers/`: request handlers per resource (list/get/create) using Prisma queries.
+- `src/controllers/`: request handlers per resource and admin/auth/audit endpoints using Prisma queries.
 - `src/routes/`: Express routers mapping URLs to controller functions.
 - `src/lib/prisma.ts`: shared Prisma client instance used by controllers.
-- `src/middleware/`: custom middleware for API key auth, rate limits, 404, and centralized errors.
+- `src/middleware/`: custom middleware for API key auth, JWT auth, audit logging, rate limits, 404, and centralized errors.
 - `src/docs/openapi.ts`: OpenAPI document definition used by Swagger UI.
 - `src/validators/`: body validation chains for incoming payloads.
 - `src/utils/`: helper utilities (e.g., route parameter parsing, async wrappers).
@@ -55,7 +57,7 @@ Core features:
 ### prisma folder
 
 - `prisma/schema.prisma`: single source of truth for data models and relations.
-  - Defines models: `User`, `Citizen`, `Agency`, `Responder`, `Status`, `Category`, `Severity`, `CitizenIncident`, `Assignment`.
+  - Defines models: `User`, `Citizen`, `Agency`, `Responder`, `Status`, `Category`, `Severity`, `CitizenIncident`, `Assignment`, `AuditLog`.
   - Uses `@@map(...)` for mapped table names used in PostgreSQL.
 
 - `prisma/reset-prisma-schema.sql`: one-time database reset script.
@@ -107,11 +109,14 @@ API_KEYS=local-dev-key
 RATE_LIMIT_ENABLED=true
 RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX_REQUESTS=100
+JWT_SECRET=replace-with-a-long-random-secret
+MFA_ENCRYPTION_KEY=replace-with-a-separate-long-random-secret
 ```
 
 Important variables:
 
 - `JWT_SECRET`: required. Use a long random secret and rotate it if exposure is suspected.
+- `MFA_ENCRYPTION_KEY`: required if you enable MFA. Use a separate long random secret for encrypting stored TOTP seeds.
 - `DATABASE_URL`: PostgreSQL connection for Prisma.
 - `API_KEYS`: comma-separated allowed API keys.
 - `API_KEY`: optional single-key fallback if `API_KEYS` is not set.
@@ -130,11 +135,23 @@ Run in this order:
 1. `prisma/reset-prisma-schema.sql` (one-time reset)
 2. `prisma/seed-data.sql` (sample records)
 
-If your database already exists and you do not want a full reset, run `prisma/add-timestamps.sql` instead of the reset script.
+If your database already exists and you do not want a full reset, use the additive SQL scripts that match the features you need instead of the reset script.
 
 If you are adopting the incident coordinate/address snapshot contract on an existing database, also run:
 
 1. `prisma/add-incident-location-snapshot.sql`
+
+If you are enabling persistent audit logging on an existing database, also run:
+
+1. `prisma/add-audit-logs.sql`
+
+If you are enabling revocable server-side auth sessions on an existing database, also run:
+
+1. `prisma/add-auth-sessions.sql`
+
+If you are enabling privileged-role MFA on an existing database, also run:
+
+1. `prisma/add-user-mfa.sql`
 
 ### 4. Start development server
 
@@ -159,12 +176,6 @@ Health check: `GET /api/v1/health`
 
 ## Route Summary
 
-Each resource supports:
-
-- `GET /` list all
-- `GET /:id` get one by ID
-- `POST /` create
-
 Resources:
 
 - `/api/v1/citizens`
@@ -176,18 +187,33 @@ Resources:
 - `/api/v1/incidents`
 - `/api/v1/assignments`
 - `/api/v1/users`
+- `/api/v1/audit-logs`
 
 Auth and admin routes:
 
+- `POST /api/v1/auth/register`
 - `POST /api/v1/auth/login`
+- `POST /api/v1/auth/password-reset/request`
+- `POST /api/v1/auth/password-reset/confirm`
+- `POST /api/v1/auth/mfa/setup`
+- `POST /api/v1/auth/mfa/enable`
+- `POST /api/v1/auth/mfa/disable`
+- `POST /api/v1/auth/refresh`
 - `GET /api/v1/auth/me`
+- `GET /api/v1/auth/sessions`
+- `POST /api/v1/auth/logout`
+- `DELETE /api/v1/auth/sessions/:id`
+- `POST /api/v1/citizens/link-me`
+- `POST /api/v1/incidents/report`
 - `GET /api/v1/admin/users` (admin roles only)
+- `GET /api/v1/audit-logs` and `GET /api/v1/audit-logs/:id` (admin roles only)
 
 Notes:
 
+- Read/write method availability varies by resource. Most CRUD resources support `GET`, `POST`, `PATCH`, and `DELETE`, while auth and special-purpose routes expose narrower operations.
 - `incidents` and `assignments` validate foreign key references before insert.
 - Validation failures return HTTP 422.
-- Selected write endpoints require JWT bearer auth with role checks.
+- Role requirements differ by route and are documented in OpenAPI.
 
 ## List Query Contract
 
@@ -253,7 +279,7 @@ Separate eLGU admin scaffold:
 
 ## API Key Authentication
 
-When `API_KEYS` or `API_KEY` is configured, include this header:
+When `API_KEYS` or `API_KEY` is configured, all versioned API routes require this header unless the path is explicitly bypassed:
 
 `x-api-key: your-api-key`
 
@@ -262,17 +288,52 @@ Public paths (no key required):
 - `/api/v1/health`
 - `/api/v1/openapi.json`
 - `/api/v1/docs`
+- `/api/v1/auth/*`
 
 Invalid or missing key returns HTTP 401.
 
 ## JWT Auth and Roles
 
-JWT auth is used for role-aware dashboard access.
+JWT auth is used for human users and role-aware dashboard/mobile access.
 
-- Login endpoint: `POST /api/v1/auth/login`
-- Current user endpoint: `GET /api/v1/auth/me` with `Authorization: Bearer <token>`
-- Admin example endpoint: `GET /api/v1/admin/users` (requires `SUPER_ADMIN` or `ADMIN`)
-- Citizen list, get, create, update, and delete routes require an admin JWT.
+- Public JWT bootstrap endpoints:
+  - `POST /api/v1/auth/register`
+  - `POST /api/v1/auth/login`
+  - `POST /api/v1/auth/password-reset/request`
+  - `POST /api/v1/auth/password-reset/confirm`
+  - `POST /api/v1/auth/refresh`
+- Session endpoints:
+  - `GET /api/v1/auth/me` with `Authorization: Bearer <token>`
+  - `GET /api/v1/auth/sessions` with `Authorization: Bearer <token>`
+  - `POST /api/v1/auth/logout` with `Authorization: Bearer <token>`
+  - `DELETE /api/v1/auth/sessions/:id` with `Authorization: Bearer <token>`
+- Privileged-role MFA management endpoints:
+  - `POST /api/v1/auth/mfa/setup`
+  - `POST /api/v1/auth/mfa/enable`
+  - `POST /api/v1/auth/mfa/disable`
+- Successful login, registration, and refresh responses include `sessionId`, `expiresAt`, and `refreshExpiresAt` for the active server-side auth session.
+- Login and registration now also return a `refreshToken`; `POST /api/v1/auth/refresh` rotates that token and returns a replacement pair.
+- `POST /api/v1/auth/password-reset/request` always returns a generic acceptance response. Outside production, it also returns a temporary reset token for local development/testing flows until email delivery is added.
+- `POST /api/v1/auth/password-reset/confirm` accepts the one-time reset token plus a new password, updates the password, and revokes all active sessions for that user.
+- JWTs are now backed by persistent `auth_sessions` rows and are revoked immediately on logout.
+- Refresh tokens are one-time rotation tokens bound to the same server-side auth session.
+- `GET /api/v1/auth/sessions` returns the caller's session inventory for account security UI, including `isCurrent`, expiry timestamps, revocation state, user agent, and IP address metadata.
+- `DELETE /api/v1/auth/sessions/:id` revokes one owned session by id and is intended for targeted sign-out from other devices.
+- `SUPER_ADMIN`, `ADMIN`, and `DISPATCHER` accounts can enable TOTP MFA. Once enabled, login requires `mfaCode` in addition to email and password.
+- Enabling or disabling MFA revokes all active sessions for that user.
+- Password changes and role changes revoke all active sessions for the affected user.
+- Admin-only JWT routes include:
+  - `GET /api/v1/admin/users`
+  - `GET /api/v1/audit-logs`
+  - `GET /api/v1/audit-logs/:id`
+  - citizen create/list/get/update/delete
+  - user CRUD and capabilities
+  - agency/responder/status/category/severity writes
+- Incident access uses JWT for all list/get/write operations:
+  - `VIEWER` can use `/api/v1/incidents/report`
+  - `VIEWER` incident list/get is scoped by backend logic to that user's own incidents
+  - `SUPER_ADMIN`, `ADMIN`, `DISPATCHER`, and `RESPONDER` can create/update/delete incidents
+- `POST /api/v1/citizens/link-me` requires a `VIEWER` JWT and links the citizen profile to the authenticated email.
 
 Password policy:
 
@@ -289,6 +350,60 @@ Role values:
 - `DISPATCHER`
 - `RESPONDER`
 - `VIEWER`
+
+## Access Matrix
+
+The table below summarizes the current route protection model. When `API_KEYS` or `API_KEY` is configured, assume `x-api-key` is also required for every versioned route except the explicit public bypasses under `/health`, `/openapi.json`, `/docs`, and `/auth/*`.
+
+| Route Group                                                                                                                                         | Read Access                                                           | Write Access                                       |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------- |
+| `/api/v1/auth/register`, `/api/v1/auth/login`, `/api/v1/auth/refresh`, `/api/v1/auth/password-reset/request`, `/api/v1/auth/password-reset/confirm` | Public                                                                | Public                                             |
+| `/api/v1/auth/me`, `/api/v1/auth/sessions`, `/api/v1/auth/logout`                                                                                   | Any authenticated JWT user                                            | Current session only                               |
+| `/api/v1/auth/sessions/:id`                                                                                                                         | N/A                                                                   | Any authenticated JWT user, limited to own session |
+| `/api/v1/auth/mfa/setup`, `/api/v1/auth/mfa/enable`, `/api/v1/auth/mfa/disable`                                                                     | `SUPER_ADMIN`, `ADMIN`, `DISPATCHER`                                  | Current session only                               |
+| `/api/v1/citizens`                                                                                                                                  | `SUPER_ADMIN`, `ADMIN`                                                | `SUPER_ADMIN`, `ADMIN`                             |
+| `/api/v1/citizens/link-me`                                                                                                                          | N/A                                                                   | `VIEWER`                                           |
+| `/api/v1/agencies`                                                                                                                                  | `SUPER_ADMIN`, `ADMIN`, `DISPATCHER`                                  | `SUPER_ADMIN`, `ADMIN`                             |
+| `/api/v1/responders`                                                                                                                                | `SUPER_ADMIN`, `ADMIN`, `DISPATCHER`                                  | `SUPER_ADMIN`, `ADMIN`                             |
+| `/api/v1/statuses`                                                                                                                                  | Any authenticated JWT user                                            | `SUPER_ADMIN`, `ADMIN`                             |
+| `/api/v1/categories`                                                                                                                                | Any authenticated JWT user                                            | `SUPER_ADMIN`, `ADMIN`                             |
+| `/api/v1/severities`                                                                                                                                | Any authenticated JWT user                                            | `SUPER_ADMIN`, `ADMIN`                             |
+| `/api/v1/incidents`                                                                                                                                 | Any authenticated JWT user. `VIEWER` is scoped to own incidents only. | `SUPER_ADMIN`, `ADMIN`, `DISPATCHER`, `RESPONDER`  |
+| `/api/v1/incidents/report`                                                                                                                          | N/A                                                                   | `VIEWER`                                           |
+| `/api/v1/assignments`                                                                                                                               | `SUPER_ADMIN`, `ADMIN`, `DISPATCHER`                                  | `SUPER_ADMIN`, `ADMIN`, `DISPATCHER`               |
+| `/api/v1/users`, `/api/v1/users/capabilities`                                                                                                       | `SUPER_ADMIN`, `ADMIN`                                                | `SUPER_ADMIN`, `ADMIN`                             |
+| `/api/v1/admin/users`                                                                                                                               | `SUPER_ADMIN`, `ADMIN`                                                | N/A                                                |
+| `/api/v1/audit-logs`                                                                                                                                | `SUPER_ADMIN`, `ADMIN`                                                | Read-only                                          |
+
+Notes:
+
+- API key middleware and JWT middleware are layered. Passing one does not satisfy the other when both are required.
+- `VIEWER` users can bootstrap citizen/mobile flows through registration, `link-me`, and `incidents/report`, but cannot access admin-managed resources.
+- `API_KEY` and `API_KEYS` are merged by the middleware. If both are set, values from both sources remain valid.
+
+## Audit Logging
+
+Persistent audit logging is enabled through the API layer and stored in the `audit_logs` table.
+
+- Audit log read routes:
+  - `GET /api/v1/audit-logs`
+  - `GET /api/v1/audit-logs/:id`
+- Audit log reads require both a valid API key when configured and an admin JWT.
+- The backend records selected auth and mutation events, including:
+  - `POST /api/v1/auth/login`
+  - `POST /api/v1/auth/register`
+  - `POST /api/v1/auth/password-reset/request`
+  - `POST /api/v1/auth/password-reset/confirm`
+  - `POST /api/v1/auth/mfa/setup`
+  - `POST /api/v1/auth/mfa/enable`
+  - `POST /api/v1/auth/mfa/disable`
+  - `POST /api/v1/auth/refresh`
+  - `POST /api/v1/auth/logout`
+  - `DELETE /api/v1/auth/sessions/:id`
+  - `POST /api/v1/citizens/link-me`
+  - `POST /api/v1/incidents/report`
+  - create/update/delete operations for core managed resources
+- Audit responses include `requestId`, actor context, outcome, target identifiers, and sanitized metadata.
 
 ## Request Rate Limiting
 
@@ -348,7 +463,8 @@ npx prisma generate
   - Then run `prisma/seed-data.sql`.
 
 - API returns 401:
-  - Include `x-api-key` matching `API_KEYS` or `API_KEY`.
+  - For non-auth routes, include `x-api-key` matching `API_KEYS` or `API_KEY`.
+  - For JWT-protected routes, also include `Authorization: Bearer <token>`.
 
 - API returns 429:
   - Reduce request rate or tune `RATE_LIMIT_WINDOW_MS` and `RATE_LIMIT_MAX_REQUESTS`.

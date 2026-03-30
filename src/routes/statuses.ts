@@ -8,8 +8,8 @@ import { ADMIN_ROLES } from '../types/auth.js';
 
 const router = Router();
 
-router.get('/', asyncHandler(getStatuses));
-router.get('/:id', asyncHandler(getStatusById));
+router.get('/', requireJwtAuth, asyncHandler(getStatuses));
+router.get('/:id', requireJwtAuth, asyncHandler(getStatusById));
 router.post(
 	'/',
 	requireJwtAuth,
