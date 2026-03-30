@@ -105,7 +105,7 @@ const auditLogExample: OpenAPIV3.ExampleObject = {
     outcome: 'success',
     actorUserId: '70000000-0000-0000-0000-000000000001',
     actorEmail: 'admin@xypes.local',
-    actorRole: 'ADMIN',
+    actorRole: 'SYSTEM_ADMIN',
     resource: 'citizens',
     method: 'POST',
     path: '/citizens',
@@ -357,7 +357,9 @@ export const openApiDocument: OpenAPIV3.Document = {
     '/citizens/link-me': {
       post: {
         tags: ['Citizen'],
-        summary: "Create or update the authenticated viewer's citizen profile",
+        summary: "Create or update the authenticated citizen reporter's citizen profile",
+        description:
+          'Available to authenticated CITIZEN_REPORTER users. Creates a linked citizen profile on first use or updates the existing linked profile.',
         security: apiKeyAndBearerSecurity,
         requestBody: {
           required: true,
@@ -460,7 +462,9 @@ export const openApiDocument: OpenAPIV3.Document = {
     '/incidents/report': {
       post: {
         tags: ['Incident'],
-        summary: 'Create an incident report for the authenticated viewer',
+        summary: 'Create an incident report for the authenticated citizen reporter',
+        description:
+          'Available to authenticated CITIZEN_REPORTER users with a linked citizen profile. The server derives the citizen identity from the authenticated account.',
         security: apiKeyAndBearerSecurity,
         requestBody: {
           required: true,
@@ -646,15 +650,16 @@ export const openApiDocument: OpenAPIV3.Document = {
     '/users/capabilities': {
       get: {
         tags: ['User'],
-        summary: 'Get user-management capabilities',
+        summary: 'Get authenticated user role capabilities',
+        description:
+          'Returns the authenticated user role, label, scope, permission list, and dashboard-friendly booleans. This endpoint is available to any authenticated user, not only admin roles.',
         security: apiKeyAndBearerSecurity,
         responses: {
           '200': jsonResponse(
             { $ref: '#/components/schemas/UserCapabilities' },
-            'Capability flags.',
+            'Role capability metadata.',
           ),
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
-          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
         },
       },
     },
@@ -748,7 +753,9 @@ export const openApiDocument: OpenAPIV3.Document = {
     '/auth/register': {
       post: {
         tags: ['Auth'],
-        summary: 'Register a viewer account',
+        summary: 'Register a citizen reporter account',
+        description:
+          'Creates a self-service account with the default role CITIZEN_REPORTER and immediately returns access and refresh tokens.',
         security: [],
         requestBody: {
           required: true,
@@ -1012,6 +1019,8 @@ export const openApiDocument: OpenAPIV3.Document = {
       get: {
         tags: ['Admin'],
         summary: 'List users for admin dashboard',
+        description:
+          'Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER users. Returns the standard user list response used by dashboard administration screens.',
         security: apiKeyAndBearerSecurity,
         parameters: paginationParameters,
         responses: {
@@ -1026,7 +1035,7 @@ export const openApiDocument: OpenAPIV3.Document = {
         tags: ['AuditLog'],
         summary: 'List audit logs',
         description:
-          'Returns persistent audit records for admin users. Supports the standard list query contract, including pagination, search, sorting, timestamp windows, and JSON filter expressions.',
+          'Returns persistent audit records for SYSTEM_ADMIN and AUDITOR users. Supports the standard list query contract, including pagination, search, sorting, timestamp windows, and JSON filter expressions.',
         security: apiKeyAndBearerSecurity,
         parameters: auditLogPaginationParameters,
         responses: {
@@ -1062,7 +1071,8 @@ export const openApiDocument: OpenAPIV3.Document = {
       get: {
         tags: ['AuditLog'],
         summary: 'Get audit log by id',
-        description: 'Returns a single persistent audit log record for admin users.',
+        description:
+          'Returns a single persistent audit log record for SYSTEM_ADMIN and AUDITOR users.',
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
@@ -1133,6 +1143,8 @@ export const openApiDocument: OpenAPIV3.Document = {
       },
       UserRole: {
         type: 'string',
+        description:
+          'Application authorization role. Legacy stored values such as SUPER_ADMIN, ADMIN, and VIEWER are normalized at runtime to the current role set.',
         enum: [
           'SYSTEM_ADMIN',
           'DEPARTMENT_MANAGER',
@@ -1379,19 +1391,32 @@ export const openApiDocument: OpenAPIV3.Document = {
       },
       UserCapabilities: {
         type: 'object',
+        description:
+          'Dashboard-oriented capability payload derived from the authenticated user role profile.',
         properties: {
           role: { $ref: '#/components/schemas/UserRole' },
-          label: { type: 'string' },
+          label: {
+            type: 'string',
+            description: 'Human-readable role label for dashboard rendering.',
+          },
           permissions: {
             type: 'array',
             items: { type: 'string' },
+            description: 'Normalized permission keys exposed to clients for feature gating.',
           },
           scope: {
             type: 'string',
             enum: ['own', 'team', 'department', 'region', 'global'],
+            description: 'Highest operational scope granted by the role.',
           },
-          canUpdateUser: { type: 'boolean' },
-          canDeleteUser: { type: 'boolean' },
+          canUpdateUser: {
+            type: 'boolean',
+            description: 'Convenience flag for dashboard user-edit affordances.',
+          },
+          canDeleteUser: {
+            type: 'boolean',
+            description: 'Convenience flag for dashboard destructive user actions.',
+          },
         },
         required: ['role', 'label', 'permissions', 'scope', 'canUpdateUser', 'canDeleteUser'],
       },
