@@ -154,6 +154,42 @@ const systemAdminCapabilitiesExample: OpenAPIV3.ExampleObject = {
   },
 };
 
+const departmentManagerCapabilitiesExample: OpenAPIV3.ExampleObject = {
+  summary: 'Department manager capabilities',
+  value: {
+    role: 'DEPARTMENT_MANAGER',
+    label: 'Department Manager',
+    permissions: [
+      'user:create:department',
+      'user:read:department',
+      'user:update:department',
+      'user:reset_password:department',
+      'reference:manage:department',
+      'incident:read:department',
+    ],
+    scope: 'department',
+    canUpdateUser: true,
+    canDeleteUser: false,
+  },
+};
+
+const auditorCapabilitiesExample: OpenAPIV3.ExampleObject = {
+  summary: 'Auditor capabilities',
+  value: {
+    role: 'AUDITOR',
+    label: 'Auditor',
+    permissions: [
+      'incident:read:global',
+      'audit:read:global',
+      'audit:export:global',
+      'user:read:redacted',
+    ],
+    scope: 'global',
+    canUpdateUser: false,
+    canDeleteUser: false,
+  },
+};
+
 const citizenReporterCapabilitiesExample: OpenAPIV3.ExampleObject = {
   summary: 'Citizen reporter capabilities',
   value: {
@@ -593,6 +629,8 @@ export const openApiDocument: OpenAPIV3.Document = {
       get: {
         tags: ['Assignment'],
         summary: 'List assignments',
+        description:
+          'Available to assignment-management roles only: SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, and DISPATCHER.',
         security: apiKeyAndBearerSecurity,
         parameters: paginationParameters,
         responses: {
@@ -604,6 +642,8 @@ export const openApiDocument: OpenAPIV3.Document = {
       post: {
         tags: ['Assignment'],
         summary: 'Create assignment',
+        description:
+          'Available to assignment-management roles only: SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, and DISPATCHER.',
         security: apiKeyAndBearerSecurity,
         requestBody: {
           required: true,
@@ -629,6 +669,8 @@ export const openApiDocument: OpenAPIV3.Document = {
       get: {
         tags: ['Assignment'],
         summary: 'Get assignment by id',
+        description:
+          'Available to assignment-management roles only: SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, and DISPATCHER.',
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
@@ -644,6 +686,8 @@ export const openApiDocument: OpenAPIV3.Document = {
       patch: {
         tags: ['Assignment'],
         summary: 'Update assignment',
+        description:
+          'Available to assignment-management roles only: SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, and DISPATCHER.',
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         requestBody: {
@@ -671,6 +715,8 @@ export const openApiDocument: OpenAPIV3.Document = {
       delete: {
         tags: ['Assignment'],
         summary: 'Delete assignment',
+        description:
+          'Available to assignment-management roles only: SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, and DISPATCHER.',
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
@@ -689,7 +735,7 @@ export const openApiDocument: OpenAPIV3.Document = {
         tags: ['User'],
         summary: 'Get authenticated user role capabilities',
         description:
-          'Returns the authenticated user role, label, scope, permission list, and dashboard-friendly booleans. This endpoint is available to any authenticated user, not only admin roles.',
+          'Returns the authenticated user role, label, scope, permission list, and dashboard-friendly booleans. This endpoint is available to any authenticated user, not only admin roles. `canUpdateUser` maps to `user:update:department` or `user:manage:global`. `canDeleteUser` maps to `user:manage:global` only.',
         security: apiKeyAndBearerSecurity,
         responses: {
           '200': {
@@ -699,6 +745,8 @@ export const openApiDocument: OpenAPIV3.Document = {
                 schema: { $ref: '#/components/schemas/UserCapabilities' },
                 examples: {
                   systemAdmin: systemAdminCapabilitiesExample,
+                  departmentManager: departmentManagerCapabilitiesExample,
+                  auditor: auditorCapabilitiesExample,
                   citizenReporter: citizenReporterCapabilitiesExample,
                 },
               },
@@ -712,6 +760,8 @@ export const openApiDocument: OpenAPIV3.Document = {
       get: {
         tags: ['User'],
         summary: 'List users',
+        description:
+          'Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER. User-management authority is explicit and target-role aware, not based on a universal descending role ladder.',
         security: apiKeyAndBearerSecurity,
         parameters: paginationParameters,
         responses: {
@@ -723,6 +773,8 @@ export const openApiDocument: OpenAPIV3.Document = {
       post: {
         tags: ['User'],
         summary: 'Create user',
+        description:
+          'Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER. The backend rejects creation of target roles outside the caller\'s manageable set.',
         security: apiKeyAndBearerSecurity,
         requestBody: {
           required: true,
@@ -748,6 +800,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       get: {
         tags: ['User'],
         summary: 'Get user by id',
+        description: 'Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER.',
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
@@ -760,6 +813,8 @@ export const openApiDocument: OpenAPIV3.Document = {
       patch: {
         tags: ['User'],
         summary: 'Update user',
+        description:
+          'Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER. The backend enforces explicit target-role management rules rather than a generic role hierarchy.',
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         requestBody: {
@@ -785,6 +840,8 @@ export const openApiDocument: OpenAPIV3.Document = {
       delete: {
         tags: ['User'],
         summary: 'Delete user',
+        description:
+          'Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER. Only SYSTEM_ADMIN has global destructive user-management capability.',
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
@@ -1437,7 +1494,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       UserCapabilities: {
         type: 'object',
         description:
-          'Dashboard-oriented capability payload derived from the authenticated user role profile.',
+          'Dashboard-oriented capability payload derived from the authenticated user role profile. Permission keys are normalized, scoped, and intended for frontend feature gating.',
         properties: {
           role: { $ref: '#/components/schemas/UserRole' },
           label: {
@@ -1447,7 +1504,8 @@ export const openApiDocument: OpenAPIV3.Document = {
           permissions: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Normalized permission keys exposed to clients for feature gating.',
+            description:
+              'Normalized scoped permission keys exposed to clients for feature gating, for example `incident:read:department` or `audit:export:global`.',
           },
           scope: {
             type: 'string',
@@ -1456,11 +1514,13 @@ export const openApiDocument: OpenAPIV3.Document = {
           },
           canUpdateUser: {
             type: 'boolean',
-            description: 'Convenience flag for dashboard user-edit affordances.',
+            description:
+              'Convenience flag for dashboard user-edit affordances. True when the role has `user:update:department` or `user:manage:global`.',
           },
           canDeleteUser: {
             type: 'boolean',
-            description: 'Convenience flag for dashboard destructive user actions.',
+            description:
+              'Convenience flag for dashboard destructive user actions. True only when the role has `user:manage:global`.',
           },
         },
         required: ['role', 'label', 'permissions', 'scope', 'canUpdateUser', 'canDeleteUser'],
