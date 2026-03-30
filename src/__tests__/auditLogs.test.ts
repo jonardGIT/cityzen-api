@@ -56,15 +56,21 @@ describe(`GET ${BASE}`, () => {
       },
     });
 
-    [systemAdminToken, departmentManagerToken, dispatcherToken, supervisorToken, citizenReporterToken, auditorToken] =
-      await Promise.all([
-        getAdminToken(),
-        getTokenForRole('ops.lead@xypes.local'),
-        getTokenForRole('dispatcher@xypes.local'),
-        getTokenForRole('supervisor@xypes.local'),
-        getTokenForRole('analyst@xypes.local'),
-        getTokenForRole('auditor@xypes.local'),
-      ]);
+    [
+      systemAdminToken,
+      departmentManagerToken,
+      dispatcherToken,
+      supervisorToken,
+      citizenReporterToken,
+      auditorToken,
+    ] = await Promise.all([
+      getAdminToken(),
+      getTokenForRole('ops.lead@xypes.local'),
+      getTokenForRole('dispatcher@xypes.local'),
+      getTokenForRole('supervisor@xypes.local'),
+      getTokenForRole('analyst@xypes.local'),
+      getTokenForRole('auditor@xypes.local'),
+    ]);
   });
 
   it('allows SYSTEM_ADMIN to read audit logs', async () => {

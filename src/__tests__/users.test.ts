@@ -45,9 +45,7 @@ describe(`GET ${CAPABILITIES}`, () => {
   });
 
   it('should return 200 with capability metadata for SYSTEM_ADMIN', async () => {
-    const res = await request(app)
-      .get(CAPABILITIES)
-      .set('Authorization', `Bearer ${adminToken}`);
+    const res = await request(app).get(CAPABILITIES).set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
       role: 'SYSTEM_ADMIN',
@@ -67,9 +65,7 @@ describe(`GET ${CAPABILITIES}`, () => {
   });
 
   it('should return boolean values (not null or string)', async () => {
-    const res = await request(app)
-      .get(CAPABILITIES)
-      .set('Authorization', `Bearer ${adminToken}`);
+    const res = await request(app).get(CAPABILITIES).set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
     expect(typeof res.body.canUpdateUser).toBe('boolean');
     expect(typeof res.body.canDeleteUser).toBe('boolean');
@@ -100,9 +96,7 @@ describe(`GET ${CAPABILITIES}`, () => {
 
 describe(`GET ${USERS}`, () => {
   it('should return array when pagination params are not provided', async () => {
-    const res = await request(app)
-      .get(USERS)
-      .set('Authorization', `Bearer ${adminToken}`);
+    const res = await request(app).get(USERS).set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
@@ -132,14 +126,18 @@ describe(`GET ${USERS}`, () => {
     const updatedFrom = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
 
     const res = await request(app)
-      .get(`${USERS}?page=1&pageSize=5&sortBy=updatedAt&sortOrder=desc&updatedFrom=${encodeURIComponent(updatedFrom)}`)
+      .get(
+        `${USERS}?page=1&pageSize=5&sortBy=updatedAt&sortOrder=desc&updatedFrom=${encodeURIComponent(updatedFrom)}`,
+      )
       .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.data)).toBe(true);
 
     for (const user of res.body.data) {
-      expect(new Date(user.updatedAt).getTime()).toBeGreaterThanOrEqual(new Date(updatedFrom).getTime());
+      expect(new Date(user.updatedAt).getTime()).toBeGreaterThanOrEqual(
+        new Date(updatedFrom).getTime(),
+      );
     }
 
     if (res.body.data.length >= 2) {

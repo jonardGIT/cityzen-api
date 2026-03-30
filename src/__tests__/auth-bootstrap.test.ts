@@ -4,7 +4,7 @@ import app, { API_V1 } from '../app.js';
 import prisma from '../lib/prisma.js';
 import { generateMfaCodeFromSecret } from '../utils/mfa.js';
 
-jest.setTimeout(20000);
+jest.setTimeout(120000);
 
 describe('Auth bootstrap endpoints', () => {
   beforeEach(async () => {

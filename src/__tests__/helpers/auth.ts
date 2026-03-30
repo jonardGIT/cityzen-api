@@ -6,8 +6,6 @@ const ADMIN_PASSWORD = 'Password123!';
 const MAX_LOGIN_ATTEMPTS = 5;
 const RETRY_DELAY_MS = 1000;
 
-let adminTokenPromise: Promise<string> | null = null;
-
 function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -40,14 +38,7 @@ async function loginAsAdmin(): Promise<string> {
 }
 
 export async function getAdminToken(): Promise<string> {
-  if (!adminTokenPromise) {
-    adminTokenPromise = loginAsAdmin().catch((error: unknown) => {
-      adminTokenPromise = null;
-      throw error;
-    });
-  }
-
-  return adminTokenPromise;
+  return loginAsAdmin();
 }
 
 export async function getTokenForRole(email: string): Promise<string> {
