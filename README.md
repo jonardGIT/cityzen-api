@@ -111,12 +111,18 @@ RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX_REQUESTS=100
 JWT_SECRET=replace-with-a-long-random-secret
 MFA_ENCRYPTION_KEY=replace-with-a-separate-long-random-secret
+SENTRY_DSN=https://<key>@o<org>.ingest.<region>.sentry.io/<project>
+SENTRY_SEND_DEFAULT_PII=false
+SENTRY_TRACES_SAMPLE_RATE=0.1
 ```
 
 Important variables:
 
 - `JWT_SECRET`: required. Use a long random secret and rotate it if exposure is suspected.
 - `MFA_ENCRYPTION_KEY`: required if you enable MFA. Use a separate long random secret for encrypting stored TOTP seeds.
+- `SENTRY_DSN`: optional but required to send backend errors and traces to Sentry.
+- `SENTRY_SEND_DEFAULT_PII`: optional. Set to `true` only if you intentionally want request headers and user IP data sent to Sentry.
+- `SENTRY_TRACES_SAMPLE_RATE`: optional decimal from `0` to `1` for performance tracing volume.
 - `DATABASE_URL`: PostgreSQL connection for Prisma.
 - `API_KEYS`: comma-separated allowed API keys.
 - `API_KEY`: optional single-key fallback if `API_KEYS` is not set.
@@ -124,6 +130,8 @@ Important variables:
 
 Security notes:
 
+- Do not hardcode the Sentry DSN in source files. Keep it in environment configuration so it can be rotated safely.
+- Sentry is initialized from the runtime server bootstrap, captures unhandled `5xx` request errors, and stays disabled when `SENTRY_DSN` is unset or `NODE_ENV=test`.
 - Keep `.env`, `.env.development`, and any real connection strings out of source control. This repository ignores them, but leaked values should still be rotated.
 - `.env.test` is intentionally sanitized for safe sharing and does not guarantee a reachable database in every environment.
 - For production, set `TRUST_PROXY=true` only when the app is behind a trusted reverse proxy or load balancer.
