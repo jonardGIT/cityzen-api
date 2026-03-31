@@ -1,8 +1,9 @@
+import './env.js';
+import * as Sentry from '@sentry/node';
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import morgan from 'morgan';
-import dotenv from 'dotenv';
 import swaggerUi from 'swagger-ui-express';
 import citizensRouter from './routes/citizens.js';
 import agenciesRouter from './routes/agencies.js';
@@ -48,15 +49,6 @@ function requireEnv(name: string): string {
 
   return value;
 }
-
-// Use dedicated env files per runtime mode so test runs are isolated from local dev settings.
-const envFile =
-  process.env.NODE_ENV === 'production'
-    ? '.env'
-    : process.env.NODE_ENV === 'test'
-      ? '.env.test'
-      : '.env.development';
-dotenv.config({ path: envFile });
 
 const app = express();
 export const API_V1 = process.env.API_BASE_PATH ?? '/api/v1';
@@ -148,6 +140,10 @@ app.use(`${API_V1}/audit-logs`, auditLogsRouter);
 app.use(`${API_V1}/auth`, authRouter);
 // Mount admin endpoints (JWT + role-protected).
 app.use(`${API_V1}/admin`, adminRouter);
+
+if (Sentry.isEnabled()) {
+  Sentry.setupExpressErrorHandler(app);
+}
 
 // Return a 404 response for unmatched routes.
 app.use(notFoundHandler);

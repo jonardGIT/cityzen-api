@@ -1,3 +1,4 @@
+import '../env.js';
 import postgres, { type Sql } from 'postgres';
 
 declare global {
