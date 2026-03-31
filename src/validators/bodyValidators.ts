@@ -497,8 +497,10 @@ export const createUserValidator = [
   body('role')
     .optional()
     .isString()
-    .custom((value) => USER_ROLES.includes(value.toUpperCase()))
-    .withMessage('role must be one of SUPER_ADMIN, ADMIN, DISPATCHER, RESPONDER, VIEWER'),
+    .custom((value) => USER_ROLES.includes(value.trim().toUpperCase().replace(/[\s-]+/g, '_')))
+    .withMessage(
+      'role must be one of SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
+    ),
 ];
 
 export const updateUserValidator = [
@@ -529,6 +531,8 @@ export const updateUserValidator = [
   body('role')
     .optional()
     .isString()
-    .custom((value) => USER_ROLES.includes(value.toUpperCase()))
-    .withMessage('role must be one of SUPER_ADMIN, ADMIN, DISPATCHER, RESPONDER, VIEWER'),
+    .custom((value) => USER_ROLES.includes(value.trim().toUpperCase().replace(/[\s-]+/g, '_')))
+    .withMessage(
+      'role must be one of SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
+    ),
 ];

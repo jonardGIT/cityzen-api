@@ -4,6 +4,11 @@ import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
 
 const router = Router();
 
-router.get('/users', requireJwtAuth, requireRole('SUPER_ADMIN', 'ADMIN'), getAllUsersForAdmin);
+router.get(
+	'/users',
+	requireJwtAuth,
+	requireRole('SYSTEM_ADMIN', 'DEPARTMENT_MANAGER'),
+	getAllUsersForAdmin,
+);
 
 export default router;

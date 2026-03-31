@@ -5,7 +5,11 @@ import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
 import { revokeAllUserSessions } from '../services/authSessionService.js';
-import { hasHigherAccessLevel, isUserRole } from '../types/auth.js';
+import {
+  ROLE_PROFILES,
+  canManageRole,
+  normalizeUserRoleInput,
+} from '../types/auth.js';
 import { buildPaginatedResponse, getListQuery, getPaginationQuery } from '../utils/request.js';
 import { usersListQueryConfig } from '../utils/listQueryConfig.js';
 
@@ -36,27 +40,35 @@ function getAuthUser(req: Request) {
 }
 
 function normalizeRole(role?: string) {
-  if (!role) {
-    return null;
-  }
-
-  const normalizedRole = role.toUpperCase();
-  return isUserRole(normalizedRole) ? normalizedRole : null;
+  return normalizeUserRoleInput(role);
 }
 
 function getStoredUserRole(role: string) {
-  return isUserRole(role) ? role : null;
+  return normalizeUserRoleInput(role);
 }
 
 function isUniqueConstraintError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }
 
-// Returns capability flags for user management operations based on the authenticated admin's role.
-export async function getUserCapabilities(_req: Request, res: Response): Promise<void> {
+// Returns capability metadata for the authenticated user role.
+export async function getUserCapabilities(req: Request, res: Response): Promise<void> {
+  const authUser = getAuthUser(req);
+  if (!authUser) {
+    res.status(401).json({ message: 'Unauthorized: missing authentication context' });
+    return;
+  }
+
+  const profile = ROLE_PROFILES[authUser.role];
   res.json({
-    canUpdateUser: true,
-    canDeleteUser: true,
+    role: authUser.role,
+    label: profile.label,
+    permissions: profile.permissions,
+    scope: profile.scope,
+    canUpdateUser:
+      profile.permissions.includes('user:update:department') ||
+      profile.permissions.includes('user:manage:global'),
+    canDeleteUser: profile.permissions.includes('user:manage:global'),
   });
 }
 
@@ -126,17 +138,18 @@ export async function createUser(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const normalizedRole = normalizeRole(role ?? 'VIEWER');
+  const normalizedRole = normalizeRole(role ?? 'CITIZEN_REPORTER');
   if (!normalizedRole) {
     res.status(422).json({
-      message: 'role must be one of SUPER_ADMIN, ADMIN, DISPATCHER, RESPONDER, VIEWER',
+      message:
+        'role must be one of SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
     });
     return;
   }
 
-  if (!hasHigherAccessLevel(authUser.role, normalizedRole)) {
+  if (!canManageRole(authUser.role, normalizedRole)) {
     res.status(403).json({
-      message: 'Forbidden: you can only create users with a lower access level than your own',
+      message: 'Forbidden: you are not allowed to create a user with that role',
     });
     return;
   }
@@ -194,9 +207,9 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
   }
 
   const isSelfUpdate = String(authUser.id) === String(existingUser.id);
-  if (!isSelfUpdate && !hasHigherAccessLevel(authUser.role, existingUserRole)) {
+  if (!isSelfUpdate && !canManageRole(authUser.role, existingUserRole)) {
     res.status(403).json({
-      message: 'Forbidden: you can only edit users with a lower access level than your own',
+      message: 'Forbidden: you are not allowed to edit that user role',
     });
     return;
   }
@@ -204,7 +217,8 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
   const normalizedRole = normalizeRole(role);
   if (role !== undefined && !normalizedRole) {
     res.status(422).json({
-      message: 'role must be one of SUPER_ADMIN, ADMIN, DISPATCHER, RESPONDER, VIEWER',
+      message:
+        'role must be one of SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
     });
     return;
   }
@@ -214,9 +228,9 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  if (normalizedRole && !hasHigherAccessLevel(authUser.role, normalizedRole)) {
+  if (normalizedRole && !canManageRole(authUser.role, normalizedRole)) {
     res.status(403).json({
-      message: 'Forbidden: you can only assign a lower access level than your own',
+      message: 'Forbidden: you are not allowed to assign that role',
     });
     return;
   }
@@ -294,9 +308,9 @@ export async function deleteUser(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  if (!hasHigherAccessLevel(authUser.role, existingUserRole)) {
+  if (!canManageRole(authUser.role, existingUserRole)) {
     res.status(403).json({
-      message: 'Forbidden: you can only delete users with a lower access level than your own',
+      message: 'Forbidden: you are not allowed to delete that user role',
     });
     return;
   }

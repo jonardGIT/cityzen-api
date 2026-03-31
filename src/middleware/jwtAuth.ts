@@ -1,7 +1,12 @@
 import type { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma.js';
-import { isUserRole, type AuthUser, type UserRole } from '../types/auth.js';
+import {
+  isUserRole,
+  normalizeUserRoleInput,
+  type AuthUser,
+  type UserRole,
+} from '../types/auth.js';
 
 interface AuthenticatedRequest extends Request {
   authUser?: AuthUser;
@@ -95,7 +100,8 @@ export async function requireJwtAuth(
       return;
     }
 
-    if (!isUserRole(session.user.role)) {
+    const normalizedRole = normalizeUserRoleInput(session.user.role);
+    if (!normalizedRole || !isUserRole(normalizedRole)) {
       res.status(500).json({ message: 'Invalid stored user role' });
       return;
     }
@@ -103,7 +109,7 @@ export async function requireJwtAuth(
     (req as AuthenticatedRequest).authUser = {
       id: session.user.id,
       email: session.user.email,
-      role: session.user.role,
+      role: normalizedRole,
     };
     (req as AuthenticatedRequest).authSessionId = session.id;
 

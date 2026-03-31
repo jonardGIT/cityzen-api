@@ -1,5 +1,7 @@
 import request from 'supertest';
+import bcrypt from 'bcryptjs';
 import app, { API_V1 } from '../app.js';
+import prisma from '../lib/prisma.js';
 import { getAdminToken, getTokenForRole } from './helpers/auth.js';
 
 const BASE = `${API_V1}/audit-logs`;
@@ -28,36 +30,73 @@ async function getLatestAuditLog(token: string) {
 }
 
 describe(`GET ${BASE}`, () => {
-  let superAdminToken = '';
-  let adminToken = '';
+  let systemAdminToken = '';
+  let departmentManagerToken = '';
   let dispatcherToken = '';
-  let responderToken = '';
-  let viewerToken = '';
+  let supervisorToken = '';
+  let citizenReporterToken = '';
+  let auditorToken = '';
 
   beforeAll(async () => {
-    superAdminToken = await getAdminToken();
-    adminToken = await getTokenForRole('ops.lead@xypes.local');
-    dispatcherToken = await getTokenForRole('dispatcher@xypes.local');
-    responderToken = await getTokenForRole('supervisor@xypes.local');
-    viewerToken = await getTokenForRole('analyst@xypes.local');
+    await prisma.user.upsert({
+      where: { email: 'auditor@xypes.local' },
+      update: {
+        name: 'Auditor',
+        passwordHash: await bcrypt.hash('Password123!', 10),
+        role: 'AUDITOR',
+        mfaEnabled: false,
+        mfaSecretEncrypted: null,
+        mfaEnabledAt: null,
+      },
+      create: {
+        name: 'Auditor',
+        email: 'auditor@xypes.local',
+        passwordHash: await bcrypt.hash('Password123!', 10),
+        role: 'AUDITOR',
+      },
+    });
+
+    [
+      systemAdminToken,
+      departmentManagerToken,
+      dispatcherToken,
+      supervisorToken,
+      citizenReporterToken,
+      auditorToken,
+    ] = await Promise.all([
+      getAdminToken(),
+      getTokenForRole('ops.lead@xypes.local'),
+      getTokenForRole('dispatcher@xypes.local'),
+      getTokenForRole('supervisor@xypes.local'),
+      getTokenForRole('analyst@xypes.local'),
+      getTokenForRole('auditor@xypes.local'),
+    ]);
   });
 
-  it('allows SUPER_ADMIN to read audit logs', async () => {
+  it('allows SYSTEM_ADMIN to read audit logs', async () => {
     const response = await request(app)
       .get(`${BASE}?page=1&pageSize=5`)
-      .set('Authorization', `Bearer ${superAdminToken}`);
+      .set('Authorization', `Bearer ${systemAdminToken}`);
 
     expect(response.status).toBe(200);
     expect(Array.isArray(response.body.data)).toBe(true);
   });
 
-  it('allows ADMIN to read audit logs', async () => {
+  it('allows AUDITOR to read audit logs', async () => {
     const response = await request(app)
       .get(`${BASE}?page=1&pageSize=5`)
-      .set('Authorization', `Bearer ${adminToken}`);
+      .set('Authorization', `Bearer ${auditorToken}`);
 
     expect(response.status).toBe(200);
     expect(Array.isArray(response.body.data)).toBe(true);
+  });
+
+  it('returns 403 for DEPARTMENT_MANAGER', async () => {
+    const response = await request(app)
+      .get(`${BASE}?page=1&pageSize=5`)
+      .set('Authorization', `Bearer ${departmentManagerToken}`);
+
+    expect(response.status).toBe(403);
   });
 
   it('returns 403 for DISPATCHER', async () => {
@@ -68,18 +107,18 @@ describe(`GET ${BASE}`, () => {
     expect(response.status).toBe(403);
   });
 
-  it('returns 403 for RESPONDER', async () => {
+  it('returns 403 for SUPERVISOR', async () => {
     const response = await request(app)
       .get(`${BASE}?page=1&pageSize=5`)
-      .set('Authorization', `Bearer ${responderToken}`);
+      .set('Authorization', `Bearer ${supervisorToken}`);
 
     expect(response.status).toBe(403);
   });
 
-  it('returns 403 for VIEWER', async () => {
+  it('returns 403 for CITIZEN_REPORTER', async () => {
     const response = await request(app)
       .get(`${BASE}?page=1&pageSize=5`)
-      .set('Authorization', `Bearer ${viewerToken}`);
+      .set('Authorization', `Bearer ${citizenReporterToken}`);
 
     expect(response.status).toBe(403);
   });
@@ -92,7 +131,7 @@ describe(`GET ${BASE}`, () => {
   it('returns 422 for invalid sortBy', async () => {
     const response = await request(app)
       .get(`${BASE}?sortBy=passwordHash`)
-      .set('Authorization', `Bearer ${superAdminToken}`);
+      .set('Authorization', `Bearer ${systemAdminToken}`);
 
     expect(response.status).toBe(422);
   });
@@ -162,13 +201,13 @@ describe('Audit log persistence', () => {
     expect(metadata?.password).toBeUndefined();
   });
 
-  it('records viewer citizen link actions', async () => {
+  it('records citizen reporter citizen link actions', async () => {
     const unique = Date.now();
     const email = `audit.viewer.${unique}@postman.local`;
     const registerRes = await request(app)
       .post(`${API_V1}/auth/register`)
       .send({
-        name: `Audit Viewer ${unique}`,
+        name: `Audit Citizen Reporter ${unique}`,
         email,
         password: 'Password1234!@#',
       });
@@ -179,7 +218,7 @@ describe('Audit log persistence', () => {
       .post(`${API_V1}/citizens/link-me`)
       .set('Authorization', `Bearer ${registerRes.body.token}`)
       .send({
-        name: `Audit Viewer ${unique}`,
+        name: `Audit Citizen Reporter ${unique}`,
         preferredChannel: 'SMS',
       });
 
@@ -195,7 +234,7 @@ describe('Audit log persistence', () => {
     });
   });
 
-  it('records viewer incident report actions', async () => {
+  it('records citizen reporter incident report actions', async () => {
     const unique = Date.now();
     const email = `audit.reporter.${unique}@postman.local`;
     const registerRes = await request(app)
@@ -208,11 +247,11 @@ describe('Audit log persistence', () => {
 
     expect(registerRes.status).toBe(201);
 
-    const viewerToken = registerRes.body.token as string;
+    const citizenReporterToken = registerRes.body.token as string;
 
     const linkRes = await request(app)
       .post(`${API_V1}/citizens/link-me`)
-      .set('Authorization', `Bearer ${viewerToken}`)
+      .set('Authorization', `Bearer ${citizenReporterToken}`)
       .send({
         name: `Audit Reporter ${unique}`,
         preferredChannel: 'Email',
@@ -222,7 +261,7 @@ describe('Audit log persistence', () => {
 
     const reportRes = await request(app)
       .post(`${API_V1}/incidents/report`)
-      .set('Authorization', `Bearer ${viewerToken}`)
+      .set('Authorization', `Bearer ${citizenReporterToken}`)
       .send({
         description: 'Audit report incident',
         categoryId: '30000000-0000-0000-0000-000000000001',

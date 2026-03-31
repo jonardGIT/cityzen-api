@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from 'crypto';
-import { DISPATCH_ROLES, type UserRole } from '../types/auth.js';
+import { MFA_REQUIRED_ROLES, type UserRole } from '../types/auth.js';
 
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 const TOTP_PERIOD_SECONDS = 30;
@@ -44,7 +44,7 @@ function decryptSecret(payload: string): string {
 }
 
 export function requiresMfaForRole(role: UserRole): boolean {
-  return DISPATCH_ROLES.includes(role);
+  return MFA_REQUIRED_ROLES.includes(role);
 }
 
 function encodeBase32(buffer: Buffer): string {

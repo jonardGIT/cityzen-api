@@ -24,7 +24,7 @@ router.get('/:id', requireJwtAuth, asyncHandler(getIncidentById));
 router.post(
   '/report',
   requireJwtAuth,
-  requireRole('VIEWER'),
+  requireRole('CITIZEN_REPORTER'),
   createCitizenIncidentReportValidator,
   validateRequest,
   asyncHandler(createCitizenIncidentReport)

@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
-import { MFA_REQUIRED_ROLES, USER_ROLES } from '../types/auth.js';
+import { MFA_REQUIRED_ROLES, USER_ROLES, normalizeUserRoleInput } from '../types/auth.js';
 import {
   createAuthSession,
   listAuthSessionsForUser,
@@ -142,7 +142,7 @@ export async function register(req: Request, res: Response): Promise<void> {
       name,
       email,
       passwordHash,
-      role: 'VIEWER',
+      role: 'CITIZEN_REPORTER',
     },
     select: {
       ...getAuthUserSelect(),
@@ -193,9 +193,7 @@ export async function login(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const role = (
-    USER_ROLES.includes(user.role as (typeof USER_ROLES)[number]) ? user.role : 'VIEWER'
-  ) as (typeof USER_ROLES)[number];
+  const role = normalizeUserRoleInput(user.role) ?? 'CITIZEN_REPORTER';
 
   if (MFA_REQUIRED_ROLES.includes(role) && user.mfaEnabled) {
     if (!user.mfaSecretEncrypted) {

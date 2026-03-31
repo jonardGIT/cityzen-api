@@ -66,6 +66,24 @@ beforeAll(async () => {
   await prisma.$executeRawUnsafe(
     'ALTER TABLE users ADD COLUMN IF NOT EXISTS "mfaEnabledAt" timestamptz',
   );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE users ALTER COLUMN role SET DEFAULT \'CITIZEN_REPORTER\'',
+  );
+  await prisma.$executeRawUnsafe(
+    `UPDATE users
+     SET role = CASE
+       WHEN role = 'SUPER_ADMIN' THEN 'SYSTEM_ADMIN'
+       WHEN role = 'ADMIN' THEN 'DEPARTMENT_MANAGER'
+       WHEN role = 'VIEWER' THEN 'CITIZEN_REPORTER'
+       ELSE role
+     END`,
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN (\'SYSTEM_ADMIN\', \'DEPARTMENT_MANAGER\', \'SUPERVISOR\', \'DISPATCHER\', \'RESPONDER\', \'CITIZEN_REPORTER\', \'AUDITOR\'))',
+  );
 });
 
 afterAll(async () => {

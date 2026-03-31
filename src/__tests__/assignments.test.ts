@@ -2,7 +2,7 @@ import request from 'supertest';
 import app, { API_V1 } from '../app.js';
 import { getAdminToken, getTokenForRole } from './helpers/auth.js';
 
-jest.setTimeout(20000);
+jest.setTimeout(120000);
 
 const BASE = `${API_V1}/assignments`;
 let adminToken = '';

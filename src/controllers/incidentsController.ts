@@ -52,7 +52,7 @@ export async function getIncidents(req: Request, res: Response): Promise<void> {
   let where = (listQuery.where ?? {}) as Record<string, unknown>;
 
   let incidents;
-  if (authUser.role === 'VIEWER') {
+  if (authUser.role === 'CITIZEN_REPORTER') {
     const citizenId = await getLinkedCitizenIdByAuthEmail(authUser.email);
     if (!citizenId) {
       res.status(422).json({
@@ -116,7 +116,7 @@ export async function getIncidentById(req: Request, res: Response): Promise<void
     return;
   }
 
-  if (authUser.role === 'VIEWER') {
+  if (authUser.role === 'CITIZEN_REPORTER') {
     const citizenId = await getLinkedCitizenIdByAuthEmail(authUser.email);
     if (!citizenId) {
       res.status(422).json({

@@ -3,5 +3,12 @@ export interface User {
   name: string;
   email: string;
   passwordHash: string;
-  role: 'SUPER_ADMIN' | 'ADMIN' | 'DISPATCHER' | 'RESPONDER' | 'VIEWER';
+  role:
+    | 'SYSTEM_ADMIN'
+    | 'DEPARTMENT_MANAGER'
+    | 'SUPERVISOR'
+    | 'DISPATCHER'
+    | 'RESPONDER'
+    | 'CITIZEN_REPORTER'
+    | 'AUDITOR';
 }

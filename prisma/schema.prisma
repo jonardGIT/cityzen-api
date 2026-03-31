@@ -14,7 +14,7 @@ model User {
   name         String
   email        String   @unique
   passwordHash String
-  role         String   @default("VIEWER")
+  role         String   @default("CITIZEN_REPORTER")
   mfaEnabled   Boolean  @default(false)
   mfaSecretEncrypted String?
   mfaEnabledAt DateTime?

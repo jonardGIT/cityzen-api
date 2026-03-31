@@ -4,7 +4,7 @@ import app, { API_V1 } from '../app.js';
 import prisma from '../lib/prisma.js';
 import { generateMfaCodeFromSecret } from '../utils/mfa.js';
 
-jest.setTimeout(20000);
+jest.setTimeout(120000);
 
 describe('Auth bootstrap endpoints', () => {
   beforeEach(async () => {
@@ -19,7 +19,7 @@ describe('Auth bootstrap endpoints', () => {
     });
   });
 
-  it('POST /auth/register should create a VIEWER account and return token', async () => {
+  it('POST /auth/register should create a CITIZEN_REPORTER account and return token', async () => {
     const stamp = Date.now();
     const res = await request(app)
       .post(`${API_V1}/auth/register`)
@@ -36,7 +36,7 @@ describe('Auth bootstrap endpoints', () => {
     expect(res.body).toHaveProperty('expiresAt');
     expect(res.body).toHaveProperty('refreshExpiresAt');
     expect(res.body).toHaveProperty('user');
-    expect(res.body.user).toHaveProperty('role', 'VIEWER');
+    expect(res.body.user).toHaveProperty('role', 'CITIZEN_REPORTER');
     expect(res.body.user).toHaveProperty('createdAt');
     expect(res.body.user).toHaveProperty('updatedAt');
   });

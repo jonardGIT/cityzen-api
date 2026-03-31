@@ -25,11 +25,21 @@ CREATE TABLE users (
   name text NOT NULL,
   email text NOT NULL UNIQUE,
   "passwordHash" text NOT NULL,
-  role text NOT NULL DEFAULT 'VIEWER',
+  role text NOT NULL DEFAULT 'CITIZEN_REPORTER',
   "mfaEnabled" boolean NOT NULL DEFAULT false,
   "mfaSecretEncrypted" text,
   "mfaEnabledAt" timestamptz,
-  CONSTRAINT users_role_check CHECK (role IN ('SUPER_ADMIN', 'ADMIN', 'DISPATCHER', 'RESPONDER', 'VIEWER'))
+  CONSTRAINT users_role_check CHECK (
+    role IN (
+      'SYSTEM_ADMIN',
+      'DEPARTMENT_MANAGER',
+      'SUPERVISOR',
+      'DISPATCHER',
+      'RESPONDER',
+      'CITIZEN_REPORTER',
+      'AUDITOR'
+    )
+  )
 );
 
 CREATE TABLE auth_sessions (
