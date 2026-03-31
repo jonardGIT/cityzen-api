@@ -25,5 +25,5 @@ jobs:
             git pull origin main
             npm install
             npm run build
-            pm2 restart xype-cirs-api
+            pm2 restart xypes-cirs-api
 
