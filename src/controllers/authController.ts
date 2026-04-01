@@ -4,7 +4,7 @@ import { Prisma } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
-import { MFA_REQUIRED_ROLES, normalizeUserRoleInput } from '../types/auth.js';
+import { MFA_REQUIRED_ROLES, normalizeUserRoleInput, type UserRole } from '../types/auth.js';
 import {
   createAuthSession,
   listAuthSessionsForUser,
@@ -21,9 +21,16 @@ import {
 } from '../services/passwordResetService.js';
 import {
   authenticateSupabaseUser,
+  challengeAndVerifySupabaseTotpFactor,
   deleteSupabaseAuthUser,
+  deleteSupabaseAdminMfaFactor,
+  enrollSupabaseTotpFactor,
+  getSupabaseMfaAssuranceLevel,
+  isSupabaseTotpEnabled,
   isSupabaseAuthEnabled,
   isSupabaseJwtEnabled,
+  listSupabaseAdminMfaFactors,
+  listSupabaseMfaFactors,
   refreshSupabaseSession,
   revokeSupabaseAccessToken,
   registerSupabaseAuthUser,
@@ -48,6 +55,36 @@ async function buildSupabaseManagedPasswordHash(): Promise<string> {
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
+}
+
+function requiresSupabaseTotpForUser(role: UserRole, mfaEnabled: boolean): boolean {
+  return (
+    isSupabaseJwtEnabled() &&
+    isSupabaseTotpEnabled() &&
+    MFA_REQUIRED_ROLES.includes(role) &&
+    mfaEnabled
+  );
+}
+
+function getSupabaseSessionTokensFromRequest(req: Request): {
+  accessToken: string;
+  refreshToken: string;
+} | null {
+  const accessToken = (req as AuthenticatedRequest).authAccessToken;
+  const { refreshToken } = req.body as { refreshToken?: string };
+
+  if (!accessToken || !refreshToken) {
+    return null;
+  }
+
+  return {
+    accessToken,
+    refreshToken,
+  };
+}
+
+function isInvalidSupabaseMfaCodeError(error: unknown): boolean {
+  return error instanceof SupabaseAuthServiceError && error.code === 'INVALID_MFA_CODE';
 }
 
 function getAuthUserSelect() {
@@ -133,7 +170,8 @@ function handleSupabaseAuthRuntimeError(res: Response, error: unknown): boolean 
     (error.message.includes('SUPABASE_URL must be configured') ||
       error.message.includes('SUPABASE_ANON_KEY must be configured') ||
       error.message.includes('SUPABASE_SERVICE_ROLE_KEY must be configured') ||
-      error.message.includes('SUPABASE_AUTH_ENABLED must be true when SUPABASE_JWT_ENABLED=true'))
+      error.message.includes('SUPABASE_AUTH_ENABLED must be true when SUPABASE_JWT_ENABLED=true') ||
+      error.message.includes('SUPABASE_JWT_ENABLED must be true when SUPABASE_TOTP_ENABLED=true'))
   ) {
     res.status(503).json({
       message: `Supabase Auth is not available: ${error.message}`,
@@ -435,7 +473,71 @@ export async function login(req: Request, res: Response): Promise<void> {
 
   const role = normalizeUserRoleInput(user.role) ?? 'CITIZEN_REPORTER';
 
-  if (MFA_REQUIRED_ROLES.includes(role) && user.mfaEnabled) {
+  if (supabaseJwtSession && requiresSupabaseTotpForUser(role, user.mfaEnabled)) {
+    try {
+      const assurance = await getSupabaseMfaAssuranceLevel(supabaseJwtSession.token);
+
+      if (assurance.currentLevel !== 'aal2' && assurance.nextLevel === 'aal2') {
+        if (!mfaCode) {
+          await revokeSupabaseTokenQuietly(supabaseJwtSession.token);
+          res.status(401).json({ message: 'MFA code required', mfaRequired: true });
+          return;
+        }
+
+        if (!supabaseJwtSession.refreshToken) {
+          await revokeSupabaseTokenQuietly(supabaseJwtSession.token);
+          res.status(503).json({
+            message:
+              'Supabase MFA could not be completed because the session is missing a refresh token',
+          });
+          return;
+        }
+
+        const factors = await listSupabaseMfaFactors({
+          accessToken: supabaseJwtSession.token,
+          refreshToken: supabaseJwtSession.refreshToken,
+        });
+        const factor = [...factors.totp]
+          .reverse()
+          .find((candidate) => candidate.status === 'verified');
+
+        if (!factor) {
+          await revokeSupabaseTokenQuietly(supabaseJwtSession.token);
+          res.status(409).json({
+            message:
+              'MFA is enabled for this account but no verified Supabase TOTP factor is enrolled',
+          });
+          return;
+        }
+
+        supabaseJwtSession = await challengeAndVerifySupabaseTotpFactor({
+          accessToken: supabaseJwtSession.token,
+          refreshToken: supabaseJwtSession.refreshToken,
+          factorId: factor.id,
+          code: mfaCode,
+        });
+      }
+    } catch (error) {
+      await revokeSupabaseTokenQuietly(supabaseJwtSession.token);
+
+      if (isInvalidSupabaseMfaCodeError(error)) {
+        res.status(401).json({ message: 'Invalid MFA code', mfaRequired: true });
+        return;
+      }
+
+      if (handleSupabaseAuthRuntimeError(res, error)) {
+        return;
+      }
+
+      throw error;
+    }
+  }
+
+  if (
+    MFA_REQUIRED_ROLES.includes(role) &&
+    user.mfaEnabled &&
+    !requiresSupabaseTotpForUser(role, user.mfaEnabled)
+  ) {
     if (!user.mfaSecretEncrypted) {
       await revokeSupabaseTokenQuietly(supabaseJwtSession?.token);
       res.status(500).json({ message: 'MFA is enabled but not configured correctly' });
@@ -604,6 +706,83 @@ export async function setupMfa(req: Request, res: Response): Promise<void> {
     return;
   }
 
+  if (isSupabaseTotpEnabled()) {
+    const tokens = getSupabaseSessionTokensFromRequest(req);
+    if (!tokens) {
+      res
+        .status(422)
+        .json({ message: 'refreshToken is required when Supabase TOTP mode is enabled' });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: authUser.id },
+      select: {
+        id: true,
+        email: true,
+        supabaseAuthUserId: true,
+      },
+    });
+
+    if (!user?.supabaseAuthUserId) {
+      res.status(409).json({
+        message: 'MFA setup is not available until this account is linked to Supabase Auth',
+      });
+      return;
+    }
+
+    try {
+      const factors = await listSupabaseAdminMfaFactors(user.supabaseAuthUserId);
+      const verifiedTotpFactor = factors.find(
+        (factor) => factor.factorType === 'totp' && factor.status === 'verified',
+      );
+
+      if (verifiedTotpFactor) {
+        res.status(409).json({
+          message:
+            'MFA is already enabled for this account. Disable it before creating a new setup.',
+        });
+        return;
+      }
+
+      for (const factor of factors) {
+        if (factor.factorType === 'totp' && factor.status !== 'verified') {
+          await deleteSupabaseAdminMfaFactor(user.supabaseAuthUserId, factor.id);
+        }
+      }
+
+      const setup = await enrollSupabaseTotpFactor({
+        ...tokens,
+        friendlyName: `${user.email} TOTP`,
+      });
+
+      await prisma.user.update({
+        where: { id: authUser.id },
+        data: {
+          mfaEnabled: false,
+          mfaSecretEncrypted: null,
+          mfaEnabledAt: null,
+        },
+      });
+
+      res.json({
+        factorId: setup.id,
+        secret: setup.secret,
+        otpauthUrl: setup.uri,
+        qrCode: setup.qrCode,
+        issuer: setup.issuer ?? 'Supabase',
+        accountName: authUser.email,
+      });
+      return;
+    } catch (error) {
+      if (handleSupabaseAuthRuntimeError(res, error)) {
+        return;
+      }
+
+      throw error;
+    }
+  }
+
   try {
     const setup = createMfaSetup(authUser.email);
     await prisma.user.update({
@@ -643,6 +822,83 @@ export async function enableMfa(req: Request, res: Response): Promise<void> {
   if (!code) {
     res.status(422).json({ message: 'code is required' });
     return;
+  }
+
+  if (isSupabaseTotpEnabled()) {
+    const tokens = getSupabaseSessionTokensFromRequest(req);
+    if (!tokens) {
+      res
+        .status(422)
+        .json({ message: 'refreshToken is required when Supabase TOTP mode is enabled' });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: authUser.id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        createdAt: true,
+        updatedAt: true,
+        supabaseAuthUserId: true,
+      },
+    });
+
+    if (!user?.supabaseAuthUserId) {
+      res.status(409).json({
+        message: 'MFA setup is not available until this account is linked to Supabase Auth',
+      });
+      return;
+    }
+
+    try {
+      const factors = await listSupabaseMfaFactors(tokens);
+      const factor = [...factors.all]
+        .reverse()
+        .find((candidate) => candidate.factorType === 'totp' && candidate.status !== 'verified');
+
+      if (!factor) {
+        res.status(409).json({ message: 'MFA setup must be created before enabling MFA' });
+        return;
+      }
+
+      const session = await challengeAndVerifySupabaseTotpFactor({
+        ...tokens,
+        factorId: factor.id,
+        code,
+      });
+
+      const updatedUser = await prisma.user.update({
+        where: { id: authUser.id },
+        data: {
+          mfaEnabled: true,
+          mfaSecretEncrypted: null,
+          mfaEnabledAt: new Date(),
+        },
+        select: {
+          ...getAuthUserSelect(),
+        },
+      });
+
+      res.json({
+        message: 'MFA enabled.',
+        ...buildSupabaseJwtResponse(session, updatedUser),
+      });
+      return;
+    } catch (error) {
+      if (isInvalidSupabaseMfaCodeError(error)) {
+        res.status(401).json({ message: 'Invalid MFA code' });
+        return;
+      }
+
+      if (handleSupabaseAuthRuntimeError(res, error)) {
+        return;
+      }
+
+      throw error;
+    }
   }
 
   const user = await prisma.user.findUnique({
@@ -700,6 +956,69 @@ export async function disableMfa(req: Request, res: Response): Promise<void> {
   if (!code) {
     res.status(422).json({ message: 'code is required' });
     return;
+  }
+
+  if (isSupabaseTotpEnabled()) {
+    const tokens = getSupabaseSessionTokensFromRequest(req);
+    if (!tokens) {
+      res
+        .status(422)
+        .json({ message: 'refreshToken is required when Supabase TOTP mode is enabled' });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: authUser.id },
+      select: {
+        id: true,
+        supabaseAuthUserId: true,
+      },
+    });
+
+    if (!user?.supabaseAuthUserId) {
+      res.status(409).json({ message: 'MFA is not enabled for this account' });
+      return;
+    }
+
+    try {
+      const factors = await listSupabaseMfaFactors(tokens);
+      const factor = factors.totp.find((candidate) => candidate.status === 'verified');
+
+      if (!factor) {
+        res.status(409).json({ message: 'MFA is not enabled for this account' });
+        return;
+      }
+
+      await challengeAndVerifySupabaseTotpFactor({
+        ...tokens,
+        factorId: factor.id,
+        code,
+      });
+      await deleteSupabaseAdminMfaFactor(user.supabaseAuthUserId, factor.id);
+
+      await prisma.user.update({
+        where: { id: authUser.id },
+        data: {
+          mfaEnabled: false,
+          mfaSecretEncrypted: null,
+          mfaEnabledAt: null,
+        },
+      });
+
+      res.json({ message: 'MFA disabled. Please sign in again.' });
+      return;
+    } catch (error) {
+      if (isInvalidSupabaseMfaCodeError(error)) {
+        res.status(401).json({ message: 'Invalid MFA code' });
+        return;
+      }
+
+      if (handleSupabaseAuthRuntimeError(res, error)) {
+        return;
+      }
+
+      throw error;
+    }
   }
 
   const user = await prisma.user.findUnique({

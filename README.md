@@ -113,6 +113,7 @@ JWT_SECRET=replace-with-a-long-random-secret
 MFA_ENCRYPTION_KEY=replace-with-a-separate-long-random-secret
 SUPABASE_AUTH_ENABLED=false
 SUPABASE_JWT_ENABLED=false
+SUPABASE_TOTP_ENABLED=false
 SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_ANON_KEY=<public-anon-key>
 SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
@@ -133,6 +134,7 @@ Important variables:
 - `DATABASE_URL`: PostgreSQL connection for Prisma.
 - `SUPABASE_AUTH_ENABLED`: set to `true` to validate email/password credentials against Supabase Auth while the API continues issuing its own JWT/session tokens.
 - `SUPABASE_JWT_ENABLED`: optional. Set to `true` to accept and return Supabase access tokens for protected API routes. Requires `SUPABASE_AUTH_ENABLED=true`.
+- `SUPABASE_TOTP_ENABLED`: optional. Set to `true` to back privileged-user TOTP enrollment and verification with Supabase MFA instead of the local encrypted secret store. Requires `SUPABASE_JWT_ENABLED=true`.
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`: required when `SUPABASE_AUTH_ENABLED=true`.
 - `SUPABASE_AUTH_AUTO_CONFIRM_EMAIL`: optional. Defaults to `true` so backend-created users can sign in immediately; set to `false` if you require email confirmation.
 - `SUPABASE_PASSWORD_RESET_REDIRECT_URL`: optional frontend reset route used by Supabase password recovery emails if you later call the hosted reset flow.
@@ -141,6 +143,12 @@ Important variables:
 - `RATE_LIMIT_ENABLED`, `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX_REQUESTS`: request throttling controls.
 
 When `SUPABASE_JWT_ENABLED=true`, the backend verifies Supabase bearer tokens on protected routes and returns Supabase access/refresh tokens from login and refresh endpoints. The legacy session-management endpoints `/auth/sessions` and `/auth/sessions/:id` remain available only in app-JWT mode because Supabase does not expose arbitrary session listing/revocation in the same shape.
+
+When `SUPABASE_TOTP_ENABLED=true`, privileged-role MFA uses Supabase Auth's TOTP flow. In that mode:
+
+- `POST /auth/login` still accepts `mfaCode`, but the code is verified against Supabase TOTP factors and the returned token bundle is upgraded to `aal2`.
+- `POST /auth/mfa/setup`, `POST /auth/mfa/enable`, and `POST /auth/mfa/disable` require the caller's current Supabase `refreshToken` in the request body so the backend can perform session-scoped MFA operations against Supabase.
+- Protected routes reject privileged users who only have an `aal1` Supabase session after first-factor sign-in.
 
 Security notes:
 

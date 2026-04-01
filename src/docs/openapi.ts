@@ -774,7 +774,7 @@ export const openApiDocument: OpenAPIV3.Document = {
         tags: ['User'],
         summary: 'Create user',
         description:
-          'Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER. The backend rejects creation of target roles outside the caller\'s manageable set.',
+          "Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER. The backend rejects creation of target roles outside the caller's manageable set.",
         security: apiKeyAndBearerSecurity,
         requestBody: {
           required: true,
@@ -963,8 +963,16 @@ export const openApiDocument: OpenAPIV3.Document = {
         tags: ['Auth'],
         summary: 'Create or reset MFA setup for a privileged account',
         description:
-          'Creates a new TOTP seed for the authenticated privileged user and returns the shared secret plus otpauth URL for authenticator app enrollment.',
+          'Creates a new TOTP seed for the authenticated privileged user and returns the shared secret plus otpauth URL for authenticator app enrollment. When Supabase TOTP mode is enabled, include the current Supabase refresh token in the request body.',
         security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: false,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/MfaSetupRequest' },
+            },
+          },
+        },
         responses: {
           '200': jsonResponse(
             { $ref: '#/components/schemas/MfaSetupResponse' },
@@ -979,6 +987,8 @@ export const openApiDocument: OpenAPIV3.Document = {
       post: {
         tags: ['Auth'],
         summary: 'Enable MFA for the authenticated privileged account',
+        description:
+          'Enables MFA with the supplied TOTP code. When Supabase TOTP mode is enabled, include the current Supabase refresh token in the request body and the response may include an upgraded Supabase session bundle.',
         security: [{ BearerAuth: [] }],
         requestBody: {
           required: true,
@@ -989,10 +999,19 @@ export const openApiDocument: OpenAPIV3.Document = {
           },
         },
         responses: {
-          '200': jsonResponse(
-            { $ref: '#/components/schemas/MessageResponse' },
-            'MFA enabled. Current sessions were revoked.',
-          ),
+          '200': {
+            description: 'MFA enabled.',
+            content: {
+              'application/json': {
+                schema: {
+                  oneOf: [
+                    { $ref: '#/components/schemas/MessageResponse' },
+                    { $ref: '#/components/schemas/AuthResponse' },
+                  ],
+                },
+              },
+            },
+          },
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
           '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
           '409': jsonResponse(
@@ -1007,6 +1026,8 @@ export const openApiDocument: OpenAPIV3.Document = {
       post: {
         tags: ['Auth'],
         summary: 'Disable MFA for the authenticated privileged account',
+        description:
+          'Disables MFA with the supplied TOTP code. When Supabase TOTP mode is enabled, include the current Supabase refresh token in the request body.',
         security: [{ BearerAuth: [] }],
         requestBody: {
           required: true,
@@ -1541,10 +1562,21 @@ export const openApiDocument: OpenAPIV3.Document = {
           password: { type: 'string' },
           mfaCode: {
             type: 'string',
-            description: 'Required when the user has MFA enabled and belongs to a privileged role.',
+            description:
+              'Required when the user has MFA enabled and belongs to a privileged role. In Supabase TOTP mode this is verified against Supabase MFA factors.',
           },
         },
         required: ['email', 'password'],
+      },
+      MfaSetupRequest: {
+        type: 'object',
+        properties: {
+          refreshToken: {
+            type: 'string',
+            description:
+              'Required when Supabase TOTP mode is enabled so the backend can create a session-scoped MFA enrollment with Supabase.',
+          },
+        },
       },
       PasswordResetRequestRequest: {
         type: 'object',
@@ -1585,14 +1617,25 @@ export const openApiDocument: OpenAPIV3.Document = {
         type: 'object',
         properties: {
           code: { type: 'string' },
+          refreshToken: {
+            type: 'string',
+            description:
+              'Required when Supabase TOTP mode is enabled so the backend can create a session-scoped MFA challenge against Supabase.',
+          },
         },
         required: ['code'],
       },
       MfaSetupResponse: {
         type: 'object',
         properties: {
+          factorId: { type: 'string' },
           secret: { type: 'string' },
           otpauthUrl: { type: 'string' },
+          qrCode: {
+            type: 'string',
+            description:
+              'Inline SVG data URL returned by Supabase when Supabase TOTP mode is enabled.',
+          },
           issuer: { type: 'string' },
           accountName: { type: 'string', format: 'email' },
         },

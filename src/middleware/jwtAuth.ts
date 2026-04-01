@@ -4,6 +4,7 @@ import prisma from '../lib/prisma.js';
 import {
   isSupabaseAuthEnabled,
   isSupabaseJwtEnabled,
+  isSupabaseTotpEnabled,
   SupabaseAuthServiceError,
   verifySupabaseAccessToken,
 } from '../services/supabaseAuthService.js';
@@ -72,7 +73,8 @@ function isSupabaseConfigError(error: unknown): boolean {
     (error.message.includes('SUPABASE_URL must be configured') ||
       error.message.includes('SUPABASE_ANON_KEY must be configured') ||
       error.message.includes('SUPABASE_SERVICE_ROLE_KEY must be configured') ||
-      error.message.includes('SUPABASE_AUTH_ENABLED must be true when SUPABASE_JWT_ENABLED=true'))
+      error.message.includes('SUPABASE_AUTH_ENABLED must be true when SUPABASE_JWT_ENABLED=true') ||
+      error.message.includes('SUPABASE_JWT_ENABLED must be true when SUPABASE_TOTP_ENABLED=true'))
   );
 }
 
@@ -132,15 +134,24 @@ async function requireSupabaseJwtAuth(
       return;
     }
 
-    if (
-      MFA_REQUIRED_ROLES.includes(normalizedRole) &&
-      user.mfaEnabled &&
-      (!identity.accessTokenIssuedAt ||
+    if (MFA_REQUIRED_ROLES.includes(normalizedRole) && user.mfaEnabled) {
+      if (isSupabaseTotpEnabled()) {
+        if (identity.currentAuthenticatorLevel !== 'aal2') {
+          res.status(401).json({
+            message: 'Unauthorized: sign in again to satisfy MFA requirements',
+          });
+          return;
+        }
+      } else if (
+        !identity.accessTokenIssuedAt ||
         (user.mfaEnabledAt !== null &&
-          user.mfaEnabledAt.getTime() > identity.accessTokenIssuedAt * 1000))
-    ) {
-      res.status(401).json({ message: 'Unauthorized: sign in again to satisfy MFA requirements' });
-      return;
+          user.mfaEnabledAt.getTime() > identity.accessTokenIssuedAt * 1000)
+      ) {
+        res
+          .status(401)
+          .json({ message: 'Unauthorized: sign in again to satisfy MFA requirements' });
+        return;
+      }
     }
 
     (req as AuthenticatedRequest).authUser = {
