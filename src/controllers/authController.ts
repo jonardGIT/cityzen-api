@@ -369,18 +369,16 @@ export async function login(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  let supabaseJwtSession:
-    | {
-        token: string;
-        refreshToken: string | null;
-        tokenType: string;
-        sessionId: string | null;
-        expiresAt: string | null;
-        refreshExpiresAt: string | null;
-        userId: string;
-        email: string;
-      }
-    | null = null;
+  let supabaseJwtSession: {
+    token: string;
+    refreshToken: string | null;
+    tokenType: string;
+    sessionId: string | null;
+    expiresAt: string | null;
+    refreshExpiresAt: string | null;
+    userId: string;
+    email: string;
+  } | null = null;
 
   if (isSupabaseAuthEnabled()) {
     try {

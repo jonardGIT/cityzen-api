@@ -177,9 +177,6 @@ describe('Supabase JWT mode', () => {
       .set('Authorization', 'Bearer supabase-access-token');
 
     expect(response.status).toBe(204);
-    expect(mockRevokeSupabaseAccessToken).toHaveBeenCalledWith(
-      'supabase-access-token',
-      'local',
-    );
+    expect(mockRevokeSupabaseAccessToken).toHaveBeenCalledWith('supabase-access-token', 'local');
   });
 });

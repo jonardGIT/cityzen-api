@@ -72,7 +72,7 @@ export async function requestPasswordReset(email: string): Promise<{
 
 export async function resetPasswordWithToken(input: {
   token: string;
-  passwordHash: string;
+  passwordHash: string | null;
   beforeCommit?: (context: {
     userId: string;
     email: string;
@@ -129,7 +129,7 @@ export async function resetPasswordWithToken(input: {
     await tx.user.update({
       where: { id: resetToken.userId },
       data: {
-        passwordHash: input.passwordHash,
+        passwordHash: input.passwordHash === null ? { set: null } : input.passwordHash,
       },
     });
 
