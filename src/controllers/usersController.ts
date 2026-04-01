@@ -6,10 +6,13 @@ import prisma from '../lib/prisma.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
 import { revokeAllUserSessions } from '../services/authSessionService.js';
 import {
-  ROLE_PROFILES,
-  canManageRole,
-  normalizeUserRoleInput,
-} from '../types/auth.js';
+  deleteSupabaseAuthUser,
+  isSupabaseAuthEnabled,
+  registerSupabaseAuthUser,
+  SupabaseAuthServiceError,
+  updateSupabaseAuthUser,
+} from '../services/supabaseAuthService.js';
+import { ROLE_PROFILES, canManageRole, normalizeUserRoleInput } from '../types/auth.js';
 import { buildPaginatedResponse, getListQuery, getPaginationQuery } from '../utils/request.js';
 import { usersListQueryConfig } from '../utils/listQueryConfig.js';
 
@@ -20,6 +23,11 @@ const userSelect = {
   name: true,
   email: true,
   role: true,
+} as const;
+
+const userSyncSelect = {
+  ...userSelect,
+  supabaseAuthUserId: true,
 } as const;
 
 // UUID v4 validation regex
@@ -43,12 +51,37 @@ function normalizeRole(role?: string) {
   return normalizeUserRoleInput(role);
 }
 
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
 function getStoredUserRole(role: string) {
   return normalizeUserRoleInput(role);
 }
 
 function isUniqueConstraintError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+}
+
+function handleSupabaseAuthRuntimeError(res: Response, error: unknown): boolean {
+  if (error instanceof SupabaseAuthServiceError) {
+    res.status(error.status ?? 503).json({ message: error.message });
+    return true;
+  }
+
+  if (
+    error instanceof Error &&
+    (error.message.includes('SUPABASE_URL must be configured') ||
+      error.message.includes('SUPABASE_ANON_KEY must be configured') ||
+      error.message.includes('SUPABASE_SERVICE_ROLE_KEY must be configured'))
+  ) {
+    res.status(503).json({
+      message: `Supabase Auth is not available: ${error.message}`,
+    });
+    return true;
+  }
+
+  return false;
 }
 
 // Returns capability metadata for the authenticated user role.
@@ -138,6 +171,8 @@ export async function createUser(req: Request, res: Response): Promise<void> {
     return;
   }
 
+  const normalizedEmail = normalizeEmail(email);
+
   const normalizedRole = normalizeRole(role ?? 'CITIZEN_REPORTER');
   if (!normalizedRole) {
     res.status(422).json({
@@ -154,20 +189,54 @@ export async function createUser(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const passwordHash = await bcrypt.hash(password, 10);
+  let passwordHash: string | null = null;
+  let supabaseAuthUserId: string | null = null;
+
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const supabaseUser = await registerSupabaseAuthUser({
+        email: normalizedEmail,
+        password,
+        name,
+        role: normalizedRole,
+      });
+      supabaseAuthUserId = supabaseUser.id;
+    } catch (error) {
+      if (handleSupabaseAuthRuntimeError(res, error)) {
+        return;
+      }
+
+      throw error;
+    }
+  } else {
+    passwordHash = await bcrypt.hash(password, 10);
+  }
 
   try {
+    const createData: Prisma.UserCreateInput = {
+      name,
+      email: normalizedEmail,
+      role: normalizedRole,
+    };
+
+    if (passwordHash !== null) {
+      createData.passwordHash = passwordHash;
+    }
+
+    if (supabaseAuthUserId !== null) {
+      createData.supabaseAuthUserId = supabaseAuthUserId;
+    }
+
     const newUser = await prisma.user.create({
-      data: {
-        name,
-        email,
-        passwordHash,
-        role: normalizedRole,
-      },
+      data: createData,
       select: userSelect,
     });
     res.status(201).json(newUser);
   } catch (error) {
+    if (supabaseAuthUserId) {
+      await deleteSupabaseAuthUser(supabaseAuthUserId).catch(() => undefined);
+    }
+
     if (isUniqueConstraintError(error)) {
       res.status(409).json({ message: 'A user with that email already exists' });
       return;
@@ -194,7 +263,7 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const existingUser = await prisma.user.findUnique({ where: { id }, select: userSelect });
+  const existingUser = await prisma.user.findUnique({ where: { id }, select: userSyncSelect });
   if (!existingUser) {
     res.status(404).json({ message: 'User not found' });
     return;
@@ -235,27 +304,49 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const data: {
-    name?: string;
-    email?: string;
-    passwordHash?: string;
-    role?: string;
-  } = {};
+  const data: Prisma.UserUpdateInput = {};
+  const normalizedEmail = email !== undefined ? normalizeEmail(email) : undefined;
 
   if (name !== undefined) {
     data.name = name;
   }
 
-  if (email !== undefined) {
-    data.email = email;
-  }
-
-  if (password !== undefined) {
-    data.passwordHash = await bcrypt.hash(password, 10);
+  if (normalizedEmail !== undefined) {
+    data.email = normalizedEmail;
   }
 
   if (normalizedRole) {
     data.role = normalizedRole;
+  }
+
+  if (isSupabaseAuthEnabled()) {
+    if (existingUser.supabaseAuthUserId) {
+      try {
+        await updateSupabaseAuthUser(existingUser.supabaseAuthUserId, {
+          email: normalizedEmail,
+          password,
+          name,
+          role: normalizedRole ?? undefined,
+        });
+      } catch (error) {
+        if (handleSupabaseAuthRuntimeError(res, error)) {
+          return;
+        }
+
+        throw error;
+      }
+    } else if (email !== undefined || password !== undefined) {
+      res.status(409).json({
+        message: 'This user is not linked to Supabase Auth and cannot update email or password yet',
+      });
+      return;
+    }
+
+    if (password !== undefined) {
+      data.passwordHash = { set: null };
+    }
+  } else if (password !== undefined) {
+    data.passwordHash = await bcrypt.hash(password, 10);
   }
 
   try {
@@ -291,7 +382,7 @@ export async function deleteUser(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const existingUser = await prisma.user.findUnique({ where: { id }, select: userSelect });
+  const existingUser = await prisma.user.findUnique({ where: { id }, select: userSyncSelect });
   if (!existingUser) {
     res.status(404).json({ message: 'User not found' });
     return;
@@ -313,6 +404,18 @@ export async function deleteUser(req: Request, res: Response): Promise<void> {
       message: 'Forbidden: you are not allowed to delete that user role',
     });
     return;
+  }
+
+  if (isSupabaseAuthEnabled() && existingUser.supabaseAuthUserId) {
+    try {
+      await deleteSupabaseAuthUser(existingUser.supabaseAuthUserId);
+    } catch (error) {
+      if (handleSupabaseAuthRuntimeError(res, error)) {
+        return;
+      }
+
+      throw error;
+    }
   }
 
   await prisma.user.delete({ where: { id } });

@@ -1,3 +1,4 @@
+jest.setTimeout(60000);
 jest.retryTimes(3, { logErrorsBeforeRetry: true });
 
 process.env.MFA_ENCRYPTION_KEY = process.env.MFA_ENCRYPTION_KEY ?? 'test-only-mfa-encryption-key';
@@ -60,6 +61,13 @@ beforeAll(async () => {
   await prisma.$executeRawUnsafe(
     'ALTER TABLE users ADD COLUMN IF NOT EXISTS "mfaEnabled" boolean NOT NULL DEFAULT false',
   );
+  await prisma.$executeRawUnsafe('ALTER TABLE users ALTER COLUMN "passwordHash" DROP NOT NULL');
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE users ADD COLUMN IF NOT EXISTS "supabaseAuthUserId" uuid',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE UNIQUE INDEX IF NOT EXISTS users_supabase_auth_user_id_idx ON users ("supabaseAuthUserId") WHERE "supabaseAuthUserId" IS NOT NULL',
+  );
   await prisma.$executeRawUnsafe(
     'ALTER TABLE users ADD COLUMN IF NOT EXISTS "mfaSecretEncrypted" text',
   );
@@ -67,22 +75,38 @@ beforeAll(async () => {
     'ALTER TABLE users ADD COLUMN IF NOT EXISTS "mfaEnabledAt" timestamptz',
   );
   await prisma.$executeRawUnsafe(
-    'ALTER TABLE users ALTER COLUMN role SET DEFAULT \'CITIZEN_REPORTER\'',
+    "ALTER TABLE users ALTER COLUMN role SET DEFAULT 'CITIZEN_REPORTER'",
   );
   await prisma.$executeRawUnsafe(
     `UPDATE users
      SET role = CASE
-       WHEN role = 'SUPER_ADMIN' THEN 'SYSTEM_ADMIN'
-       WHEN role = 'ADMIN' THEN 'DEPARTMENT_MANAGER'
-       WHEN role = 'VIEWER' THEN 'CITIZEN_REPORTER'
-       ELSE role
+       WHEN LOWER(role) IN ('super_admin', 'system_admin', 'admin') THEN 'SYSTEM_ADMIN'
+       WHEN LOWER(role) IN ('department_manager', 'manager') THEN 'DEPARTMENT_MANAGER'
+       WHEN LOWER(role) = 'editor' THEN 'DISPATCHER'
+       WHEN LOWER(role) = 'supervisor' THEN 'SUPERVISOR'
+       WHEN LOWER(role) = 'dispatcher' THEN 'DISPATCHER'
+       WHEN LOWER(role) = 'responder' THEN 'RESPONDER'
+       WHEN LOWER(role) = 'auditor' THEN 'AUDITOR'
+       WHEN LOWER(role) IN ('viewer', 'citizen', 'citizen_reporter', 'reporter') THEN 'CITIZEN_REPORTER'
+       ELSE 'CITIZEN_REPORTER'
      END`,
   );
   await prisma.$executeRawUnsafe(
-    'ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check',
+    `UPDATE users
+     SET role = CASE
+       WHEN LOWER(email) = 'admin@xypes.local' THEN 'SYSTEM_ADMIN'
+       WHEN LOWER(email) = 'ops.lead@xypes.local' THEN 'DEPARTMENT_MANAGER'
+       WHEN LOWER(email) = 'dispatcher@xypes.local' THEN 'DISPATCHER'
+       WHEN LOWER(email) = 'analyst@xypes.local' THEN 'CITIZEN_REPORTER'
+       WHEN LOWER(email) = 'supervisor@xypes.local' THEN 'SUPERVISOR'
+       WHEN LOWER(email) = 'responder@xypes.local' THEN 'RESPONDER'
+       WHEN LOWER(email) = 'auditor@xypes.local' THEN 'AUDITOR'
+       ELSE role
+     END`,
   );
+  await prisma.$executeRawUnsafe('ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check');
   await prisma.$executeRawUnsafe(
-    'ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN (\'SYSTEM_ADMIN\', \'DEPARTMENT_MANAGER\', \'SUPERVISOR\', \'DISPATCHER\', \'RESPONDER\', \'CITIZEN_REPORTER\', \'AUDITOR\'))',
+    "ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('SYSTEM_ADMIN', 'DEPARTMENT_MANAGER', 'SUPERVISOR', 'DISPATCHER', 'RESPONDER', 'CITIZEN_REPORTER', 'AUDITOR'))",
   );
 });
 

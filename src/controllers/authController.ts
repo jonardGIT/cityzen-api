@@ -1,9 +1,10 @@
 import type { Request, Response } from 'express';
+import { randomUUID } from 'crypto';
 import { Prisma } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
-import { MFA_REQUIRED_ROLES, USER_ROLES, normalizeUserRoleInput } from '../types/auth.js';
+import { MFA_REQUIRED_ROLES, normalizeUserRoleInput } from '../types/auth.js';
 import {
   createAuthSession,
   listAuthSessionsForUser,
@@ -18,6 +19,14 @@ import {
   resetPasswordWithToken as consumePasswordResetToken,
   shouldExposePasswordResetToken,
 } from '../services/passwordResetService.js';
+import {
+  authenticateSupabaseUser,
+  deleteSupabaseAuthUser,
+  isSupabaseAuthEnabled,
+  registerSupabaseAuthUser,
+  SupabaseAuthServiceError,
+  updateSupabaseAuthUser,
+} from '../services/supabaseAuthService.js';
 
 function isStrongPassword(password: string): boolean {
   return (
@@ -27,6 +36,14 @@ function isStrongPassword(password: string): boolean {
     /\d/.test(password) &&
     /[^A-Za-z0-9]/.test(password)
   );
+}
+
+async function buildSupabaseManagedPasswordHash(): Promise<string> {
+  return bcrypt.hash(`supabase-managed:${randomUUID()}`, 10);
+}
+
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
 }
 
 function getAuthUserSelect() {
@@ -97,6 +114,31 @@ function isPasswordResetStorageError(error: unknown): boolean {
   );
 }
 
+function isUniqueConstraintError(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+}
+
+function handleSupabaseAuthRuntimeError(res: Response, error: unknown): boolean {
+  if (error instanceof SupabaseAuthServiceError) {
+    res.status(error.status ?? 503).json({ message: error.message });
+    return true;
+  }
+
+  if (
+    error instanceof Error &&
+    (error.message.includes('SUPABASE_URL must be configured') ||
+      error.message.includes('SUPABASE_ANON_KEY must be configured') ||
+      error.message.includes('SUPABASE_SERVICE_ROLE_KEY must be configured'))
+  ) {
+    res.status(503).json({
+      message: `Supabase Auth is not available: ${error.message}`,
+    });
+    return true;
+  }
+
+  return false;
+}
+
 function handlePasswordResetRuntimeError(res: Response, error: unknown): boolean {
   if (isPasswordResetStorageError(error)) {
     res.status(503).json({
@@ -122,6 +164,8 @@ export async function register(req: Request, res: Response): Promise<void> {
     return;
   }
 
+  const normalizedEmail = normalizeEmail(email);
+
   if (!isStrongPassword(password)) {
     res.status(422).json({
       message:
@@ -130,42 +174,80 @@ export async function register(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const existingUser = await prisma.user.findUnique({ where: { email } });
+  const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail } });
   if (existingUser) {
     res.status(409).json({ message: 'Email already registered' });
     return;
   }
 
-  const passwordHash = await bcrypt.hash(password, 10);
-  const user = await prisma.user.create({
-    data: {
-      name,
-      email,
-      passwordHash,
-      role: 'CITIZEN_REPORTER',
-    },
-    select: {
-      ...getAuthUserSelect(),
-    },
-  });
+  let passwordHash = '';
+  let supabaseAuthUserId: string | null = null;
 
-  const session = await createAuthSession({
-    userId: user.id,
-    email: user.email,
-    role: user.role,
-    userAgent: req.get('user-agent') ?? null,
-    ipAddress: req.ip ?? null,
-  });
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const supabaseUser = await registerSupabaseAuthUser({
+        email: normalizedEmail,
+        password,
+        name,
+        role: 'CITIZEN_REPORTER',
+      });
+      supabaseAuthUserId = supabaseUser.id;
+    } catch (error) {
+      if (handleSupabaseAuthRuntimeError(res, error)) {
+        return;
+      }
 
-  res.status(201).json({
-    token: session.token,
-    refreshToken: session.refreshToken,
-    tokenType: 'Bearer',
-    sessionId: session.sessionId,
-    expiresAt: session.expiresAt,
-    refreshExpiresAt: session.refreshExpiresAt,
-    user,
-  });
+      throw error;
+    }
+
+    passwordHash = await buildSupabaseManagedPasswordHash();
+  } else {
+    passwordHash = await bcrypt.hash(password, 10);
+  }
+
+  try {
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email: normalizedEmail,
+        passwordHash,
+        supabaseAuthUserId,
+        role: 'CITIZEN_REPORTER',
+      },
+      select: {
+        ...getAuthUserSelect(),
+      },
+    });
+
+    const session = await createAuthSession({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      userAgent: req.get('user-agent') ?? null,
+      ipAddress: req.ip ?? null,
+    });
+
+    res.status(201).json({
+      token: session.token,
+      refreshToken: session.refreshToken,
+      tokenType: 'Bearer',
+      sessionId: session.sessionId,
+      expiresAt: session.expiresAt,
+      refreshExpiresAt: session.refreshExpiresAt,
+      user,
+    });
+  } catch (error) {
+    if (supabaseAuthUserId) {
+      await deleteSupabaseAuthUser(supabaseAuthUserId).catch(() => undefined);
+    }
+
+    if (isUniqueConstraintError(error)) {
+      res.status(409).json({ message: 'Email already registered' });
+      return;
+    }
+
+    throw error;
+  }
 }
 
 // Authenticates a user by email and password, returning a signed JWT.
@@ -181,16 +263,55 @@ export async function login(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  const normalizedEmail = normalizeEmail(email);
+
+  const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
   if (!user) {
     res.status(401).json({ message: 'Invalid email or password' });
     return;
   }
 
-  const isValidPassword = await bcrypt.compare(password, user.passwordHash);
-  if (!isValidPassword) {
-    res.status(401).json({ message: 'Invalid email or password' });
-    return;
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const supabaseUser = await authenticateSupabaseUser({
+        email: normalizedEmail,
+        password,
+      });
+
+      if (user.supabaseAuthUserId && user.supabaseAuthUserId !== supabaseUser.id) {
+        res.status(409).json({
+          message: 'This email is linked to a different Supabase Auth account',
+        });
+        return;
+      }
+
+      if (!user.supabaseAuthUserId) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            supabaseAuthUserId: supabaseUser.id,
+          },
+        });
+        user.supabaseAuthUserId = supabaseUser.id;
+      }
+    } catch (error) {
+      if (handleSupabaseAuthRuntimeError(res, error)) {
+        return;
+      }
+
+      throw error;
+    }
+  } else {
+    if (!user.passwordHash) {
+      res.status(401).json({ message: 'Invalid email or password' });
+      return;
+    }
+
+    const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+    if (!isValidPassword) {
+      res.status(401).json({ message: 'Invalid email or password' });
+      return;
+    }
   }
 
   const role = normalizeUserRoleInput(user.role) ?? 'CITIZEN_REPORTER';
@@ -258,7 +379,7 @@ export async function requestPasswordReset(req: Request, res: Response): Promise
   }
 
   try {
-    const resetRequest = await createPasswordResetRequest(email);
+    const resetRequest = await createPasswordResetRequest(normalizeEmail(email));
     const responseBody: Record<string, string> = {
       message: 'If an account with that email exists, a password reset token has been created.',
     };
@@ -296,8 +417,25 @@ export async function confirmPasswordReset(req: Request, res: Response): Promise
   }
 
   try {
-    const passwordHash = await bcrypt.hash(password, 10);
-    const result = await consumePasswordResetToken({ token, passwordHash });
+    const result = await consumePasswordResetToken({
+      token,
+      passwordHash: isSupabaseAuthEnabled()
+        ? await buildSupabaseManagedPasswordHash()
+        : await bcrypt.hash(password, 10),
+      beforeCommit: isSupabaseAuthEnabled()
+        ? async ({ supabaseAuthUserId }) => {
+            if (!supabaseAuthUserId) {
+              throw new SupabaseAuthServiceError(
+                'USER_NOT_LINKED',
+                'Password reset is not available until this account is linked to Supabase Auth',
+                409,
+              );
+            }
+
+            await updateSupabaseAuthUser(supabaseAuthUserId, { password });
+          }
+        : undefined,
+    });
 
     if (!result) {
       res.status(401).json({ message: 'Invalid or expired password reset token' });
@@ -307,6 +445,10 @@ export async function confirmPasswordReset(req: Request, res: Response): Promise
     res.json({ message: 'Password reset succeeded. Please sign in again.' });
   } catch (error) {
     if (handlePasswordResetRuntimeError(res, error)) {
+      return;
+    }
+
+    if (handleSupabaseAuthRuntimeError(res, error)) {
       return;
     }
 

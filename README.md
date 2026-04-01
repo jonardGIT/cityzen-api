@@ -111,6 +111,12 @@ RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX_REQUESTS=100
 JWT_SECRET=replace-with-a-long-random-secret
 MFA_ENCRYPTION_KEY=replace-with-a-separate-long-random-secret
+SUPABASE_AUTH_ENABLED=false
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_ANON_KEY=<public-anon-key>
+SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
+SUPABASE_AUTH_AUTO_CONFIRM_EMAIL=true
+SUPABASE_PASSWORD_RESET_REDIRECT_URL=http://localhost:5173/reset-password
 SENTRY_DSN=https://<key>@o<org>.ingest.<region>.sentry.io/<project>
 SENTRY_SEND_DEFAULT_PII=false
 SENTRY_TRACES_SAMPLE_RATE=0.1
@@ -124,17 +130,21 @@ Important variables:
 - `SENTRY_SEND_DEFAULT_PII`: optional. Set to `true` only if you intentionally want request headers and user IP data sent to Sentry.
 - `SENTRY_TRACES_SAMPLE_RATE`: optional decimal from `0` to `1` for performance tracing volume.
 - `DATABASE_URL`: PostgreSQL connection for Prisma.
+- `SUPABASE_AUTH_ENABLED`: set to `true` to validate email/password credentials against Supabase Auth while the API continues issuing its own JWT/session tokens.
+- `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`: required when `SUPABASE_AUTH_ENABLED=true`.
+- `SUPABASE_AUTH_AUTO_CONFIRM_EMAIL`: optional. Defaults to `true` so backend-created users can sign in immediately; set to `false` if you require email confirmation.
+- `SUPABASE_PASSWORD_RESET_REDIRECT_URL`: optional frontend reset route used by Supabase password recovery emails if you later call the hosted reset flow.
 - `API_KEYS`: comma-separated allowed API keys.
 - `API_KEY`: optional single-key fallback if `API_KEYS` is not set.
 - `RATE_LIMIT_ENABLED`, `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX_REQUESTS`: request throttling controls.
 
 Security notes:
 
-- Do not hardcode the Sentry DSN in source files. Keep it in environment configuration so it can be rotated safely.
-- Sentry is initialized from the runtime server bootstrap, captures unhandled `5xx` request errors, and stays disabled when `SENTRY_DSN` is unset or `NODE_ENV=test`.
 - Keep `.env`, `.env.development`, and any real connection strings out of source control. This repository ignores them, but leaked values should still be rotated.
+- Do not hardcode the Sentry DSN in source files. Keep it in environment configuration so it can be rotated safely.
 - `.env.test` is intentionally sanitized for safe sharing and does not guarantee a reachable database in every environment.
 - For production, set `TRUST_PROXY=true` only when the app is behind a trusted reverse proxy or load balancer.
+- Sentry is initialized from the runtime server bootstrap, captures unhandled `5xx` request errors, and stays disabled when `SENTRY_DSN` is unset or `NODE_ENV=test`.
 
 ### 3. Initialize database schema and seed data (Supabase SQL Editor)
 
@@ -161,6 +171,10 @@ If you are enabling privileged-role MFA on an existing database, also run:
 
 1. `prisma/add-user-mfa.sql`
 
+If you are enabling Supabase-managed email/password auth on an existing database, also run:
+
+1. `prisma/add-supabase-auth.sql`
+
 ### 4. Start development server
 
 ```bash
@@ -172,9 +186,18 @@ npm run dev
 - `npm run dev`: start development server with nodemon + tsx
 - `npm run build`: compile TypeScript into `dist`
 - `npm start`: run compiled server from `dist/server.js`
+- `npm run supabase:backfill-seed -- --password=Password123!`: create the sample seeded users in Supabase Auth and link the local `users.supabaseAuthUserId` values before enabling `SUPABASE_AUTH_ENABLED=true`
 - `npm test`: run Jest test suite
 - `npm run test:watch`: run tests in watch mode
 - `npm run test:coverage`: run tests with coverage report
+
+If you are migrating existing seeded users to Supabase Auth, run the additive SQL first, set the Supabase env vars, and then backfill the seeded auth users before enabling `SUPABASE_AUTH_ENABLED=true`:
+
+```bash
+npm run supabase:backfill-seed -- --password=Password123!
+```
+
+That script targets the sample users from `prisma/seed-data.sql` by default and stores the returned Supabase auth IDs in the local `users` table. It cannot recover unknown existing passwords from bcrypt hashes, so for non-seeded users you must supply the password you want assigned in Supabase and optionally restrict the run with `--emails=a@example.com,b@example.com`.
 
 ## API Base Path
 
@@ -366,26 +389,26 @@ Role values:
 
 The table below summarizes the current route protection model. When `API_KEYS` or `API_KEY` is configured, assume `x-api-key` is also required for every versioned route except the explicit public bypasses under `/health`, `/openapi.json`, `/docs`, and `/auth/*`.
 
-| Route Group                                                                                                                                         | Read Access                                                           | Write Access                                       |
-| --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------- |
-| `/api/v1/auth/register`, `/api/v1/auth/login`, `/api/v1/auth/refresh`, `/api/v1/auth/password-reset/request`, `/api/v1/auth/password-reset/confirm` | Public                                                                | Public                                             |
-| `/api/v1/auth/me`, `/api/v1/auth/sessions`, `/api/v1/auth/logout`                                                                                   | Any authenticated JWT user                                            | Current session only                               |
-| `/api/v1/auth/sessions/:id`                                                                                                                         | N/A                                                                   | Any authenticated JWT user, limited to own session |
-| `/api/v1/auth/mfa/setup`, `/api/v1/auth/mfa/enable`, `/api/v1/auth/mfa/disable`                                                                     | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`      | Current session only                               |
-| `/api/v1/citizens`                                                                                                                                  | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                  | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`               |
-| `/api/v1/citizens/link-me`                                                                                                                          | N/A                                                                   | `CITIZEN_REPORTER`                                 |
-| `/api/v1/agencies`                                                                                                                                  | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`      | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`               |
-| `/api/v1/responders`                                                                                                                                | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`      | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`               |
-| `/api/v1/statuses`                                                                                                                                  | Any authenticated JWT user                                            | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`               |
-| `/api/v1/categories`                                                                                                                                | Any authenticated JWT user                                            | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`               |
-| `/api/v1/severities`                                                                                                                                | Any authenticated JWT user                                            | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`               |
+| Route Group                                                                                                                                         | Read Access                                                                     | Write Access                                                                  |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `/api/v1/auth/register`, `/api/v1/auth/login`, `/api/v1/auth/refresh`, `/api/v1/auth/password-reset/request`, `/api/v1/auth/password-reset/confirm` | Public                                                                          | Public                                                                        |
+| `/api/v1/auth/me`, `/api/v1/auth/sessions`, `/api/v1/auth/logout`                                                                                   | Any authenticated JWT user                                                      | Current session only                                                          |
+| `/api/v1/auth/sessions/:id`                                                                                                                         | N/A                                                                             | Any authenticated JWT user, limited to own session                            |
+| `/api/v1/auth/mfa/setup`, `/api/v1/auth/mfa/enable`, `/api/v1/auth/mfa/disable`                                                                     | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`                | Current session only                                                          |
+| `/api/v1/citizens`                                                                                                                                  | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                            | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                          |
+| `/api/v1/citizens/link-me`                                                                                                                          | N/A                                                                             | `CITIZEN_REPORTER`                                                            |
+| `/api/v1/agencies`                                                                                                                                  | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`                | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                          |
+| `/api/v1/responders`                                                                                                                                | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`                | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                          |
+| `/api/v1/statuses`                                                                                                                                  | Any authenticated JWT user                                                      | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                          |
+| `/api/v1/categories`                                                                                                                                | Any authenticated JWT user                                                      | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                          |
+| `/api/v1/severities`                                                                                                                                | Any authenticated JWT user                                                      | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                          |
 | `/api/v1/incidents`                                                                                                                                 | Any authenticated JWT user. `CITIZEN_REPORTER` is scoped to own incidents only. | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`, `RESPONDER` |
-| `/api/v1/incidents/report`                                                                                                                          | N/A                                                                   | `CITIZEN_REPORTER`                                 |
-| `/api/v1/assignments`                                                                                                                               | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`      | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER` |
-| `/api/v1/users`                                                                                                                                     | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                  | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`               |
-| `/api/v1/users/capabilities`                                                                                                                        | Any authenticated JWT user                                            | N/A                                                |
-| `/api/v1/admin/users`                                                                                                                               | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                  | N/A                                                |
-| `/api/v1/audit-logs`                                                                                                                                | `SYSTEM_ADMIN`, `AUDITOR`                                             | Read-only                                          |
+| `/api/v1/incidents/report`                                                                                                                          | N/A                                                                             | `CITIZEN_REPORTER`                                                            |
+| `/api/v1/assignments`                                                                                                                               | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`                | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`              |
+| `/api/v1/users`                                                                                                                                     | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                            | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                          |
+| `/api/v1/users/capabilities`                                                                                                                        | Any authenticated JWT user                                                      | N/A                                                                           |
+| `/api/v1/admin/users`                                                                                                                               | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                            | N/A                                                                           |
+| `/api/v1/audit-logs`                                                                                                                                | `SYSTEM_ADMIN`, `AUDITOR`                                                       | Read-only                                                                     |
 
 Notes:
 

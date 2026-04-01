@@ -8,17 +8,18 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(uuid()) @db.Uuid
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  name         String
-  email        String   @unique
-  passwordHash String
-  role         String   @default("CITIZEN_REPORTER")
-  mfaEnabled   Boolean  @default(false)
+  id                String               @id @default(uuid()) @db.Uuid
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  name              String
+  email             String               @unique
+  passwordHash      String?
+  supabaseAuthUserId String?             @unique @db.Uuid
+  role              String               @default("CITIZEN_REPORTER")
+  mfaEnabled        Boolean              @default(false)
   mfaSecretEncrypted String?
-  mfaEnabledAt DateTime?
-  authSessions AuthSession[]
+  mfaEnabledAt      DateTime?
+  authSessions      AuthSession[]
   passwordResetTokens PasswordResetToken[]
 
   @@map("users")

@@ -24,7 +24,8 @@ CREATE TABLE users (
   "updatedAt" timestamptz NOT NULL DEFAULT NOW(),
   name text NOT NULL,
   email text NOT NULL UNIQUE,
-  "passwordHash" text NOT NULL,
+  "passwordHash" text,
+  "supabaseAuthUserId" uuid,
   role text NOT NULL DEFAULT 'CITIZEN_REPORTER',
   "mfaEnabled" boolean NOT NULL DEFAULT false,
   "mfaSecretEncrypted" text,
@@ -198,6 +199,7 @@ CREATE INDEX responders_agency_id_idx ON responders ("agencyId");
 CREATE INDEX assignments_incident_id_idx ON assignments ("incidentId");
 CREATE INDEX assignments_responder_id_idx ON assignments ("responderId");
 CREATE INDEX users_email_idx ON users (email);
+CREATE UNIQUE INDEX users_supabase_auth_user_id_idx ON users ("supabaseAuthUserId");
 CREATE INDEX users_role_idx ON users (role);
 
 CREATE OR REPLACE FUNCTION set_updated_at()

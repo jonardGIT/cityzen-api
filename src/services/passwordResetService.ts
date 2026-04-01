@@ -73,6 +73,11 @@ export async function requestPasswordReset(email: string): Promise<{
 export async function resetPasswordWithToken(input: {
   token: string;
   passwordHash: string;
+  beforeCommit?: (context: {
+    userId: string;
+    email: string;
+    supabaseAuthUserId: string | null;
+  }) => Promise<void>;
 }): Promise<{ userId: string; email: string } | null> {
   const tokenHash = hashPasswordResetToken(input.token);
   const now = new Date();
@@ -89,6 +94,7 @@ export async function resetPasswordWithToken(input: {
           select: {
             id: true,
             email: true,
+            supabaseAuthUserId: true,
           },
         },
       },
@@ -110,6 +116,14 @@ export async function resetPasswordWithToken(input: {
 
     if (consumeResult.count === 0) {
       return null;
+    }
+
+    if (input.beforeCommit) {
+      await input.beforeCommit({
+        userId: resetToken.user.id,
+        email: resetToken.user.email,
+        supabaseAuthUserId: resetToken.user.supabaseAuthUserId,
+      });
     }
 
     await tx.user.update({
