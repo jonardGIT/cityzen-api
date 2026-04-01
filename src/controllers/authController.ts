@@ -23,7 +23,11 @@ import {
   authenticateSupabaseUser,
   deleteSupabaseAuthUser,
   isSupabaseAuthEnabled,
+  isSupabaseJwtEnabled,
+  refreshSupabaseSession,
+  revokeSupabaseAccessToken,
   registerSupabaseAuthUser,
+  signInSupabaseUser,
   SupabaseAuthServiceError,
   updateSupabaseAuthUser,
 } from '../services/supabaseAuthService.js';
@@ -128,7 +132,8 @@ function handleSupabaseAuthRuntimeError(res: Response, error: unknown): boolean 
     error instanceof Error &&
     (error.message.includes('SUPABASE_URL must be configured') ||
       error.message.includes('SUPABASE_ANON_KEY must be configured') ||
-      error.message.includes('SUPABASE_SERVICE_ROLE_KEY must be configured'))
+      error.message.includes('SUPABASE_SERVICE_ROLE_KEY must be configured') ||
+      error.message.includes('SUPABASE_AUTH_ENABLED must be true when SUPABASE_JWT_ENABLED=true'))
   ) {
     res.status(503).json({
       message: `Supabase Auth is not available: ${error.message}`,
@@ -137,6 +142,74 @@ function handleSupabaseAuthRuntimeError(res: Response, error: unknown): boolean 
   }
 
   return false;
+}
+
+function buildSupabaseJwtResponse(
+  session: {
+    token: string;
+    refreshToken: string | null;
+    tokenType: string;
+    sessionId: string | null;
+    expiresAt: string | null;
+    refreshExpiresAt: string | null;
+  },
+  user: Record<string, unknown>,
+) {
+  return {
+    token: session.token,
+    refreshToken: session.refreshToken,
+    tokenType: session.tokenType,
+    sessionId: session.sessionId,
+    expiresAt: session.expiresAt,
+    refreshExpiresAt: session.refreshExpiresAt,
+    user,
+  };
+}
+
+async function revokeSupabaseTokenQuietly(token: string | null | undefined): Promise<void> {
+  if (!token) {
+    return;
+  }
+
+  await revokeSupabaseAccessToken(token, 'local').catch(() => undefined);
+}
+
+async function getLocalAuthUserForSupabaseIdentity(supabaseUserId: string, email: string) {
+  const normalizedEmail = normalizeEmail(email);
+  const user = await prisma.user.findFirst({
+    where: {
+      OR: [{ supabaseAuthUserId: supabaseUserId }, { email: normalizedEmail }],
+    },
+    select: {
+      ...getAuthUserSelect(),
+      supabaseAuthUserId: true,
+    },
+  });
+
+  if (!user) {
+    return null;
+  }
+
+  if (user.supabaseAuthUserId && user.supabaseAuthUserId !== supabaseUserId) {
+    throw new SupabaseAuthServiceError(
+      'USER_LINK_CONFLICT',
+      'This email is linked to a different Supabase Auth account',
+      409,
+    );
+  }
+
+  if (!user.supabaseAuthUserId) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        supabaseAuthUserId: supabaseUserId,
+      },
+    });
+    user.supabaseAuthUserId = supabaseUserId;
+  }
+
+  const { supabaseAuthUserId: _supabaseAuthUserId, ...authUser } = user;
+  return authUser;
 }
 
 function handlePasswordResetRuntimeError(res: Response, error: unknown): boolean {
@@ -180,7 +253,7 @@ export async function register(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  let passwordHash = '';
+  let passwordHash: string | null = null;
   let supabaseAuthUserId: string | null = null;
 
   if (isSupabaseAuthEnabled()) {
@@ -199,8 +272,6 @@ export async function register(req: Request, res: Response): Promise<void> {
 
       throw error;
     }
-
-    passwordHash = await buildSupabaseManagedPasswordHash();
   } else {
     passwordHash = await bcrypt.hash(password, 10);
   }
@@ -218,6 +289,33 @@ export async function register(req: Request, res: Response): Promise<void> {
         ...getAuthUserSelect(),
       },
     });
+
+    if (isSupabaseJwtEnabled()) {
+      try {
+        const supabaseSession = await signInSupabaseUser({
+          email: normalizedEmail,
+          password,
+        });
+
+        res.status(201).json(buildSupabaseJwtResponse(supabaseSession, user));
+        return;
+      } catch (error) {
+        if (error instanceof SupabaseAuthServiceError && error.code === 'EMAIL_NOT_CONFIRMED') {
+          res.status(201).json({
+            message: 'Registration succeeded. Confirm your email before signing in.',
+            emailConfirmationRequired: true,
+            user,
+          });
+          return;
+        }
+
+        if (handleSupabaseAuthRuntimeError(res, error)) {
+          return;
+        }
+
+        throw error;
+      }
+    }
 
     const session = await createAuthSession({
       userId: user.id,
@@ -271,14 +369,37 @@ export async function login(req: Request, res: Response): Promise<void> {
     return;
   }
 
+  let supabaseJwtSession:
+    | {
+        token: string;
+        refreshToken: string | null;
+        tokenType: string;
+        sessionId: string | null;
+        expiresAt: string | null;
+        refreshExpiresAt: string | null;
+        userId: string;
+        email: string;
+      }
+    | null = null;
+
   if (isSupabaseAuthEnabled()) {
     try {
-      const supabaseUser = await authenticateSupabaseUser({
-        email: normalizedEmail,
-        password,
-      });
+      const supabaseUser = isSupabaseJwtEnabled()
+        ? ((supabaseJwtSession = await signInSupabaseUser({
+            email: normalizedEmail,
+            password,
+          })),
+          {
+            id: supabaseJwtSession.userId,
+            email: supabaseJwtSession.email,
+          })
+        : await authenticateSupabaseUser({
+            email: normalizedEmail,
+            password,
+          });
 
       if (user.supabaseAuthUserId && user.supabaseAuthUserId !== supabaseUser.id) {
+        await revokeSupabaseTokenQuietly(supabaseJwtSession?.token);
         res.status(409).json({
           message: 'This email is linked to a different Supabase Auth account',
         });
@@ -318,27 +439,48 @@ export async function login(req: Request, res: Response): Promise<void> {
 
   if (MFA_REQUIRED_ROLES.includes(role) && user.mfaEnabled) {
     if (!user.mfaSecretEncrypted) {
+      await revokeSupabaseTokenQuietly(supabaseJwtSession?.token);
       res.status(500).json({ message: 'MFA is enabled but not configured correctly' });
       return;
     }
 
     if (!mfaCode) {
+      await revokeSupabaseTokenQuietly(supabaseJwtSession?.token);
       res.status(401).json({ message: 'MFA code required', mfaRequired: true });
       return;
     }
 
     try {
       if (!verifyMfaCode(user.mfaSecretEncrypted, mfaCode)) {
+        await revokeSupabaseTokenQuietly(supabaseJwtSession?.token);
         res.status(401).json({ message: 'Invalid MFA code', mfaRequired: true });
         return;
       }
     } catch (error) {
+      await revokeSupabaseTokenQuietly(supabaseJwtSession?.token);
+
       if (handleMfaRuntimeError(res, error)) {
         return;
       }
 
       throw error;
     }
+  }
+
+  if (supabaseJwtSession) {
+    res.json(
+      buildSupabaseJwtResponse(supabaseJwtSession, {
+        id: user.id,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        name: user.name,
+        email: user.email,
+        role,
+        mfaEnabled: user.mfaEnabled,
+        mfaEnabledAt: user.mfaEnabledAt,
+      }),
+    );
+    return;
   }
 
   const session = await createAuthSession({
@@ -540,6 +682,10 @@ export async function enableMfa(req: Request, res: Response): Promise<void> {
   });
   await revokeAllUserSessions(authUser.id);
 
+  if (isSupabaseJwtEnabled()) {
+    await revokeSupabaseTokenQuietly((req as AuthenticatedRequest).authAccessToken);
+  }
+
   res.json({ message: 'MFA enabled. Please sign in again.' });
 }
 
@@ -595,6 +741,10 @@ export async function disableMfa(req: Request, res: Response): Promise<void> {
   });
   await revokeAllUserSessions(authUser.id);
 
+  if (isSupabaseJwtEnabled()) {
+    await revokeSupabaseTokenQuietly((req as AuthenticatedRequest).authAccessToken);
+  }
+
   res.json({ message: 'MFA disabled. Please sign in again.' });
 }
 
@@ -626,6 +776,31 @@ export async function refresh(req: Request, res: Response): Promise<void> {
   if (!refreshToken) {
     res.status(422).json({ message: 'refreshToken is required' });
     return;
+  }
+
+  if (isSupabaseJwtEnabled()) {
+    try {
+      const supabaseSession = await refreshSupabaseSession(refreshToken);
+      const user = await getLocalAuthUserForSupabaseIdentity(
+        supabaseSession.userId,
+        supabaseSession.email,
+      );
+
+      if (!user) {
+        await revokeSupabaseTokenQuietly(supabaseSession.token);
+        res.status(401).json({ message: 'Invalid or expired refresh token' });
+        return;
+      }
+
+      res.json(buildSupabaseJwtResponse(supabaseSession, user));
+      return;
+    } catch (error) {
+      if (handleSupabaseAuthRuntimeError(res, error)) {
+        return;
+      }
+
+      throw error;
+    }
   }
 
   const session = await refreshAuthSession({
@@ -668,6 +843,13 @@ export async function refresh(req: Request, res: Response): Promise<void> {
 
 // Lists the authenticated user's sessions for device/session management UI.
 export async function listSessions(req: Request, res: Response): Promise<void> {
+  if (isSupabaseJwtEnabled()) {
+    res.status(501).json({
+      message: 'Session listing is not available when Supabase JWT mode is enabled',
+    });
+    return;
+  }
+
   const authUser = (req as AuthenticatedRequest).authUser;
   const currentSessionId = (req as AuthenticatedRequest).authSessionId;
   if (!authUser || !currentSessionId) {
@@ -686,6 +868,13 @@ export async function listSessions(req: Request, res: Response): Promise<void> {
 
 // Revokes one of the authenticated user's sessions by session id.
 export async function revokeSession(req: Request, res: Response): Promise<void> {
+  if (isSupabaseJwtEnabled()) {
+    res.status(501).json({
+      message: 'Revoking an arbitrary session is not available when Supabase JWT mode is enabled',
+    });
+    return;
+  }
+
   const authUser = (req as AuthenticatedRequest).authUser;
   if (!authUser) {
     res.status(401).json({ message: 'Unauthorized: missing authentication context' });
@@ -709,6 +898,26 @@ export async function revokeSession(req: Request, res: Response): Promise<void> 
 
 // Revokes the current authenticated auth session.
 export async function logout(req: Request, res: Response): Promise<void> {
+  if (isSupabaseJwtEnabled()) {
+    const authAccessToken = (req as AuthenticatedRequest).authAccessToken;
+    if (!authAccessToken) {
+      res.status(401).json({ message: 'Unauthorized: missing authentication session' });
+      return;
+    }
+
+    try {
+      await revokeSupabaseAccessToken(authAccessToken, 'local');
+      res.status(204).send();
+      return;
+    } catch (error) {
+      if (handleSupabaseAuthRuntimeError(res, error)) {
+        return;
+      }
+
+      throw error;
+    }
+  }
+
   const authSessionId = (req as AuthenticatedRequest).authSessionId;
   if (!authSessionId) {
     res.status(401).json({ message: 'Unauthorized: missing authentication session' });

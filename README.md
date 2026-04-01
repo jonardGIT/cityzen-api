@@ -112,6 +112,7 @@ RATE_LIMIT_MAX_REQUESTS=100
 JWT_SECRET=replace-with-a-long-random-secret
 MFA_ENCRYPTION_KEY=replace-with-a-separate-long-random-secret
 SUPABASE_AUTH_ENABLED=false
+SUPABASE_JWT_ENABLED=false
 SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_ANON_KEY=<public-anon-key>
 SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
@@ -131,12 +132,15 @@ Important variables:
 - `SENTRY_TRACES_SAMPLE_RATE`: optional decimal from `0` to `1` for performance tracing volume.
 - `DATABASE_URL`: PostgreSQL connection for Prisma.
 - `SUPABASE_AUTH_ENABLED`: set to `true` to validate email/password credentials against Supabase Auth while the API continues issuing its own JWT/session tokens.
+- `SUPABASE_JWT_ENABLED`: optional. Set to `true` to accept and return Supabase access tokens for protected API routes. Requires `SUPABASE_AUTH_ENABLED=true`.
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`: required when `SUPABASE_AUTH_ENABLED=true`.
 - `SUPABASE_AUTH_AUTO_CONFIRM_EMAIL`: optional. Defaults to `true` so backend-created users can sign in immediately; set to `false` if you require email confirmation.
 - `SUPABASE_PASSWORD_RESET_REDIRECT_URL`: optional frontend reset route used by Supabase password recovery emails if you later call the hosted reset flow.
 - `API_KEYS`: comma-separated allowed API keys.
 - `API_KEY`: optional single-key fallback if `API_KEYS` is not set.
 - `RATE_LIMIT_ENABLED`, `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX_REQUESTS`: request throttling controls.
+
+When `SUPABASE_JWT_ENABLED=true`, the backend verifies Supabase bearer tokens on protected routes and returns Supabase access/refresh tokens from login and refresh endpoints. The legacy session-management endpoints `/auth/sessions` and `/auth/sessions/:id` remain available only in app-JWT mode because Supabase does not expose arbitrary session listing/revocation in the same shape.
 
 Security notes:
 
