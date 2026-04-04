@@ -27,6 +27,7 @@ Recommended downstream destinations:
 - a centralized log or SIEM platform for retention and tamper resistance
 - an on-call paging or ticketing system for actionable high-severity alerts
 - a case-management or incident tracker for privileged-account recovery approvals
+- production webhook destinations for alerts or recovery orchestration should use managed `https://` endpoints
 
 ## Minimum Alert Rules
 

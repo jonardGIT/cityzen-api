@@ -24,6 +24,8 @@ describe('startup environment validation', () => {
           API_KEYS: 'prod-api-key-0123456789',
           MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
           SUPABASE_SERVICE_ROLE_KEY: 'prod-service-role-key-0123456789-abcdef-uvwxyz',
+          PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'https://security.example.gov/password-reset',
+          SECURITY_ALERT_WEBHOOK_URL: 'https://security.example.gov/alerts',
         },
         selection: createSelection({
           mfaMode: 'local-totp',
@@ -82,6 +84,32 @@ describe('startup environment validation', () => {
         selection: createSelection({ mediaStorage: 'supabase-storage' }),
       }),
     ).toThrow('SUPABASE_SERVICE_ROLE_KEY must be at least 32 characters in production');
+  });
+
+  it('rejects non-HTTPS password reset delivery webhooks in production', () => {
+    expect(() =>
+      validateStartupEnvironment({
+        env: {
+          NODE_ENV: 'production',
+          JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
+          PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'http://insecure.example.test/reset',
+        },
+        selection: createSelection(),
+      }),
+    ).toThrow('PASSWORD_RESET_DELIVERY_WEBHOOK_URL must use HTTPS in production');
+  });
+
+  it('rejects invalid security alert webhook URLs in production', () => {
+    expect(() =>
+      validateStartupEnvironment({
+        env: {
+          NODE_ENV: 'production',
+          JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
+          SECURITY_ALERT_WEBHOOK_URL: 'not-a-url',
+        },
+        selection: createSelection(),
+      }),
+    ).toThrow('SECURITY_ALERT_WEBHOOK_URL must be a valid absolute URL in production');
   });
 
   it('skips strict validation outside production', () => {

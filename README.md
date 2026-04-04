@@ -158,6 +158,7 @@ Important variables:
 - `SENTRY_SEND_DEFAULT_PII`: optional. Set to `true` only if you intentionally want request headers and user IP data sent to Sentry.
 - `SENTRY_TRACES_SAMPLE_RATE`: optional decimal from `0` to `1` for performance tracing volume.
 - `SECURITY_ALERT_WEBHOOK_URL`: optional centralized security-alert sink. When set, the backend forwards selected high-risk audit events and threshold-based auth abuse alerts to this webhook.
+- `SECURITY_ALERT_WEBHOOK_URL` must be an absolute `https://` URL in production.
 - `SECURITY_ALERT_LOGIN_FAILURE_THRESHOLD`, `SECURITY_ALERT_LOGIN_FAILURE_WINDOW_MS`: optional threshold controls for repeated failed-login alerts. Defaults to 5 failures in 15 minutes.
 - `SECURITY_ALERT_PASSWORD_RESET_THRESHOLD`, `SECURITY_ALERT_PASSWORD_RESET_WINDOW_MS`: optional threshold controls for repeated password-reset request alerts. Defaults to 3 requests in 1 hour.
 - `DATABASE_URL`: PostgreSQL runtime connection for Prisma. If you use the Supabase transaction pooler, include `?pgbouncer=true&connection_limit=1&pool_timeout=20`.
@@ -187,6 +188,7 @@ Important variables:
 - `AUTH_PASSWORD_RESET_REQUEST_RATE_LIMIT_WINDOW_MS`, `AUTH_PASSWORD_RESET_REQUEST_RATE_LIMIT_MAX_REQUESTS`: optional tighter password reset request throttle. Defaults to 1 hour and 5 attempts per client-plus-email.
 - `AUTH_PASSWORD_RESET_CONFIRM_RATE_LIMIT_WINDOW_MS`, `AUTH_PASSWORD_RESET_CONFIRM_RATE_LIMIT_MAX_REQUESTS`: optional tighter password reset confirmation throttle. Defaults to 15 minutes and 10 attempts per client.
 - `PASSWORD_RESET_DELIVERY_WEBHOOK_URL`: optional generic webhook target for production password reset delivery. When set, the backend posts password reset delivery payloads to this URL instead of exposing tokens in API responses.
+- `PASSWORD_RESET_DELIVERY_WEBHOOK_URL` must be an absolute `https://` URL in production.
 - `AUTH_MFA_SETUP_RATE_LIMIT_WINDOW_MS`, `AUTH_MFA_SETUP_RATE_LIMIT_MAX_REQUESTS`: optional tighter MFA setup throttle. Defaults to 10 minutes and 5 attempts per authenticated user.
 - `AUTH_MFA_ENABLE_RATE_LIMIT_WINDOW_MS`, `AUTH_MFA_ENABLE_RATE_LIMIT_MAX_REQUESTS`: optional tighter MFA enable throttle. Defaults to 10 minutes and 10 attempts per authenticated user.
 - `AUTH_MFA_DISABLE_RATE_LIMIT_WINDOW_MS`, `AUTH_MFA_DISABLE_RATE_LIMIT_MAX_REQUESTS`: optional tighter MFA disable throttle. Defaults to 10 minutes and 10 attempts per authenticated user.

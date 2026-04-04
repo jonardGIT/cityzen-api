@@ -40,20 +40,14 @@ function normalizeValue(value: string): string {
   return value.trim().toLowerCase();
 }
 
-function validateRequiredSecret(
-  env: NodeJS.ProcessEnv,
-  name: string,
-  minimumLength: number,
-): void {
+function validateRequiredSecret(env: NodeJS.ProcessEnv, name: string, minimumLength: number): void {
   const value = env[name]?.trim();
   if (!value) {
     throw new Error(`${name} must be configured`);
   }
 
   if (value.length < minimumLength) {
-    throw new Error(
-      `${name} must be at least ${minimumLength} characters in production`,
-    );
+    throw new Error(`${name} must be at least ${minimumLength} characters in production`);
   }
 
   if (WEAK_SECRET_VALUES.has(normalizeValue(value))) {
@@ -94,6 +88,24 @@ function requiresSupabaseServiceRoleKey(selection: FeatureSelection): boolean {
   );
 }
 
+function validateOptionalHttpsUrl(env: NodeJS.ProcessEnv, name: string): void {
+  const value = env[name]?.trim();
+  if (!value) {
+    return;
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`${name} must be a valid absolute URL in production`);
+  }
+
+  if (parsed.protocol !== 'https:') {
+    throw new Error(`${name} must use HTTPS in production`);
+  }
+}
+
 export function validateStartupEnvironment({ env, selection }: StartupValidationOptions): void {
   if (env.NODE_ENV !== 'production' || shouldSkipStrictValidation(env)) {
     return;
@@ -109,4 +121,7 @@ export function validateStartupEnvironment({ env, selection }: StartupValidation
   if (requiresSupabaseServiceRoleKey(selection)) {
     validateRequiredSecret(env, 'SUPABASE_SERVICE_ROLE_KEY', MIN_SECRET_LENGTH);
   }
+
+  validateOptionalHttpsUrl(env, 'PASSWORD_RESET_DELIVERY_WEBHOOK_URL');
+  validateOptionalHttpsUrl(env, 'SECURITY_ALERT_WEBHOOK_URL');
 }

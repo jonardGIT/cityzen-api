@@ -14,6 +14,7 @@ Treat the following as managed secrets, not ordinary environment values:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `SUPABASE_ANON_KEY` when bundled into privileged automation or deployment pipelines
 - SSH deploy keys and workflow secrets used by `Deploy to Droplet`
+- webhook endpoints and credentials used for password reset delivery or centralized security alert routing
 
 ## Storage Expectations
 
@@ -22,6 +23,7 @@ Treat the following as managed secrets, not ordinary environment values:
 - Restrict read access to only the deployment systems and operators that require it.
 - Do not store long-lived production secrets in plaintext `.env` files on developer workstations.
 - Do not reuse the same secret value across development, staging, and production.
+- Require production operational webhooks to use validated `https://` destinations.
 
 ## Rotation Expectations
 

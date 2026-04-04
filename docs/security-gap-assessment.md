@@ -153,6 +153,7 @@ Current state:
 - Audit logs are persisted in the application database and exposed by admin API.
 - Sentry can capture backend exceptions and traces when configured.
 - The repository now includes an operational runbook for alert routing, triage, privileged recovery, and break-glass review.
+- Production startup validation now rejects invalid or non-HTTPS alert and password-reset delivery webhook URLs.
 
 Risk:
 
@@ -172,6 +173,7 @@ Current state:
 
 - JWT secrets, MFA encryption secrets, database credentials, API keys, and Supabase service-role credentials are environment-variable based.
 - Repository-level administrative expectations for secret classes, rotation cadence, branch protection, and release approval are now documented.
+- Production webhook endpoints used for security alerting and password reset delivery are now validated to require absolute HTTPS URLs.
 
 Risk:
 
