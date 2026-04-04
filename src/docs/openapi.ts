@@ -721,6 +721,44 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         },
       },
     },
+    '/incidents/{id}/media/{mediaId}': {
+      get: {
+        tags: ['Incident'],
+        summary: 'Resolve an authorized access URL for stored incident media',
+        description:
+          'Returns a just-in-time access URL for a stored incident media file after applying the same incident-level authorization rules as GET /incidents/{id}. This supports backend-gated evidence retrieval without changing the persisted media reference.',
+        security: apiKeyAndBearerSecurity,
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+          },
+          {
+            name: 'mediaId',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+          },
+        ],
+        responses: {
+          '200': jsonResponse(
+            { $ref: '#/components/schemas/IncidentMediaAccessResponse' },
+            'Incident media access URL resolved.',
+          ),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '404': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Incident or incident media not found.',
+          ),
+          '422': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Missing linked citizen profile.',
+          ),
+        },
+      },
+    },
     '/incidents/report': {
       post: {
         tags: ['Incident'],
@@ -2381,6 +2419,25 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
           },
         },
         required: ['mediaUrls', 'accessUrls', 'files'],
+      },
+      IncidentMediaAccessResponse: {
+        type: 'object',
+        properties: {
+          incidentId: { type: 'string', format: 'uuid' },
+          mediaId: { type: 'string', format: 'uuid' },
+          displayOrder: { type: 'integer' },
+          mediaUrl: {
+            type: 'string',
+            description:
+              'Canonical stored media reference. In signed mode this remains a stable managed reference rather than a transient signed URL.',
+          },
+          accessUrl: {
+            type: 'string',
+            description:
+              'Authorized access URL resolved at request time for the specific incident media file.',
+          },
+        },
+        required: ['incidentId', 'mediaId', 'displayOrder', 'mediaUrl', 'accessUrl'],
       },
       CreateAssignmentRequest: {
         type: 'object',

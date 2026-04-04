@@ -69,6 +69,10 @@ function getAuditEvent(method: string, path: string): AuditEventDefinition | nul
     return { action: 'media_upload', resource: 'incidents' };
   }
 
+  if (upperMethod === 'GET' && /^\/incidents\/[A-Za-z0-9-]+\/media\/[A-Za-z0-9-]+$/.test(normalizedPath)) {
+    return { action: 'media_access', resource: 'incidents' };
+  }
+
   const [resourceSegment, idSegment, extraSegment] = normalizedPath.split('/').filter(Boolean);
   const auditedResources = new Set([
     'citizens',

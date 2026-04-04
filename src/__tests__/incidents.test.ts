@@ -1,5 +1,6 @@
 import request from 'supertest';
 import app, { API_V1 } from '../app.js';
+import prisma from '../lib/prisma.js';
 import { getAdminToken } from './helpers/auth.js';
 import * as supabaseStorageService from '../services/supabaseStorageService.js';
 import { isArchiveEnabled } from '../utils/archive.js';
@@ -581,6 +582,64 @@ describe('incident media persistence', () => {
     expect(resolveSpy).toHaveBeenCalled();
   });
 
+  it('should return a just-in-time access URL for a stored incident media file', async () => {
+    const resolveSpy = jest
+      .spyOn(supabaseStorageService, 'resolveIncidentMediaUrls')
+      .mockImplementation(async (mediaUrls) =>
+        mediaUrls.map((mediaUrl) =>
+          mediaUrl.replace('supabase://incident-media/', 'https://signed.example/'),
+        ),
+      );
+
+    const statusId = await getStatusId();
+    const citizenId = await createCitizen();
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const createRes = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        description: 'Incident media access target',
+        mediaUrls: ['supabase://incident-media/incidents/private/access-photo.jpg'],
+        statusId,
+        citizenId,
+        categoryId,
+        severityId,
+        ...buildIncidentLocationSnapshot(),
+      });
+
+    expect(createRes.status).toBe(201);
+
+    const incidentRecord = await prisma.citizenIncident.findUniqueOrThrow({
+      where: { id: createRes.body.id },
+      include: {
+        mediaFiles: {
+          orderBy: { displayOrder: 'asc' },
+        },
+      },
+    });
+
+    const mediaId = incidentRecord.mediaFiles[0]?.id;
+    expect(mediaId).toBeTruthy();
+
+    const accessRes = await request(app)
+      .get(`${BASE}/${createRes.body.id}/media/${mediaId as string}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(accessRes.status).toBe(200);
+    expect(accessRes.body).toMatchObject({
+      incidentId: createRes.body.id,
+      mediaId,
+      displayOrder: 0,
+      mediaUrl: 'supabase://incident-media/incidents/private/access-photo.jpg',
+      accessUrl: 'https://signed.example/incidents/private/access-photo.jpg',
+    });
+    expect(resolveSpy).toHaveBeenCalledWith([
+      'supabase://incident-media/incidents/private/access-photo.jpg',
+    ]);
+  });
+
   it('should archive the incident record without archiving storage media when an incident is deleted', async () => {
     const archiveSpy = jest
       .spyOn(supabaseStorageService, 'archiveIncidentMediaUrls')
@@ -794,6 +853,41 @@ describe('VIEWER incident scoping', () => {
 
     const blocked = await request(app)
       .get(`${BASE}/${otherIncidentRes.body.id}`)
+      .set('Authorization', `Bearer ${viewerToken}`);
+    expect(blocked.status).toBe(404);
+  });
+
+  it('GET /incidents/:id/media/:mediaId returns 404 for media on incidents not owned by the viewer', async () => {
+    const statusId = await getStatusId();
+    const citizenId = await createCitizen();
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const otherIncidentRes = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        description: 'Admin-owned incident media for viewer-scope test',
+        mediaUrls: ['supabase://incident-media/incidents/private/viewer-blocked-photo.jpg'],
+        statusId,
+        citizenId,
+        categoryId,
+        severityId,
+        ...buildIncidentLocationSnapshot(),
+      });
+    expect(otherIncidentRes.status).toBe(201);
+
+    const incidentRecord = await prisma.citizenIncident.findUniqueOrThrow({
+      where: { id: otherIncidentRes.body.id },
+      include: {
+        mediaFiles: {
+          orderBy: { displayOrder: 'asc' },
+        },
+      },
+    });
+
+    const blocked = await request(app)
+      .get(`${BASE}/${otherIncidentRes.body.id}/media/${incidentRecord.mediaFiles[0]?.id as string}`)
       .set('Authorization', `Bearer ${viewerToken}`);
     expect(blocked.status).toBe(404);
   });

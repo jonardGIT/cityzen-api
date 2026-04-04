@@ -30,6 +30,11 @@ type IncidentWithMediaFiles = {
   [key: string]: unknown;
 };
 
+type AuthorizedIncidentWithMedia = IncidentWithMediaFiles & {
+  citizenId: string;
+  mediaFiles: IncidentMediaRecord[];
+};
+
 type UploadMediaItem = {
   fileName: string;
   contentType: string;
@@ -177,6 +182,50 @@ async function archiveIncidentMediaIfNeeded(mediaUrls: string[] | undefined): Pr
   await supabaseStorageService.archiveIncidentMediaUrls(mediaUrls);
 }
 
+async function getAuthorizedIncidentWithMedia(
+  req: Request,
+  res: Response,
+  incidentId: string,
+): Promise<AuthorizedIncidentWithMedia | null> {
+  const { authUser } = req as AuthenticatedRequest;
+  if (!authUser) {
+    res.status(401).json({ message: 'Unauthorized: missing authentication context' });
+    return null;
+  }
+
+  const incident = await prisma.citizenIncident.findFirst({
+    where: withActiveRecords({ id: incidentId }) as any,
+    include: {
+      mediaFiles: {
+        orderBy: { displayOrder: 'asc' },
+      },
+    },
+  });
+
+  if (!incident) {
+    res.status(404).json({ message: 'CitizenIncident not found' });
+    return null;
+  }
+
+  if (authUser.role === 'CITIZEN_REPORTER') {
+    const citizenId = await getLinkedCitizenIdByAuthEmail(authUser.email);
+    if (!citizenId) {
+      res.status(422).json({
+        message:
+          'No citizen profile is linked to this account email. Create a citizen profile first.',
+      });
+      return null;
+    }
+
+    if (incident.citizenId !== citizenId) {
+      res.status(404).json({ message: 'CitizenIncident not found' });
+      return null;
+    }
+  }
+
+  return incident;
+}
+
 export async function uploadIncidentMedia(req: Request, res: Response): Promise<void> {
   const { authUser } = req as AuthenticatedRequest;
   if (!authUser) {
@@ -306,48 +355,60 @@ export async function getIncidents(req: Request, res: Response): Promise<void> {
 
 // Returns a single incident by UUID. Responds 404 if not found.
 export async function getIncidentById(req: Request, res: Response): Promise<void> {
-  const { authUser } = req as AuthenticatedRequest;
-  if (!authUser) {
-    res.status(401).json({ message: 'Unauthorized: missing authentication context' });
-    return;
-  }
-
   const id = getParamId(req, res) as string | null;
   if (id === null) {
     return;
   }
 
-  const incident = await prisma.citizenIncident.findFirst({
-    where: withActiveRecords({ id }) as any,
-    include: {
-      mediaFiles: {
-        orderBy: { displayOrder: 'asc' },
-      },
-    },
-  });
-
+  const incident = await getAuthorizedIncidentWithMedia(req, res, id);
   if (!incident) {
-    res.status(404).json({ message: 'CitizenIncident not found' });
     return;
   }
 
-  if (authUser.role === 'CITIZEN_REPORTER') {
-    const citizenId = await getLinkedCitizenIdByAuthEmail(authUser.email);
-    if (!citizenId) {
-      res.status(422).json({
-        message:
-          'No citizen profile is linked to this account email. Create a citizen profile first.',
-      });
-      return;
-    }
+  res.json(await serializeIncident(incident));
+}
 
-    if (incident.citizenId !== citizenId) {
-      res.status(404).json({ message: 'CitizenIncident not found' });
-      return;
-    }
+export async function getIncidentMediaAccess(req: Request, res: Response): Promise<void> {
+  const incidentId = getParamId(req, res) as string | null;
+  if (incidentId === null) {
+    return;
   }
 
-  res.json(await serializeIncident(incident));
+  const mediaIdParam = req.params.mediaId;
+  const mediaId = typeof mediaIdParam === 'string' ? mediaIdParam.trim() : '';
+  if (!mediaId) {
+    res.status(400).json({ message: 'mediaId is required' });
+    return;
+  }
+
+  const incident = await getAuthorizedIncidentWithMedia(req, res, incidentId);
+  if (!incident) {
+    return;
+  }
+
+  const mediaFile = incident.mediaFiles.find((candidate) => candidate.id === mediaId);
+  if (!mediaFile) {
+    res.status(404).json({ message: 'Incident media not found' });
+    return;
+  }
+
+  const resolvedUrls = await supabaseStorageService.resolveIncidentMediaUrls([mediaFile.mediaUrl]);
+  const accessUrl = resolvedUrls[0] ?? mediaFile.mediaUrl;
+
+  res.locals.auditMetadata = {
+    incidentId,
+    mediaId: mediaFile.id,
+    displayOrder: mediaFile.displayOrder,
+    managedReference: mediaFile.mediaUrl.startsWith('supabase://'),
+  };
+
+  res.json({
+    incidentId,
+    mediaId: mediaFile.id,
+    displayOrder: mediaFile.displayOrder,
+    mediaUrl: mediaFile.mediaUrl,
+    accessUrl,
+  });
 }
 
 // Creates a new incident. Validates all FK references before persisting to the database.

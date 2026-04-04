@@ -4,6 +4,7 @@ import {
   createIncident,
   deleteIncident,
   getIncidentById,
+  getIncidentMediaAccess,
   getIncidents,
   restoreIncident,
   uploadIncidentMedia,
@@ -55,6 +56,7 @@ if (isIncidentMediaUploadFeatureEnabled()) {
   );
 }
 
+router.get('/:id/media/:mediaId', requireJwtAuth, asyncHandler(getIncidentMediaAccess));
 router.get('/:id', requireJwtAuth, asyncHandler(getIncidentById));
 router.post(
   '/report',

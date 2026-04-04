@@ -338,9 +338,7 @@ describe('Audit log persistence', () => {
 
     await request(app).post(`${API_V1}/auth/refresh`).send({ refreshToken: 'invalid-token-one' });
     await request(app).post(`${API_V1}/auth/refresh`).send({ refreshToken: 'invalid-token-two' });
-    await request(app)
-      .post(`${API_V1}/auth/refresh`)
-      .send({ refreshToken: 'invalid-token-three' });
+    await request(app).post(`${API_V1}/auth/refresh`).send({ refreshToken: 'invalid-token-three' });
 
     global.fetch = originalFetch;
 
@@ -665,6 +663,73 @@ describe('Audit log persistence', () => {
       resource: 'incidents',
       outcome: 'failure',
       statusCode: uploadAttempt.status,
+    });
+  });
+
+  it('records incident media access requests in the audit log', async () => {
+    const statusesRes = await request(app)
+      .get(`${API_V1}/statuses`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(statusesRes.status).toBe(200);
+    const statusId = (statusesRes.body[0] as { id: string }).id;
+
+    const citizenRes = await request(app)
+      .post(`${API_V1}/citizens`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: `Audit Media Citizen ${Date.now()}`,
+        contactInfo: `audit.media.${Date.now()}@mail.com`,
+        preferredChannel: 'app',
+      });
+    expect(citizenRes.status).toBe(201);
+
+    const categoryId = await createCategory(adminToken);
+    const severityId = await createSeverity(adminToken);
+
+    const incidentRes = await request(app)
+      .post(`${API_V1}/incidents`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        description: 'Audit media access incident',
+        mediaUrls: ['supabase://incident-media/incidents/private/audit-access-photo.jpg'],
+        statusId,
+        citizenId: citizenRes.body.id,
+        categoryId,
+        severityId,
+        ...buildIncidentLocationSnapshot(),
+      });
+    expect(incidentRes.status).toBe(201);
+
+    const incidentRecord = await prisma.citizenIncident.findUniqueOrThrow({
+      where: { id: incidentRes.body.id },
+      include: {
+        mediaFiles: {
+          orderBy: { displayOrder: 'asc' },
+        },
+      },
+    });
+
+    const accessRes = await request(app)
+      .get(`${API_V1}/incidents/${incidentRes.body.id}/media/${incidentRecord.mediaFiles[0]?.id as string}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(accessRes.status).toBe(200);
+
+    const latest = await getLatestAuditLog(adminToken);
+    expect(latest).toMatchObject({
+      action: 'media_access',
+      resource: 'incidents',
+      outcome: 'success',
+      statusCode: 200,
+      targetId: incidentRes.body.id,
+    });
+
+    const metadata = latest.metadata as Record<string, unknown> | undefined;
+    expect(metadata).toMatchObject({
+      incidentId: incidentRes.body.id,
+      mediaId: incidentRecord.mediaFiles[0]?.id,
+      displayOrder: 0,
+      managedReference: true,
     });
   });
 
