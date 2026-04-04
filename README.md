@@ -173,6 +173,7 @@ Important variables:
 - `AUTH_REFRESH_RATE_LIMIT_WINDOW_MS`, `AUTH_REFRESH_RATE_LIMIT_MAX_REQUESTS`: optional tighter refresh throttle. Defaults to 60 seconds and 10 attempts per client.
 - `AUTH_PASSWORD_RESET_REQUEST_RATE_LIMIT_WINDOW_MS`, `AUTH_PASSWORD_RESET_REQUEST_RATE_LIMIT_MAX_REQUESTS`: optional tighter password reset request throttle. Defaults to 1 hour and 5 attempts per client-plus-email.
 - `AUTH_PASSWORD_RESET_CONFIRM_RATE_LIMIT_WINDOW_MS`, `AUTH_PASSWORD_RESET_CONFIRM_RATE_LIMIT_MAX_REQUESTS`: optional tighter password reset confirmation throttle. Defaults to 15 minutes and 10 attempts per client.
+- `PASSWORD_RESET_DELIVERY_WEBHOOK_URL`: optional generic webhook target for production password reset delivery. When set, the backend posts password reset delivery payloads to this URL instead of exposing tokens in API responses.
 - `AUTH_MFA_SETUP_RATE_LIMIT_WINDOW_MS`, `AUTH_MFA_SETUP_RATE_LIMIT_MAX_REQUESTS`: optional tighter MFA setup throttle. Defaults to 10 minutes and 5 attempts per authenticated user.
 - `AUTH_MFA_ENABLE_RATE_LIMIT_WINDOW_MS`, `AUTH_MFA_ENABLE_RATE_LIMIT_MAX_REQUESTS`: optional tighter MFA enable throttle. Defaults to 10 minutes and 10 attempts per authenticated user.
 - `AUTH_MFA_DISABLE_RATE_LIMIT_WINDOW_MS`, `AUTH_MFA_DISABLE_RATE_LIMIT_MAX_REQUESTS`: optional tighter MFA disable throttle. Defaults to 10 minutes and 10 attempts per authenticated user.
@@ -202,6 +203,14 @@ When `NODE_ENV=production`, privileged roles (`SYSTEM_ADMIN`, `DEPARTMENT_MANAGE
 - If the selected production feature profile disables MFA entirely, privileged login fails closed with a `503` configuration error.
 - If MFA is enabled in the build but the privileged account is not enrolled yet, login still succeeds but returns `mfaEnrollmentRequired=true` and the resulting session is limited to MFA enrollment routes until setup is completed.
 - Admin operators can review current privileged MFA compliance through `GET /api/v1/admin/users/mfa-compliance`.
+
+Password reset recovery behavior:
+
+- `POST /auth/password-reset/request` always returns a generic acceptance response.
+- In non-production environments, the backend still returns `resetToken` and `resetExpiresAt` in the API response for local end-to-end testing.
+- In production, raw reset tokens are never returned in the API response. If `PASSWORD_RESET_DELIVERY_WEBHOOK_URL` is configured, the backend sends a generic password-reset delivery payload to that webhook.
+- In production, privileged roles (`SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`) are blocked from public self-service password reset and require an admin-assisted recovery workflow.
+- Password reset request and confirm events remain auditable, and audit metadata records the delivery mode and privileged-recovery policy outcome without storing the reset token itself.
 
 Security notes:
 

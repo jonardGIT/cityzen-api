@@ -100,6 +100,14 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+function getResponseAuditMetadata(res: Response): Prisma.InputJsonObject | null {
+  if (!isObject(res.locals.auditMetadata)) {
+    return null;
+  }
+
+  return res.locals.auditMetadata as Prisma.InputJsonObject;
+}
+
 function getTargetId(req: Request, responseBody: unknown): string | null {
   const authUser = (req as AuthenticatedRequest).authUser;
   if (normalizePath(req.path) === '/auth/logout' && authUser) {
@@ -170,6 +178,20 @@ function getMetadata(responseBody: unknown): Prisma.InputJsonObject | null {
   return Object.keys(metadata).length > 0 ? (metadata as Prisma.InputJsonObject) : null;
 }
 
+function mergeMetadata(
+  responseMetadata: Prisma.InputJsonObject | null,
+  localMetadata: Prisma.InputJsonObject | null,
+): Prisma.InputJsonObject | null {
+  if (!responseMetadata && !localMetadata) {
+    return null;
+  }
+
+  return {
+    ...(responseMetadata ?? {}),
+    ...(localMetadata ?? {}),
+  };
+}
+
 function buildSummary(
   event: AuditEventDefinition,
   outcome: 'success' | 'failure',
@@ -210,7 +232,7 @@ export function auditLogMiddleware(req: Request, res: Response, next: NextFuncti
     const outcome = res.statusCode >= 200 && res.statusCode < 400 ? 'success' : 'failure';
     const targetId = getTargetId(req, responseBody);
     const actor = getActorContext(req, responseBody);
-    const metadata = getMetadata(responseBody);
+    const metadata = mergeMetadata(getMetadata(responseBody), getResponseAuditMetadata(res));
 
     void createAuditLog({
       timestamp: new Date(),

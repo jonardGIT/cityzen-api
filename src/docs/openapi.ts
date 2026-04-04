@@ -1163,7 +1163,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         tags: ['Auth'],
         summary: 'Request a password reset token',
         description:
-          'Accepts an email address and creates a one-time password reset token when the account exists. The response stays generic to avoid revealing whether the email exists. In non-production environments, the reset token is returned for local testing.',
+          'Accepts an email address and creates a one-time password reset token when the account exists. The response stays generic to avoid revealing whether the email exists. In non-production environments, the reset token is returned for local testing. In production, raw reset tokens are never returned in the API response and delivery is delegated to the configured backend delivery provider. Privileged accounts require an admin-assisted recovery process instead of self-service reset.',
         security: [],
         requestBody: {
           required: true,
@@ -1187,7 +1187,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         tags: ['Auth'],
         summary: 'Reset a password with a one-time token',
         description:
-          'Accepts a valid one-time password reset token plus a new password, then revokes all existing sessions for the user.',
+          'Accepts a valid one-time password reset token plus a new password, then revokes all existing sessions for the user. In production, privileged accounts cannot complete this public self-service reset flow and must follow an admin-assisted recovery process.',
         security: [],
         requestBody: {
           required: true,
@@ -1205,6 +1205,10 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
           '401': jsonResponse(
             { $ref: '#/components/schemas/ErrorResponse' },
             'Invalid or expired password reset token.',
+          ),
+          '403': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Privileged account recovery requires an admin-assisted flow.',
           ),
           '422': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Validation error.'),
         },
@@ -1851,14 +1855,14 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
             type: 'string',
             nullable: true,
             description:
-              'Returned only in non-production environments for local development and testing.',
+              'Returned only when the backend is using api-response delivery mode in non-production environments for local testing.',
           },
           resetExpiresAt: {
             type: 'string',
             format: 'date-time',
             nullable: true,
             description:
-              'Returned only in non-production environments for local development and testing.',
+              'Returned only when resetToken is included for local testing in non-production environments.',
           },
         },
         required: ['message'],

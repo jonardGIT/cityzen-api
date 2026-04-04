@@ -235,6 +235,70 @@ describe('Audit log persistence', () => {
     expect(metadata?.password).toBeUndefined();
   });
 
+  it('records password reset request audit metadata without exposing reset tokens', async () => {
+    const unique = Date.now();
+    const email = `audit.reset.${unique}@postman.local`;
+
+    const registerRes = await request(app)
+      .post(`${API_V1}/auth/register`)
+      .send({
+        name: `Audit Reset User ${unique}`,
+        email,
+        password: 'Password1234!@#',
+      });
+
+    expect(registerRes.status).toBe(201);
+
+    const resetRes = await request(app)
+      .post(`${API_V1}/auth/password-reset/request`)
+      .send({ email });
+
+    expect(resetRes.status).toBe(202);
+
+    const latest = await getLatestAuditLog(adminToken);
+    expect(latest).toMatchObject({
+      action: 'password_reset_request',
+      resource: 'auth',
+      outcome: 'success',
+      actorEmail: email,
+      statusCode: 202,
+    });
+
+    const metadata = latest.metadata as Record<string, unknown> | undefined;
+    expect(metadata?.resetToken).toBeUndefined();
+    expect(metadata?.resetTokenIssued).toBe(true);
+    expect(typeof metadata?.deliveryMode).toBe('string');
+  });
+
+  it('records privileged password reset requests as blocked in production', async () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalWebhookUrl = process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL;
+    process.env.NODE_ENV = 'production';
+    process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL = 'https://example.test/password-reset';
+
+    const resetRes = await request(app)
+      .post(`${API_V1}/auth/password-reset/request`)
+      .send({ email: 'admin@xypes.local' });
+
+    process.env.NODE_ENV = originalNodeEnv;
+    process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL = originalWebhookUrl;
+
+    expect(resetRes.status).toBe(202);
+
+    const latest = await getLatestAuditLog(adminToken);
+    expect(latest).toMatchObject({
+      action: 'password_reset_request',
+      resource: 'auth',
+      outcome: 'success',
+      actorEmail: 'admin@xypes.local',
+      statusCode: 202,
+    });
+
+    const metadata = latest.metadata as Record<string, unknown> | undefined;
+    expect(metadata?.privilegedRecoveryBlocked).toBe(true);
+    expect(metadata?.deliveryMode).toBe('blocked');
+  });
+
   it('records citizen reporter citizen link actions', async () => {
     const unique = Date.now();
     const email = `audit.viewer.${unique}@postman.local`;

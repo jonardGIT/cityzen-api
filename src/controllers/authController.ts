@@ -17,9 +17,14 @@ import { createMfaSetup, verifyMfaCode } from '../utils/mfa.js';
 import { isAnyMfaFeatureEnabled, isLocalTotpFeatureEnabled } from '../featureSelection.js';
 import {
   requestPasswordReset as createPasswordResetRequest,
+  isPrivilegedPasswordRecoveryBlocked,
   resetPasswordWithToken as consumePasswordResetToken,
-  shouldExposePasswordResetToken,
 } from '../services/passwordResetService.js';
+import {
+  sendPasswordResetMessage,
+  isPasswordResetDeliveryConfigured,
+  shouldIncludePasswordResetTokenInResponse,
+} from '../services/passwordResetDeliveryService.js';
 import {
   authenticateSupabaseUser,
   challengeAndVerifySupabaseTotpFactor,
@@ -272,6 +277,17 @@ async function getLocalAuthUserForSupabaseIdentity(supabaseUserId: string, email
 }
 
 function handlePasswordResetRuntimeError(res: Response, error: unknown): boolean {
+  if (
+    error instanceof Error &&
+    (error.message.includes('PASSWORD_RESET_DELIVERY_WEBHOOK_URL must be configured') ||
+      error.message.includes('Password reset delivery webhook returned HTTP'))
+  ) {
+    res.status(503).json({
+      message: `Password reset delivery is not available: ${error.message}`,
+    });
+    return true;
+  }
+
   if (isPasswordResetStorageError(error)) {
     res.status(503).json({
       message:
@@ -660,14 +676,50 @@ export async function requestPasswordReset(req: Request, res: Response): Promise
   }
 
   try {
+    if (process.env.NODE_ENV === 'production' && !isPasswordResetDeliveryConfigured()) {
+      res.status(503).json({
+        message:
+          'Password reset delivery is not available: PASSWORD_RESET_DELIVERY_WEBHOOK_URL must be configured in production',
+      });
+      return;
+    }
+
     const resetRequest = await createPasswordResetRequest(normalizeEmail(email));
     const responseBody: Record<string, string> = {
       message: 'If an account with that email exists, a password reset token has been created.',
     };
 
-    if (resetRequest && shouldExposePasswordResetToken()) {
-      responseBody.resetToken = resetRequest.resetToken;
-      responseBody.resetExpiresAt = resetRequest.resetExpiresAt;
+    res.locals.auditMetadata = {
+      resetTokenIssued: Boolean(resetRequest),
+      privilegedRecoveryBlocked: false,
+      deliveryMode: resetRequest ? 'none' : null,
+      deliveryAccepted: resetRequest ? false : null,
+    };
+
+    if (resetRequest && !resetRequest.resetTokenIssued) {
+      res.locals.auditMetadata = {
+        resetTokenIssued: false,
+        privilegedRecoveryBlocked: true,
+        deliveryMode: 'blocked',
+        deliveryAccepted: false,
+      };
+      res.status(202).json(responseBody);
+      return;
+    }
+
+    if (resetRequest?.resetTokenIssued) {
+      const delivery = await sendPasswordResetMessage(resetRequest);
+      res.locals.auditMetadata = {
+        resetTokenIssued: true,
+        privilegedRecoveryBlocked: false,
+        deliveryMode: delivery.mode,
+        deliveryAccepted: delivery.accepted,
+      };
+
+      if (shouldIncludePasswordResetTokenInResponse(delivery.mode)) {
+        responseBody.resetToken = resetRequest.resetToken;
+        responseBody.resetExpiresAt = resetRequest.resetExpiresAt;
+      }
     }
 
     res.status(202).json(responseBody);
@@ -700,6 +752,15 @@ export async function confirmPasswordReset(req: Request, res: Response): Promise
   try {
     const result = await consumePasswordResetToken({
       token,
+      beforeConsume: async ({ role }) => {
+        if (isPrivilegedPasswordRecoveryBlocked(role)) {
+          throw new SupabaseAuthServiceError(
+            'PRIVILEGED_PASSWORD_RESET_BLOCKED',
+            'Privileged account password reset requires an admin-assisted recovery process',
+            403,
+          );
+        }
+      },
       passwordHash: isSupabaseAuthEnabled()
         ? await buildSupabaseManagedPasswordHash()
         : await bcrypt.hash(password, 10),
@@ -722,6 +783,11 @@ export async function confirmPasswordReset(req: Request, res: Response): Promise
       res.status(401).json({ message: 'Invalid or expired password reset token' });
       return;
     }
+
+    res.locals.auditMetadata = {
+      sessionsRevoked: true,
+      passwordResetCompleted: true,
+    };
 
     res.json({ message: 'Password reset succeeded. Please sign in again.' });
   } catch (error) {
