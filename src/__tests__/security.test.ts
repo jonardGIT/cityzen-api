@@ -109,3 +109,88 @@ describe('Rate limiting', () => {
     expect(third.status).toBe(200);
   });
 });
+
+describe('Endpoint-specific rate limiting', () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    jest.resetModules();
+    process.env = { ...originalEnv };
+    delete process.env.API_KEYS;
+    delete process.env.API_KEY;
+    process.env.RATE_LIMIT_ENABLED = 'true';
+    process.env.RATE_LIMIT_WINDOW_MS = '60000';
+    process.env.RATE_LIMIT_MAX_REQUESTS = '100';
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
+  });
+
+  it('applies a stricter login limit keyed by email and client', async () => {
+    process.env.AUTH_LOGIN_RATE_LIMIT_WINDOW_MS = '60000';
+    process.env.AUTH_LOGIN_RATE_LIMIT_MAX_REQUESTS = '2';
+
+    const { default: app, API_V1 } = await import('../app.js');
+
+    const first = await request(app).post(`${API_V1}/auth/login`).send({
+      email: 'admin@xypes.local',
+      password: 'WrongPassword!',
+    });
+    const second = await request(app).post(`${API_V1}/auth/login`).send({
+      email: 'admin@xypes.local',
+      password: 'WrongPassword!',
+    });
+    const third = await request(app).post(`${API_V1}/auth/login`).send({
+      email: 'admin@xypes.local',
+      password: 'WrongPassword!',
+    });
+    const differentEmail = await request(app).post(`${API_V1}/auth/login`).send({
+      email: 'analyst@xypes.local',
+      password: 'WrongPassword!',
+    });
+
+    expect(first.status).toBe(401);
+    expect(second.status).toBe(401);
+    expect(third.status).toBe(429);
+    expect(third.headers['x-ratelimit-limit']).toBe('2');
+    expect(differentEmail.status).toBe(401);
+  });
+
+  it('applies a stricter media upload limit for authenticated users', async () => {
+    process.env.FEATURE_AUTH_PROVIDER = 'local';
+    process.env.FEATURE_TOKEN_MODE = 'app-jwt';
+    process.env.FEATURE_MFA_MODE = 'disabled';
+    process.env.FEATURE_MEDIA_STORAGE = 'supabase-storage';
+    process.env.FEATURE_RECORD_DELETION = 'archive';
+    process.env.INCIDENT_MEDIA_UPLOAD_RATE_LIMIT_WINDOW_MS = '60000';
+    process.env.INCIDENT_MEDIA_UPLOAD_RATE_LIMIT_MAX_REQUESTS = '2';
+
+    const { default: app, API_V1 } = await import('../app.js');
+
+    const loginResponse = await request(app).post(`${API_V1}/auth/login`).send({
+      email: 'admin@xypes.local',
+      password: 'Password123!',
+    });
+
+    expect(loginResponse.status).toBe(200);
+
+    const first = await request(app)
+      .post(`${API_V1}/incidents/media/upload`)
+      .set('Authorization', `Bearer ${loginResponse.body.token as string}`)
+      .send({ fileName: 'only-name.jpg' });
+    const second = await request(app)
+      .post(`${API_V1}/incidents/media/upload`)
+      .set('Authorization', `Bearer ${loginResponse.body.token as string}`)
+      .send({ fileName: 'only-name.jpg' });
+    const third = await request(app)
+      .post(`${API_V1}/incidents/media/upload`)
+      .set('Authorization', `Bearer ${loginResponse.body.token as string}`)
+      .send({ fileName: 'only-name.jpg' });
+
+    expect(first.status).toBe(400);
+    expect(second.status).toBe(400);
+    expect(third.status).toBe(429);
+    expect(third.headers['x-ratelimit-limit']).toBe('2');
+  });
+});

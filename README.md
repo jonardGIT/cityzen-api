@@ -167,6 +167,14 @@ Important variables:
 - `API_KEYS`: comma-separated allowed API keys.
 - `API_KEY`: optional single-key fallback if `API_KEYS` is not set.
 - `RATE_LIMIT_ENABLED`, `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX_REQUESTS`: request throttling controls.
+- `AUTH_LOGIN_RATE_LIMIT_WINDOW_MS`, `AUTH_LOGIN_RATE_LIMIT_MAX_REQUESTS`: optional tighter login throttle. Defaults to 60 seconds and 5 attempts per client-plus-email.
+- `AUTH_REFRESH_RATE_LIMIT_WINDOW_MS`, `AUTH_REFRESH_RATE_LIMIT_MAX_REQUESTS`: optional tighter refresh throttle. Defaults to 60 seconds and 10 attempts per client.
+- `AUTH_PASSWORD_RESET_REQUEST_RATE_LIMIT_WINDOW_MS`, `AUTH_PASSWORD_RESET_REQUEST_RATE_LIMIT_MAX_REQUESTS`: optional tighter password reset request throttle. Defaults to 1 hour and 5 attempts per client-plus-email.
+- `AUTH_PASSWORD_RESET_CONFIRM_RATE_LIMIT_WINDOW_MS`, `AUTH_PASSWORD_RESET_CONFIRM_RATE_LIMIT_MAX_REQUESTS`: optional tighter password reset confirmation throttle. Defaults to 15 minutes and 10 attempts per client.
+- `AUTH_MFA_SETUP_RATE_LIMIT_WINDOW_MS`, `AUTH_MFA_SETUP_RATE_LIMIT_MAX_REQUESTS`: optional tighter MFA setup throttle. Defaults to 10 minutes and 5 attempts per authenticated user.
+- `AUTH_MFA_ENABLE_RATE_LIMIT_WINDOW_MS`, `AUTH_MFA_ENABLE_RATE_LIMIT_MAX_REQUESTS`: optional tighter MFA enable throttle. Defaults to 10 minutes and 10 attempts per authenticated user.
+- `AUTH_MFA_DISABLE_RATE_LIMIT_WINDOW_MS`, `AUTH_MFA_DISABLE_RATE_LIMIT_MAX_REQUESTS`: optional tighter MFA disable throttle. Defaults to 10 minutes and 10 attempts per authenticated user.
+- `INCIDENT_MEDIA_UPLOAD_RATE_LIMIT_WINDOW_MS`, `INCIDENT_MEDIA_UPLOAD_RATE_LIMIT_MAX_REQUESTS`: optional tighter incident media upload throttle. Defaults to 10 minutes and 10 attempts per authenticated user.
 
 Production feature-profile variables:
 
