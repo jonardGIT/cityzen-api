@@ -247,17 +247,20 @@ Current state:
 
 - Session inventory exists and exposes `userAgent`, IP metadata, expiry state, and current-session status.
 - Sessions do not yet have friendly device names, trusted-device semantics, or richer anomaly signals.
+- A repository-level session governance baseline is now documented for device and session review procedures.
 
 Recommendation:
 
 - Add better device labeling and clearer dashboard presentation.
 - Consider anomaly heuristics for new device, IP, or geo changes where appropriate.
+- Keep periodic privileged-session review active and retain evidence of reviewer actions.
 
 ### 2. Enterprise identity integration
 
 Current state:
 
 - Authentication can now be local username/password, Supabase-backed credentials, or Supabase JWT-based.
+- Repository guidance now documents when enterprise identity, federation, or conditional-access evaluation should be considered.
 
 Recommendation:
 

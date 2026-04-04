@@ -22,6 +22,16 @@ type DataGovernanceReport = {
   };
   classifications: DataClassification[];
   retentionPolicies: RetentionPolicy[];
+  operationalControls: {
+    monitoringRunbookDocumented: boolean;
+    administrationControlsDocumented: boolean;
+    accessGovernanceDocumented: boolean;
+    sessionGovernanceDocumented: boolean;
+    privilegedAccessReviewEndpoint: string;
+    privilegedMfaComplianceEndpoint: string;
+    sessionInventoryMode: 'app-jwt' | 'external-provider';
+    quarterlyReviewRequired: boolean;
+  };
   encryption: {
     transport: string;
     databaseAtRest: string;
@@ -108,22 +118,26 @@ export function getDataGovernanceReport(
     {
       domain: 'citizen-records',
       classification: 'restricted-pii',
-      handling: 'Contains citizen identity and contact information. Access should remain role-scoped and disclosure logged.',
+      handling:
+        'Contains citizen identity and contact information. Access should remain role-scoped and disclosure logged.',
     },
     {
       domain: 'incident-records',
       classification: 'restricted-operational',
-      handling: 'Contains incident narratives, location details, and response context. Access should be limited to operational roles and auditors.',
+      handling:
+        'Contains incident narratives, location details, and response context. Access should be limited to operational roles and auditors.',
     },
     {
       domain: 'incident-media',
       classification: 'restricted-evidence',
-      handling: 'Evidence files may contain PII or sensitive imagery. Private or signed access is preferred for sensitive deployments.',
+      handling:
+        'Evidence files may contain PII or sensitive imagery. Private or signed access is preferred for sensitive deployments.',
     },
     {
       domain: 'audit-logs',
       classification: 'confidential-security',
-      handling: 'Security telemetry should be retained for incident response and exported only through privileged workflows.',
+      handling:
+        'Security telemetry should be retained for incident response and exported only through privileged workflows.',
     },
   ];
 
@@ -136,8 +150,19 @@ export function getDataGovernanceReport(
     },
     classifications,
     retentionPolicies,
+    operationalControls: {
+      monitoringRunbookDocumented: true,
+      administrationControlsDocumented: true,
+      accessGovernanceDocumented: true,
+      sessionGovernanceDocumented: true,
+      privilegedAccessReviewEndpoint: '/api/v1/admin/users/access-review',
+      privilegedMfaComplianceEndpoint: '/api/v1/admin/users/mfa-compliance',
+      sessionInventoryMode: selection.tokenMode === 'app-jwt' ? 'app-jwt' : 'external-provider',
+      quarterlyReviewRequired: true,
+    },
     encryption: {
-      transport: 'TLS is required for all external traffic and reverse-proxy hops that terminate client requests.',
+      transport:
+        'TLS is required for all external traffic and reverse-proxy hops that terminate client requests.',
       databaseAtRest:
         'Managed database encryption at rest is required for production deployments, including backups and snapshots.',
       mediaStorage:

@@ -197,6 +197,7 @@ Important variables:
 - Centralized monitoring, alert triage, privileged-account recovery, and break-glass expectations are documented in [docs/security-operations-runbook.md](/home/nhad/xypes/xypes-cirs-api/docs/security-operations-runbook.md).
 - Secret-handling, branch-protection, and release-approval expectations are documented in [docs/security-administration-controls.md](/home/nhad/xypes/xypes-cirs-api/docs/security-administration-controls.md).
 - Role ownership, privileged access approval, periodic review, and joiner or mover or leaver expectations are documented in [docs/security-access-governance.md](/home/nhad/xypes/xypes-cirs-api/docs/security-access-governance.md).
+- Device and session review expectations, session inventory usage, and identity-integration guidance are documented in [docs/security-session-governance.md](/home/nhad/xypes/xypes-cirs-api/docs/security-session-governance.md).
 
 Incident media confidentiality behavior:
 

@@ -57,6 +57,16 @@ describe('admin data governance summary', () => {
       tlsRequired: true,
       retentionPolicyCount: 6,
     });
+    expect(response.body.operationalControls).toMatchObject({
+      monitoringRunbookDocumented: true,
+      administrationControlsDocumented: true,
+      accessGovernanceDocumented: true,
+      sessionGovernanceDocumented: true,
+      privilegedAccessReviewEndpoint: '/api/v1/admin/users/access-review',
+      privilegedMfaComplianceEndpoint: '/api/v1/admin/users/mfa-compliance',
+      sessionInventoryMode: 'app-jwt',
+      quarterlyReviewRequired: true,
+    });
     expect(response.body.legalHold).toMatchObject({
       enabled: true,
       contact: 'records@example.gov',
@@ -79,6 +89,7 @@ describe('admin data governance summary', () => {
 
     expect(response.status).toBe(200);
     expect(Array.isArray(response.body.classifications)).toBe(true);
+    expect(response.body.operationalControls).toHaveProperty('sessionInventoryMode');
   });
 
   it('returns 403 for non-privileged users', async () => {
