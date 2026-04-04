@@ -2,11 +2,14 @@ import request from 'supertest';
 import app, { API_V1 } from '../app.js';
 import { getAdminToken } from './helpers/auth.js';
 import * as supabaseStorageService from '../services/supabaseStorageService.js';
+import { isArchiveEnabled } from '../utils/archive.js';
 
 jest.setTimeout(120000);
 
 const BASE = `${API_V1}/incidents`;
 let adminToken = '';
+const incidentMediaUploadEnabled = supabaseStorageService.isSupabaseStorageEnabled();
+const archiveEnabled = isArchiveEnabled();
 
 function buildIncidentLocationSnapshot() {
   return {
@@ -228,8 +231,28 @@ describe(`POST ${BASE}/media/upload`, () => {
     jest.restoreAllMocks();
   });
 
-  it('should return 503 when Supabase Storage is disabled', async () => {
-    process.env.SUPABASE_STORAGE_ENABLED = 'false';
+  it('should respect the configured incident media upload feature', async () => {
+    if (!incidentMediaUploadEnabled) {
+      const res = await request(app)
+        .post(`${BASE}/media/upload`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          fileName: 'incident-photo.jpg',
+          contentType: 'image/jpeg',
+          dataBase64: Buffer.from('test-image').toString('base64'),
+        });
+
+      expect(res.status).toBe(404);
+      return;
+    }
+
+    jest.spyOn(supabaseStorageService, 'uploadIncidentMedia').mockRejectedValueOnce(
+      new supabaseStorageService.SupabaseStorageServiceError(
+        'SUPABASE_STORAGE_DISABLED',
+        'Supabase Storage is disabled for this environment',
+        503,
+      ),
+    );
 
     const res = await request(app)
       .post(`${BASE}/media/upload`)
@@ -247,6 +270,16 @@ describe(`POST ${BASE}/media/upload`, () => {
   });
 
   it('should return 400 when required upload fields are missing', async () => {
+    if (!incidentMediaUploadEnabled) {
+      const res = await request(app)
+        .post(`${BASE}/media/upload`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ fileName: 'incident-photo.jpg' });
+
+      expect(res.status).toBe(404);
+      return;
+    }
+
     const res = await request(app)
       .post(`${BASE}/media/upload`)
       .set('Authorization', `Bearer ${adminToken}`)
@@ -257,7 +290,23 @@ describe(`POST ${BASE}/media/upload`, () => {
   });
 
   it('should upload incident media and return a reusable mediaUrl', async () => {
-    process.env.SUPABASE_STORAGE_ENABLED = 'true';
+    if (!incidentMediaUploadEnabled) {
+      const res = await request(app)
+        .post(`${BASE}/media/upload`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          files: [
+            {
+              fileName: 'Test Upload Photo.JPG',
+              contentType: 'image/jpeg',
+              dataBase64: Buffer.from('test-image').toString('base64'),
+            },
+          ],
+        });
+
+      expect(res.status).toBe(404);
+      return;
+    }
 
     const uploadSpy = jest
       .spyOn(supabaseStorageService, 'uploadIncidentMedia')
@@ -448,10 +497,19 @@ describe('incident media persistence', () => {
       .set('Authorization', `Bearer ${adminToken}`);
 
     expect(fetchRes.status).toBe(404);
-    expect(archiveSpy).not.toHaveBeenCalled();
+
+    if (archiveEnabled) {
+      expect(archiveSpy).not.toHaveBeenCalled();
+      return;
+    }
+
+    expect(archiveSpy).toHaveBeenCalledWith([
+      'https://example.supabase.co/storage/v1/object/public/incident-media/delete-photo.jpg',
+      'https://example.supabase.co/storage/v1/object/public/incident-media/delete-video.mp4',
+    ]);
   });
 
-  it('should restore an archived incident and restore its archived assignments with active responders', async () => {
+  it('should handle incident restore behavior according to archive mode', async () => {
     const statusId = await getStatusId();
     const citizenId = await createCitizen();
     const categoryId = await createCategory();
@@ -499,6 +557,17 @@ describe('incident media persistence', () => {
     const deleteRes = await request(app)
       .delete(`${BASE}/${createRes.body.id}`)
       .set('Authorization', `Bearer ${adminToken}`);
+
+    if (!archiveEnabled) {
+      expect(deleteRes.status).toBe(409);
+
+      const restoreRes = await request(app)
+        .post(`${BASE}/${createRes.body.id}/restore`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(restoreRes.status).toBe(404);
+      return;
+    }
+
     expect(deleteRes.status).toBe(204);
 
     const assignmentAfterDeleteRes = await request(app)

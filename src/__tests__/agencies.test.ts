@@ -1,10 +1,12 @@
 import request from 'supertest';
 import app, { API_V1 } from '../app.js';
 import { getAdminToken, getTokenForRole } from './helpers/auth.js';
+import { isArchiveEnabled } from '../utils/archive.js';
 
 const BASE = `${API_V1}/agencies`;
 let adminToken = '';
 let dispatcherToken = '';
+const archiveEnabled = isArchiveEnabled();
 
 beforeAll(async () => {
   adminToken = await getAdminToken();
@@ -246,6 +248,11 @@ describe(`POST ${BASE}/:id/restore`, () => {
       .post(`${BASE}/${archivedId}/restore`)
       .set('Authorization', `Bearer ${adminToken}`);
 
+    if (!archiveEnabled) {
+      expect(res.status).toBe(404);
+      return;
+    }
+
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('id', archivedId);
 
@@ -287,10 +294,17 @@ describe(`GET ${BASE} (archive scope)`, () => {
       .get(`${BASE}?includeArchived=true`)
       .set('Authorization', `Bearer ${dispatcherToken}`);
 
+    const agencyIds = res.body.map((agency: { id: string }) => agency.id);
+
     expect(res.status).toBe(200);
-    expect(res.body.map((agency: { id: string }) => agency.id)).toEqual(
-      expect.arrayContaining([activeId, archivedId]),
-    );
+
+    if (!archiveEnabled) {
+      expect(agencyIds).toContain(activeId);
+      expect(agencyIds).not.toContain(archivedId);
+      return;
+    }
+
+    expect(agencyIds).toEqual(expect.arrayContaining([activeId, archivedId]));
   });
 
   it('should return only archived rows when archivedOnly=true', async () => {
@@ -298,8 +312,17 @@ describe(`GET ${BASE} (archive scope)`, () => {
       .get(`${BASE}?archivedOnly=true`)
       .set('Authorization', `Bearer ${dispatcherToken}`);
 
+    const agencyIds = res.body.map((agency: { id: string }) => agency.id);
+
     expect(res.status).toBe(200);
-    expect(res.body.map((agency: { id: string }) => agency.id)).toContain(archivedId);
-    expect(res.body.map((agency: { id: string }) => agency.id)).not.toContain(activeId);
+
+    if (!archiveEnabled) {
+      expect(agencyIds).toContain(activeId);
+      expect(agencyIds).not.toContain(archivedId);
+      return;
+    }
+
+    expect(agencyIds).toContain(archivedId);
+    expect(agencyIds).not.toContain(activeId);
   });
 });

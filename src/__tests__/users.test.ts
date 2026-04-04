@@ -1,9 +1,11 @@
 import request from 'supertest';
 import app, { API_V1 } from '../app.js';
 import { getAdminToken, getTokenForRole } from './helpers/auth.js';
+import { isArchiveEnabled } from '../utils/archive.js';
 
 const CAPABILITIES = `${API_V1}/users/capabilities`;
 const USERS = `${API_V1}/users`;
+const archiveEnabled = isArchiveEnabled();
 
 let adminToken = '';
 let citizenReporterToken = '';
@@ -177,6 +179,11 @@ describe(`POST ${USERS}/:id/restore`, () => {
     const restoreRes = await request(app)
       .post(`${USERS}/${archivedUserId}/restore`)
       .set('Authorization', `Bearer ${adminToken}`);
+
+    if (!archiveEnabled) {
+      expect(restoreRes.status).toBe(404);
+      return;
+    }
 
     expect(restoreRes.status).toBe(200);
     expect(restoreRes.body).toHaveProperty('id', archivedUserId);
