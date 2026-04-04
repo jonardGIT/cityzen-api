@@ -209,6 +209,13 @@ export async function uploadIncidentMedia(req: Request, res: Response): Promise<
       files,
     };
 
+    res.locals.auditMetadata = {
+      uploadedFileCount: files.length,
+      uploadedTotalBytes: files.reduce((total, file) => total + file.size, 0),
+      managedReferenceCount: files.filter((file) => file.mediaUrl.startsWith('supabase://')).length,
+      incidentId: incidentId ?? null,
+    };
+
     res.status(201).json(responseBody);
   } catch (error) {
     if (error instanceof supabaseStorageService.SupabaseStorageServiceError) {

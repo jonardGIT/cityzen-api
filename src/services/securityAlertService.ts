@@ -88,6 +88,14 @@ function getSessionChurnAlertWindowMs(): number {
   return toPositiveInteger(process.env.SECURITY_ALERT_SESSION_CHURN_WINDOW_MS, 15 * 60_000);
 }
 
+function getMediaUploadAlertThreshold(): number {
+  return toPositiveInteger(process.env.SECURITY_ALERT_MEDIA_UPLOAD_THRESHOLD, 5);
+}
+
+function getMediaUploadAlertWindowMs(): number {
+  return toPositiveInteger(process.env.SECURITY_ALERT_MEDIA_UPLOAD_WINDOW_MS, 15 * 60_000);
+}
+
 function getAggregateIdentity(input: CreateAuditLogInput): string {
   return input.actorEmail ?? input.ipAddress ?? 'unknown';
 }
@@ -318,6 +326,20 @@ function buildAggregateRules(input: CreateAuditLogInput): SecurityAlertRule[] {
         'session-churn-anomaly',
         'medium',
         'Repeated session revocations crossed the configured threshold',
+      ),
+    );
+  }
+
+  if (input.action === 'media_upload') {
+    rules.push(
+      buildThresholdAlert(
+        input,
+        'media-upload',
+        getMediaUploadAlertThreshold(),
+        getMediaUploadAlertWindowMs(),
+        'repeated-media-upload-attempts',
+        'medium',
+        'Repeated incident media upload attempts crossed the configured threshold',
       ),
     );
   }

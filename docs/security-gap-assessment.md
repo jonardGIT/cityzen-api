@@ -117,6 +117,7 @@ Current state:
 - Supabase Storage upload is implemented.
 - The current documentation expects a public bucket because incidents persist returned `mediaUrl` values directly.
 - Storage uploads validate MIME type and size, and replaced files can be archived.
+- Incident media upload attempts are now audited and can trigger threshold alerts for suspicious repeated upload activity.
 
 Risk:
 
@@ -169,7 +170,7 @@ Risk:
 Recommendation:
 
 - Forward logs to centralized monitoring or SIEM.
-- Keep expanding tuned alert rules for suspicious MFA resets, unusual admin actions, and suspicious media upload patterns.
+- Keep expanding tuned alert rules for suspicious MFA resets and unusual admin actions.
 - Treat the runbook as an operational minimum, not as a substitute for external monitoring infrastructure.
 
 ### 6. Secrets and key management maturity

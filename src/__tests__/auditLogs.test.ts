@@ -190,6 +190,8 @@ describe('Audit log persistence', () => {
     delete process.env.SECURITY_ALERT_REFRESH_FAILURE_WINDOW_MS;
     delete process.env.SECURITY_ALERT_SESSION_CHURN_THRESHOLD;
     delete process.env.SECURITY_ALERT_SESSION_CHURN_WINDOW_MS;
+    delete process.env.SECURITY_ALERT_MEDIA_UPLOAD_THRESHOLD;
+    delete process.env.SECURITY_ALERT_MEDIA_UPLOAD_WINDOW_MS;
     jest.restoreAllMocks();
   });
 
@@ -644,6 +646,67 @@ describe('Audit log persistence', () => {
     });
     expect(payload.aggregate).toMatchObject({
       identity: 'admin@xypes.local',
+      count: 3,
+      windowMs: 600000,
+    });
+  });
+
+  it('records incident media upload attempts in the audit log', async () => {
+    const uploadAttempt = await request(app)
+      .post(`${API_V1}/incidents/media/upload`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ fileName: 'missing-content-type.jpg' });
+
+    expect([400, 404]).toContain(uploadAttempt.status);
+
+    const latest = await getLatestAuditLog(adminToken);
+    expect(latest).toMatchObject({
+      action: 'media_upload',
+      resource: 'incidents',
+      outcome: 'failure',
+      statusCode: uploadAttempt.status,
+    });
+  });
+
+  it('forwards a security alert after repeated incident media upload attempts cross the threshold', async () => {
+    process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
+    process.env.SECURITY_ALERT_MEDIA_UPLOAD_THRESHOLD = '3';
+    process.env.SECURITY_ALERT_MEDIA_UPLOAD_WINDOW_MS = '600000';
+
+    const originalFetch = global.fetch;
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const firstAttempt = await request(app)
+      .post(`${API_V1}/incidents/media/upload`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ fileName: 'missing-content-type.jpg' });
+    const secondAttempt = await request(app)
+      .post(`${API_V1}/incidents/media/upload`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ fileName: 'missing-content-type.jpg' });
+    const thirdAttempt = await request(app)
+      .post(`${API_V1}/incidents/media/upload`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ fileName: 'missing-content-type.jpg' });
+
+    global.fetch = originalFetch;
+
+    expect([400, 404]).toContain(firstAttempt.status);
+    expect([400, 404]).toContain(secondAttempt.status);
+    expect([400, 404]).toContain(thirdAttempt.status);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')) as Record<
+      string,
+      unknown
+    >;
+    expect(payload).toMatchObject({
+      type: 'security-alert',
+      ruleId: 'repeated-media-upload-attempts',
+      severity: 'medium',
+    });
+    expect(payload.aggregate).toMatchObject({
       count: 3,
       windowMs: 600000,
     });

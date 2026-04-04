@@ -65,6 +65,10 @@ function getAuditEvent(method: string, path: string): AuditEventDefinition | nul
     return { action: 'report', resource: 'incidents' };
   }
 
+  if (upperMethod === 'POST' && normalizedPath === '/incidents/media/upload') {
+    return { action: 'media_upload', resource: 'incidents' };
+  }
+
   const [resourceSegment, idSegment, extraSegment] = normalizedPath.split('/').filter(Boolean);
   const auditedResources = new Set([
     'citizens',
