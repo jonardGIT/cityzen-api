@@ -119,11 +119,18 @@ function validateSupabaseStorageAccessMode(env: NodeJS.ProcessEnv, selection: Fe
   }
 }
 
+function validateProductionMfaMode(selection: FeatureSelection): void {
+  if (selection.mfaMode === 'disabled') {
+    throw new Error('FEATURE_MFA_MODE must not be disabled in production');
+  }
+}
+
 export function validateStartupEnvironment({ env, selection }: StartupValidationOptions): void {
   if (env.NODE_ENV !== 'production' || shouldSkipStrictValidation(env)) {
     return;
   }
 
+  validateProductionMfaMode(selection);
   validateRequiredSecret(env, 'JWT_SECRET', MIN_SECRET_LENGTH);
   validateApiKeys(env);
 

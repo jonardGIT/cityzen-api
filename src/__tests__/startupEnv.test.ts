@@ -36,14 +36,27 @@ describe('startup environment validation', () => {
     ).not.toThrow();
   });
 
+  it('rejects production builds that disable MFA entirely', () => {
+    expect(() =>
+      validateStartupEnvironment({
+        env: {
+          NODE_ENV: 'production',
+          JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
+        },
+        selection: createSelection({ mfaMode: 'disabled' }),
+      }),
+    ).toThrow('FEATURE_MFA_MODE must not be disabled in production');
+  });
+
   it('rejects weak JWT secrets in production', () => {
     expect(() =>
       validateStartupEnvironment({
         env: {
           NODE_ENV: 'production',
           JWT_SECRET: 'test-jwt-secret',
+          MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
         },
-        selection: createSelection(),
+        selection: createSelection({ mfaMode: 'local-totp' }),
       }),
     ).toThrow('JWT_SECRET must be at least 32 characters in production');
   });
@@ -55,8 +68,9 @@ describe('startup environment validation', () => {
           NODE_ENV: 'production',
           JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
           API_KEYS: 'local-dev-key',
+          MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
         },
-        selection: createSelection(),
+        selection: createSelection({ mfaMode: 'local-totp' }),
       }),
     ).toThrow('API_KEYS must contain values that are at least 16 characters in production');
   });
@@ -81,8 +95,9 @@ describe('startup environment validation', () => {
           NODE_ENV: 'production',
           JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
           SUPABASE_SERVICE_ROLE_KEY: 'your-service-role-key',
+          MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
         },
-        selection: createSelection({ mediaStorage: 'supabase-storage' }),
+        selection: createSelection({ mfaMode: 'local-totp', mediaStorage: 'supabase-storage' }),
       }),
     ).toThrow('SUPABASE_SERVICE_ROLE_KEY must be at least 32 characters in production');
   });
@@ -94,9 +109,10 @@ describe('startup environment validation', () => {
           NODE_ENV: 'production',
           JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
           SUPABASE_SERVICE_ROLE_KEY: 'prod-service-role-key-0123456789-abcdef-uvwxyz',
+          MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
           SUPABASE_STORAGE_ACCESS_MODE: 'public',
         },
-        selection: createSelection({ mediaStorage: 'supabase-storage' }),
+        selection: createSelection({ mfaMode: 'local-totp', mediaStorage: 'supabase-storage' }),
       }),
     ).toThrow(
       'SUPABASE_STORAGE_ACCESS_MODE must be set to signed in production when Supabase media storage is enabled',
@@ -109,9 +125,10 @@ describe('startup environment validation', () => {
         env: {
           NODE_ENV: 'production',
           JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
+          MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
           PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'http://insecure.example.test/reset',
         },
-        selection: createSelection(),
+        selection: createSelection({ mfaMode: 'local-totp' }),
       }),
     ).toThrow('PASSWORD_RESET_DELIVERY_WEBHOOK_URL must use HTTPS in production');
   });
@@ -122,9 +139,10 @@ describe('startup environment validation', () => {
         env: {
           NODE_ENV: 'production',
           JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
+          MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
           SECURITY_ALERT_WEBHOOK_URL: 'not-a-url',
         },
-        selection: createSelection(),
+        selection: createSelection({ mfaMode: 'local-totp' }),
       }),
     ).toThrow('SECURITY_ALERT_WEBHOOK_URL must be a valid absolute URL in production');
   });

@@ -95,20 +95,22 @@ Recommendation:
 Current state:
 
 - Privileged-role TOTP MFA is implemented and available.
+- Production startup validation now rejects builds that disable MFA entirely.
 - MFA still depends on correct deployment configuration: `MFA_ENCRYPTION_KEY` must be set and the live database must include the MFA columns.
-- MFA is available for privileged users but not yet enforced by deployment policy.
-- There is still no documented break-glass or lost-device recovery process for privileged users.
+- Production request handling already limits privileged users without MFA to enrollment-only routes until they complete enrollment.
+- Admin compliance and access-review reporting already highlight privileged users with MFA disabled.
+- A repository-level break-glass and recovery process is documented, but it still depends on operators following it correctly.
 
 Risk:
 
-- Security value depends on operators actually enabling MFA for privileged accounts.
+- Security value still depends on operators completing privileged-user enrollment after deployment and following the documented recovery process.
 - Lost-device scenarios can still create operational lockout risk or encourage insecure manual workarounds.
 
 Recommendation:
 
-- Make MFA mandatory for privileged roles in production.
-- Add documented break-glass recovery procedures with strong audit requirements.
-- Add reporting for privileged users with MFA disabled.
+- Keep production MFA-enabled builds enforced during deployment review and verify that privileged users actually complete enrollment.
+- Keep documented break-glass recovery procedures under change control and exercise them with strong audit evidence.
+- Keep remediation follow-through for privileged users flagged by the existing MFA compliance and access-review reports.
 
 ### 3. Incident media confidentiality and evidence handling
 
