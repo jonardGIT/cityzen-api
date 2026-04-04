@@ -237,7 +237,7 @@ describe('Shared-store rate limiting', () => {
 
     const { default: prisma } = await import('../lib/prisma.js');
     const rows = await prisma.$queryRawUnsafe<Array<{ bucketCount: number | bigint }>>(
-      "SELECT COUNT(*)::bigint AS \"bucketCount\" FROM rate_limit_buckets WHERE \"bucketKey\" LIKE 'auth-login:%'",
+      'SELECT COUNT(*)::bigint AS "bucketCount" FROM rate_limit_buckets WHERE "bucketKey" LIKE \'auth-login:%\'',
     );
 
     expect(first.status).toBe(401);
@@ -245,6 +245,38 @@ describe('Shared-store rate limiting', () => {
     expect(third.status).toBe(429);
     expect(third.headers['x-ratelimit-limit']).toBe('2');
     expect(Number(rows[0]?.bucketCount ?? 0)).toBe(1);
+  });
+
+  it('fails closed in production when the database-backed limiter is unavailable', async () => {
+    jest.resetModules();
+    process.env = { ...originalEnv };
+    delete process.env.API_KEYS;
+    delete process.env.API_KEY;
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SECRET = process.env.JWT_SECRET ?? 'test-jwt-secret';
+    process.env.RATE_LIMIT_ENABLED = 'true';
+    process.env.RATE_LIMIT_STORE = 'database';
+    process.env.RATE_LIMIT_WINDOW_MS = '60000';
+    process.env.RATE_LIMIT_MAX_REQUESTS = '100';
+
+    const { default: prisma } = await import('../lib/prisma.js');
+    const querySpy = jest.spyOn(prisma, '$queryRawUnsafe').mockRejectedValueOnce(
+      new Error('relation "rate_limit_buckets" does not exist'),
+    );
+
+    const { default: app, API_V1 } = await import('../app.js');
+    const response = await request(app).post(`${API_V1}/auth/login`).send({
+      email: 'admin@xypes.local',
+      password: 'WrongPassword!',
+    });
+
+    querySpy.mockRestore();
+
+    expect(response.status).toBe(503);
+    expect(response.body).toEqual({
+      message:
+        'Rate limiting is temporarily unavailable because the shared limiter store cannot be reached',
+    });
   });
 });
 

@@ -48,12 +48,20 @@ type RateLimitBucketRow = {
   resetAtMs: number | bigint;
 };
 
+class RateLimitStoreUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RateLimitStoreUnavailableError';
+  }
+}
+
 const DEFAULT_WINDOW_MS = 60_000;
 const DEFAULT_MAX_REQUESTS = 100;
 const DATABASE_BUCKET_CLEANUP_INTERVAL_MS = 300_000;
 
 let lastDatabaseBucketCleanupAt = 0;
 let hasLoggedDatabaseLimiterFallback = false;
+let hasLoggedDatabaseLimiterFailure = false;
 
 // Parses a positive integer from env, falling back to a safe default.
 function toPositiveInteger(value: string | undefined, fallback: number): number {
@@ -122,6 +130,10 @@ function getRateLimitStoreMode(): 'memory' | 'database' {
   }
 
   return process.env.NODE_ENV === 'production' ? 'database' : 'memory';
+}
+
+function shouldFailClosedForDatabaseLimiter(): boolean {
+  return getRateLimitStoreMode() === 'database' && process.env.NODE_ENV === 'production';
 }
 
 async function maybePruneExpiredDatabaseBuckets(): Promise<void> {
@@ -223,9 +235,23 @@ class DatabaseRateLimitStore implements RateLimitStore {
           : Math.max(1, Math.ceil((persistedResetAt - now) / 1000)),
       };
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'unknown error';
+
+      if (shouldFailClosedForDatabaseLimiter()) {
+        if (!hasLoggedDatabaseLimiterFailure) {
+          hasLoggedDatabaseLimiterFailure = true;
+          console.error(
+            `Rejecting requests because the database-backed rate limiter is unavailable in production: ${message}`,
+          );
+        }
+
+        throw new RateLimitStoreUnavailableError(
+          'Rate limiting is temporarily unavailable because the shared limiter store cannot be reached',
+        );
+      }
+
       if (!hasLoggedDatabaseLimiterFallback) {
         hasLoggedDatabaseLimiterFallback = true;
-        const message = error instanceof Error ? error.message : 'unknown error';
         console.warn(
           `Falling back to in-memory rate limiting because the database-backed store is unavailable: ${message}`,
         );
@@ -274,12 +300,7 @@ function buildScopedRateLimitMiddleware(options: ScopedRateLimitOptions): Reques
         maxRequests: options.maxRequests,
       });
 
-      applyRateLimitHeaders(
-        res,
-        options.maxRequests,
-        decision.remaining,
-        decision.resetAt,
-      );
+      applyRateLimitHeaders(res, options.maxRequests, decision.remaining, decision.resetAt);
 
       if (!decision.allowed) {
         res.setHeader('Retry-After', (decision.retryAfterSeconds ?? 1).toString());
@@ -291,6 +312,11 @@ function buildScopedRateLimitMiddleware(options: ScopedRateLimitOptions): Reques
 
       next();
     } catch (error) {
+      if (error instanceof RateLimitStoreUnavailableError) {
+        res.status(503).json({ message: error.message });
+        return;
+      }
+
       next(error);
     }
   };
