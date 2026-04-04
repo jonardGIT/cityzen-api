@@ -191,6 +191,7 @@ Important variables:
 - `AUTH_MFA_ENABLE_RATE_LIMIT_WINDOW_MS`, `AUTH_MFA_ENABLE_RATE_LIMIT_MAX_REQUESTS`: optional tighter MFA enable throttle. Defaults to 10 minutes and 10 attempts per authenticated user.
 - `AUTH_MFA_DISABLE_RATE_LIMIT_WINDOW_MS`, `AUTH_MFA_DISABLE_RATE_LIMIT_MAX_REQUESTS`: optional tighter MFA disable throttle. Defaults to 10 minutes and 10 attempts per authenticated user.
 - `INCIDENT_MEDIA_UPLOAD_RATE_LIMIT_WINDOW_MS`, `INCIDENT_MEDIA_UPLOAD_RATE_LIMIT_MAX_REQUESTS`: optional tighter incident media upload throttle. Defaults to 10 minutes and 10 attempts per authenticated user.
+- `ADMIN_ACCESS_REVIEW_STALE_DAYS`: optional privileged access-review threshold. Defaults to `90` days and controls when privileged accounts are flagged as stale in `GET /api/v1/admin/users/access-review`.
 
 Incident media confidentiality behavior:
 
@@ -223,6 +224,7 @@ When `NODE_ENV=production`, privileged roles (`SYSTEM_ADMIN`, `DEPARTMENT_MANAGE
 - If the selected production feature profile disables MFA entirely, privileged login fails closed with a `503` configuration error.
 - If MFA is enabled in the build but the privileged account is not enrolled yet, login still succeeds but returns `mfaEnrollmentRequired=true` and the resulting session is limited to MFA enrollment routes until setup is completed.
 - Admin operators can review current privileged MFA compliance through `GET /api/v1/admin/users/mfa-compliance`.
+- Admin operators can review privileged account posture through `GET /api/v1/admin/users/access-review`, which highlights stale privileged accounts, missing MFA enrollment, and recent session activity for periodic access reviews.
 
 Password reset recovery behavior:
 
