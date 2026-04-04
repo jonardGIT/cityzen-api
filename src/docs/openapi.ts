@@ -1,4 +1,32 @@
 import { OpenAPIV3 } from 'openapi-types';
+import { getFeatureSelection, type FeatureSelection } from '../featureSelection.js';
+
+const CONDITIONAL_MFA_PATHS = ['/auth/mfa/setup', '/auth/mfa/enable', '/auth/mfa/disable'] as const;
+const CONDITIONAL_SESSION_PATHS = ['/auth/sessions', '/auth/sessions/{id}'] as const;
+const CONDITIONAL_MEDIA_PATHS = ['/incidents/media/upload'] as const;
+const CONDITIONAL_RESTORE_PATHS = [
+  '/citizens/{id}/restore',
+  '/agencies/{id}/restore',
+  '/responders/{id}/restore',
+  '/statuses/{id}/restore',
+  '/categories/{id}/restore',
+  '/severities/{id}/restore',
+  '/incidents/{id}/restore',
+  '/assignments/{id}/restore',
+  '/users/{id}/restore',
+] as const;
+const HARD_DELETE_PATH_METADATA = {
+  '/citizens/{id}': { summary: 'Delete citizen', responseDescription: 'Citizen deleted.' },
+  '/agencies/{id}': { summary: 'Delete agency', responseDescription: 'Agency deleted.' },
+  '/responders/{id}': { summary: 'Delete responder', responseDescription: 'Responder deleted.' },
+  '/statuses/{id}': { summary: 'Delete status', responseDescription: 'Status deleted.' },
+  '/categories/{id}': { summary: 'Delete category', responseDescription: 'Category deleted.' },
+  '/severities/{id}': { summary: 'Delete severity', responseDescription: 'Severity deleted.' },
+  '/incidents/{id}': { summary: 'Delete incident', responseDescription: 'Incident deleted.' },
+  '/assignments/{id}': { summary: 'Delete assignment', responseDescription: 'Assignment deleted.' },
+  '/users/{id}': { summary: 'Delete user', responseDescription: 'User deleted.' },
+} as const;
+const ARCHIVE_QUERY_PARAMETER_NAMES = new Set(['includeArchived', 'archivedOnly']);
 
 const idParameter: OpenAPIV3.ParameterObject = {
   name: 'id',
@@ -398,7 +426,97 @@ function resourcePath(
   };
 }
 
-export const openApiDocument: OpenAPIV3.Document = {
+function filterArchiveQueryParameters(
+  operation: OpenAPIV3.OperationObject | undefined,
+): OpenAPIV3.OperationObject | undefined {
+  if (!operation?.parameters) {
+    return operation;
+  }
+
+  return {
+    ...operation,
+    parameters: operation.parameters.filter((parameter) => {
+      if ('$ref' in parameter) {
+        return true;
+      }
+
+      return !ARCHIVE_QUERY_PARAMETER_NAMES.has(parameter.name);
+    }),
+  };
+}
+
+function createFeatureAwarePaths(
+  paths: OpenAPIV3.PathsObject,
+  selection: FeatureSelection,
+): OpenAPIV3.PathsObject {
+  const nextPaths: OpenAPIV3.PathsObject = Object.fromEntries(
+    Object.entries(paths).map(([path, pathItem]) => [path, { ...pathItem }]),
+  );
+
+  if (!selection.mediaStorage || selection.mediaStorage === 'disabled') {
+    for (const path of CONDITIONAL_MEDIA_PATHS) {
+      delete nextPaths[path];
+    }
+  }
+
+  if (selection.mfaMode === 'disabled') {
+    for (const path of CONDITIONAL_MFA_PATHS) {
+      delete nextPaths[path];
+    }
+  }
+
+  if (selection.tokenMode !== 'app-jwt') {
+    for (const path of CONDITIONAL_SESSION_PATHS) {
+      delete nextPaths[path];
+    }
+  }
+
+  if (selection.recordDeletion !== 'archive') {
+    for (const path of CONDITIONAL_RESTORE_PATHS) {
+      delete nextPaths[path];
+    }
+
+    for (const [path, pathItem] of Object.entries(nextPaths)) {
+      if (!pathItem) {
+        continue;
+      }
+
+      nextPaths[path] = {
+        ...pathItem,
+        get: filterArchiveQueryParameters(pathItem.get),
+      };
+    }
+
+    for (const [path, metadata] of Object.entries(HARD_DELETE_PATH_METADATA)) {
+      const pathItem = nextPaths[path];
+      if (!pathItem?.delete) {
+        continue;
+      }
+
+      pathItem.delete = {
+        ...pathItem.delete,
+        summary: metadata.summary,
+        responses: {
+          ...pathItem.delete.responses,
+          '204': { description: metadata.responseDescription },
+        },
+      };
+    }
+  }
+
+  return nextPaths;
+}
+
+export function createOpenApiDocument(
+  selection: FeatureSelection = getFeatureSelection(),
+): OpenAPIV3.Document {
+  return {
+    ...baseOpenApiDocument,
+    paths: createFeatureAwarePaths(baseOpenApiDocument.paths, selection),
+  };
+}
+
+const baseOpenApiDocument: OpenAPIV3.Document = {
   openapi: '3.0.3',
   info: {
     title: 'Xypes CIRS API',
@@ -2217,3 +2335,5 @@ export const openApiDocument: OpenAPIV3.Document = {
     },
   },
 };
+
+export const openApiDocument = createOpenApiDocument();

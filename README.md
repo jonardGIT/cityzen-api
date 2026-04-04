@@ -177,7 +177,7 @@ Production feature-profile variables:
 - `FEATURE_RECORD_DELETION`: required for `npm run build:production`. Choose `hard-delete` or `archive`.
 - `FEATURE_PROFILE_NAME`: optional human-readable name embedded into the production build profile.
 
-`npm run build:production` requires one explicit selection per feature group and locks those selections into the production build. Unselected feature routes and behaviors are not mounted in the running production app. This is a fail-closed production profile, not a tree-shaking or code-stripping build.
+`npm run build:production` requires one explicit selection per feature group and locks those selections into the production build. Unselected feature routes and behaviors are not mounted in the running production app, and the generated OpenAPI document hides those disabled routes as well. This is a fail-closed production profile, not a tree-shaking or code-stripping build.
 
 When `SUPABASE_JWT_ENABLED=true`, the backend verifies Supabase bearer tokens on protected routes and returns Supabase access/refresh tokens from login and refresh endpoints. The legacy session-management endpoints `/auth/sessions` and `/auth/sessions/:id` remain available only in app-JWT mode because Supabase does not expose arbitrary session listing/revocation in the same shape.
 
