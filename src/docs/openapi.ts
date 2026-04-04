@@ -689,7 +689,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         tags: ['Incident'],
         summary: 'Upload incident media to Supabase Storage',
         description:
-          'Accepts either one base64-encoded file or a `files` array and returns public media URLs that can be stored on an incident record. Requires `SUPABASE_STORAGE_ENABLED=true` and a public storage bucket configuration.',
+          'Accepts either one base64-encoded file or a `files` array and returns reusable media references for incident persistence. In `public` storage mode these are public URLs; in `signed` mode the response also includes short-lived access URLs for preview while the persisted values remain stable managed references.',
         security: apiKeyAndBearerSecurity,
         requestBody: {
           required: true,
@@ -1727,7 +1727,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
             type: 'array',
             items: { type: 'string' },
             description:
-              'Ordered list of incident media URLs. `mediaUrl` remains the first item for backward compatibility.',
+              'Ordered list of incident media access URLs. `mediaUrl` remains the first item for backward compatibility. When private signed storage mode is enabled, the API resolves persisted managed references into short-lived signed URLs in this response.',
           },
           dateReported: { type: 'string', format: 'date-time' },
           latitude: { type: 'number', format: 'double', nullable: true },
@@ -2051,13 +2051,13 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
           mediaUrl: {
             type: 'string',
             description:
-              'Public URL for previously uploaded incident media. Use POST /incidents/media/upload to generate this value from a base64 payload.',
+              'Previously uploaded incident media reference. Use POST /incidents/media/upload to generate this value from a base64 payload.',
           },
           mediaUrls: {
             type: 'array',
             items: { type: 'string' },
             description:
-              'Ordered list of uploaded media URLs for this incident. When both `mediaUrl` and `mediaUrls` are sent, the legacy `mediaUrl` is prepended if it is not already present.',
+              'Ordered list of uploaded incident media references. When both `mediaUrl` and `mediaUrls` are sent, the legacy `mediaUrl` is prepended if it is not already present.',
           },
           dateReported: { type: 'string', format: 'date-time' },
           latitude: { type: 'number', format: 'double' },
@@ -2086,13 +2086,13 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
           mediaUrl: {
             type: 'string',
             description:
-              'Public URL for previously uploaded incident media. Use POST /incidents/media/upload to generate this value from a base64 payload.',
+              'Previously uploaded incident media reference. Use POST /incidents/media/upload to generate this value from a base64 payload.',
           },
           mediaUrls: {
             type: 'array',
             items: { type: 'string' },
             description:
-              'Ordered list of uploaded media URLs for this incident. When both `mediaUrl` and `mediaUrls` are sent, the legacy `mediaUrl` is prepended if it is not already present.',
+              'Ordered list of uploaded incident media references. When both `mediaUrl` and `mediaUrls` are sent, the legacy `mediaUrl` is prepended if it is not already present.',
           },
           dateReported: { type: 'string', format: 'date-time' },
           latitude: { type: 'number', format: 'double' },
@@ -2120,13 +2120,13 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
           mediaUrl: {
             type: 'string',
             description:
-              'Public URL for previously uploaded incident media. Use POST /incidents/media/upload to generate this value from a base64 payload.',
+              'Previously uploaded incident media reference. Use POST /incidents/media/upload to generate this value from a base64 payload.',
           },
           mediaUrls: {
             type: 'array',
             items: { type: 'string' },
             description:
-              'Ordered list of uploaded media URLs for this incident. When both `mediaUrl` and `mediaUrls` are sent, the legacy `mediaUrl` is prepended if it is not already present.',
+              'Ordered list of uploaded incident media references. When both `mediaUrl` and `mediaUrls` are sent, the legacy `mediaUrl` is prepended if it is not already present.',
           },
           dateReported: { type: 'string', format: 'date-time' },
           latitude: { type: 'number', format: 'double' },
@@ -2193,6 +2193,14 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
           mediaUrls: {
             type: 'array',
             items: { type: 'string' },
+            description:
+              'Reusable incident media references for persistence on incident records. In public mode these are public URLs; in signed mode these are stable managed references.',
+          },
+          accessUrls: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Immediate access URLs for uploaded media. In signed mode these are short-lived signed URLs and should not be persisted back to the database as the canonical reference.',
           },
           files: {
             type: 'array',
@@ -2202,15 +2210,16 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
                 bucket: { type: 'string' },
                 objectPath: { type: 'string' },
                 mediaUrl: { type: 'string' },
+                accessUrl: { type: 'string' },
                 contentType: { type: 'string' },
                 fileName: { type: 'string' },
                 size: { type: 'integer' },
               },
-              required: ['bucket', 'objectPath', 'mediaUrl', 'contentType', 'fileName', 'size'],
+              required: ['bucket', 'objectPath', 'mediaUrl', 'accessUrl', 'contentType', 'fileName', 'size'],
             },
           },
         },
-        required: ['mediaUrls', 'files'],
+        required: ['mediaUrls', 'accessUrls', 'files'],
       },
       CreateAssignmentRequest: {
         type: 'object',

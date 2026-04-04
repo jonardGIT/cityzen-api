@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { isIncidentMediaUploadFeatureEnabled } from '../featureSelection.js';
 
 const DEFAULT_MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
+const DEFAULT_SIGNED_URL_TTL_SECONDS = 15 * 60;
 const DEFAULT_ALLOWED_MIME_TYPES = [
   'image/jpeg',
   'image/png',
@@ -27,6 +28,7 @@ export interface UploadIncidentMediaResult {
   bucket: string;
   objectPath: string;
   mediaUrl: string;
+  accessUrl: string;
   contentType: string;
   fileName: string;
   size: number;
@@ -34,8 +36,11 @@ export interface UploadIncidentMediaResult {
 
 export interface UploadIncidentMediaBatchResult {
   mediaUrls: string[];
+  accessUrls: string[];
   files: UploadIncidentMediaResult[];
 }
+
+type StorageAccessMode = 'public' | 'signed';
 
 export interface ArchiveIncidentMediaResult {
   mediaUrl: string;
@@ -111,6 +116,46 @@ function getBucketName(): string {
   }
 
   return value;
+}
+
+function getConfiguredBucketName(): string | null {
+  const value = process.env.SUPABASE_STORAGE_BUCKET?.trim();
+  return value ? value : null;
+}
+
+function getStorageAccessMode(): StorageAccessMode {
+  const value = process.env.SUPABASE_STORAGE_ACCESS_MODE?.trim().toLowerCase();
+  if (!value) {
+    return 'public';
+  }
+
+  if (value === 'public' || value === 'signed') {
+    return value;
+  }
+
+  throw new SupabaseStorageServiceError(
+    'SUPABASE_STORAGE_CONFIG_ERROR',
+    'SUPABASE_STORAGE_ACCESS_MODE must be either public or signed when provided',
+    503,
+  );
+}
+
+function getSignedUrlTtlSeconds(): number {
+  const rawValue = process.env.SUPABASE_STORAGE_SIGNED_URL_TTL_SECONDS?.trim();
+  if (!rawValue) {
+    return DEFAULT_SIGNED_URL_TTL_SECONDS;
+  }
+
+  const parsedValue = Number(rawValue);
+  if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+    throw new SupabaseStorageServiceError(
+      'SUPABASE_STORAGE_CONFIG_ERROR',
+      'SUPABASE_STORAGE_SIGNED_URL_TTL_SECONDS must be a positive number when provided',
+      503,
+    );
+  }
+
+  return Math.floor(parsedValue);
 }
 
 function getArchivePrefix(): string {
@@ -193,29 +238,158 @@ function buildObjectPath(actorUserId: string, fileName: string, incidentId?: str
   return `incidents/${year}/${month}/${scope}/${Date.now()}-${randomUUID()}-${safeFileName}`;
 }
 
+function buildManagedMediaReference(bucket: string, objectPath: string): string {
+  return `supabase://${bucket}/${objectPath.replace(/^\/+/, '')}`;
+}
+
+function tryExtractManagedReference(mediaUrl: string): { bucket: string; objectPath: string } | null {
+  const match = mediaUrl.match(/^supabase:\/\/([^/]+)\/(.+)$/i);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    bucket: match[1],
+    objectPath: match[2].replace(/^\/+/, ''),
+  };
+}
+
 function tryExtractManagedObjectPath(
   mediaUrl: string,
 ): { bucket: string; objectPath: string } | null {
-  const bucket = getBucketName();
+  const normalizedMediaUrl = mediaUrl.trim();
+  const managedReference = tryExtractManagedReference(normalizedMediaUrl);
+  if (managedReference) {
+    return managedReference;
+  }
+
+  const bucket = getConfiguredBucketName();
+  if (!bucket) {
+    return null;
+  }
 
   try {
-    const url = new URL(mediaUrl);
-    const marker = `/storage/v1/object/public/${bucket}/`;
-    const markerIndex = url.pathname.indexOf(marker);
+    const url = new URL(normalizedMediaUrl);
+    const markers = [
+      `/storage/v1/object/public/${bucket}/`,
+      `/storage/v1/object/sign/${bucket}/`,
+    ];
 
-    if (markerIndex === -1) {
-      return null;
+    for (const marker of markers) {
+      const markerIndex = url.pathname.indexOf(marker);
+
+      if (markerIndex === -1) {
+        continue;
+      }
+
+      const objectPath = decodeURIComponent(url.pathname.slice(markerIndex + marker.length));
+      if (!objectPath) {
+        return null;
+      }
+
+      return { bucket, objectPath };
     }
 
-    const objectPath = decodeURIComponent(url.pathname.slice(markerIndex + marker.length));
-    if (!objectPath) {
-      return null;
-    }
-
-    return { bucket, objectPath };
+    return null;
   } catch {
     return null;
   }
+}
+
+function buildPublicMediaUrl(bucket: string, objectPath: string): string {
+  const baseUrl = getSupabaseUrl().replace(/\/+$/, '');
+  const encodedPath = objectPath
+    .replace(/^\/+/, '')
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+
+  return `${baseUrl}/storage/v1/object/public/${encodeURIComponent(bucket)}/${encodedPath}`;
+}
+
+async function getSignedMediaUrl(
+  client: ReturnType<typeof createStorageClient>,
+  objectPath: string,
+): Promise<string> {
+  const signedUrlResult = await client.storage
+    .from(getBucketName())
+    .createSignedUrl(objectPath, getSignedUrlTtlSeconds());
+  if (signedUrlResult.error) {
+    throw new SupabaseStorageServiceError(
+      'SUPABASE_STORAGE_URL_FAILED',
+      signedUrlResult.error.message || 'Supabase Storage did not return a signed URL',
+      502,
+    );
+  }
+
+  const accessUrl = signedUrlResult.data?.signedUrl?.trim();
+  if (!accessUrl) {
+    throw new SupabaseStorageServiceError(
+      'SUPABASE_STORAGE_URL_FAILED',
+      'Supabase Storage did not return a signed URL for the uploaded media',
+      502,
+    );
+  }
+
+  return accessUrl;
+}
+
+export function normalizeIncidentMediaUrl(mediaUrl: string): string {
+  const trimmed = mediaUrl.trim();
+  const managedReference = tryExtractManagedReference(trimmed);
+  if (managedReference) {
+    return buildManagedMediaReference(managedReference.bucket, managedReference.objectPath);
+  }
+
+  if (getStorageAccessMode() !== 'signed') {
+    return trimmed;
+  }
+
+  const parsed = tryExtractManagedObjectPath(trimmed);
+  if (!parsed) {
+    return trimmed;
+  }
+
+  return buildManagedMediaReference(parsed.bucket, parsed.objectPath);
+}
+
+export async function resolveIncidentMediaUrls(mediaUrls: string[]): Promise<string[]> {
+  if (mediaUrls.length === 0) {
+    return [];
+  }
+
+  const accessMode = getStorageAccessMode();
+  const bucket = getConfiguredBucketName();
+  const needsManagedResolution = mediaUrls.some((mediaUrl) => tryExtractManagedObjectPath(mediaUrl));
+
+  if (!needsManagedResolution) {
+    return mediaUrls;
+  }
+
+  const client = accessMode === 'signed' ? createStorageClient() : null;
+
+  return Promise.all(
+    mediaUrls.map(async (mediaUrl) => {
+      const parsed = tryExtractManagedObjectPath(mediaUrl);
+      if (!parsed || (bucket && parsed.bucket !== bucket)) {
+        return mediaUrl;
+      }
+
+      try {
+        if (accessMode === 'signed') {
+          return await getSignedMediaUrl(client as ReturnType<typeof createStorageClient>, parsed.objectPath);
+        }
+
+        if (tryExtractManagedReference(mediaUrl.trim())) {
+          return buildPublicMediaUrl(parsed.bucket, parsed.objectPath);
+        }
+
+        return mediaUrl;
+      } catch {
+        return mediaUrl;
+      }
+    }),
+  );
 }
 
 function buildArchivedObjectPath(objectPath: string): string {
@@ -348,20 +522,19 @@ export async function uploadIncidentMedia(
     );
   }
 
-  const publicUrlResult = client.storage.from(bucket).getPublicUrl(objectPath);
-  const mediaUrl = publicUrlResult.data.publicUrl?.trim();
-  if (!mediaUrl) {
-    throw new SupabaseStorageServiceError(
-      'SUPABASE_STORAGE_URL_FAILED',
-      'Supabase Storage did not return a public URL for the uploaded media',
-      502,
-    );
-  }
+  const accessMode = getStorageAccessMode();
+  const accessUrl =
+    accessMode === 'signed'
+      ? await getSignedMediaUrl(client, objectPath)
+      : buildPublicMediaUrl(bucket, objectPath);
+  const mediaUrl =
+    accessMode === 'signed' ? buildManagedMediaReference(bucket, objectPath) : accessUrl;
 
   return {
     bucket,
     objectPath,
     mediaUrl,
+    accessUrl,
     contentType: normalizedContentType,
     fileName: sanitizeFileName(input.fileName),
     size: fileBuffer.length,

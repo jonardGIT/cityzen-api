@@ -68,13 +68,13 @@ function normalizeMediaUrls(
   if (Array.isArray(body.mediaUrls)) {
     for (const entry of body.mediaUrls) {
       if (typeof entry === 'string' && entry.trim().length > 0) {
-        values.push(entry.trim());
+        values.push(supabaseStorageService.normalizeIncidentMediaUrl(entry));
       }
     }
   }
 
   if (typeof body.mediaUrl === 'string' && body.mediaUrl.trim().length > 0) {
-    const legacyMediaUrl = body.mediaUrl.trim();
+    const legacyMediaUrl = supabaseStorageService.normalizeIncidentMediaUrl(body.mediaUrl);
     if (!values.includes(legacyMediaUrl)) {
       values.unshift(legacyMediaUrl);
     }
@@ -96,11 +96,23 @@ function buildIncidentMediaCreateMany(mediaUrls: string[] | undefined) {
   };
 }
 
-function serializeIncident<T extends IncidentWithMediaFiles>(incident: T) {
+function getStoredIncidentMediaUrls<T extends IncidentWithMediaFiles>(incident: T): string[] {
   const sortedMediaFiles = [...(incident.mediaFiles ?? [])].sort(
     (left, right) => left.displayOrder - right.displayOrder,
   );
   const mediaUrls = sortedMediaFiles.map((media) => media.mediaUrl);
+
+  if (mediaUrls.length > 0) {
+    return mediaUrls;
+  }
+
+  return incident.mediaUrl ? [incident.mediaUrl] : [];
+}
+
+async function serializeIncident<T extends IncidentWithMediaFiles>(incident: T) {
+  const mediaUrls = await supabaseStorageService.resolveIncidentMediaUrls(
+    getStoredIncidentMediaUrls(incident),
+  );
 
   return {
     ...incident,
@@ -109,8 +121,8 @@ function serializeIncident<T extends IncidentWithMediaFiles>(incident: T) {
   };
 }
 
-function serializeIncidentCollection<T extends IncidentWithMediaFiles>(incidents: T[]) {
-  return incidents.map((incident) => serializeIncident(incident));
+async function serializeIncidentCollection<T extends IncidentWithMediaFiles>(incidents: T[]) {
+  return Promise.all(incidents.map((incident) => serializeIncident(incident)));
 }
 
 function getUploadMediaItems(body: {
@@ -193,6 +205,7 @@ export async function uploadIncidentMedia(req: Request, res: Response): Promise<
 
     const responseBody: supabaseStorageService.UploadIncidentMediaBatchResult = {
       mediaUrls: files.map((file) => file.mediaUrl),
+      accessUrls: files.map((file) => file.accessUrl),
       files,
     };
 
@@ -262,7 +275,11 @@ export async function getIncidents(req: Request, res: Response): Promise<void> {
       prisma.citizenIncident.count({ where: scopedWhere as any }),
     ]);
     res.json(
-      buildPaginatedResponse(serializeIncidentCollection(paginatedIncidents), total, pagination),
+      buildPaginatedResponse(
+        await serializeIncidentCollection(paginatedIncidents),
+        total,
+        pagination,
+      ),
     );
     return;
   }
@@ -277,7 +294,7 @@ export async function getIncidents(req: Request, res: Response): Promise<void> {
     orderBy: listQuery.orderBy as any,
   });
 
-  res.json(serializeIncidentCollection(incidents));
+  res.json(await serializeIncidentCollection(incidents));
 }
 
 // Returns a single incident by UUID. Responds 404 if not found.
@@ -323,7 +340,7 @@ export async function getIncidentById(req: Request, res: Response): Promise<void
     }
   }
 
-  res.json(serializeIncident(incident));
+  res.json(await serializeIncident(incident));
 }
 
 // Creates a new incident. Validates all FK references before persisting to the database.
@@ -409,7 +426,7 @@ export async function createIncident(req: Request, res: Response): Promise<void>
         },
       },
     });
-    res.status(201).json(serializeIncident(incident));
+    res.status(201).json(await serializeIncident(incident));
   } catch (err) {
     res
       .status(400)
@@ -514,7 +531,7 @@ export async function createCitizenIncidentReport(req: Request, res: Response): 
         },
       },
     });
-    res.status(201).json(serializeIncident(incident));
+    res.status(201).json(await serializeIncident(incident));
   } catch (err) {
     res.status(400).json({
       message: 'Invalid input or foreign key reference',
@@ -572,7 +589,7 @@ export async function updateIncident(req: Request, res: Response): Promise<void>
     return;
   }
 
-  const existingMediaUrls = serializeIncident(existingIncident).mediaUrls;
+  const existingMediaUrls = getStoredIncidentMediaUrls(existingIncident);
 
   if (
     statusId !== undefined &&
@@ -650,7 +667,7 @@ export async function updateIncident(req: Request, res: Response): Promise<void>
     await archiveIncidentMediaIfNeeded(replacedMediaUrls);
   }
 
-  res.json(serializeIncident(incident));
+  res.json(await serializeIncident(incident));
 }
 
 // Deletes an existing incident.
@@ -686,7 +703,7 @@ export async function deleteIncident(req: Request, res: Response): Promise<void>
       });
     });
   } else {
-    const existingMediaUrls = serializeIncident(existingIncident).mediaUrls;
+    const existingMediaUrls = getStoredIncidentMediaUrls(existingIncident);
     await prisma.citizenIncident.delete({ where: { id } });
     await archiveIncidentMediaIfNeeded(existingMediaUrls);
   }
@@ -771,5 +788,5 @@ export async function restoreIncident(req: Request, res: Response): Promise<void
     return restoredIncident;
   });
 
-  res.json(serializeIncident(incident));
+  res.json(await serializeIncident(incident));
 }

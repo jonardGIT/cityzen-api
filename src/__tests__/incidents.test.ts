@@ -225,9 +225,21 @@ describe(`POST ${BASE}`, () => {
 
 describe(`POST ${BASE}/media/upload`, () => {
   const originalStorageEnabled = process.env.SUPABASE_STORAGE_ENABLED;
+  const originalStorageAccessMode = process.env.SUPABASE_STORAGE_ACCESS_MODE;
 
   afterEach(() => {
-    process.env.SUPABASE_STORAGE_ENABLED = originalStorageEnabled;
+    if (originalStorageEnabled === undefined) {
+      delete process.env.SUPABASE_STORAGE_ENABLED;
+    } else {
+      process.env.SUPABASE_STORAGE_ENABLED = originalStorageEnabled;
+    }
+
+    if (originalStorageAccessMode === undefined) {
+      delete process.env.SUPABASE_STORAGE_ACCESS_MODE;
+    } else {
+      process.env.SUPABASE_STORAGE_ACCESS_MODE = originalStorageAccessMode;
+    }
+
     jest.restoreAllMocks();
   });
 
@@ -316,6 +328,7 @@ describe(`POST ${BASE}/media/upload`, () => {
         bucket: 'incident-media',
         objectPath: 'incidents/2026/04/admin/test-upload-photo.jpg',
         mediaUrl: 'https://example.supabase.co/storage/v1/object/public/incident-media/test.jpg',
+        accessUrl: 'https://example.supabase.co/storage/v1/object/public/incident-media/test.jpg',
         contentType: 'image/jpeg',
         fileName: 'test-upload-photo.jpg',
         size: 10,
@@ -324,6 +337,7 @@ describe(`POST ${BASE}/media/upload`, () => {
         bucket: 'incident-media',
         objectPath: 'incidents/2026/04/admin/test-upload-video.mp4',
         mediaUrl: 'https://example.supabase.co/storage/v1/object/public/incident-media/test.mp4',
+        accessUrl: 'https://example.supabase.co/storage/v1/object/public/incident-media/test.mp4',
         contentType: 'video/mp4',
         fileName: 'test-upload-video.mp4',
         size: 16,
@@ -353,6 +367,10 @@ describe(`POST ${BASE}/media/upload`, () => {
         'https://example.supabase.co/storage/v1/object/public/incident-media/test.jpg',
         'https://example.supabase.co/storage/v1/object/public/incident-media/test.mp4',
       ],
+      accessUrls: [
+        'https://example.supabase.co/storage/v1/object/public/incident-media/test.jpg',
+        'https://example.supabase.co/storage/v1/object/public/incident-media/test.mp4',
+      ],
     });
     expect(res.body.files).toHaveLength(2);
     expect(uploadSpy).toHaveBeenNthCalledWith(
@@ -369,6 +387,56 @@ describe(`POST ${BASE}/media/upload`, () => {
         contentType: 'video/mp4',
       }),
     );
+  });
+
+  it('should return managed references plus accessUrls when signed storage mode is enabled', async () => {
+    if (!incidentMediaUploadEnabled) {
+      const res = await request(app)
+        .post(`${BASE}/media/upload`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          fileName: 'incident-photo.jpg',
+          contentType: 'image/jpeg',
+          dataBase64: Buffer.from('test-image').toString('base64'),
+        });
+
+      expect(res.status).toBe(404);
+      return;
+    }
+
+    process.env.SUPABASE_STORAGE_ACCESS_MODE = 'signed';
+
+    jest.spyOn(supabaseStorageService, 'uploadIncidentMedia').mockResolvedValueOnce({
+      bucket: 'incident-media',
+      objectPath: 'incidents/2026/04/admin/private-photo.jpg',
+      mediaUrl: 'supabase://incident-media/incidents/2026/04/admin/private-photo.jpg',
+      accessUrl: 'https://example.supabase.co/storage/v1/object/sign/incident-media/private-photo.jpg?token=signed',
+      contentType: 'image/jpeg',
+      fileName: 'private-photo.jpg',
+      size: 10,
+    });
+
+    const res = await request(app)
+      .post(`${BASE}/media/upload`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        fileName: 'Private Photo.jpg',
+        contentType: 'image/jpeg',
+        dataBase64: Buffer.from('test-image').toString('base64'),
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({
+      mediaUrls: ['supabase://incident-media/incidents/2026/04/admin/private-photo.jpg'],
+      accessUrls: [
+        'https://example.supabase.co/storage/v1/object/sign/incident-media/private-photo.jpg?token=signed',
+      ],
+    });
+    expect(res.body.files[0]).toMatchObject({
+      mediaUrl: 'supabase://incident-media/incidents/2026/04/admin/private-photo.jpg',
+      accessUrl:
+        'https://example.supabase.co/storage/v1/object/sign/incident-media/private-photo.jpg?token=signed',
+    });
   });
 });
 
@@ -458,6 +526,56 @@ describe('incident media persistence', () => {
       'https://example.supabase.co/storage/v1/object/public/incident-media/original-photo.jpg',
       'https://example.supabase.co/storage/v1/object/public/incident-media/original-video.mp4',
     ]);
+  });
+
+  it('should store managed references while returning resolved access URLs', async () => {
+    const archiveSpy = jest
+      .spyOn(supabaseStorageService, 'archiveIncidentMediaUrls')
+      .mockResolvedValue([]);
+    const resolveSpy = jest
+      .spyOn(supabaseStorageService, 'resolveIncidentMediaUrls')
+      .mockImplementation(async (mediaUrls) =>
+        mediaUrls.map((mediaUrl) => mediaUrl.replace('supabase://incident-media/', 'https://signed.example/')),
+      );
+
+    const statusId = await getStatusId();
+    const citizenId = await createCitizen();
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const createRes = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        description: 'Incident with managed media reference',
+        mediaUrls: ['supabase://incident-media/incidents/private/original-photo.jpg'],
+        statusId,
+        citizenId,
+        categoryId,
+        severityId,
+        ...buildIncidentLocationSnapshot(),
+      });
+
+    expect(createRes.status).toBe(201);
+    expect(createRes.body.mediaUrls).toEqual([
+      'https://signed.example/incidents/private/original-photo.jpg',
+    ]);
+
+    const patchRes = await request(app)
+      .patch(`${BASE}/${createRes.body.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        mediaUrls: ['supabase://incident-media/incidents/private/replacement-photo.jpg'],
+      });
+
+    expect(patchRes.status).toBe(200);
+    expect(patchRes.body.mediaUrls).toEqual([
+      'https://signed.example/incidents/private/replacement-photo.jpg',
+    ]);
+    expect(archiveSpy).toHaveBeenCalledWith([
+      'supabase://incident-media/incidents/private/original-photo.jpg',
+    ]);
+    expect(resolveSpy).toHaveBeenCalled();
   });
 
   it('should archive the incident record without archiving storage media when an incident is deleted', async () => {

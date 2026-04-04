@@ -131,6 +131,8 @@ SUPABASE_AUTH_AUTO_CONFIRM_EMAIL=true
 SUPABASE_PASSWORD_RESET_REDIRECT_URL=http://localhost:5173/reset-password
 SUPABASE_STORAGE_ENABLED=false
 SUPABASE_STORAGE_BUCKET=incident-media
+SUPABASE_STORAGE_ACCESS_MODE=public
+SUPABASE_STORAGE_SIGNED_URL_TTL_SECONDS=900
 SUPABASE_STORAGE_MAX_UPLOAD_BYTES=10485760
 SUPABASE_STORAGE_ALLOWED_MIME_TYPES=image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/quicktime,application/pdf
 SUPABASE_STORAGE_ARCHIVE_ENABLED=true
@@ -166,7 +168,9 @@ Important variables:
 - `SUPABASE_AUTH_AUTO_CONFIRM_EMAIL`: optional. Defaults to `true` so backend-created users can sign in immediately; set to `false` if you require email confirmation.
 - `SUPABASE_PASSWORD_RESET_REDIRECT_URL`: optional frontend reset route used by Supabase password recovery emails if you later call the hosted reset flow.
 - `SUPABASE_STORAGE_ENABLED`: optional. Set to `true` to enable `POST /incidents/media/upload` backed by Supabase Storage.
-- `SUPABASE_STORAGE_BUCKET`: required when `SUPABASE_STORAGE_ENABLED=true`. Use a public Supabase bucket because incident records persist the returned `mediaUrl` directly.
+- `SUPABASE_STORAGE_BUCKET`: required when `SUPABASE_STORAGE_ENABLED=true`.
+- `SUPABASE_STORAGE_ACCESS_MODE`: optional. Defaults to `public`. Set to `signed` to store stable managed media references and return short-lived access URLs so the backing bucket can stay private.
+- `SUPABASE_STORAGE_SIGNED_URL_TTL_SECONDS`: optional signed-access lifetime in seconds when `SUPABASE_STORAGE_ACCESS_MODE=signed`. Defaults to `900`.
 - `SUPABASE_STORAGE_MAX_UPLOAD_BYTES`: optional max upload size in bytes. Defaults to `10485760` (10 MB).
 - `SUPABASE_STORAGE_ALLOWED_MIME_TYPES`: optional comma-separated allowlist for incident media uploads.
 - `SUPABASE_STORAGE_ARCHIVE_ENABLED`: optional. Defaults to `true`. When enabled, Supabase-managed incident media that gets replaced or deleted is copied under an archive prefix before the original object is removed.
@@ -186,6 +190,13 @@ Important variables:
 - `AUTH_MFA_ENABLE_RATE_LIMIT_WINDOW_MS`, `AUTH_MFA_ENABLE_RATE_LIMIT_MAX_REQUESTS`: optional tighter MFA enable throttle. Defaults to 10 minutes and 10 attempts per authenticated user.
 - `AUTH_MFA_DISABLE_RATE_LIMIT_WINDOW_MS`, `AUTH_MFA_DISABLE_RATE_LIMIT_MAX_REQUESTS`: optional tighter MFA disable throttle. Defaults to 10 minutes and 10 attempts per authenticated user.
 - `INCIDENT_MEDIA_UPLOAD_RATE_LIMIT_WINDOW_MS`, `INCIDENT_MEDIA_UPLOAD_RATE_LIMIT_MAX_REQUESTS`: optional tighter incident media upload throttle. Defaults to 10 minutes and 10 attempts per authenticated user.
+
+Incident media confidentiality behavior:
+
+- `POST /incidents/media/upload` always returns reusable `mediaUrls` values for persistence on incident records.
+- When `SUPABASE_STORAGE_ACCESS_MODE=public`, those `mediaUrls` are public bucket URLs and `accessUrls` mirrors them.
+- When `SUPABASE_STORAGE_ACCESS_MODE=signed`, those `mediaUrls` become stable `supabase://bucket/object-path` references and the response includes short-lived `accessUrls` plus per-file `accessUrl` values for immediate preview.
+- Incident read responses resolve managed media references back into signed access URLs automatically, while update requests can still accept previously returned signed URLs or public URLs and normalize them back to the managed reference format.
 
 Production feature-profile variables:
 
