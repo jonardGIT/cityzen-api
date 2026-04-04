@@ -8,7 +8,8 @@ The backend already supports:
 
 - authenticated session inventory for app-JWT mode
 - targeted session revocation for the current user
-- privileged access-review reporting with active-session counts and stale-session flags
+- friendly session metadata including browser family, OS family, device labels, expiry state, and current-session detection
+- privileged access-review reporting with active-session counts, stale-session flags, and latest observed session device context
 - privileged MFA compliance reporting for periodic review
 
 These controls are useful only if reviewers actually examine and act on them.
@@ -20,6 +21,7 @@ At minimum, reviewers should look for:
 - privileged users with no MFA enabled
 - privileged users with stale or unexpected session activity
 - unusually high active-session counts for a single account
+- privileged users whose latest observed device context looks inconsistent with expected workstation, browser, or operating environment
 - recent password reset or account-recovery activity followed by new session creation
 - sessions that appear inconsistent with expected role usage or operating context
 
@@ -35,7 +37,7 @@ When the platform runs in app-JWT mode, reviewers should use:
 
 - `GET /api/v1/auth/sessions` for user-visible session inventory
 - `DELETE /api/v1/auth/sessions/:id` for targeted revocation
-- `GET /api/v1/admin/users/access-review` for privileged review posture
+- `GET /api/v1/admin/users/access-review` for privileged review posture, active-session counts, and latest session device context
 - `GET /api/v1/admin/users/mfa-compliance` for privileged MFA status
 
 When the platform runs in an external-provider token mode, equivalent review evidence should come from the provider and be retained alongside application audit evidence.
@@ -47,6 +49,7 @@ The current backend does not implement trusted-device semantics.
 Until that exists:
 
 - do not treat a remembered browser or device as proof of low risk
+- treat friendly device labels as triage hints, not as high-assurance identity proof
 - keep MFA required for privileged access
 - investigate unexpected session creation even if the user claims the device is known
 

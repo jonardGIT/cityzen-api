@@ -24,7 +24,7 @@ The API now has a credible application-layer security baseline and is materially
 - baseline request throttling exists through rate limiting
 - committed CI security gates now cover dependency review, secret scanning, static analysis, build verification, and deploy-time verification before production rollout
 
-That means the API is no longer missing the basic auth, session, and baseline release-safety controls most internal CRUD backends lack. The biggest remaining gaps are now distributed abuse resistance, centralized monitoring, storage confidentiality choices, recovery governance, secrets governance, and disciplined remediation of dependency findings.
+That means the API is no longer missing the basic auth, session, and baseline release-safety controls most internal CRUD backends lack. The biggest remaining gaps are now abuse-resistance tuning and rollout discipline, centralized monitoring, storage confidentiality choices, recovery governance, secrets governance, and disciplined remediation of dependency findings.
 
 ## Practical Rating
 
@@ -70,22 +70,25 @@ Current locally validated results:
 
 ## Remaining High-Priority Gaps
 
-### 1. Centralized, durable rate limiting
+### 1. Shared-store rate limiting rollout and tuning
 
 Current state:
 
-- Rate limiting is still in-memory and per-process.
+- Rate limiting supports both in-memory and database-backed shared buckets.
+- Production defaults now prefer the database-backed limiter, and production fails closed if the configured shared limiter store cannot be reached.
+- Stricter scoped throttles already exist for login, refresh, password reset, MFA setup or enable or disable, and incident media upload.
 
 Risk:
 
-- Limits reset on restart and do not coordinate across multiple instances.
-- Brute-force and abuse resistance degrades in horizontally scaled deployments.
-- Login, refresh, MFA, password reset, and media upload abuse controls are weaker than they look in a single-node test environment.
+- The protection still depends on operators actually running the shared limiter mode in production and keeping the backing database healthy.
+- The current implementation is still database-centric rather than Redis or another purpose-built low-latency limiter store.
+- Threshold tuning can still be too weak or too aggressive if deployment-specific abuse patterns are not reviewed.
 
 Recommendation:
 
-- Move rate limiting to Redis or another shared store.
-- Apply stricter policies to login, refresh, MFA, password reset, and upload endpoints.
+- Keep shared-store rate limiting enabled in production and verify it during deployment review.
+- Periodically tune scoped thresholds for login, refresh, MFA, password reset, and upload endpoints using real abuse and support signals.
+- Consider moving to Redis or another dedicated limiter backend if database latency, contention, or operational isolation becomes a concern.
 
 ### 2. MFA rollout enforcement and recovery operations
 
@@ -247,13 +250,14 @@ Recommendation:
 
 Current state:
 
-- Session inventory exists and exposes `userAgent`, IP metadata, expiry state, and current-session status.
-- Sessions do not yet have friendly device names, trusted-device semantics, or richer anomaly signals.
+- Session inventory now exposes user agent, IP metadata, expiry state, current-session status, and friendly browser or OS device labels.
+- Privileged access review now includes the latest observed session device context for reviewer triage.
+- Sessions still do not have trusted-device semantics or richer anomaly signals.
 - A repository-level session governance baseline is now documented for device and session review procedures.
 
 Recommendation:
 
-- Add better device labeling and clearer dashboard presentation.
+- Surface the new session metadata clearly in operator dashboards and review evidence.
 - Consider anomaly heuristics for new device, IP, or geo changes where appropriate.
 - Keep periodic privileged-session review active and retain evidence of reviewer actions.
 
@@ -282,4 +286,4 @@ If the goal is the next highest-value security work, the order should be:
 
 ## Practical Readiness Summary
 
-The API is materially stronger than a basic CRUD backend. It now has revocable sessions, rotating refresh tokens, privileged-role MFA, optional Supabase auth and JWT support, self-service session inventory and revocation, password reset tokens, audit logging, upload validation, archive-by-default deletes, restore endpoints, stricter route protection, and committed CI release gates. The biggest remaining blockers are no longer missing auth primitives, missing CI evidence, or the previously identified production dependency issue. They are the operational controls around distributed abuse resistance, centralized monitoring, storage confidentiality, recovery governance, and secrets handling.
+The API is materially stronger than a basic CRUD backend. It now has revocable sessions, rotating refresh tokens, privileged-role MFA, optional Supabase auth and JWT support, self-service session inventory and revocation, friendly session device metadata, password reset tokens, audit logging, shared-store or fail-closed rate limiting, upload validation, archive-by-default deletes, restore endpoints, stricter route protection, and committed CI release gates. The biggest remaining blockers are no longer missing auth primitives, missing CI evidence, or the previously identified production dependency issue. They are the operational controls around abuse-resistance tuning, centralized monitoring, storage confidentiality, recovery governance, and secrets handling.
