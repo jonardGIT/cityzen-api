@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'crypto';
 import prisma from '../lib/prisma.js';
+import { isArchiveEnabled, withActiveRecords } from '../utils/archive.js';
 
 const DEFAULT_PASSWORD_RESET_TTL_MINUTES = 30;
 
@@ -30,8 +31,8 @@ export async function requestPasswordReset(email: string): Promise<{
   resetExpiresAt: string;
 } | null> {
   const normalizedEmail = email.trim().toLowerCase();
-  const user = await prisma.user.findUnique({
-    where: { email: normalizedEmail },
+  const user = await prisma.user.findFirst({
+    where: withActiveRecords({ email: normalizedEmail }) as any,
     select: { id: true },
   });
 
@@ -95,12 +96,13 @@ export async function resetPasswordWithToken(input: {
             id: true,
             email: true,
             supabaseAuthUserId: true,
+            archivedAt: true,
           },
         },
       },
     });
 
-    if (!resetToken) {
+    if (!resetToken || (isArchiveEnabled() && resetToken.user.archivedAt !== null)) {
       return null;
     }
 

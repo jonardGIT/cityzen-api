@@ -6,12 +6,42 @@ const BASE = `${API_V1}/responders`;
 
 let adminToken = '';
 let dispatcherToken = '';
-// Reference seeded agency from seed-data.sql
-const validAgencyId = '70000000-0000-0000-0000-000000000001';
+let validAgencyId = '';
+
+async function createAgency() {
+  const response = await request(app)
+    .post(`${API_V1}/agencies`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({
+      name: `Responder Test Agency ${Date.now()}-${Math.random()}`,
+      contactNumber: '09171234567',
+    });
+
+  expect(response.status).toBe(201);
+  return response.body.id as string;
+}
+
+async function createResponder(
+  overrides: Partial<Record<'name' | 'agencyId' | 'role' | 'contactInfo', string>> = {},
+) {
+  const response = await request(app)
+    .post(BASE)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({
+      name: overrides.name ?? `Responder ${Date.now()}-${Math.random()}`,
+      agencyId: overrides.agencyId ?? validAgencyId,
+      role: overrides.role ?? 'Medic',
+      contactInfo: overrides.contactInfo ?? `responder.${Date.now()}-${Math.random()}@gov.com`,
+    });
+
+  expect(response.status).toBe(201);
+  return response.body.id as string;
+}
 
 beforeAll(async () => {
   adminToken = await getAdminToken();
   dispatcherToken = await getTokenForRole('dispatcher@xypes.local');
+  validAgencyId = await createAgency();
 });
 
 describe(`GET ${BASE}`, () => {
@@ -34,9 +64,13 @@ describe(`GET ${BASE}`, () => {
 });
 
 describe(`GET ${BASE}/:id`, () => {
+  let validResponderId = '';
+
+  beforeAll(async () => {
+    validResponderId = await createResponder();
+  });
+
   it('should return 200 for a valid id', async () => {
-    // Use a real UUID from seed-data.sql
-    const validResponderId = '80000000-0000-0000-0000-000000000001';
     const res = await request(app)
       .get(`${BASE}/${validResponderId}`)
       .set('Authorization', `Bearer ${dispatcherToken}`);
@@ -133,16 +167,13 @@ describe(`POST ${BASE}`, () => {
 });
 
 describe(`PATCH ${BASE}/:id`, () => {
-  let testResponderId: string;
+  let testResponderId = '';
 
   beforeAll(async () => {
-    const res = await request(app).post(BASE).set('Authorization', `Bearer ${adminToken}`).send({
+    testResponderId = await createResponder({
       name: 'PatchTarget',
-      agencyId: validAgencyId,
-      role: 'Medic',
       contactInfo: 'patch-target@gov.com',
     });
-    testResponderId = res.body.id;
   });
 
   it('should update name and return 200', async () => {
@@ -169,16 +200,13 @@ describe(`PATCH ${BASE}/:id`, () => {
 });
 
 describe(`DELETE ${BASE}/:id`, () => {
-  let deleteTargetId: string;
+  let deleteTargetId = '';
 
   beforeAll(async () => {
-    const res = await request(app).post(BASE).set('Authorization', `Bearer ${adminToken}`).send({
+    deleteTargetId = await createResponder({
       name: 'DeleteTarget',
-      agencyId: validAgencyId,
-      role: 'Medic',
       contactInfo: 'delete-target@gov.com',
     });
-    deleteTargetId = res.body.id;
   });
 
   it('should delete and return 204', async () => {

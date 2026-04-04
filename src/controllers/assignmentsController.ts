@@ -9,6 +9,12 @@ import {
 } from '../utils/request.js';
 import { assignmentsListQueryConfig } from '../utils/listQueryConfig.js';
 import type { Assignment } from '../types/models.js';
+import {
+  isArchiveEnabled,
+  withActiveRecords,
+  withArchivedRecords,
+  withArchiveScope,
+} from '../utils/archive.js';
 
 // Returns all assignments from the database.
 export async function getAssignments(req: Request, res: Response): Promise<void> {
@@ -19,21 +25,22 @@ export async function getAssignments(req: Request, res: Response): Promise<void>
   }
 
   if (pagination.enabled) {
+    const scopedWhere = withArchiveScope(listQuery.where as any, listQuery.archiveScope);
     const [assignments, total] = await Promise.all([
       prisma.assignment.findMany({
-        where: listQuery.where as any,
+        where: scopedWhere as any,
         orderBy: listQuery.orderBy as any,
         skip: pagination.skip,
         take: pagination.take,
       }),
-      prisma.assignment.count({ where: listQuery.where as any }),
+      prisma.assignment.count({ where: scopedWhere as any }),
     ]);
     res.json(buildPaginatedResponse(assignments, total, pagination));
     return;
   }
 
   const assignments = await prisma.assignment.findMany({
-    where: listQuery.where as any,
+    where: withArchiveScope(listQuery.where as any, listQuery.archiveScope) as any,
     orderBy: listQuery.orderBy as any,
   });
   res.json(assignments);
@@ -46,8 +53,8 @@ export async function getAssignmentById(req: Request, res: Response): Promise<vo
     return;
   }
 
-  const assignment = await prisma.assignment.findUnique({
-    where: { id },
+  const assignment = await prisma.assignment.findFirst({
+    where: withActiveRecords({ id }) as any,
   });
 
   if (!assignment) {
@@ -80,11 +87,11 @@ export async function createAssignment(req: Request, res: Response): Promise<voi
     return;
   }
 
-  if (!(await prisma.citizenIncident.findUnique({ where: { id: incidentId } }))) {
+  if (!(await prisma.citizenIncident.findFirst({ where: withActiveRecords({ id: incidentId }) as any }))) {
     res.status(422).json({ message: 'incidentId does not reference a valid CitizenIncident' });
     return;
   }
-  if (!(await prisma.responder.findUnique({ where: { id: responderId } }))) {
+  if (!(await prisma.responder.findFirst({ where: withActiveRecords({ id: responderId }) as any }))) {
     res.status(422).json({ message: 'responderId does not reference a valid Responder' });
     return;
   }
@@ -114,7 +121,9 @@ export async function updateAssignment(req: Request, res: Response): Promise<voi
   const { incidentId, responderId, assignedDate, responseStart, responseEnd, outcome, notes } =
     req.body as Partial<Assignment>;
 
-  const existingAssignment = await prisma.assignment.findUnique({ where: { id } });
+  const existingAssignment = await prisma.assignment.findFirst({
+    where: withActiveRecords({ id }) as any,
+  });
   if (!existingAssignment) {
     res.status(404).json({ message: 'Assignment not found' });
     return;
@@ -122,14 +131,14 @@ export async function updateAssignment(req: Request, res: Response): Promise<voi
 
   if (
     incidentId !== undefined &&
-    !(await prisma.citizenIncident.findUnique({ where: { id: incidentId } }))
+    !(await prisma.citizenIncident.findFirst({ where: withActiveRecords({ id: incidentId }) as any }))
   ) {
     res.status(422).json({ message: 'incidentId does not reference a valid CitizenIncident' });
     return;
   }
   if (
     responderId !== undefined &&
-    !(await prisma.responder.findUnique({ where: { id: responderId } }))
+    !(await prisma.responder.findFirst({ where: withActiveRecords({ id: responderId }) as any }))
   ) {
     res.status(422).json({ message: 'responderId does not reference a valid Responder' });
     return;
@@ -158,12 +167,56 @@ export async function deleteAssignment(req: Request, res: Response): Promise<voi
     return;
   }
 
-  const existingAssignment = await prisma.assignment.findUnique({ where: { id } });
+  const existingAssignment = await prisma.assignment.findFirst({
+    where: withActiveRecords({ id }) as any,
+  });
   if (!existingAssignment) {
     res.status(404).json({ message: 'Assignment not found' });
     return;
   }
 
-  await prisma.assignment.delete({ where: { id } });
+  if (isArchiveEnabled()) {
+    await prisma.assignment.update({ where: { id }, data: { archivedAt: new Date() } });
+  } else {
+    await prisma.assignment.delete({ where: { id } });
+  }
   res.status(204).send();
+}
+
+export async function restoreAssignment(req: Request, res: Response): Promise<void> {
+  const id = getParamId(req, res);
+  if (id === null) {
+    return;
+  }
+
+  if (!isArchiveEnabled()) {
+    res.status(409).json({ message: 'Archive mode is disabled; restore is unavailable' });
+    return;
+  }
+
+  const existingAssignment = await prisma.assignment.findFirst({
+    where: withArchivedRecords({ id }) as any,
+  });
+  if (!existingAssignment) {
+    res.status(404).json({ message: 'Archived assignment not found' });
+    return;
+  }
+
+  const [incident, responder] = await Promise.all([
+    prisma.citizenIncident.findFirst({ where: withActiveRecords({ id: existingAssignment.incidentId }) as any }),
+    prisma.responder.findFirst({ where: withActiveRecords({ id: existingAssignment.responderId }) as any }),
+  ]);
+
+  if (!incident) {
+    res.status(409).json({ message: 'Conflict: assignment cannot be restored while its incident is archived' });
+    return;
+  }
+
+  if (!responder) {
+    res.status(409).json({ message: 'Conflict: assignment cannot be restored while its responder is archived' });
+    return;
+  }
+
+  const assignment = await prisma.assignment.update({ where: { id }, data: { archivedAt: null } });
+  res.json(assignment);
 }

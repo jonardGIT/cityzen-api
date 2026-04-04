@@ -5,6 +5,7 @@ import {
   getCitizenById,
   getCitizens,
   linkMyCitizenProfile,
+  restoreCitizen,
   updateCitizen,
 } from '../controllers/citizensController.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -46,5 +47,6 @@ router.patch(
   asyncHandler(updateCitizen),
 );
 router.delete('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(deleteCitizen));
+router.post('/:id/restore', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(restoreCitizen));
 
 export default router;

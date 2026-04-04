@@ -15,6 +15,7 @@ import {
   type AuthUser,
   type UserRole,
 } from '../types/auth.js';
+import { isArchiveEnabled, withActiveRecords } from '../utils/archive.js';
 
 interface AuthenticatedRequest extends Request {
   authUser?: AuthUser;
@@ -95,9 +96,9 @@ async function requireSupabaseJwtAuth(
     const identity = await verifySupabaseAccessToken(token);
     const normalizedEmail = identity.email.trim().toLowerCase();
     const user = await prisma.user.findFirst({
-      where: {
+      where: withActiveRecords({
         OR: [{ supabaseAuthUserId: identity.id }, { email: normalizedEmail }],
-      },
+      }) as any,
       select: {
         id: true,
         email: true,
@@ -105,6 +106,7 @@ async function requireSupabaseJwtAuth(
         mfaEnabled: true,
         mfaEnabledAt: true,
         supabaseAuthUserId: true,
+        archivedAt: true,
       },
     });
 
@@ -219,6 +221,7 @@ export async function requireJwtAuth(
             id: true,
             email: true,
             role: true,
+            archivedAt: true,
           },
         },
       },
@@ -228,7 +231,8 @@ export async function requireJwtAuth(
       !session ||
       session.userId !== String(payload.sub) ||
       session.revokedAt ||
-      session.expiresAt.getTime() <= Date.now()
+      session.expiresAt.getTime() <= Date.now() ||
+      (isArchiveEnabled() && session.user.archivedAt !== null)
     ) {
       res.status(401).json({ message: 'Unauthorized: invalid or revoked session' });
       return;

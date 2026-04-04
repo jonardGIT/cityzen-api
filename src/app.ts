@@ -94,7 +94,7 @@ app.use(
 app.use(morgan(isProduction ? 'combined' : 'dev'));
 
 // Parse JSON request bodies for API handlers.
-app.use(express.json());
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT?.trim() || '12mb' }));
 // Persist audit records for configured auth and mutating API operations.
 app.use(API_V1, auditLogMiddleware);
 

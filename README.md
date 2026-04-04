@@ -27,6 +27,14 @@ Core features:
 - Swagger/OpenAPI docs in development
 - Jest + Supertest test coverage
 
+Current platform capabilities:
+
+- Optional Supabase-backed email/password auth, optional Supabase JWT mode, and optional Supabase TOTP MFA, while preserving the API's local user/session model when those flags are disabled.
+- Runtime and migration database connection split for Supabase deployments: pooled `DATABASE_URL` for the API, direct `DIRECT_URL` for Prisma schema and migration commands.
+- Persistent audit logging for auth and privileged mutating flows, including citizen incident reporting and failure-path capture for operational review.
+- Supabase Storage-backed incident media upload, including single-file and multi-file JSON/base64 upload support and ordered `mediaUrls` persistence on incidents.
+- Archive-by-default CRUD behavior across core resources, restore endpoints, archive-aware auth guards, and shared list-query archive browsing through `includeArchived=true` and `archivedOnly=true`.
+
 ## Tech Stack
 
 - Node.js
@@ -104,7 +112,8 @@ API_BASE_PATH=/api/v1
 LOG_LEVEL=info
 CORS_ORIGIN=http://localhost:5173
 TRUST_PROXY=false
-DATABASE_URL=postgresql://postgres:<password>@<host>:5432/postgres
+DATABASE_URL=postgresql://postgres:<password>@aws-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1&pool_timeout=20
+DIRECT_URL=postgresql://postgres:<password>@db.<project-ref>.supabase.co:5432/postgres
 API_KEYS=local-dev-key
 RATE_LIMIT_ENABLED=true
 RATE_LIMIT_WINDOW_MS=60000
@@ -119,6 +128,14 @@ SUPABASE_ANON_KEY=<public-anon-key>
 SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
 SUPABASE_AUTH_AUTO_CONFIRM_EMAIL=true
 SUPABASE_PASSWORD_RESET_REDIRECT_URL=http://localhost:5173/reset-password
+SUPABASE_STORAGE_ENABLED=false
+SUPABASE_STORAGE_BUCKET=incident-media
+SUPABASE_STORAGE_MAX_UPLOAD_BYTES=10485760
+SUPABASE_STORAGE_ALLOWED_MIME_TYPES=image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/quicktime,application/pdf
+SUPABASE_STORAGE_ARCHIVE_ENABLED=true
+SUPABASE_STORAGE_ARCHIVE_PREFIX=archive/incidents
+ARCHIVE_RECORDS_ENABLED=true
+JSON_BODY_LIMIT=12mb
 SENTRY_DSN=https://<key>@o<org>.ingest.<region>.sentry.io/<project>
 SENTRY_SEND_DEFAULT_PII=false
 SENTRY_TRACES_SAMPLE_RATE=0.1
@@ -131,13 +148,22 @@ Important variables:
 - `SENTRY_DSN`: optional but required to send backend errors and traces to Sentry.
 - `SENTRY_SEND_DEFAULT_PII`: optional. Set to `true` only if you intentionally want request headers and user IP data sent to Sentry.
 - `SENTRY_TRACES_SAMPLE_RATE`: optional decimal from `0` to `1` for performance tracing volume.
-- `DATABASE_URL`: PostgreSQL connection for Prisma.
+- `DATABASE_URL`: PostgreSQL runtime connection for Prisma. If you use the Supabase transaction pooler, include `?pgbouncer=true&connection_limit=1&pool_timeout=20`.
+- `DIRECT_URL`: direct PostgreSQL connection for Prisma migrations and schema commands.
 - `SUPABASE_AUTH_ENABLED`: set to `true` to validate email/password credentials against Supabase Auth while the API continues issuing its own JWT/session tokens.
 - `SUPABASE_JWT_ENABLED`: optional. Set to `true` to accept and return Supabase access tokens for protected API routes. Requires `SUPABASE_AUTH_ENABLED=true`.
 - `SUPABASE_TOTP_ENABLED`: optional. Set to `true` to back privileged-user TOTP enrollment and verification with Supabase MFA instead of the local encrypted secret store. Requires `SUPABASE_JWT_ENABLED=true`.
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`: required when `SUPABASE_AUTH_ENABLED=true`.
 - `SUPABASE_AUTH_AUTO_CONFIRM_EMAIL`: optional. Defaults to `true` so backend-created users can sign in immediately; set to `false` if you require email confirmation.
 - `SUPABASE_PASSWORD_RESET_REDIRECT_URL`: optional frontend reset route used by Supabase password recovery emails if you later call the hosted reset flow.
+- `SUPABASE_STORAGE_ENABLED`: optional. Set to `true` to enable `POST /incidents/media/upload` backed by Supabase Storage.
+- `SUPABASE_STORAGE_BUCKET`: required when `SUPABASE_STORAGE_ENABLED=true`. Use a public Supabase bucket because incident records persist the returned `mediaUrl` directly.
+- `SUPABASE_STORAGE_MAX_UPLOAD_BYTES`: optional max upload size in bytes. Defaults to `10485760` (10 MB).
+- `SUPABASE_STORAGE_ALLOWED_MIME_TYPES`: optional comma-separated allowlist for incident media uploads.
+- `SUPABASE_STORAGE_ARCHIVE_ENABLED`: optional. Defaults to `true`. When enabled, Supabase-managed incident media that gets replaced or deleted is copied under an archive prefix before the original object is removed.
+- `SUPABASE_STORAGE_ARCHIVE_PREFIX`: optional archive path prefix inside the same bucket. Defaults to `archive/incidents`.
+- `ARCHIVE_RECORDS_ENABLED`: optional. Defaults to `true`. When enabled, CRUD delete endpoints archive records by setting `archivedAt` and normal reads exclude archived rows. Set it to `false` to fall back to hard deletes and include archived rows in normal queries.
+- `JSON_BODY_LIMIT`: optional Express JSON parser size limit. Increase this if your base64 upload payloads are larger than the default.
 - `API_KEYS`: comma-separated allowed API keys.
 - `API_KEY`: optional single-key fallback if `API_KEYS` is not set.
 - `RATE_LIMIT_ENABLED`, `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX_REQUESTS`: request throttling controls.
@@ -170,6 +196,14 @@ If your database already exists and you do not want a full reset, use the additi
 If you are adopting the incident coordinate/address snapshot contract on an existing database, also run:
 
 1. `prisma/add-incident-location-snapshot.sql`
+
+If you are enabling multi-file incident media on an existing database, also run:
+
+1. `prisma/add-incident-media.sql`
+
+If you are enabling archive-by-default deletes and active-only reads on an existing database, also run:
+
+1. `prisma/add-archived-at.sql`
 
 If you are enabling persistent audit logging on an existing database, also run:
 
@@ -247,6 +281,7 @@ Auth and admin routes:
 - `POST /api/v1/auth/logout`
 - `DELETE /api/v1/auth/sessions/:id`
 - `POST /api/v1/citizens/link-me`
+- `POST /api/v1/incidents/media/upload`
 - `POST /api/v1/incidents/report`
 - `GET /api/v1/admin/users` (admin roles only)
 - `GET /api/v1/audit-logs` and `GET /api/v1/audit-logs/:id` (admin roles only)
@@ -254,7 +289,14 @@ Auth and admin routes:
 Notes:
 
 - Read/write method availability varies by resource. Most CRUD resources support `GET`, `POST`, `PATCH`, and `DELETE`, while auth and special-purpose routes expose narrower operations.
+- Core CRUD list and get endpoints exclude archived rows by default so archived records do not mix with active records.
+- Archived CRUD resources can be restored with `POST /api/v1/<resource>/:id/restore` when `ARCHIVE_RECORDS_ENABLED=true`.
 - `incidents` and `assignments` validate foreign key references before insert.
+- `POST /api/v1/incidents/media/upload` accepts either a single JSON file payload or a `files` array, uploads each file to Supabase Storage, and returns `mediaUrls` you can place into `mediaUrls` on incident create/update requests.
+- CRUD `DELETE` endpoints now archive records by setting `archivedAt` instead of permanently removing them.
+- Restore endpoints return `409` when archive mode is disabled or the archived record still depends on other archived parent records.
+- When incident media is replaced, Supabase-hosted files are archived under the configured archive prefix by default instead of being left in place.
+- When an incident itself is archived, its media objects remain in place so the incident can be restored later.
 - Validation failures return HTTP 422.
 - Role requirements differ by route and are documented in OpenAPI.
 
@@ -265,6 +307,7 @@ All list endpoints support shared query parameters:
 - `page`, `pageSize`
 - `search`
 - `sortBy`, `sortOrder`
+- `includeArchived`, `archivedOnly`
 - `createdFrom`, `createdTo`, `updatedFrom`, `updatedTo`
 - `filters` (JSON string)
 
@@ -293,6 +336,12 @@ Supported operators:
 - `between`
 
 Fields are whitelist-based per resource. Unsupported sort/filter fields or invalid operators/types return `422` with structured `errors` details.
+
+Archive scope flags:
+
+- `includeArchived=true` returns active and archived rows together for archive-enabled resources.
+- `archivedOnly=true` returns only archived rows for archive-enabled resources.
+- `includeArchived=true` and `archivedOnly=true` together are rejected with `422`.
 
 Dashboard integration notes:
 
@@ -366,6 +415,7 @@ JWT auth is used for human users and role-aware dashboard/mobile access.
 - `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, and `DISPATCHER` accounts can enable TOTP MFA. Once enabled, login requires `mfaCode` in addition to email and password.
 - Enabling or disabling MFA revokes all active sessions for that user.
 - Password changes and role changes revoke all active sessions for the affected user.
+- Archived users are excluded from login, token resolution, MFA operations, and password reset flows.
 - Elevated JWT routes include:
   - `GET /api/v1/admin/users` for `SYSTEM_ADMIN` and `DEPARTMENT_MANAGER`
   - `GET /api/v1/audit-logs` and `GET /api/v1/audit-logs/:id` for `SYSTEM_ADMIN` and `AUDITOR`
@@ -415,6 +465,7 @@ The table below summarizes the current route protection model. When `API_KEYS` o
 | `/api/v1/categories`                                                                                                                                | Any authenticated JWT user                                                      | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                          |
 | `/api/v1/severities`                                                                                                                                | Any authenticated JWT user                                                      | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                          |
 | `/api/v1/incidents`                                                                                                                                 | Any authenticated JWT user. `CITIZEN_REPORTER` is scoped to own incidents only. | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`, `RESPONDER` |
+| `/api/v1/incidents/media/upload`                                                                                                                    | N/A                                                                             | `CITIZEN_REPORTER`, `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`, `RESPONDER` |
 | `/api/v1/incidents/report`                                                                                                                          | N/A                                                                             | `CITIZEN_REPORTER`                                                            |
 | `/api/v1/assignments`                                                                                                                               | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`                | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`              |
 | `/api/v1/users`                                                                                                                                     | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                            | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                          |
@@ -426,6 +477,8 @@ Notes:
 
 - API key middleware and JWT middleware are layered. Passing one does not satisfy the other when both are required.
 - `CITIZEN_REPORTER` users can bootstrap citizen/mobile flows through registration, `link-me`, and `incidents/report`, but cannot access admin-managed resources.
+- Archive restore routes reuse the same write-role gates as their parent resources.
+- Archive-scope list flags are only meaningful for archive-enabled resources; audit logs remain normal read-only records and are not archived.
 - `API_KEY` and `API_KEYS` are merged by the middleware. If both are set, values from both sources remain valid.
 
 ## Audit Logging

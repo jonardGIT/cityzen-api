@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createStatus, deleteStatus, getStatusById, getStatuses, updateStatus } from '../controllers/statusesController.js';
+import { createStatus, deleteStatus, getStatusById, getStatuses, restoreStatus, updateStatus } from '../controllers/statusesController.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { validateRequest } from '../middleware/validateRequest.js';
 import { createStatusValidator, updateStatusValidator } from '../validators/bodyValidators.js';
@@ -20,5 +20,6 @@ router.post(
 );
 router.patch('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), updateStatusValidator, validateRequest, asyncHandler(updateStatus));
 router.delete('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(deleteStatus));
+router.post('/:id/restore', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(restoreStatus));
 
 export default router;

@@ -4,6 +4,7 @@ import {
   deleteResponder,
   getResponderById,
   getResponders,
+  restoreResponder,
   updateResponder,
 } from '../controllers/respondersController.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -33,5 +34,6 @@ router.patch(
   asyncHandler(updateResponder)
 );
 router.delete('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(deleteResponder));
+router.post('/:id/restore', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(restoreResponder));
 
 export default router;

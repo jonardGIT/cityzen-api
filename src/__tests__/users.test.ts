@@ -147,3 +147,45 @@ describe(`GET ${USERS}`, () => {
     }
   });
 });
+
+describe(`POST ${USERS}/:id/restore`, () => {
+  let archivedUserId = '';
+
+  beforeAll(async () => {
+    const unique = Date.now();
+    const createRes = await request(app)
+      .post(USERS)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: `Restorable User ${unique}`,
+        email: `restorable.${unique}@xypes.local`,
+        password: 'Password123!',
+        role: 'CITIZEN_REPORTER',
+      });
+
+    expect(createRes.status).toBe(201);
+    archivedUserId = createRes.body.id;
+
+    const deleteRes = await request(app)
+      .delete(`${USERS}/${archivedUserId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(deleteRes.status).toBe(204);
+  });
+
+  it('should restore an archived user and make it visible again', async () => {
+    const restoreRes = await request(app)
+      .post(`${USERS}/${archivedUserId}/restore`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(restoreRes.status).toBe(200);
+    expect(restoreRes.body).toHaveProperty('id', archivedUserId);
+
+    const fetchRes = await request(app)
+      .get(`${USERS}/${archivedUserId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(fetchRes.status).toBe(200);
+    expect(fetchRes.body).toHaveProperty('id', archivedUserId);
+  });
+});

@@ -4,6 +4,7 @@ import {
   deleteSeverity,
   getSeverityById,
   getSeverities,
+  restoreSeverity,
   updateSeverity,
 } from '../controllers/severitiesController.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -33,5 +34,6 @@ router.patch(
   asyncHandler(updateSeverity)
 );
 router.delete('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(deleteSeverity));
+router.post('/:id/restore', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(restoreSeverity));
 
 export default router;

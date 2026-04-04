@@ -53,6 +53,21 @@ const paginationParameters: OpenAPIV3.ParameterObject[] = [
     schema: { type: 'string' },
   },
   {
+    name: 'includeArchived',
+    in: 'query',
+    required: false,
+    description: 'When true, returns both active and archived rows for archive-enabled resources.',
+    schema: { type: 'boolean', default: false },
+  },
+  {
+    name: 'archivedOnly',
+    in: 'query',
+    required: false,
+    description:
+      'When true, returns only archived rows for archive-enabled resources. Cannot be combined with includeArchived=true.',
+    schema: { type: 'boolean', default: false },
+  },
+  {
     name: 'createdFrom',
     in: 'query',
     required: false,
@@ -350,11 +365,29 @@ function resourcePath(
       },
       delete: {
         tags: [schemaName],
-        summary: `Delete ${schemaName.toLowerCase()}`,
+        summary: `Archive ${schemaName.toLowerCase()}`,
         security: writeSecurity,
         parameters: [idParameter],
         responses: {
-          '204': { description: `${schemaName} deleted.` },
+          '204': { description: `${schemaName} archived.` },
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '404': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Not found.'),
+          '409': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Conflict.'),
+        },
+      },
+    },
+    [pluralPath + '/{id}/restore']: {
+      post: {
+        tags: [schemaName],
+        summary: `Restore ${schemaName.toLowerCase()}`,
+        security: writeSecurity,
+        parameters: [idParameter],
+        responses: {
+          '200': jsonResponse(
+            { $ref: `#/components/schemas/${schemaName}` },
+            `${schemaName} restored.`,
+          ),
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
           '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
           '404': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Not found.'),
@@ -370,7 +403,8 @@ export const openApiDocument: OpenAPIV3.Document = {
   info: {
     title: 'Xypes CIRS API',
     version: '1.0.0',
-    description: 'OpenAPI definition aligned to the current Express and Prisma implementation.',
+    description:
+      'OpenAPI definition aligned to the current Express and Prisma implementation, including optional Supabase Auth and MFA integration, Supabase Storage incident media uploads, persistent audit logging, and archive-by-default CRUD management with restore and archived-list browsing flows.',
   },
   servers: [{ url: '/api/v1', description: 'Versioned API base path' }],
   tags: [
@@ -532,6 +566,43 @@ export const openApiDocument: OpenAPIV3.Document = {
         },
       },
     },
+    '/incidents/media/upload': {
+      post: {
+        tags: ['Incident'],
+        summary: 'Upload incident media to Supabase Storage',
+        description:
+          'Accepts either one base64-encoded file or a `files` array and returns public media URLs that can be stored on an incident record. Requires `SUPABASE_STORAGE_ENABLED=true` and a public storage bucket configuration.',
+        security: apiKeyAndBearerSecurity,
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/UploadIncidentMediaRequest' },
+            },
+          },
+        },
+        responses: {
+          '201': jsonResponse(
+            { $ref: '#/components/schemas/UploadIncidentMediaResponse' },
+            'Incident media uploaded.',
+          ),
+          '400': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Invalid upload payload.',
+          ),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '413': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Uploaded media exceeds the configured size limit.',
+          ),
+          '503': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Supabase Storage is disabled or misconfigured.',
+          ),
+        },
+      },
+    },
     '/incidents/report': {
       post: {
         tags: ['Incident'],
@@ -611,17 +682,37 @@ export const openApiDocument: OpenAPIV3.Document = {
       },
       delete: {
         tags: ['Incident'],
-        summary: 'Delete incident',
+        summary: 'Archive incident',
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
-          '204': { description: 'Incident deleted.' },
+          '204': { description: 'Incident archived.' },
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
           '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
           '404': jsonResponse(
             { $ref: '#/components/schemas/ErrorResponse' },
             'Incident not found.',
           ),
+        },
+      },
+    },
+    '/incidents/{id}/restore': {
+      post: {
+        tags: ['Incident'],
+        summary: 'Restore incident',
+        description:
+          'Restores an archived incident when archive mode is enabled. Incident restore requires the linked status, citizen, category, and severity to already be active. Archived assignments linked to the incident are also restored when their responders are active.',
+        security: apiKeyAndBearerSecurity,
+        parameters: [idParameter],
+        responses: {
+          '200': jsonResponse({ $ref: '#/components/schemas/CitizenIncident' }, 'Incident restored.'),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '404': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Archived incident not found.',
+          ),
+          '409': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Conflict.'),
         },
       },
     },
@@ -714,19 +805,39 @@ export const openApiDocument: OpenAPIV3.Document = {
       },
       delete: {
         tags: ['Assignment'],
-        summary: 'Delete assignment',
+        summary: 'Archive assignment',
         description:
           'Available to assignment-management roles only: SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, and DISPATCHER.',
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
-          '204': { description: 'Assignment deleted.' },
+          '204': { description: 'Assignment archived.' },
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
           '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
           '404': jsonResponse(
             { $ref: '#/components/schemas/ErrorResponse' },
             'Assignment not found.',
           ),
+        },
+      },
+    },
+    '/assignments/{id}/restore': {
+      post: {
+        tags: ['Assignment'],
+        summary: 'Restore assignment',
+        description:
+          'Available to assignment-management roles only: SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, and DISPATCHER. Restore requires both the linked incident and responder to already be active.',
+        security: apiKeyAndBearerSecurity,
+        parameters: [idParameter],
+        responses: {
+          '200': jsonResponse({ $ref: '#/components/schemas/Assignment' }, 'Assignment restored.'),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '404': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Archived assignment not found.',
+          ),
+          '409': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Conflict.'),
         },
       },
     },
@@ -839,16 +950,32 @@ export const openApiDocument: OpenAPIV3.Document = {
       },
       delete: {
         tags: ['User'],
-        summary: 'Delete user',
+        summary: 'Archive user',
         description:
           'Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER. Only SYSTEM_ADMIN has global destructive user-management capability.',
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
-          '204': { description: 'User deleted.' },
+          '204': { description: 'User archived.' },
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
           '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
           '404': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'User not found.'),
+        },
+      },
+    },
+    '/users/{id}/restore': {
+      post: {
+        tags: ['User'],
+        summary: 'Restore user',
+        description: 'Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER when archive mode is enabled.',
+        security: apiKeyAndBearerSecurity,
+        parameters: [idParameter],
+        responses: {
+          '200': jsonResponse({ $ref: '#/components/schemas/UserSummary' }, 'User restored.'),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '404': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Archived user not found.'),
+          '409': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Conflict.'),
         },
       },
     },
@@ -1467,6 +1594,12 @@ export const openApiDocument: OpenAPIV3.Document = {
           updatedAt: { type: 'string', format: 'date-time' },
           description: { type: 'string' },
           mediaUrl: { type: 'string', nullable: true },
+          mediaUrls: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Ordered list of incident media URLs. `mediaUrl` remains the first item for backward compatibility.',
+          },
           dateReported: { type: 'string', format: 'date-time' },
           latitude: { type: 'number', format: 'double', nullable: true },
           longitude: { type: 'number', format: 'double', nullable: true },
@@ -1786,7 +1919,17 @@ export const openApiDocument: OpenAPIV3.Document = {
         type: 'object',
         properties: {
           description: { type: 'string' },
-          mediaUrl: { type: 'string' },
+          mediaUrl: {
+            type: 'string',
+            description:
+              'Public URL for previously uploaded incident media. Use POST /incidents/media/upload to generate this value from a base64 payload.',
+          },
+          mediaUrls: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Ordered list of uploaded media URLs for this incident. When both `mediaUrl` and `mediaUrls` are sent, the legacy `mediaUrl` is prepended if it is not already present.',
+          },
           dateReported: { type: 'string', format: 'date-time' },
           latitude: { type: 'number', format: 'double' },
           longitude: { type: 'number', format: 'double' },
@@ -1811,7 +1954,17 @@ export const openApiDocument: OpenAPIV3.Document = {
         type: 'object',
         properties: {
           description: { type: 'string' },
-          mediaUrl: { type: 'string' },
+          mediaUrl: {
+            type: 'string',
+            description:
+              'Public URL for previously uploaded incident media. Use POST /incidents/media/upload to generate this value from a base64 payload.',
+          },
+          mediaUrls: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Ordered list of uploaded media URLs for this incident. When both `mediaUrl` and `mediaUrls` are sent, the legacy `mediaUrl` is prepended if it is not already present.',
+          },
           dateReported: { type: 'string', format: 'date-time' },
           latitude: { type: 'number', format: 'double' },
           longitude: { type: 'number', format: 'double' },
@@ -1835,7 +1988,17 @@ export const openApiDocument: OpenAPIV3.Document = {
         type: 'object',
         properties: {
           description: { type: 'string' },
-          mediaUrl: { type: 'string' },
+          mediaUrl: {
+            type: 'string',
+            description:
+              'Public URL for previously uploaded incident media. Use POST /incidents/media/upload to generate this value from a base64 payload.',
+          },
+          mediaUrls: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Ordered list of uploaded media URLs for this incident. When both `mediaUrl` and `mediaUrls` are sent, the legacy `mediaUrl` is prepended if it is not already present.',
+          },
           dateReported: { type: 'string', format: 'date-time' },
           latitude: { type: 'number', format: 'double' },
           longitude: { type: 'number', format: 'double' },
@@ -1855,6 +2018,70 @@ export const openApiDocument: OpenAPIV3.Document = {
         },
         description:
           'Incident updates may modify snapshot fields directly; there is no location lookup resource.',
+      },
+      UploadIncidentMediaRequest: {
+        type: 'object',
+        properties: {
+          fileName: { type: 'string' },
+          contentType: {
+            type: 'string',
+            description: 'MIME type of the uploaded file, for example image/jpeg.',
+          },
+          dataBase64: {
+            type: 'string',
+            description:
+              'Base64-encoded file contents. A full data URL is also accepted and will be normalized server-side.',
+          },
+          incidentId: {
+            type: 'string',
+            format: 'uuid',
+            nullable: true,
+            description:
+              'Optional incident identifier used only to organize the storage object path.',
+          },
+          files: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/UploadIncidentMediaItem' },
+            description:
+              'Optional multi-file upload payload. Use this when uploading several files for the same incident in one request.',
+          },
+        },
+        description:
+          'Provide either the single-file fields (`fileName`, `contentType`, `dataBase64`) or a `files` array.',
+      },
+      UploadIncidentMediaItem: {
+        type: 'object',
+        properties: {
+          fileName: { type: 'string' },
+          contentType: { type: 'string' },
+          dataBase64: { type: 'string' },
+        },
+        required: ['fileName', 'contentType', 'dataBase64'],
+      },
+      UploadIncidentMediaResponse: {
+        type: 'object',
+        properties: {
+          mediaUrls: {
+            type: 'array',
+            items: { type: 'string' },
+          },
+          files: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                bucket: { type: 'string' },
+                objectPath: { type: 'string' },
+                mediaUrl: { type: 'string' },
+                contentType: { type: 'string' },
+                fileName: { type: 'string' },
+                size: { type: 'integer' },
+              },
+              required: ['bucket', 'objectPath', 'mediaUrl', 'contentType', 'fileName', 'size'],
+            },
+          },
+        },
+        required: ['mediaUrls', 'files'],
       },
       CreateAssignmentRequest: {
         type: 'object',

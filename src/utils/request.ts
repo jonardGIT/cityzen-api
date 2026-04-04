@@ -75,6 +75,7 @@ export interface ListQuery {
   sortOrder: SortOrder;
   search: string;
   filters: ListFilter[];
+  archiveScope: 'active' | 'all' | 'archived';
 }
 
 interface ListQueryResult {
@@ -246,6 +247,65 @@ function parseSearch(rawSearch: unknown): string {
   return rawSearch.trim();
 }
 
+function parseBooleanQueryParam(value: unknown, fieldName: string): boolean {
+  if (typeof value !== 'string') {
+    throw new Error(`${fieldName} must be "true" or "false"`);
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'true') {
+    return true;
+  }
+
+  if (normalized === 'false') {
+    return false;
+  }
+
+  throw new Error(`${fieldName} must be "true" or "false"`);
+}
+
+function parseArchiveScope(req: Request): {
+  archiveScope: 'active' | 'all' | 'archived';
+  errors: QueryValidationError[];
+} {
+  const errors: QueryValidationError[] = [];
+
+  let includeArchived = false;
+  if (req.query.includeArchived !== undefined) {
+    try {
+      includeArchived = parseBooleanQueryParam(req.query.includeArchived, 'includeArchived');
+    } catch (error) {
+      errors.push({ field: 'includeArchived', message: (error as Error).message });
+    }
+  }
+
+  let archivedOnly = false;
+  if (req.query.archivedOnly !== undefined) {
+    try {
+      archivedOnly = parseBooleanQueryParam(req.query.archivedOnly, 'archivedOnly');
+    } catch (error) {
+      errors.push({ field: 'archivedOnly', message: (error as Error).message });
+    }
+  }
+
+  if (includeArchived && archivedOnly) {
+    errors.push({
+      field: 'archivedOnly',
+      message: 'archivedOnly cannot be true when includeArchived is true',
+    });
+  }
+
+  if (archivedOnly) {
+    return { archiveScope: 'archived', errors };
+  }
+
+  if (includeArchived) {
+    return { archiveScope: 'all', errors };
+  }
+
+  return { archiveScope: 'active', errors };
+}
+
 function validateFieldValue(
   fieldName: string,
   field: FieldConfig,
@@ -391,6 +451,8 @@ function buildFilterWhere(
 
 export function parseListQuery(req: Request, config: ListQueryConfig): ListQueryResult {
   const errors: QueryValidationError[] = [];
+  const archiveScopeResult = parseArchiveScope(req);
+  errors.push(...archiveScopeResult.errors);
 
   let search = '';
   try {
@@ -526,6 +588,7 @@ export function parseListQuery(req: Request, config: ListQueryConfig): ListQuery
       sortOrder,
       search,
       filters,
+      archiveScope: archiveScopeResult.archiveScope,
     },
     errors: [],
   };

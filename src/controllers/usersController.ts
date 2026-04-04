@@ -15,6 +15,12 @@ import {
 import { ROLE_PROFILES, canManageRole, normalizeUserRoleInput } from '../types/auth.js';
 import { buildPaginatedResponse, getListQuery, getPaginationQuery } from '../utils/request.js';
 import { usersListQueryConfig } from '../utils/listQueryConfig.js';
+import {
+  isArchiveEnabled,
+  withActiveRecords,
+  withArchivedRecords,
+  withArchiveScope,
+} from '../utils/archive.js';
 
 const userSelect = {
   id: true,
@@ -117,12 +123,14 @@ export async function getUsers(req: Request, res: Response): Promise<void> {
     const [users, total] = await Promise.all([
       prisma.user.findMany({
         select: userSelect,
-        where: listQuery.where as any,
+        where: withArchiveScope(listQuery.where as any, listQuery.archiveScope) as any,
         orderBy: listQuery.orderBy as any,
         skip: pagination.skip,
         take: pagination.take,
       }),
-      prisma.user.count({ where: listQuery.where as any }),
+      prisma.user.count({
+        where: withArchiveScope(listQuery.where as any, listQuery.archiveScope) as any,
+      }),
     ]);
     res.json(buildPaginatedResponse(users, total, pagination));
     return;
@@ -130,7 +138,7 @@ export async function getUsers(req: Request, res: Response): Promise<void> {
 
   const users = await prisma.user.findMany({
     select: userSelect,
-    where: listQuery.where as any,
+    where: withArchiveScope(listQuery.where as any, listQuery.archiveScope) as any,
     orderBy: listQuery.orderBy as any,
   });
   res.json(users);
@@ -140,8 +148,8 @@ export async function getUsers(req: Request, res: Response): Promise<void> {
 export async function getUserById(req: Request, res: Response): Promise<void> {
   const id = getUserId(req, res);
   if (id === null) return;
-  const user = await prisma.user.findUnique({
-    where: { id },
+  const user = await prisma.user.findFirst({
+    where: withActiveRecords({ id }) as any,
     select: userSelect,
   });
   if (!user) {
@@ -263,7 +271,10 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const existingUser = await prisma.user.findUnique({ where: { id }, select: userSyncSelect });
+  const existingUser = await prisma.user.findFirst({
+    where: withActiveRecords({ id }) as any,
+    select: userSyncSelect,
+  });
   if (!existingUser) {
     res.status(404).json({ message: 'User not found' });
     return;
@@ -382,7 +393,10 @@ export async function deleteUser(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const existingUser = await prisma.user.findUnique({ where: { id }, select: userSyncSelect });
+  const existingUser = await prisma.user.findFirst({
+    where: withActiveRecords({ id }) as any,
+    select: userSyncSelect,
+  });
   if (!existingUser) {
     res.status(404).json({ message: 'User not found' });
     return;
@@ -406,18 +420,52 @@ export async function deleteUser(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  if (isSupabaseAuthEnabled() && existingUser.supabaseAuthUserId) {
-    try {
-      await deleteSupabaseAuthUser(existingUser.supabaseAuthUserId);
-    } catch (error) {
-      if (handleSupabaseAuthRuntimeError(res, error)) {
-        return;
-      }
+  await revokeAllUserSessions(id);
 
-      throw error;
+  if (isArchiveEnabled()) {
+    await prisma.user.update({ where: { id }, data: { archivedAt: new Date() } });
+  } else {
+    if (isSupabaseAuthEnabled() && existingUser.supabaseAuthUserId) {
+      try {
+        await deleteSupabaseAuthUser(existingUser.supabaseAuthUserId);
+      } catch (error) {
+        if (handleSupabaseAuthRuntimeError(res, error)) {
+          return;
+        }
+
+        throw error;
+      }
     }
+
+    await prisma.user.delete({ where: { id } });
   }
 
-  await prisma.user.delete({ where: { id } });
   res.status(204).send();
+}
+
+export async function restoreUser(req: Request, res: Response): Promise<void> {
+  const id = getUserId(req, res);
+  if (id === null) return;
+
+  if (!isArchiveEnabled()) {
+    res.status(409).json({ message: 'Archive mode is disabled; restore is unavailable' });
+    return;
+  }
+
+  const user = await prisma.user.findFirst({
+    where: withArchivedRecords({ id }) as any,
+    select: userSelect,
+  });
+  if (!user) {
+    res.status(404).json({ message: 'Archived user not found' });
+    return;
+  }
+
+  const restoredUser = await prisma.user.update({
+    where: { id },
+    data: { archivedAt: null },
+    select: userSelect,
+  });
+
+  res.json(restoredUser);
 }

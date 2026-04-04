@@ -4,6 +4,7 @@ import {
   deleteCategory,
   getCategories,
   getCategoryById,
+  restoreCategory,
   updateCategory,
 } from '../controllers/categoriesController.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -33,5 +34,6 @@ router.patch(
   asyncHandler(updateCategory)
 );
 router.delete('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(deleteCategory));
+router.post('/:id/restore', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(restoreCategory));
 
 export default router;

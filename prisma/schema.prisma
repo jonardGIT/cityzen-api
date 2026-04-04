@@ -4,13 +4,15 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
   id                String               @id @default(uuid()) @db.Uuid
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
+  archivedAt        DateTime?
   name              String
   email             String               @unique
   passwordHash      String?
@@ -98,6 +100,7 @@ model Citizen {
   id               String            @id @default(uuid()) @db.Uuid
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
+  archivedAt       DateTime?
   name             String
   contactInfo      String
   preferredChannel String
@@ -110,6 +113,7 @@ model Agency {
   id            String      @id @default(uuid()) @db.Uuid
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
+  archivedAt    DateTime?
   name          String
   contactNumber String?
   responders    Responder[]
@@ -121,6 +125,7 @@ model Responder {
   id          String       @id @default(uuid()) @db.Uuid
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
+  archivedAt  DateTime?
   name        String
   agencyId    String       @db.Uuid
   role        String
@@ -135,6 +140,7 @@ model Status {
   id        String            @id @default(uuid()) @db.Uuid
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
+  archivedAt DateTime?
   name      String
   incidents CitizenIncident[]
 
@@ -145,6 +151,7 @@ model Category {
   id          String            @id @default(uuid()) @db.Uuid
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
+  archivedAt  DateTime?
   name        String
   subCategory String?
   incidents   CitizenIncident[]
@@ -156,6 +163,7 @@ model Severity {
   id         String            @id @default(uuid()) @db.Uuid
   createdAt  DateTime          @default(now())
   updatedAt  DateTime          @updatedAt
+  archivedAt DateTime?
   level      String            @unique
   definition String?
   incidents  CitizenIncident[]
@@ -167,6 +175,7 @@ model CitizenIncident {
   id           String       @id @default(uuid()) @db.Uuid
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
+  archivedAt   DateTime?
   description  String
   mediaUrl     String?
   dateReported DateTime     @default(now())
@@ -190,14 +199,30 @@ model CitizenIncident {
   category     Category     @relation(fields: [categoryId], references: [id])
   severity     Severity     @relation(fields: [severityId], references: [id])
   assignments  Assignment[]
+  mediaFiles   IncidentMedia[]
 
   @@map("incidents")
+}
+
+model IncidentMedia {
+  id           String          @id @default(uuid()) @db.Uuid
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  incidentId   String          @db.Uuid
+  mediaUrl     String
+  displayOrder Int             @default(0)
+  incident     CitizenIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  @@index([incidentId])
+  @@index([incidentId, displayOrder])
+  @@map("incident_media")
 }
 
 model Assignment {
   id            String          @id @default(uuid()) @db.Uuid
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
+  archivedAt    DateTime?
   incidentId    String          @db.Uuid
   responderId   String          @db.Uuid
   assignedDate  DateTime        @default(now())

@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
 import { buildPaginatedResponse, getListQuery, getPaginationQuery } from '../utils/request.js';
 import { usersListQueryConfig } from '../utils/listQueryConfig.js';
+import { withArchiveScope } from '../utils/archive.js';
 
 // Returns all users for admin-level management views.
 export async function getAllUsersForAdmin(req: Request, res: Response): Promise<void> {
@@ -24,12 +25,14 @@ export async function getAllUsersForAdmin(req: Request, res: Response): Promise<
     const [users, total] = await Promise.all([
       prisma.user.findMany({
         select,
-        where: listQuery.where as any,
+        where: withArchiveScope(listQuery.where as any, listQuery.archiveScope) as any,
         orderBy: listQuery.orderBy as any,
         skip: pagination.skip,
         take: pagination.take,
       }),
-      prisma.user.count({ where: listQuery.where as any }),
+      prisma.user.count({
+        where: withArchiveScope(listQuery.where as any, listQuery.archiveScope) as any,
+      }),
     ]);
     res.json(buildPaginatedResponse(users, total, pagination));
     return;
@@ -37,7 +40,7 @@ export async function getAllUsersForAdmin(req: Request, res: Response): Promise<
 
   const users = await prisma.user.findMany({
     select,
-    where: listQuery.where as any,
+    where: withArchiveScope(listQuery.where as any, listQuery.archiveScope) as any,
     orderBy: listQuery.orderBy as any,
   });
 

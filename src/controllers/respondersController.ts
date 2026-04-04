@@ -9,6 +9,12 @@ import {
 } from '../utils/request.js';
 import { respondersListQueryConfig } from '../utils/listQueryConfig.js';
 import type { Responder } from '../types/models.js';
+import {
+  isArchiveEnabled,
+  withActiveRecords,
+  withArchivedRecords,
+  withArchiveScope,
+} from '../utils/archive.js';
 
 const responderInclude = {
   agency: true,
@@ -23,15 +29,16 @@ export async function getResponders(req: Request, res: Response): Promise<void> 
   }
 
   if (pagination.enabled) {
+    const scopedWhere = withArchiveScope(listQuery.where as any, listQuery.archiveScope);
     const [responders, total] = await Promise.all([
       prisma.responder.findMany({
         include: responderInclude,
-        where: listQuery.where as any,
+        where: scopedWhere as any,
         orderBy: listQuery.orderBy as any,
         skip: pagination.skip,
         take: pagination.take,
       }),
-      prisma.responder.count({ where: listQuery.where as any }),
+      prisma.responder.count({ where: scopedWhere as any }),
     ]);
     res.json(buildPaginatedResponse(responders, total, pagination));
     return;
@@ -39,7 +46,7 @@ export async function getResponders(req: Request, res: Response): Promise<void> 
 
   const responders = await prisma.responder.findMany({
     include: responderInclude,
-    where: listQuery.where as any,
+    where: withArchiveScope(listQuery.where as any, listQuery.archiveScope) as any,
     orderBy: listQuery.orderBy as any,
   });
   res.json(responders);
@@ -52,8 +59,8 @@ export async function getResponderById(req: Request, res: Response): Promise<voi
     return;
   }
   try {
-    const responder = await prisma.responder.findUnique({
-      where: { id },
+    const responder = await prisma.responder.findFirst({
+      where: withActiveRecords({ id }) as any,
       include: responderInclude,
     });
     if (!responder) {
@@ -82,7 +89,7 @@ export async function createResponder(req: Request, res: Response): Promise<void
     return;
   }
 
-  if (!(await prisma.agency.findUnique({ where: { id: agencyId } }))) {
+  if (!(await prisma.agency.findFirst({ where: withActiveRecords({ id: agencyId }) as any }))) {
     res.status(422).json({ message: 'agencyId does not reference a valid Agency' });
     return;
   }
@@ -108,14 +115,19 @@ export async function updateResponder(req: Request, res: Response): Promise<void
   }
 
   const { name, agencyId, role, contactInfo } = req.body as Partial<Responder>;
-  const existingResponder = await prisma.responder.findUnique({ where: { id } });
+  const existingResponder = await prisma.responder.findFirst({
+    where: withActiveRecords({ id }) as any,
+  });
 
   if (!existingResponder) {
     res.status(404).json({ message: 'Responder not found' });
     return;
   }
 
-  if (agencyId !== undefined && !(await prisma.agency.findUnique({ where: { id: agencyId } }))) {
+  if (
+    agencyId !== undefined &&
+    !(await prisma.agency.findFirst({ where: withActiveRecords({ id: agencyId }) as any }))
+  ) {
     res.status(422).json({ message: 'agencyId does not reference a valid Agency' });
     return;
   }
@@ -141,13 +153,64 @@ export async function deleteResponder(req: Request, res: Response): Promise<void
     return;
   }
 
-  const existingResponder = await prisma.responder.findUnique({ where: { id } });
+  const existingResponder = await prisma.responder.findFirst({
+    where: withActiveRecords({ id }) as any,
+  });
 
   if (!existingResponder) {
     res.status(404).json({ message: 'Responder not found' });
     return;
   }
 
-  await prisma.responder.delete({ where: { id } });
+  const activeAssignmentCount = await prisma.assignment.count({
+    where: withActiveRecords({ responderId: id }) as any,
+  });
+  if (activeAssignmentCount > 0) {
+    res.status(409).json({ message: 'Conflict: responder still has active assignments' });
+    return;
+  }
+
+  if (isArchiveEnabled()) {
+    await prisma.responder.update({ where: { id }, data: { archivedAt: new Date() } });
+  } else {
+    await prisma.responder.delete({ where: { id } });
+  }
   res.status(204).send();
+}
+
+export async function restoreResponder(req: Request, res: Response): Promise<void> {
+  const id = getParamId(req, res);
+  if (id === null) {
+    return;
+  }
+
+  if (!isArchiveEnabled()) {
+    res.status(409).json({ message: 'Archive mode is disabled; restore is unavailable' });
+    return;
+  }
+
+  const existingResponder = await prisma.responder.findFirst({
+    where: withArchivedRecords({ id }) as any,
+    include: responderInclude,
+  });
+
+  if (!existingResponder) {
+    res.status(404).json({ message: 'Archived responder not found' });
+    return;
+  }
+
+  const agency = await prisma.agency.findFirst({
+    where: withActiveRecords({ id: existingResponder.agencyId }) as any,
+  });
+  if (!agency) {
+    res.status(409).json({ message: 'Conflict: responder cannot be restored while its agency is archived' });
+    return;
+  }
+
+  const responder = await prisma.responder.update({
+    where: { id },
+    data: { archivedAt: null },
+    include: responderInclude,
+  });
+  res.json(responder);
 }

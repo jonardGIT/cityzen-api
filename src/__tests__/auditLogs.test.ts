@@ -18,6 +18,26 @@ function buildIncidentLocationSnapshot() {
   };
 }
 
+async function createCategory(adminToken: string) {
+  const response = await request(app)
+    .post(`${API_V1}/categories`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ name: `Audit Category ${Date.now()}-${Math.random()}` });
+
+  expect(response.status).toBe(201);
+  return response.body.id as string;
+}
+
+async function createSeverity(adminToken: string) {
+  const response = await request(app)
+    .post(`${API_V1}/severities`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ level: `Audit Severity ${Date.now()}-${Math.random()}` });
+
+  expect(response.status).toBe(201);
+  return response.body.id as string;
+}
+
 async function getLatestAuditLog(token: string) {
   const response = await request(app)
     .get(`${BASE}?page=1&pageSize=1&sortBy=timestamp&sortOrder=desc`)
@@ -27,6 +47,20 @@ async function getLatestAuditLog(token: string) {
   expect(Array.isArray(response.body.data)).toBe(true);
   expect(response.body.data.length).toBeGreaterThan(0);
   return response.body.data[0] as Record<string, unknown>;
+}
+
+async function getAuditLogsByFilters(
+  token: string,
+  filters: Array<{ field: string; operator: string; value: string | number }>,
+) {
+  const response = await request(app)
+    .get(`${BASE}?filters=${encodeURIComponent(JSON.stringify(filters))}`)
+    .set('Authorization', `Bearer ${token}`);
+
+  expect(response.status).toBe(200);
+  expect(Array.isArray(response.body)).toBe(true);
+  expect(response.body.length).toBeGreaterThan(0);
+  return response.body as Array<Record<string, unknown>>;
 }
 
 describe(`GET ${BASE}`, () => {
@@ -259,20 +293,29 @@ describe('Audit log persistence', () => {
 
     expect([200, 201]).toContain(linkRes.status);
 
+    const categoryId = await createCategory(adminToken);
+    const severityId = await createSeverity(adminToken);
+
     const reportRes = await request(app)
       .post(`${API_V1}/incidents/report`)
       .set('Authorization', `Bearer ${citizenReporterToken}`)
       .send({
         description: 'Audit report incident',
-        categoryId: '30000000-0000-0000-0000-000000000001',
-        severityId: '40000000-0000-0000-0000-000000000001',
+        categoryId,
+        severityId,
         ...buildIncidentLocationSnapshot(),
       });
 
     expect(reportRes.status).toBe(201);
 
-    const latest = await getLatestAuditLog(adminToken);
-    expect(latest).toMatchObject({
+    const matches = await getAuditLogsByFilters(adminToken, [
+      { field: 'action', operator: 'equals', value: 'report' },
+      { field: 'resource', operator: 'equals', value: 'incidents' },
+      { field: 'actorEmail', operator: 'equals', value: email },
+      { field: 'targetId', operator: 'equals', value: reportRes.body.id as string },
+    ]);
+
+    expect(matches[0]).toMatchObject({
       action: 'report',
       resource: 'incidents',
       outcome: 'success',
@@ -290,8 +333,15 @@ describe('Audit log persistence', () => {
 
     expect(createRes.status).toBe(400);
 
-    const latest = await getLatestAuditLog(adminToken);
-    expect(latest).toMatchObject({
+    const matches = await getAuditLogsByFilters(adminToken, [
+      { field: 'action', operator: 'equals', value: 'create' },
+      { field: 'resource', operator: 'equals', value: 'citizens' },
+      { field: 'actorEmail', operator: 'equals', value: 'admin@xypes.local' },
+      { field: 'outcome', operator: 'equals', value: 'failure' },
+      { field: 'statusCode', operator: 'equals', value: 400 },
+    ]);
+
+    expect(matches[0]).toMatchObject({
       action: 'create',
       resource: 'citizens',
       outcome: 'failure',
