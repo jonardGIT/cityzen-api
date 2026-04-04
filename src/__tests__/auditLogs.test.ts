@@ -184,6 +184,8 @@ describe('Audit log persistence', () => {
     delete process.env.SECURITY_ALERT_LOGIN_FAILURE_WINDOW_MS;
     delete process.env.SECURITY_ALERT_PASSWORD_RESET_THRESHOLD;
     delete process.env.SECURITY_ALERT_PASSWORD_RESET_WINDOW_MS;
+    delete process.env.SECURITY_ALERT_PASSWORD_RESET_CONFIRM_FAILURE_THRESHOLD;
+    delete process.env.SECURITY_ALERT_PASSWORD_RESET_CONFIRM_FAILURE_WINDOW_MS;
     delete process.env.SECURITY_ALERT_REFRESH_FAILURE_THRESHOLD;
     delete process.env.SECURITY_ALERT_REFRESH_FAILURE_WINDOW_MS;
     delete process.env.SECURITY_ALERT_SESSION_CHURN_THRESHOLD;
@@ -481,6 +483,47 @@ describe('Audit log persistence', () => {
       type: 'security-alert',
       ruleId: 'password-reset-delivery-unavailable',
       severity: 'high',
+    });
+  });
+
+  it('forwards a security alert after repeated failed password reset confirmations cross the threshold', async () => {
+    process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
+    process.env.SECURITY_ALERT_PASSWORD_RESET_CONFIRM_FAILURE_THRESHOLD = '3';
+    process.env.SECURITY_ALERT_PASSWORD_RESET_CONFIRM_FAILURE_WINDOW_MS = '600000';
+
+    const originalFetch = global.fetch;
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const firstAttempt = await request(app)
+      .post(`${API_V1}/auth/password-reset/confirm`)
+      .send({ token: 'invalid-reset-token-one', password: 'Password456!@#' });
+    const secondAttempt = await request(app)
+      .post(`${API_V1}/auth/password-reset/confirm`)
+      .send({ token: 'invalid-reset-token-two', password: 'Password456!@#' });
+    const thirdAttempt = await request(app)
+      .post(`${API_V1}/auth/password-reset/confirm`)
+      .send({ token: 'invalid-reset-token-three', password: 'Password456!@#' });
+
+    global.fetch = originalFetch;
+
+    expect(firstAttempt.status).toBe(401);
+    expect(secondAttempt.status).toBe(401);
+    expect(thirdAttempt.status).toBe(401);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')) as Record<
+      string,
+      unknown
+    >;
+    expect(payload).toMatchObject({
+      type: 'security-alert',
+      ruleId: 'repeated-password-reset-confirm-failures',
+      severity: 'high',
+    });
+    expect(payload.aggregate).toMatchObject({
+      count: 3,
+      windowMs: 600000,
     });
   });
 

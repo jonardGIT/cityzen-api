@@ -61,6 +61,17 @@ function getPasswordResetAlertWindowMs(): number {
   return toPositiveInteger(process.env.SECURITY_ALERT_PASSWORD_RESET_WINDOW_MS, 60 * 60_000);
 }
 
+function getPasswordResetConfirmFailureAlertThreshold(): number {
+  return toPositiveInteger(process.env.SECURITY_ALERT_PASSWORD_RESET_CONFIRM_FAILURE_THRESHOLD, 5);
+}
+
+function getPasswordResetConfirmFailureAlertWindowMs(): number {
+  return toPositiveInteger(
+    process.env.SECURITY_ALERT_PASSWORD_RESET_CONFIRM_FAILURE_WINDOW_MS,
+    60 * 60_000,
+  );
+}
+
 function getRefreshFailureAlertThreshold(): number {
   return toPositiveInteger(process.env.SECURITY_ALERT_REFRESH_FAILURE_THRESHOLD, 5);
 }
@@ -279,6 +290,20 @@ function buildAggregateRules(input: CreateAuditLogInput): SecurityAlertRule[] {
         'repeated-refresh-failures',
         'high',
         'Repeated refresh token failures crossed the configured threshold',
+      ),
+    );
+  }
+
+  if (input.action === 'password_reset_confirm' && input.outcome === 'failure') {
+    rules.push(
+      buildThresholdAlert(
+        input,
+        'password-reset-confirm-failure',
+        getPasswordResetConfirmFailureAlertThreshold(),
+        getPasswordResetConfirmFailureAlertWindowMs(),
+        'repeated-password-reset-confirm-failures',
+        'high',
+        'Repeated password reset confirmation failures crossed the configured threshold',
       ),
     );
   }

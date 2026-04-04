@@ -136,6 +136,7 @@ Current state:
 - The backend supports one-time password reset tokens and password reset confirmation.
 - Reset completion revokes active sessions.
 - Non-production environments can expose reset tokens for local testing.
+- Abuse monitoring now covers repeated password reset requests, repeated password reset confirmation failures, and delivery outages.
 - There is still no production-grade delivery channel such as verified email or SMS.
 - A repository-level operational recovery and break-glass procedure is now documented, but it still depends on operators following it correctly.
 
@@ -146,7 +147,7 @@ Risk:
 Recommendation:
 
 - Add verified delivery for reset tokens.
-- Add reset request throttling and monitoring rules tuned for abuse.
+- Keep reset throttling and monitoring rules tuned for both request and confirmation abuse patterns.
 - Keep the documented privileged-account recovery process under change control and exercise it periodically.
 
 ### 5. Centralized monitoring and tamper-resistant security telemetry
