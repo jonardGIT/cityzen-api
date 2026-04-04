@@ -196,18 +196,18 @@ Current state:
 
 - Role rules protect access to citizen and incident data.
 - Archive-by-default deletes reduce accidental destructive loss.
-- This repository still does not document field-level masking, retention schedules, purge authority, legal hold handling, or encryption posture beyond transport and managed-database assumptions.
+- The repository now documents data classification, retention windows, purge authority, legal-hold handling, field-level handling expectations, and baseline encryption posture.
 
 Risk:
 
 - Government-facing systems usually require explicit PII handling controls, retention rules, and disclosure procedures.
-- Archiving is not the same thing as a formal records-management policy.
+- A repository baseline is still not the same thing as a formally approved agency records-management or privacy program.
 
 Recommendation:
 
-- Document data classification and handling expectations.
-- Define retention and purge rules for citizens, incidents, sessions, password reset records, media objects, and audit logs.
-- Confirm encryption at rest and TLS requirements in deployment documentation.
+- Keep the documented baseline under change control and align it with agency legal, privacy, and records-management approval.
+- Verify that operational export, support, and investigation workflows actually follow the documented masking and disclosure rules.
+- Confirm encryption at rest and TLS requirements in live deployment documentation and infrastructure review.
 
 ### 8. Formal authorization governance and access review
 
