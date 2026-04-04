@@ -1,5 +1,10 @@
 import jwt from 'jsonwebtoken';
 import { AuthError, createClient, type Session } from '@supabase/supabase-js';
+import {
+  isSupabaseAuthFeatureEnabled,
+  isSupabaseJwtFeatureEnabled,
+  isSupabaseTotpFeatureEnabled,
+} from '../featureSelection.js';
 
 type SupabaseSignOutScope = 'global' | 'local' | 'others';
 type SupabaseAuthenticatorAssuranceLevel = 'aal1' | 'aal2' | null;
@@ -296,15 +301,15 @@ function mapAuthApiError(error: AuthError): SupabaseAuthServiceError {
 }
 
 export function isSupabaseAuthEnabled(): boolean {
-  return isTrue(process.env.SUPABASE_AUTH_ENABLED);
+  return isSupabaseAuthFeatureEnabled();
 }
 
 export function isSupabaseJwtEnabled(): boolean {
-  return isTrue(process.env.SUPABASE_JWT_ENABLED);
+  return isSupabaseJwtFeatureEnabled();
 }
 
 export function isSupabaseTotpEnabled(): boolean {
-  return isTrue(process.env.SUPABASE_TOTP_ENABLED);
+  return isSupabaseTotpFeatureEnabled();
 }
 
 export async function registerSupabaseAuthUser(input: {

@@ -1,14 +1,7 @@
-function isTruthyEnvValue(value: string | undefined): boolean {
-  return value !== undefined && ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase());
-}
+import { isArchiveFeatureEnabled } from '../featureSelection.js';
 
 export function isArchiveEnabled(): boolean {
-  const rawValue = process.env.ARCHIVE_RECORDS_ENABLED;
-  if (rawValue === undefined || rawValue.trim() === '') {
-    return true;
-  }
-
-  return isTruthyEnvValue(rawValue);
+  return isArchiveFeatureEnabled();
 }
 
 export function withActiveRecords(where?: Record<string, unknown>): Record<string, unknown> {

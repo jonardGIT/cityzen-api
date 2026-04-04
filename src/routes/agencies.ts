@@ -8,6 +8,7 @@ import {
   updateAgency,
 } from '../controllers/agenciesController.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { isArchiveEnabled } from '../utils/archive.js';
 import { validateRequest } from '../middleware/validateRequest.js';
 import { createAgencyValidator, updateAgencyValidator } from '../validators/bodyValidators.js';
 import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
@@ -34,11 +35,14 @@ router.patch(
   asyncHandler(updateAgency),
 );
 router.delete('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(deleteAgency));
-router.post(
-  '/:id/restore',
-  requireJwtAuth,
-  requireRole(...ADMIN_ROLES),
-  asyncHandler(restoreAgency),
-);
+
+if (isArchiveEnabled()) {
+  router.post(
+    '/:id/restore',
+    requireJwtAuth,
+    requireRole(...ADMIN_ROLES),
+    asyncHandler(restoreAgency),
+  );
+}
 
 export default router;

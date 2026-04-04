@@ -8,6 +8,7 @@ import {
   updateCategory,
 } from '../controllers/categoriesController.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { isArchiveEnabled } from '../utils/archive.js';
 import { validateRequest } from '../middleware/validateRequest.js';
 import { createCategoryValidator, updateCategoryValidator } from '../validators/bodyValidators.js';
 import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
@@ -34,11 +35,14 @@ router.patch(
   asyncHandler(updateCategory),
 );
 router.delete('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(deleteCategory));
-router.post(
-  '/:id/restore',
-  requireJwtAuth,
-  requireRole(...ADMIN_ROLES),
-  asyncHandler(restoreCategory),
-);
+
+if (isArchiveEnabled()) {
+  router.post(
+    '/:id/restore',
+    requireJwtAuth,
+    requireRole(...ADMIN_ROLES),
+    asyncHandler(restoreCategory),
+  );
+}
 
 export default router;

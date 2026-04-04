@@ -8,6 +8,7 @@ import {
   updateResponder,
 } from '../controllers/respondersController.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { isArchiveEnabled } from '../utils/archive.js';
 import { validateRequest } from '../middleware/validateRequest.js';
 import {
   createResponderValidator,
@@ -37,11 +38,14 @@ router.patch(
   asyncHandler(updateResponder),
 );
 router.delete('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(deleteResponder));
-router.post(
-  '/:id/restore',
-  requireJwtAuth,
-  requireRole(...ADMIN_ROLES),
-  asyncHandler(restoreResponder),
-);
+
+if (isArchiveEnabled()) {
+  router.post(
+    '/:id/restore',
+    requireJwtAuth,
+    requireRole(...ADMIN_ROLES),
+    asyncHandler(restoreResponder),
+  );
+}
 
 export default router;

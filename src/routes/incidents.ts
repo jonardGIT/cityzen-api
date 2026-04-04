@@ -17,20 +17,26 @@ import {
   uploadIncidentMediaValidator,
   updateIncidentValidator,
 } from '../validators/bodyValidators.js';
+import { isIncidentMediaUploadFeatureEnabled } from '../featureSelection.js';
 import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
 import { INCIDENT_WRITE_ROLES, MEDIA_UPLOAD_ROLES } from '../types/auth.js';
+import { isArchiveEnabled } from '../utils/archive.js';
 
 const router = Router();
 
 router.get('/', requireJwtAuth, asyncHandler(getIncidents));
-router.post(
-  '/media/upload',
-  requireJwtAuth,
-  requireRole(...MEDIA_UPLOAD_ROLES),
-  uploadIncidentMediaValidator,
-  validateRequest,
-  asyncHandler(uploadIncidentMedia),
-);
+
+if (isIncidentMediaUploadFeatureEnabled()) {
+  router.post(
+    '/media/upload',
+    requireJwtAuth,
+    requireRole(...MEDIA_UPLOAD_ROLES),
+    uploadIncidentMediaValidator,
+    validateRequest,
+    asyncHandler(uploadIncidentMedia),
+  );
+}
+
 router.get('/:id', requireJwtAuth, asyncHandler(getIncidentById));
 router.post(
   '/report',
@@ -62,11 +68,14 @@ router.delete(
   requireRole(...INCIDENT_WRITE_ROLES),
   asyncHandler(deleteIncident),
 );
-router.post(
-  '/:id/restore',
-  requireJwtAuth,
-  requireRole(...INCIDENT_WRITE_ROLES),
-  asyncHandler(restoreIncident),
-);
+
+if (isArchiveEnabled()) {
+  router.post(
+    '/:id/restore',
+    requireJwtAuth,
+    requireRole(...INCIDENT_WRITE_ROLES),
+    asyncHandler(restoreIncident),
+  );
+}
 
 export default router;

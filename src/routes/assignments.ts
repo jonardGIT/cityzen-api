@@ -13,6 +13,7 @@ import {
   createAssignmentValidator,
   updateAssignmentValidator,
 } from '../validators/bodyValidators.js';
+import { isArchiveEnabled } from '../utils/archive.js';
 import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
 import { ASSIGNMENT_MANAGEMENT_ROLES } from '../types/auth.js';
 
@@ -52,11 +53,14 @@ router.delete(
   requireRole(...ASSIGNMENT_MANAGEMENT_ROLES),
   asyncHandler(deleteAssignment),
 );
-router.post(
-  '/:id/restore',
-  requireJwtAuth,
-  requireRole(...ASSIGNMENT_MANAGEMENT_ROLES),
-  asyncHandler(restoreAssignment),
-);
+
+if (isArchiveEnabled()) {
+  router.post(
+    '/:id/restore',
+    requireJwtAuth,
+    requireRole(...ASSIGNMENT_MANAGEMENT_ROLES),
+    asyncHandler(restoreAssignment),
+  );
+}
 
 export default router;

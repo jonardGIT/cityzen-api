@@ -168,6 +168,17 @@ Important variables:
 - `API_KEY`: optional single-key fallback if `API_KEYS` is not set.
 - `RATE_LIMIT_ENABLED`, `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX_REQUESTS`: request throttling controls.
 
+Production feature-profile variables:
+
+- `FEATURE_AUTH_PROVIDER`: required for `npm run build:production`. Choose `local` or `supabase`.
+- `FEATURE_TOKEN_MODE`: required for `npm run build:production`. Choose `app-jwt` or `supabase-jwt`.
+- `FEATURE_MFA_MODE`: required for `npm run build:production`. Choose `disabled`, `local-totp`, or `supabase-totp`.
+- `FEATURE_MEDIA_STORAGE`: required for `npm run build:production`. Choose `disabled` or `supabase-storage`.
+- `FEATURE_RECORD_DELETION`: required for `npm run build:production`. Choose `hard-delete` or `archive`.
+- `FEATURE_PROFILE_NAME`: optional human-readable name embedded into the production build profile.
+
+`npm run build:production` requires one explicit selection per feature group and locks those selections into the production build. Unselected feature routes and behaviors are not mounted in the running production app. This is a fail-closed production profile, not a tree-shaking or code-stripping build.
+
 When `SUPABASE_JWT_ENABLED=true`, the backend verifies Supabase bearer tokens on protected routes and returns Supabase access/refresh tokens from login and refresh endpoints. The legacy session-management endpoints `/auth/sessions` and `/auth/sessions/:id` remain available only in app-JWT mode because Supabase does not expose arbitrary session listing/revocation in the same shape.
 
 When `SUPABASE_TOTP_ENABLED=true`, privileged-role MFA uses Supabase Auth's TOTP flow. In that mode:
@@ -226,6 +237,22 @@ If you are enabling Supabase-managed email/password auth on an existing database
 ```bash
 npm run dev
 ```
+
+### Production feature build
+
+Example:
+
+```bash
+FEATURE_PROFILE_NAME=gov-prod \
+FEATURE_AUTH_PROVIDER=supabase \
+FEATURE_TOKEN_MODE=supabase-jwt \
+FEATURE_MFA_MODE=supabase-totp \
+FEATURE_MEDIA_STORAGE=supabase-storage \
+FEATURE_RECORD_DELETION=archive \
+npm run build:production
+```
+
+Invalid combinations fail the build. Example: `FEATURE_TOKEN_MODE=supabase-jwt` is rejected unless `FEATURE_AUTH_PROVIDER=supabase` is also selected.
 
 ## Available Scripts
 

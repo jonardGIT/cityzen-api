@@ -10,6 +10,7 @@ import {
 } from '../controllers/usersController.js';
 import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
 import { ADMIN_ROLES } from '../types/auth.js';
+import { isArchiveEnabled } from '../utils/archive.js';
 import { validateRequest } from '../middleware/validateRequest.js';
 import { createUserValidator, updateUserValidator } from '../validators/bodyValidators.js';
 
@@ -35,6 +36,9 @@ router.patch(
   updateUser,
 );
 router.delete('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), deleteUser);
-router.post('/:id/restore', requireJwtAuth, requireRole(...ADMIN_ROLES), restoreUser);
+
+if (isArchiveEnabled()) {
+  router.post('/:id/restore', requireJwtAuth, requireRole(...ADMIN_ROLES), restoreUser);
+}
 
 export default router;

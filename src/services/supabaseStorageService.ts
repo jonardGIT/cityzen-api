@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'crypto';
+import { isIncidentMediaUploadFeatureEnabled } from '../featureSelection.js';
 
 const DEFAULT_MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const DEFAULT_ALLOWED_MIME_TYPES = [
@@ -61,7 +62,7 @@ function isTrue(value: string | undefined): boolean {
 }
 
 export function isSupabaseStorageEnabled(): boolean {
-  return isTrue(process.env.SUPABASE_STORAGE_ENABLED);
+  return isIncidentMediaUploadFeatureEnabled();
 }
 
 function isSupabaseStorageArchiveEnabled(): boolean {

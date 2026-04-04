@@ -14,6 +14,7 @@ import {
   revokeUserSession,
 } from '../services/authSessionService.js';
 import { createMfaSetup, verifyMfaCode } from '../utils/mfa.js';
+import { isLocalTotpFeatureEnabled } from '../featureSelection.js';
 import {
   requestPasswordReset as createPasswordResetRequest,
   resetPasswordWithToken as consumePasswordResetToken,
@@ -537,6 +538,7 @@ export async function login(req: Request, res: Response): Promise<void> {
   }
 
   if (
+    isLocalTotpFeatureEnabled() &&
     MFA_REQUIRED_ROLES.includes(role) &&
     user.mfaEnabled &&
     !requiresSupabaseTotpForUser(role, user.mfaEnabled)
