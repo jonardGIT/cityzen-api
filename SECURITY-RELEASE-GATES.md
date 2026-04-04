@@ -20,7 +20,7 @@ This repository now includes explicit CI and deployment security gates intended 
 - `npm run build:production`
   Confirms a locked production feature profile can be generated and compiled.
 - Focused tests
-  Runs `featureSelection`, `health`, and `startupEnv` coverage in CI against an ephemeral PostgreSQL service.
+  Runs `featureSelection`, `health`, `startupEnv`, `auth-bootstrap`, `users`, `security`, and `incidents` coverage in CI against an ephemeral PostgreSQL service.
 - `npm audit --omit=dev --audit-level=critical`
   Fails the gate for critical production dependency vulnerabilities.
 - `dependency-review-action`
