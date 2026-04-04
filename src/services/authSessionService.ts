@@ -2,7 +2,11 @@ import { createHash, randomBytes } from 'crypto';
 import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma.js';
 import { normalizeUserRoleInput, type UserRole } from '../types/auth.js';
-import { getAuthSessionStatus, getSessionMetadata, type SessionStatus } from '../utils/sessionMetadata.js';
+import {
+  getAuthSessionStatus,
+  getSessionMetadata,
+  type SessionStatus,
+} from '../utils/sessionMetadata.js';
 
 const ACCESS_TOKEN_TTL_HOURS = 12;
 const REFRESH_TOKEN_TTL_DAYS = 30;
@@ -57,7 +61,12 @@ function generateRefreshToken(): string {
   return randomBytes(48).toString('hex');
 }
 
-function signAccessToken(input: { userId: string; email: string; role: UserRole; sessionId: string }): string {
+function signAccessToken(input: {
+  userId: string;
+  email: string;
+  role: UserRole;
+  sessionId: string;
+}): string {
   return jwt.sign(
     {
       email: input.email,
@@ -141,8 +150,7 @@ export async function refreshAuthSession(input: {
     return null;
   }
 
-  const normalizedRole: UserRole =
-    normalizeUserRoleInput(session.user.role) ?? 'CITIZEN_REPORTER';
+  const normalizedRole: UserRole = normalizeUserRoleInput(session.user.role) ?? 'CITIZEN_REPORTER';
   const nextRefreshToken = generateRefreshToken();
   const nextRefreshExpiresAt = buildRefreshExpiry();
   const nextAccessExpiresAt = buildSessionExpiry();

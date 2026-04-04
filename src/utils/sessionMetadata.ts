@@ -60,9 +60,10 @@ export function getSessionMetadata(userAgent: string | null | undefined): Sessio
 
   const browserFamily = detectBrowserFamily(normalizedUserAgent);
   const osFamily = detectOsFamily(normalizedUserAgent);
-  const deviceLabel = browserFamily && osFamily
-    ? `${browserFamily} on ${osFamily}`
-    : browserFamily ?? osFamily ?? 'Unknown device';
+  const deviceLabel =
+    browserFamily && osFamily
+      ? `${browserFamily} on ${osFamily}`
+      : (browserFamily ?? osFamily ?? 'Unknown device');
 
   return {
     browserFamily,

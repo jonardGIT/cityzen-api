@@ -410,7 +410,8 @@ describe(`POST ${BASE}/media/upload`, () => {
       bucket: 'incident-media',
       objectPath: 'incidents/2026/04/admin/private-photo.jpg',
       mediaUrl: 'supabase://incident-media/incidents/2026/04/admin/private-photo.jpg',
-      accessUrl: 'https://example.supabase.co/storage/v1/object/sign/incident-media/private-photo.jpg?token=signed',
+      accessUrl:
+        'https://example.supabase.co/storage/v1/object/sign/incident-media/private-photo.jpg?token=signed',
       contentType: 'image/jpeg',
       fileName: 'private-photo.jpg',
       size: 10,
@@ -535,7 +536,9 @@ describe('incident media persistence', () => {
     const resolveSpy = jest
       .spyOn(supabaseStorageService, 'resolveIncidentMediaUrls')
       .mockImplementation(async (mediaUrls) =>
-        mediaUrls.map((mediaUrl) => mediaUrl.replace('supabase://incident-media/', 'https://signed.example/')),
+        mediaUrls.map((mediaUrl) =>
+          mediaUrl.replace('supabase://incident-media/', 'https://signed.example/'),
+        ),
       );
 
     const statusId = await getStatusId();

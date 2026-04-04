@@ -242,7 +242,9 @@ function buildManagedMediaReference(bucket: string, objectPath: string): string 
   return `supabase://${bucket}/${objectPath.replace(/^\/+/, '')}`;
 }
 
-function tryExtractManagedReference(mediaUrl: string): { bucket: string; objectPath: string } | null {
+function tryExtractManagedReference(
+  mediaUrl: string,
+): { bucket: string; objectPath: string } | null {
   const match = mediaUrl.match(/^supabase:\/\/([^/]+)\/(.+)$/i);
   if (!match) {
     return null;
@@ -270,10 +272,7 @@ function tryExtractManagedObjectPath(
 
   try {
     const url = new URL(normalizedMediaUrl);
-    const markers = [
-      `/storage/v1/object/public/${bucket}/`,
-      `/storage/v1/object/sign/${bucket}/`,
-    ];
+    const markers = [`/storage/v1/object/public/${bucket}/`, `/storage/v1/object/sign/${bucket}/`];
 
     for (const marker of markers) {
       const markerIndex = url.pathname.indexOf(marker);
@@ -360,7 +359,9 @@ export async function resolveIncidentMediaUrls(mediaUrls: string[]): Promise<str
 
   const accessMode = getStorageAccessMode();
   const bucket = getConfiguredBucketName();
-  const needsManagedResolution = mediaUrls.some((mediaUrl) => tryExtractManagedObjectPath(mediaUrl));
+  const needsManagedResolution = mediaUrls.some((mediaUrl) =>
+    tryExtractManagedObjectPath(mediaUrl),
+  );
 
   if (!needsManagedResolution) {
     return mediaUrls;
@@ -377,7 +378,10 @@ export async function resolveIncidentMediaUrls(mediaUrls: string[]): Promise<str
 
       try {
         if (accessMode === 'signed') {
-          return await getSignedMediaUrl(client as ReturnType<typeof createStorageClient>, parsed.objectPath);
+          return await getSignedMediaUrl(
+            client as ReturnType<typeof createStorageClient>,
+            parsed.objectPath,
+          );
         }
 
         if (tryExtractManagedReference(mediaUrl.trim())) {

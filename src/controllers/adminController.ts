@@ -174,15 +174,18 @@ export async function getPrivilegedAccessReviewReport(_req: Request, res: Respon
 
       return latest;
     }, null);
-    const latestSession = userSessions.reduce<(typeof userSessions)[number] | null>((latest, session) => {
-      if (!latest) {
-        return session;
-      }
+    const latestSession = userSessions.reduce<(typeof userSessions)[number] | null>(
+      (latest, session) => {
+        if (!latest) {
+          return session;
+        }
 
-      const candidate = session.lastUsedAt ?? session.createdAt;
-      const currentLatest = latest.lastUsedAt ?? latest.createdAt;
-      return candidate > currentLatest ? session : latest;
-    }, null);
+        const candidate = session.lastUsedAt ?? session.createdAt;
+        const currentLatest = latest.lastUsedAt ?? latest.createdAt;
+        return candidate > currentLatest ? session : latest;
+      },
+      null,
+    );
     const stale = !lastSessionUsedAt || lastSessionUsedAt < staleBefore;
     const requiresReview = !user.mfaEnabled || stale;
     const latestSessionMetadata = getSessionMetadata(latestSession?.userAgent ?? null);
