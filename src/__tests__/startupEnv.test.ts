@@ -24,6 +24,7 @@ describe('startup environment validation', () => {
           API_KEYS: 'prod-api-key-0123456789',
           MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
           SUPABASE_SERVICE_ROLE_KEY: 'prod-service-role-key-0123456789-abcdef-uvwxyz',
+          SUPABASE_STORAGE_ACCESS_MODE: 'signed',
           PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'https://security.example.gov/password-reset',
           SECURITY_ALERT_WEBHOOK_URL: 'https://security.example.gov/alerts',
         },
@@ -84,6 +85,22 @@ describe('startup environment validation', () => {
         selection: createSelection({ mediaStorage: 'supabase-storage' }),
       }),
     ).toThrow('SUPABASE_SERVICE_ROLE_KEY must be at least 32 characters in production');
+  });
+
+  it('requires signed Supabase media access in production when incident media storage is enabled', () => {
+    expect(() =>
+      validateStartupEnvironment({
+        env: {
+          NODE_ENV: 'production',
+          JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
+          SUPABASE_SERVICE_ROLE_KEY: 'prod-service-role-key-0123456789-abcdef-uvwxyz',
+          SUPABASE_STORAGE_ACCESS_MODE: 'public',
+        },
+        selection: createSelection({ mediaStorage: 'supabase-storage' }),
+      }),
+    ).toThrow(
+      'SUPABASE_STORAGE_ACCESS_MODE must be set to signed in production when Supabase media storage is enabled',
+    );
   });
 
   it('rejects non-HTTPS password reset delivery webhooks in production', () => {

@@ -115,18 +115,20 @@ Recommendation:
 Current state:
 
 - Supabase Storage upload is implemented.
-- The current documentation expects a public bucket because incidents persist returned `mediaUrl` values directly.
+- Signed storage mode persists stable managed references while returning short-lived access URLs.
+- Production startup validation now rejects public media access mode when Supabase incident media storage is enabled.
 - Storage uploads validate MIME type and size, and replaced files can be archived.
 - Incident media upload attempts are now audited and can trigger threshold alerts for suspicious repeated upload activity.
 
 Risk:
 
-- A public bucket can be unacceptable for sensitive government incident evidence, citizen-uploaded files, or documents containing PII.
-- There is no malware scanning, signed URL policy, content moderation, or private-bucket retrieval layer.
+- Sensitive evidence still depends on operators keeping the signed-access configuration and storage controls intact.
+- There is still no malware scanning, file quarantine, content moderation, or backend-gated retrieval layer.
 
 Recommendation:
 
-- Move sensitive media to private buckets with signed URLs or backend-gated retrieval.
+- Keep signed/private media access enforced in production and verify it during deployment review.
+- Consider moving sensitive evidence retrieval behind a backend-gated access layer where stronger authorization or download auditing is required.
 - Add malware scanning or file quarantine for uploaded evidence.
 - Define classification rules for what can be publicly retrievable versus restricted.
 

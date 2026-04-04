@@ -9,7 +9,7 @@ This document defines the backend's operational data-governance baseline for pro
 - `incident-records`: `restricted-operational`
   Handling: Incident descriptions, location snapshots, and response context must remain limited to operational roles and auditors.
 - `incident-media`: `restricted-evidence`
-  Handling: Uploaded evidence can contain sensitive imagery or documents. Signed/private access is preferred for sensitive deployments.
+  Handling: Uploaded evidence can contain sensitive imagery or documents. Signed/private access is required for production-style sensitive deployments.
 - `audit-logs`: `confidential-security`
   Handling: Security telemetry should be retained for investigations and exported only through privileged administrative workflows.
 
@@ -64,4 +64,4 @@ These defaults are operational baselines, not a substitute for jurisdiction-spec
 
 - TLS is required for all external traffic and trusted reverse-proxy hops.
 - Managed database encryption at rest is required for production deployments, including snapshots and backups.
-- Incident media stored in Supabase should use signed/private access for sensitive deployments whenever feasible.
+- Incident media stored in Supabase should use signed/private access in production-style deployments.
