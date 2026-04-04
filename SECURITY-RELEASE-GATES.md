@@ -35,3 +35,4 @@ This repository now includes explicit CI and deployment security gates intended 
 - Branch protection should require `Security Checks` and `CodeQL Analysis` on `main` and `develop`.
 - Deployment from `main` should remain blocked unless the `verify` job in `Deploy to Droplet` passes.
 - Emergency overrides should be rare and documented with remediation follow-up.
+- Administrative controls for secret rotation, branch protection, and release approval are documented in [docs/security-administration-controls.md](/home/nhad/xypes/xypes-cirs-api/docs/security-administration-controls.md).

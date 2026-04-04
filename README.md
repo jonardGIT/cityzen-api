@@ -195,6 +195,7 @@ Important variables:
 - `DATA_RETENTION_AUTH_SESSIONS_DAYS`, `DATA_RETENTION_PASSWORD_RESET_DAYS`, `DATA_RETENTION_AUDIT_LOG_DAYS`, `DATA_RETENTION_INCIDENT_MEDIA_DAYS`, `DATA_RETENTION_INCIDENT_RECORDS_DAYS`, `DATA_RETENTION_CITIZEN_RECORDS_DAYS`: optional retention schedule inputs surfaced through `GET /api/v1/admin/security/data-governance` for operational review. Defaults are 30, 7, 365, 365, 1825, and 1825 days respectively.
 - `DATA_LEGAL_HOLD_ENABLED`, `DATA_LEGAL_HOLD_CONTACT`: optional legal-hold posture fields surfaced through the governance summary endpoint and [docs/data-protection-governance.md](/home/nhad/xypes/xypes-cirs-api/docs/data-protection-governance.md).
 - Centralized monitoring, alert triage, privileged-account recovery, and break-glass expectations are documented in [docs/security-operations-runbook.md](/home/nhad/xypes/xypes-cirs-api/docs/security-operations-runbook.md).
+- Secret-handling, branch-protection, and release-approval expectations are documented in [docs/security-administration-controls.md](/home/nhad/xypes/xypes-cirs-api/docs/security-administration-controls.md).
 
 Incident media confidentiality behavior:
 

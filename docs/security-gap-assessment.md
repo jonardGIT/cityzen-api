@@ -171,6 +171,7 @@ Recommendation:
 Current state:
 
 - JWT secrets, MFA encryption secrets, database credentials, API keys, and Supabase service-role credentials are environment-variable based.
+- Repository-level administrative expectations for secret classes, rotation cadence, branch protection, and release approval are now documented.
 
 Risk:
 
@@ -181,6 +182,7 @@ Recommendation:
 
 - Move secrets into a managed vault or equivalent secret-management system.
 - Define rotation cadence for JWT signing keys, MFA encryption secrets, API keys, database credentials, and Supabase service-role credentials.
+- Treat the documented administration controls as a baseline and verify they are actually enforced in infrastructure and repository settings.
 
 ### 7. Data protection and privacy governance
 
@@ -225,6 +227,7 @@ Current state:
 - Focused build-and-test release gates are now documented in the repository.
 - The current production dependency audit is clean after upgrading the vulnerable transitive dependency path.
 - Branch protection and release-approval evidence still depend on GitHub repository settings and operator discipline outside this codebase.
+- Repository-level branch-protection and release-approval expectations are now documented.
 
 Risk:
 
@@ -234,6 +237,7 @@ Recommendation:
 
 - Require branch protection for `main` and `develop` so the new workflows cannot be bypassed casually.
 - Keep release evidence and remediation notes for audit and change approval.
+- Periodically verify the documented administrative controls against live GitHub and deployment settings.
 
 ## Medium-Priority Gaps
 
@@ -268,8 +272,8 @@ If the goal is the next highest-value security work, the order should be:
 3. Replace public-media assumptions with a private-bucket or signed-URL evidence model for sensitive incident media.
 4. Add production-grade password reset delivery and privileged account recovery controls.
 5. Export audit and auth events to centralized monitoring with alerts.
-6. Formalize secrets management, retention rules, and privileged access review procedures.
-7. Enforce branch protection and release approval around the new CI gates.
+6. Formalize retention rules and privileged access review procedures.
+7. Enforce the documented secret-management, branch-protection, and release-approval controls around the new CI gates.
 
 ## Practical Readiness Summary
 
