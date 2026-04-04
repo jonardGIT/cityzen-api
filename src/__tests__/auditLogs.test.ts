@@ -178,6 +178,15 @@ describe('Audit log persistence', () => {
     adminToken = await getAdminToken();
   });
 
+  afterEach(() => {
+    delete process.env.SECURITY_ALERT_WEBHOOK_URL;
+    delete process.env.SECURITY_ALERT_LOGIN_FAILURE_THRESHOLD;
+    delete process.env.SECURITY_ALERT_LOGIN_FAILURE_WINDOW_MS;
+    delete process.env.SECURITY_ALERT_PASSWORD_RESET_THRESHOLD;
+    delete process.env.SECURITY_ALERT_PASSWORD_RESET_WINDOW_MS;
+    jest.restoreAllMocks();
+  });
+
   it('records successful admin create actions', async () => {
     const createRes = await request(app)
       .post(`${API_V1}/citizens`)
@@ -235,6 +244,49 @@ describe('Audit log persistence', () => {
     expect(metadata?.password).toBeUndefined();
   });
 
+  it('forwards a security alert after repeated failed logins cross the threshold', async () => {
+    process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
+    process.env.SECURITY_ALERT_LOGIN_FAILURE_THRESHOLD = '3';
+    process.env.SECURITY_ALERT_LOGIN_FAILURE_WINDOW_MS = '600000';
+
+    const originalFetch = global.fetch;
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const actorEmail = `threshold.${Date.now()}@xypes.local`;
+
+    await request(app).post(`${API_V1}/auth/login`).send({
+      email: actorEmail,
+      password: 'WrongPassword123!',
+    });
+    await request(app).post(`${API_V1}/auth/login`).send({
+      email: actorEmail,
+      password: 'WrongPassword123!',
+    });
+    await request(app).post(`${API_V1}/auth/login`).send({
+      email: actorEmail,
+      password: 'WrongPassword123!',
+    });
+
+    global.fetch = originalFetch;
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')) as Record<
+      string,
+      unknown
+    >;
+    expect(payload).toMatchObject({
+      type: 'security-alert',
+      ruleId: 'repeated-login-failures',
+      severity: 'high',
+    });
+    expect(payload.aggregate).toMatchObject({
+      identity: actorEmail,
+      count: 3,
+      windowMs: 600000,
+    });
+  });
+
   it('records password reset request audit metadata without exposing reset tokens', async () => {
     const unique = Date.now();
     const email = `audit.reset.${unique}@postman.local`;
@@ -271,6 +323,11 @@ describe('Audit log persistence', () => {
   });
 
   it('records privileged password reset requests as blocked in production', async () => {
+    process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
+    const originalFetch = global.fetch;
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
+    global.fetch = fetchMock as unknown as typeof fetch;
+
     const originalNodeEnv = process.env.NODE_ENV;
     const originalWebhookUrl = process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL;
     process.env.NODE_ENV = 'production';
@@ -282,6 +339,7 @@ describe('Audit log persistence', () => {
 
     process.env.NODE_ENV = originalNodeEnv;
     process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL = originalWebhookUrl;
+    global.fetch = originalFetch;
 
     expect(resetRes.status).toBe(202);
 
@@ -297,6 +355,17 @@ describe('Audit log persistence', () => {
     const metadata = latest.metadata as Record<string, unknown> | undefined;
     expect(metadata?.privilegedRecoveryBlocked).toBe(true);
     expect(metadata?.deliveryMode).toBe('blocked');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')) as Record<
+      string,
+      unknown
+    >;
+    expect(payload).toMatchObject({
+      type: 'security-alert',
+      ruleId: 'privileged-password-reset-blocked',
+      severity: 'high',
+    });
   });
 
   it('records citizen reporter citizen link actions', async () => {

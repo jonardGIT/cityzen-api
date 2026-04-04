@@ -140,6 +140,11 @@ JSON_BODY_LIMIT=12mb
 SENTRY_DSN=https://<key>@o<org>.ingest.<region>.sentry.io/<project>
 SENTRY_SEND_DEFAULT_PII=false
 SENTRY_TRACES_SAMPLE_RATE=0.1
+SECURITY_ALERT_WEBHOOK_URL=https://monitoring.example.gov/security-alerts
+SECURITY_ALERT_LOGIN_FAILURE_THRESHOLD=5
+SECURITY_ALERT_LOGIN_FAILURE_WINDOW_MS=900000
+SECURITY_ALERT_PASSWORD_RESET_THRESHOLD=3
+SECURITY_ALERT_PASSWORD_RESET_WINDOW_MS=3600000
 ```
 
 Important variables:
@@ -149,6 +154,9 @@ Important variables:
 - `SENTRY_DSN`: optional but required to send backend errors and traces to Sentry.
 - `SENTRY_SEND_DEFAULT_PII`: optional. Set to `true` only if you intentionally want request headers and user IP data sent to Sentry.
 - `SENTRY_TRACES_SAMPLE_RATE`: optional decimal from `0` to `1` for performance tracing volume.
+- `SECURITY_ALERT_WEBHOOK_URL`: optional centralized security-alert sink. When set, the backend forwards selected high-risk audit events and threshold-based auth abuse alerts to this webhook.
+- `SECURITY_ALERT_LOGIN_FAILURE_THRESHOLD`, `SECURITY_ALERT_LOGIN_FAILURE_WINDOW_MS`: optional threshold controls for repeated failed-login alerts. Defaults to 5 failures in 15 minutes.
+- `SECURITY_ALERT_PASSWORD_RESET_THRESHOLD`, `SECURITY_ALERT_PASSWORD_RESET_WINDOW_MS`: optional threshold controls for repeated password-reset request alerts. Defaults to 3 requests in 1 hour.
 - `DATABASE_URL`: PostgreSQL runtime connection for Prisma. If you use the Supabase transaction pooler, include `?pgbouncer=true&connection_limit=1&pool_timeout=20`.
 - `DIRECT_URL`: direct PostgreSQL connection for Prisma migrations and schema commands.
 - `SUPABASE_AUTH_ENABLED`: set to `true` to validate email/password credentials against Supabase Auth while the API continues issuing its own JWT/session tokens.
@@ -211,6 +219,12 @@ Password reset recovery behavior:
 - In production, raw reset tokens are never returned in the API response. If `PASSWORD_RESET_DELIVERY_WEBHOOK_URL` is configured, the backend sends a generic password-reset delivery payload to that webhook.
 - In production, privileged roles (`SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`) are blocked from public self-service password reset and require an admin-assisted recovery workflow.
 - Password reset request and confirm events remain auditable, and audit metadata records the delivery mode and privileged-recovery policy outcome without storing the reset token itself.
+
+Centralized security alerting:
+
+- When `SECURITY_ALERT_WEBHOOK_URL` is configured, the backend forwards selected high-risk audit events to that webhook after the audit log is persisted.
+- Current alert rules cover repeated failed logins, repeated password reset requests, privileged self-service reset attempts blocked in production, successful password reset completions, and privileged MFA disable events.
+- Alert forwarding is additive: requests do not fail if the monitoring webhook is unavailable, but the backend logs the alert-delivery failure locally.
 
 Security notes:
 
