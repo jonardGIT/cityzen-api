@@ -133,17 +133,18 @@ Current state:
 - The backend supports one-time password reset tokens and password reset confirmation.
 - Reset completion revokes active sessions.
 - Non-production environments can expose reset tokens for local testing.
-- There is still no production-grade delivery channel such as verified email, SMS, or admin-assisted recovery workflow.
+- There is still no production-grade delivery channel such as verified email or SMS.
+- A repository-level operational recovery and break-glass procedure is now documented, but it still depends on operators following it correctly.
 
 Risk:
 
-- The recovery primitive exists, but production recovery is incomplete without secure token delivery and stronger operator controls.
+- The recovery primitive exists, but production recovery is still incomplete without secure token delivery and stronger operator controls.
 
 Recommendation:
 
 - Add verified delivery for reset tokens.
 - Add reset request throttling and monitoring rules tuned for abuse.
-- Define higher-assurance recovery policy for privileged accounts.
+- Keep the documented privileged-account recovery process under change control and exercise it periodically.
 
 ### 5. Centralized monitoring and tamper-resistant security telemetry
 
@@ -151,6 +152,7 @@ Current state:
 
 - Audit logs are persisted in the application database and exposed by admin API.
 - Sentry can capture backend exceptions and traces when configured.
+- The repository now includes an operational runbook for alert routing, triage, privileged recovery, and break-glass review.
 
 Risk:
 
@@ -162,6 +164,7 @@ Recommendation:
 
 - Forward logs to centralized monitoring or SIEM.
 - Alert on repeated auth failures, session churn anomalies, privilege changes, suspicious MFA resets, suspicious password reset activity, unusual admin actions, and suspicious media upload patterns.
+- Treat the runbook as an operational minimum, not as a substitute for external monitoring infrastructure.
 
 ### 6. Secrets and key management maturity
 
