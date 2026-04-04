@@ -196,6 +196,7 @@ Important variables:
 - `DATA_LEGAL_HOLD_ENABLED`, `DATA_LEGAL_HOLD_CONTACT`: optional legal-hold posture fields surfaced through the governance summary endpoint and [docs/data-protection-governance.md](/home/nhad/xypes/xypes-cirs-api/docs/data-protection-governance.md).
 - Centralized monitoring, alert triage, privileged-account recovery, and break-glass expectations are documented in [docs/security-operations-runbook.md](/home/nhad/xypes/xypes-cirs-api/docs/security-operations-runbook.md).
 - Secret-handling, branch-protection, and release-approval expectations are documented in [docs/security-administration-controls.md](/home/nhad/xypes/xypes-cirs-api/docs/security-administration-controls.md).
+- Role ownership, privileged access approval, periodic review, and joiner or mover or leaver expectations are documented in [docs/security-access-governance.md](/home/nhad/xypes/xypes-cirs-api/docs/security-access-governance.md).
 
 Incident media confidentiality behavior:
 

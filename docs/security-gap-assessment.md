@@ -208,16 +208,16 @@ Recommendation:
 Current state:
 
 - RBAC is enforced in code and route middleware.
-- There is no documented operational process for access review, role approval, or joiner/mover/leaver handling.
+- A repository-level access governance baseline is now documented for role ownership, approval workflow, quarterly review, and joiner or mover or leaver handling.
 
 Risk:
 
-- Strong code-level RBAC can still drift operationally if role assignment and review are informal.
+- Strong code-level RBAC can still drift operationally if the documented governance workflow is not actually enforced.
 
 Recommendation:
 
-- Document role ownership and approval workflow.
-- Add periodic access review procedures for privileged accounts.
+- Enforce the documented role ownership and approval workflow through real operational process.
+- Keep periodic privileged access reviews with evidence and remediation follow-through.
 
 ### 9. Supply-chain, CI, and deployment hardening follow-through
 
@@ -272,7 +272,7 @@ If the goal is the next highest-value security work, the order should be:
 3. Replace public-media assumptions with a private-bucket or signed-URL evidence model for sensitive incident media.
 4. Add production-grade password reset delivery and privileged account recovery controls.
 5. Export audit and auth events to centralized monitoring with alerts.
-6. Formalize retention rules and privileged access review procedures.
+6. Formalize retention rules and keep privileged access review procedures under active operational use.
 7. Enforce the documented secret-management, branch-protection, and release-approval controls around the new CI gates.
 
 ## Practical Readiness Summary
