@@ -49,6 +49,12 @@ jobs:
       MFA_ENCRYPTION_KEY: ci-mfa-secret-0123456789-abcdef-uvwxyz
       API_KEYS: ci-api-key-0123456789
       TRUST_PROXY: false
+      FEATURE_AUTH_PROVIDER: local
+      FEATURE_TOKEN_MODE: app-jwt
+      FEATURE_MFA_MODE: local-totp
+      FEATURE_MEDIA_STORAGE: supabase-storage
+      FEATURE_RECORD_DELETION: archive
+      FEATURE_PROFILE_NAME: ci-security-profile
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -66,21 +72,18 @@ jobs:
         run: npm run build
 
       - name: Build locked production profile
-        env:
-          FEATURE_AUTH_PROVIDER: local
-          FEATURE_TOKEN_MODE: app-jwt
-          FEATURE_MFA_MODE: local-totp
-          FEATURE_MEDIA_STORAGE: supabase-storage
-          FEATURE_RECORD_DELETION: archive
-          FEATURE_PROFILE_NAME: ci-security-profile
         run: npm run build:production
 
-      - name: Run focused security-safe tests
+      - name: Run focused security validation suite
         run: >-
           npm test -- --runTestsByPath
           src/__tests__/featureSelection.test.ts
           src/__tests__/health.test.ts
           src/__tests__/startupEnv.test.ts
+          src/__tests__/auth-bootstrap.test.ts
+          src/__tests__/users.test.ts
+          src/__tests__/security.test.ts
+          src/__tests__/incidents.test.ts
 
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=critical
