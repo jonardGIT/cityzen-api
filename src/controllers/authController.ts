@@ -282,6 +282,13 @@ function handlePasswordResetRuntimeError(res: Response, error: unknown): boolean
     (error.message.includes('PASSWORD_RESET_DELIVERY_WEBHOOK_URL must be configured') ||
       error.message.includes('Password reset delivery webhook returned HTTP'))
   ) {
+    res.locals.auditMetadata = {
+      resetTokenIssued: false,
+      privilegedRecoveryBlocked: false,
+      deliveryMode: 'failed',
+      deliveryAccepted: false,
+      deliveryFailure: true,
+    };
     res.status(503).json({
       message: `Password reset delivery is not available: ${error.message}`,
     });
@@ -677,6 +684,13 @@ export async function requestPasswordReset(req: Request, res: Response): Promise
 
   try {
     if (process.env.NODE_ENV === 'production' && !isPasswordResetDeliveryConfigured()) {
+      res.locals.auditMetadata = {
+        resetTokenIssued: false,
+        privilegedRecoveryBlocked: false,
+        deliveryMode: 'unconfigured',
+        deliveryAccepted: false,
+        deliveryFailure: true,
+      };
       res.status(503).json({
         message:
           'Password reset delivery is not available: PASSWORD_RESET_DELIVERY_WEBHOOK_URL must be configured in production',

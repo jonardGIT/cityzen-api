@@ -400,6 +400,53 @@ describe('Audit log persistence', () => {
     });
   });
 
+  it('alerts when password reset delivery is unavailable in production', async () => {
+    process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
+
+    const originalFetch = global.fetch;
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalWebhookUrl = process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL;
+    process.env.NODE_ENV = 'production';
+    delete process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL;
+
+    const resetRes = await request(app)
+      .post(`${API_V1}/auth/password-reset/request`)
+      .send({ email: 'missing.user@postman.local' });
+
+    process.env.NODE_ENV = originalNodeEnv;
+    process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL = originalWebhookUrl;
+    global.fetch = originalFetch;
+
+    expect(resetRes.status).toBe(503);
+
+    const latest = await getLatestAuditLog(adminToken);
+    expect(latest).toMatchObject({
+      action: 'password_reset_request',
+      resource: 'auth',
+      outcome: 'failure',
+      actorEmail: 'missing.user@postman.local',
+      statusCode: 503,
+    });
+
+    const metadata = latest.metadata as Record<string, unknown> | undefined;
+    expect(metadata?.deliveryMode).toBe('unconfigured');
+    expect(metadata?.deliveryFailure).toBe(true);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')) as Record<
+      string,
+      unknown
+    >;
+    expect(payload).toMatchObject({
+      type: 'security-alert',
+      ruleId: 'password-reset-delivery-unavailable',
+      severity: 'high',
+    });
+  });
+
   it('forwards critical alerts for privileged role changes and archives', async () => {
     process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
 
@@ -435,18 +482,20 @@ describe('Audit log persistence', () => {
     expect(deleteRes.status).toBe(204);
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
-    const updatePayload = JSON.parse(
-      String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}'),
-    ) as Record<string, unknown>;
+    const updatePayload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')) as Record<
+      string,
+      unknown
+    >;
     expect(updatePayload).toMatchObject({
       type: 'security-alert',
       ruleId: 'user-role-changed',
       severity: 'critical',
     });
 
-    const deletePayload = JSON.parse(
-      String(fetchMock.mock.calls[1]?.[1]?.body ?? '{}'),
-    ) as Record<string, unknown>;
+    const deletePayload = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body ?? '{}')) as Record<
+      string,
+      unknown
+    >;
     expect(deletePayload).toMatchObject({
       type: 'security-alert',
       ruleId: 'user-archived',

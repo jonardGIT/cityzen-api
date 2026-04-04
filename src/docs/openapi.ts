@@ -1163,7 +1163,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         tags: ['Auth'],
         summary: 'Request a password reset token',
         description:
-          'Accepts an email address and creates a one-time password reset token when the account exists. The response stays generic to avoid revealing whether the email exists. In non-production environments, the reset token is returned for local testing. In production, raw reset tokens are never returned in the API response and delivery is delegated to the configured backend delivery provider. Privileged accounts require an admin-assisted recovery process instead of self-service reset.',
+          'Accepts an email address and creates a one-time password reset token when the account exists. The response stays generic to avoid revealing whether the email exists. In non-production environments, the reset token is returned for local testing. In production, raw reset tokens are never returned in the API response and delivery is delegated to the configured backend delivery provider. If production delivery is unavailable, the endpoint fails closed with 503. Privileged accounts require an admin-assisted recovery process instead of self-service reset.',
         security: [],
         requestBody: {
           required: true,
@@ -1177,6 +1177,10 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
           '202': jsonResponse(
             { $ref: '#/components/schemas/PasswordResetRequestResponse' },
             'Password reset request accepted.',
+          ),
+          '503': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Password reset delivery is unavailable.',
           ),
           '422': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Validation error.'),
         },
@@ -1409,6 +1413,40 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         },
       },
     },
+    '/admin/users/mfa-compliance': {
+      get: {
+        tags: ['Admin'],
+        summary: 'Review privileged MFA compliance',
+        description:
+          'Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER users. Returns privileged-account MFA enrollment status for operational compliance review.',
+        security: apiKeyAndBearerSecurity,
+        responses: {
+          '200': jsonResponse(
+            { $ref: '#/components/schemas/PrivilegedMfaComplianceReport' },
+            'Privileged MFA compliance report.',
+          ),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+        },
+      },
+    },
+    '/admin/users/access-review': {
+      get: {
+        tags: ['Admin'],
+        summary: 'Review privileged account access posture',
+        description:
+          'Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER users. Returns privileged-account access-review data including MFA status, active-session counts, last session activity, and stale-account flags for periodic access review procedures.',
+        security: apiKeyAndBearerSecurity,
+        responses: {
+          '200': jsonResponse(
+            { $ref: '#/components/schemas/PrivilegedAccessReviewReport' },
+            'Privileged access review report.',
+          ),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+        },
+      },
+    },
     '/audit-logs': {
       get: {
         tags: ['AuditLog'],
@@ -1558,6 +1596,100 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
           role: { $ref: '#/components/schemas/UserRole' },
         },
         required: ['id', 'createdAt', 'updatedAt', 'name', 'email', 'role'],
+      },
+      PrivilegedMfaComplianceUser: {
+        allOf: [
+          { $ref: '#/components/schemas/UserSummary' },
+          {
+            type: 'object',
+            properties: {
+              mfaEnabled: { type: 'boolean' },
+              mfaEnabledAt: { type: 'string', format: 'date-time', nullable: true },
+              requiresMfa: { type: 'boolean' },
+              compliant: { type: 'boolean' },
+            },
+            required: ['mfaEnabled', 'mfaEnabledAt', 'requiresMfa', 'compliant'],
+          },
+        ],
+      },
+      PrivilegedMfaComplianceReport: {
+        type: 'object',
+        properties: {
+          summary: {
+            type: 'object',
+            properties: {
+              totalPrivilegedUsers: { type: 'integer' },
+              compliantUsers: { type: 'integer' },
+              nonCompliantUsers: { type: 'integer' },
+            },
+            required: ['totalPrivilegedUsers', 'compliantUsers', 'nonCompliantUsers'],
+          },
+          data: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/PrivilegedMfaComplianceUser' },
+          },
+        },
+        required: ['summary', 'data'],
+      },
+      PrivilegedAccessReviewUser: {
+        allOf: [
+          { $ref: '#/components/schemas/UserSummary' },
+          {
+            type: 'object',
+            properties: {
+              mfaEnabled: { type: 'boolean' },
+              mfaEnabledAt: { type: 'string', format: 'date-time', nullable: true },
+              requiresMfa: { type: 'boolean' },
+              activeSessionCount: { type: 'integer' },
+              hasActiveSessions: { type: 'boolean' },
+              lastSessionUsedAt: { type: 'string', format: 'date-time', nullable: true },
+              stale: { type: 'boolean' },
+              requiresReview: { type: 'boolean' },
+              reviewReasons: {
+                type: 'array',
+                items: { type: 'string' },
+              },
+            },
+            required: [
+              'mfaEnabled',
+              'mfaEnabledAt',
+              'requiresMfa',
+              'activeSessionCount',
+              'hasActiveSessions',
+              'lastSessionUsedAt',
+              'stale',
+              'requiresReview',
+              'reviewReasons',
+            ],
+          },
+        ],
+      },
+      PrivilegedAccessReviewReport: {
+        type: 'object',
+        properties: {
+          summary: {
+            type: 'object',
+            properties: {
+              totalPrivilegedUsers: { type: 'integer' },
+              usersRequiringReview: { type: 'integer' },
+              staleUsers: { type: 'integer' },
+              usersWithoutMfa: { type: 'integer' },
+              staleAfterDays: { type: 'integer' },
+            },
+            required: [
+              'totalPrivilegedUsers',
+              'usersRequiringReview',
+              'staleUsers',
+              'usersWithoutMfa',
+              'staleAfterDays',
+            ],
+          },
+          data: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/PrivilegedAccessReviewUser' },
+          },
+        },
+        required: ['summary', 'data'],
       },
       AuditLog: {
         type: 'object',
@@ -2215,7 +2347,15 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
                 fileName: { type: 'string' },
                 size: { type: 'integer' },
               },
-              required: ['bucket', 'objectPath', 'mediaUrl', 'accessUrl', 'contentType', 'fileName', 'size'],
+              required: [
+                'bucket',
+                'objectPath',
+                'mediaUrl',
+                'accessUrl',
+                'contentType',
+                'fileName',
+                'size',
+              ],
             },
           },
         },

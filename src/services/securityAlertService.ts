@@ -145,6 +145,18 @@ function buildImmediateRules(input: CreateAuditLogInput): SecurityAlertRule[] {
     });
   }
 
+  if (
+    input.action === 'password_reset_request' &&
+    input.outcome === 'failure' &&
+    metadata?.deliveryFailure === true
+  ) {
+    rules.push({
+      ruleId: 'password-reset-delivery-unavailable',
+      severity: 'high',
+      summary: 'Password reset delivery was unavailable during a public recovery request',
+    });
+  }
+
   if (input.action === 'password_reset_confirm' && input.outcome === 'success') {
     rules.push({
       ruleId: 'password-reset-confirmed',
@@ -174,9 +186,10 @@ function buildImmediateRules(input: CreateAuditLogInput): SecurityAlertRule[] {
   ) {
     rules.push({
       ruleId: 'user-role-changed',
-      severity: isPrivilegedRoleValue(managedUserRole) || isPrivilegedRoleValue(previousRole)
-        ? 'critical'
-        : 'high',
+      severity:
+        isPrivilegedRoleValue(managedUserRole) || isPrivilegedRoleValue(previousRole)
+          ? 'critical'
+          : 'high',
       summary: 'A user role assignment changed',
     });
   }
@@ -263,7 +276,10 @@ function buildEventPayload(input: CreateAuditLogInput) {
   };
 }
 
-async function sendSecurityAlert(input: CreateAuditLogInput, rule: SecurityAlertRule): Promise<void> {
+async function sendSecurityAlert(
+  input: CreateAuditLogInput,
+  rule: SecurityAlertRule,
+): Promise<void> {
   const webhookUrl = getSecurityAlertWebhookUrl();
   if (!webhookUrl) {
     return;
