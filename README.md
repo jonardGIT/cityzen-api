@@ -224,6 +224,7 @@ Centralized security alerting:
 
 - When `SECURITY_ALERT_WEBHOOK_URL` is configured, the backend forwards selected high-risk audit events to that webhook after the audit log is persisted.
 - Current alert rules cover repeated failed logins, repeated password reset requests, privileged self-service reset attempts blocked in production, successful password reset completions, and privileged MFA disable events.
+- Current alert rules also cover privileged user creation, user role changes, admin-triggered password resets, and user archive/delete events.
 - Alert forwarding is additive: requests do not fail if the monitoring webhook is unavailable, but the backend logs the alert-delivery failure locally.
 
 Security notes:

@@ -239,6 +239,16 @@ export async function createUser(req: Request, res: Response): Promise<void> {
       data: createData,
       select: userSelect,
     });
+
+    res.locals.auditMetadata = {
+      managedUserRole: normalizedRole,
+      privilegedTarget: ['SYSTEM_ADMIN', 'DEPARTMENT_MANAGER', 'SUPERVISOR', 'DISPATCHER'].includes(
+        normalizedRole,
+      ),
+      passwordChanged: password !== undefined,
+      authProvider: isSupabaseAuthEnabled() ? 'supabase' : 'local',
+    };
+
     res.status(201).json(newUser);
   } catch (error) {
     if (supabaseAuthUserId) {
@@ -367,6 +377,18 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
       select: userSelect,
     });
 
+    res.locals.auditMetadata = {
+      previousRole: existingUserRole,
+      managedUserRole: updatedUser.role,
+      privilegedTarget: ['SYSTEM_ADMIN', 'DEPARTMENT_MANAGER', 'SUPERVISOR', 'DISPATCHER'].includes(
+        updatedUser.role,
+      ),
+      roleChanged: normalizedRole !== null && normalizedRole !== existingUserRole,
+      emailChanged: normalizedEmail !== undefined && normalizedEmail !== existingUser.email,
+      passwordChanged: password !== undefined,
+      selfUpdate: isSelfUpdate,
+    };
+
     if (password !== undefined || normalizedRole !== null) {
       await revokeAllUserSessions(id);
     }
@@ -421,6 +443,15 @@ export async function deleteUser(req: Request, res: Response): Promise<void> {
   }
 
   await revokeAllUserSessions(id);
+
+  res.locals.auditMetadata = {
+    previousRole: existingUserRole,
+    managedUserRole: existingUserRole,
+    privilegedTarget: ['SYSTEM_ADMIN', 'DEPARTMENT_MANAGER', 'SUPERVISOR', 'DISPATCHER'].includes(
+      existingUserRole,
+    ),
+    archiveModeDelete: isArchiveEnabled(),
+  };
 
   if (isArchiveEnabled()) {
     await prisma.user.update({ where: { id }, data: { archivedAt: new Date() } });

@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import type { CreateAuditLogInput } from './auditLogService.js';
+import { MFA_REQUIRED_ROLES, type UserRole } from '../types/auth.js';
 
 type SecurityAlertSeverity = 'medium' | 'high' | 'critical';
 
@@ -21,6 +22,10 @@ type AlertWindow = {
 };
 
 const alertWindows = new Map<string, AlertWindow>();
+
+function isPrivilegedRoleValue(value: unknown): value is UserRole {
+  return typeof value === 'string' && MFA_REQUIRED_ROLES.includes(value as UserRole);
+}
 
 function getSecurityAlertWebhookUrl(): string | null {
   const value = process.env.SECURITY_ALERT_WEBHOOK_URL?.trim();
@@ -117,6 +122,8 @@ function buildThresholdAlert(
 function buildImmediateRules(input: CreateAuditLogInput): SecurityAlertRule[] {
   const metadata = isObject(input.metadata) ? (input.metadata as Prisma.InputJsonObject) : null;
   const rules: SecurityAlertRule[] = [];
+  const managedUserRole = metadata?.managedUserRole;
+  const previousRole = metadata?.previousRole;
 
   if (input.action === 'mfa_disable' && input.outcome === 'success') {
     rules.push({
@@ -143,6 +150,59 @@ function buildImmediateRules(input: CreateAuditLogInput): SecurityAlertRule[] {
       ruleId: 'password-reset-confirmed',
       severity: 'medium',
       summary: 'A password reset completed successfully',
+    });
+  }
+
+  if (
+    input.resource === 'users' &&
+    input.action === 'create' &&
+    input.outcome === 'success' &&
+    isPrivilegedRoleValue(managedUserRole)
+  ) {
+    rules.push({
+      ruleId: 'privileged-user-created',
+      severity: 'high',
+      summary: 'A privileged user account was created',
+    });
+  }
+
+  if (
+    input.resource === 'users' &&
+    input.action === 'update' &&
+    input.outcome === 'success' &&
+    metadata?.roleChanged === true
+  ) {
+    rules.push({
+      ruleId: 'user-role-changed',
+      severity: isPrivilegedRoleValue(managedUserRole) || isPrivilegedRoleValue(previousRole)
+        ? 'critical'
+        : 'high',
+      summary: 'A user role assignment changed',
+    });
+  }
+
+  if (
+    input.resource === 'users' &&
+    input.action === 'update' &&
+    input.outcome === 'success' &&
+    metadata?.passwordChanged === true &&
+    metadata?.selfUpdate !== true
+  ) {
+    rules.push({
+      ruleId: 'admin-password-reset',
+      severity: 'high',
+      summary: 'An administrator changed another user password',
+    });
+  }
+
+  if (input.resource === 'users' && input.action === 'delete' && input.outcome === 'success') {
+    rules.push({
+      ruleId: metadata?.archiveModeDelete === true ? 'user-archived' : 'user-deleted',
+      severity: isPrivilegedRoleValue(managedUserRole) ? 'critical' : 'high',
+      summary:
+        metadata?.archiveModeDelete === true
+          ? 'A user account was archived'
+          : 'A user account was deleted',
     });
   }
 

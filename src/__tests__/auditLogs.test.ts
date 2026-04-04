@@ -222,6 +222,38 @@ describe('Audit log persistence', () => {
     });
   });
 
+  it('forwards a security alert when a privileged user account is created', async () => {
+    process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
+
+    const originalFetch = global.fetch;
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const createRes = await request(app)
+      .post(`${API_V1}/users`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: `Alerted Dispatcher ${Date.now()}`,
+        email: `alert.dispatcher.${Date.now()}@postman.local`,
+        password: 'Password1234!@#',
+        role: 'DISPATCHER',
+      });
+
+    global.fetch = originalFetch;
+
+    expect(createRes.status).toBe(201);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')) as Record<
+      string,
+      unknown
+    >;
+    expect(payload).toMatchObject({
+      type: 'security-alert',
+      ruleId: 'privileged-user-created',
+      severity: 'high',
+    });
+  });
+
   it('records failed login attempts without storing secrets', async () => {
     const actorEmail = `missing.${Date.now()}@xypes.local`;
     const loginRes = await request(app).post(`${API_V1}/auth/login`).send({
@@ -365,6 +397,60 @@ describe('Audit log persistence', () => {
       type: 'security-alert',
       ruleId: 'privileged-password-reset-blocked',
       severity: 'high',
+    });
+  });
+
+  it('forwards critical alerts for privileged role changes and archives', async () => {
+    process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
+
+    const originalFetch = global.fetch;
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const createRes = await request(app)
+      .post(`${API_V1}/users`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: `Role Change User ${Date.now()}`,
+        email: `role.change.${Date.now()}@postman.local`,
+        password: 'Password1234!@#',
+        role: 'CITIZEN_REPORTER',
+      });
+
+    expect(createRes.status).toBe(201);
+
+    const updateRes = await request(app)
+      .patch(`${API_V1}/users/${createRes.body.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ role: 'DISPATCHER' });
+
+    expect(updateRes.status).toBe(200);
+
+    const deleteRes = await request(app)
+      .delete(`${API_V1}/users/${createRes.body.id}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    global.fetch = originalFetch;
+
+    expect(deleteRes.status).toBe(204);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const updatePayload = JSON.parse(
+      String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}'),
+    ) as Record<string, unknown>;
+    expect(updatePayload).toMatchObject({
+      type: 'security-alert',
+      ruleId: 'user-role-changed',
+      severity: 'critical',
+    });
+
+    const deletePayload = JSON.parse(
+      String(fetchMock.mock.calls[1]?.[1]?.body ?? '{}'),
+    ) as Record<string, unknown>;
+    expect(deletePayload).toMatchObject({
+      type: 'security-alert',
+      ruleId: 'user-archived',
+      severity: 'critical',
     });
   });
 
