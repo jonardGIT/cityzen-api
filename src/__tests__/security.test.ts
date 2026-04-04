@@ -196,6 +196,58 @@ describe('Endpoint-specific rate limiting', () => {
   });
 });
 
+describe('Shared-store rate limiting', () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(async () => {
+    jest.resetModules();
+    process.env = { ...originalEnv };
+    delete process.env.API_KEYS;
+    delete process.env.API_KEY;
+    process.env.RATE_LIMIT_ENABLED = 'true';
+    process.env.RATE_LIMIT_STORE = 'database';
+    process.env.RATE_LIMIT_WINDOW_MS = '60000';
+    process.env.RATE_LIMIT_MAX_REQUESTS = '100';
+    process.env.AUTH_LOGIN_RATE_LIMIT_WINDOW_MS = '60000';
+    process.env.AUTH_LOGIN_RATE_LIMIT_MAX_REQUESTS = '2';
+
+    const { default: prisma } = await import('../lib/prisma.js');
+    await prisma.$executeRawUnsafe('TRUNCATE TABLE rate_limit_buckets');
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
+  });
+
+  it('persists login throttle buckets in the database-backed limiter', async () => {
+    const { default: app, API_V1 } = await import('../app.js');
+
+    const first = await request(app).post(`${API_V1}/auth/login`).send({
+      email: 'admin@xypes.local',
+      password: 'WrongPassword!',
+    });
+    const second = await request(app).post(`${API_V1}/auth/login`).send({
+      email: 'admin@xypes.local',
+      password: 'WrongPassword!',
+    });
+    const third = await request(app).post(`${API_V1}/auth/login`).send({
+      email: 'admin@xypes.local',
+      password: 'WrongPassword!',
+    });
+
+    const { default: prisma } = await import('../lib/prisma.js');
+    const rows = await prisma.$queryRawUnsafe<Array<{ bucketCount: number | bigint }>>(
+      "SELECT COUNT(*)::bigint AS \"bucketCount\" FROM rate_limit_buckets WHERE \"bucketKey\" LIKE 'auth-login:%'",
+    );
+
+    expect(first.status).toBe(401);
+    expect(second.status).toBe(401);
+    expect(third.status).toBe(429);
+    expect(third.headers['x-ratelimit-limit']).toBe('2');
+    expect(Number(rows[0]?.bucketCount ?? 0)).toBe(1);
+  });
+});
+
 describe('Production privileged MFA enforcement', () => {
   const originalEnv = { ...process.env };
 

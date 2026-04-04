@@ -116,6 +116,7 @@ DATABASE_URL=postgresql://postgres:<password>@aws-<region>.pooler.supabase.com:6
 DIRECT_URL=postgresql://postgres:<password>@db.<project-ref>.supabase.co:5432/postgres
 API_KEYS=local-dev-key
 RATE_LIMIT_ENABLED=true
+RATE_LIMIT_STORE=memory
 RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX_REQUESTS=100
 JWT_SECRET=replace-with-a-long-random-secret
@@ -167,6 +168,7 @@ Important variables:
 - `API_KEYS`: comma-separated allowed API keys.
 - `API_KEY`: optional single-key fallback if `API_KEYS` is not set.
 - `RATE_LIMIT_ENABLED`, `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX_REQUESTS`: request throttling controls.
+- `RATE_LIMIT_STORE`: optional rate-limit backend. Use `database` for shared counters across multiple API instances. Defaults to `database` in production and `memory` elsewhere.
 - `AUTH_LOGIN_RATE_LIMIT_WINDOW_MS`, `AUTH_LOGIN_RATE_LIMIT_MAX_REQUESTS`: optional tighter login throttle. Defaults to 60 seconds and 5 attempts per client-plus-email.
 - `AUTH_REFRESH_RATE_LIMIT_WINDOW_MS`, `AUTH_REFRESH_RATE_LIMIT_MAX_REQUESTS`: optional tighter refresh throttle. Defaults to 60 seconds and 10 attempts per client.
 - `AUTH_PASSWORD_RESET_REQUEST_RATE_LIMIT_WINDOW_MS`, `AUTH_PASSWORD_RESET_REQUEST_RATE_LIMIT_MAX_REQUESTS`: optional tighter password reset request throttle. Defaults to 1 hour and 5 attempts per client-plus-email.
@@ -241,6 +243,10 @@ If you are enabling revocable server-side auth sessions on an existing database,
 If you are enabling privileged-role MFA on an existing database, also run:
 
 1. `prisma/add-user-mfa.sql`
+
+If you are enabling shared database-backed rate limiting on an existing database, also run:
+
+1. `prisma/add-rate-limit-buckets.sql`
 
 If you are enabling Supabase-managed email/password auth on an existing database, also run:
 

@@ -1,4 +1,5 @@
-import type { Request, RequestHandler } from 'express';
+import type { Request, RequestHandler, Response } from 'express';
+import prisma from '../lib/prisma.js';
 
 type ClientWindow = {
   count: number;
@@ -9,6 +10,7 @@ type RateLimitKeyGenerator = (req: Request) => string;
 
 type ScopedRateLimitOptions = {
   enabled: boolean;
+  scope: string;
   windowMs: number;
   maxRequests: number;
   keyGenerator?: RateLimitKeyGenerator;
@@ -16,6 +18,7 @@ type ScopedRateLimitOptions = {
 
 type EnvScopedRateLimitOptions = {
   enabledEnvVar?: string;
+  scope: string;
   windowMsEnvVar: string;
   maxRequestsEnvVar: string;
   defaultWindowMs: number;
@@ -23,8 +26,34 @@ type EnvScopedRateLimitOptions = {
   keyGenerator?: RateLimitKeyGenerator;
 };
 
+type RateLimitDecision = {
+  allowed: boolean;
+  remaining: number;
+  resetAt: number;
+  retryAfterSeconds?: number;
+};
+
+type RateLimitStoreOptions = {
+  scope: string;
+  windowMs: number;
+  maxRequests: number;
+};
+
+type RateLimitStore = {
+  increment(key: string, options: RateLimitStoreOptions): Promise<RateLimitDecision>;
+};
+
+type RateLimitBucketRow = {
+  count: number | bigint;
+  resetAtMs: number | bigint;
+};
+
 const DEFAULT_WINDOW_MS = 60_000;
 const DEFAULT_MAX_REQUESTS = 100;
+const DATABASE_BUCKET_CLEANUP_INTERVAL_MS = 300_000;
+
+let lastDatabaseBucketCleanupAt = 0;
+let hasLoggedDatabaseLimiterFallback = false;
 
 // Parses a positive integer from env, falling back to a safe default.
 function toPositiveInteger(value: string | undefined, fallback: number): number {
@@ -77,8 +106,147 @@ function getClientId(req: Request): string {
   return req.ip || req.socket.remoteAddress || 'unknown';
 }
 
+function getBucketKey(scope: string, key: string): string {
+  return `${scope}:${key}`;
+}
+
+function toNumber(value: number | bigint): number {
+  return typeof value === 'bigint' ? Number(value) : value;
+}
+
+function getRateLimitStoreMode(): 'memory' | 'database' {
+  const configured = process.env.RATE_LIMIT_STORE?.trim().toLowerCase();
+
+  if (configured === 'memory' || configured === 'database') {
+    return configured;
+  }
+
+  return process.env.NODE_ENV === 'production' ? 'database' : 'memory';
+}
+
+async function maybePruneExpiredDatabaseBuckets(): Promise<void> {
+  const now = Date.now();
+
+  if (now - lastDatabaseBucketCleanupAt < DATABASE_BUCKET_CLEANUP_INTERVAL_MS) {
+    return;
+  }
+
+  lastDatabaseBucketCleanupAt = now;
+  await prisma.$executeRawUnsafe('DELETE FROM rate_limit_buckets WHERE "expiresAt" <= NOW()');
+}
+
+class MemoryRateLimitStore implements RateLimitStore {
+  private readonly clients = new Map<string, ClientWindow>();
+
+  async increment(key: string, options: RateLimitStoreOptions): Promise<RateLimitDecision> {
+    const bucketKey = getBucketKey(options.scope, key);
+    const now = Date.now();
+    const existing = this.clients.get(bucketKey);
+
+    if (!existing || now - existing.windowStart >= options.windowMs) {
+      this.clients.set(bucketKey, { count: 1, windowStart: now });
+      return {
+        allowed: true,
+        remaining: options.maxRequests - 1,
+        resetAt: now + options.windowMs,
+      };
+    }
+
+    existing.count += 1;
+    this.clients.set(bucketKey, existing);
+
+    const resetAt = existing.windowStart + options.windowMs;
+    const allowed = existing.count <= options.maxRequests;
+
+    return {
+      allowed,
+      remaining: Math.max(0, options.maxRequests - existing.count),
+      resetAt,
+      retryAfterSeconds: allowed ? undefined : Math.max(1, Math.ceil((resetAt - now) / 1000)),
+    };
+  }
+}
+
+class DatabaseRateLimitStore implements RateLimitStore {
+  constructor(private readonly fallbackStore: RateLimitStore) {}
+
+  async increment(key: string, options: RateLimitStoreOptions): Promise<RateLimitDecision> {
+    const bucketKey = getBucketKey(options.scope, key);
+    const now = Date.now();
+    const resetAt = now + options.windowMs;
+
+    try {
+      await maybePruneExpiredDatabaseBuckets();
+
+      const rows = await prisma.$queryRawUnsafe<RateLimitBucketRow[]>(
+        `INSERT INTO rate_limit_buckets ("bucketKey", count, "windowStart", "expiresAt")
+         VALUES ($1, 1, to_timestamp($2 / 1000.0), to_timestamp($3 / 1000.0))
+         ON CONFLICT ("bucketKey") DO UPDATE
+         SET count = CASE
+             WHEN rate_limit_buckets."expiresAt" <= to_timestamp($2 / 1000.0) THEN 1
+             ELSE rate_limit_buckets.count + 1
+           END,
+           "windowStart" = CASE
+             WHEN rate_limit_buckets."expiresAt" <= to_timestamp($2 / 1000.0)
+               THEN to_timestamp($2 / 1000.0)
+             ELSE rate_limit_buckets."windowStart"
+           END,
+           "expiresAt" = CASE
+             WHEN rate_limit_buckets."expiresAt" <= to_timestamp($2 / 1000.0)
+               THEN to_timestamp($3 / 1000.0)
+             ELSE rate_limit_buckets."expiresAt"
+           END,
+           "updatedAt" = NOW()
+         RETURNING count,
+           CAST(EXTRACT(EPOCH FROM "expiresAt") * 1000 AS bigint) AS "resetAtMs"`,
+        bucketKey,
+        now,
+        resetAt,
+      );
+
+      const [row] = rows;
+
+      if (!row) {
+        throw new Error('Database rate-limit increment returned no rows');
+      }
+
+      const count = toNumber(row.count);
+      const persistedResetAt = toNumber(row.resetAtMs);
+      const allowed = count <= options.maxRequests;
+
+      return {
+        allowed,
+        remaining: Math.max(0, options.maxRequests - count),
+        resetAt: persistedResetAt,
+        retryAfterSeconds: allowed
+          ? undefined
+          : Math.max(1, Math.ceil((persistedResetAt - now) / 1000)),
+      };
+    } catch (error) {
+      if (!hasLoggedDatabaseLimiterFallback) {
+        hasLoggedDatabaseLimiterFallback = true;
+        const message = error instanceof Error ? error.message : 'unknown error';
+        console.warn(
+          `Falling back to in-memory rate limiting because the database-backed store is unavailable: ${message}`,
+        );
+      }
+
+      return this.fallbackStore.increment(key, options);
+    }
+  }
+}
+
+const sharedMemoryRateLimitStore = new MemoryRateLimitStore();
+const sharedDatabaseRateLimitStore = new DatabaseRateLimitStore(sharedMemoryRateLimitStore);
+
+function createRateLimitStore(): RateLimitStore {
+  return getRateLimitStoreMode() === 'database'
+    ? sharedDatabaseRateLimitStore
+    : sharedMemoryRateLimitStore;
+}
+
 function applyRateLimitHeaders(
-  res: Request['res'] extends infer _T ? any : never,
+  res: Response,
   limit: number,
   remaining: number,
   resetAt: number,
@@ -95,50 +263,36 @@ function buildScopedRateLimitMiddleware(options: ScopedRateLimitOptions): Reques
     };
   }
 
-  const clients = new Map<string, ClientWindow>();
   const keyGenerator = options.keyGenerator ?? getClientId;
+  const store = createRateLimitStore();
 
-  return (req, res, next) => {
-    const now = Date.now();
-    const clientId = keyGenerator(req);
-    const existing = clients.get(clientId);
+  return async (req, res, next) => {
+    try {
+      const decision = await store.increment(keyGenerator(req), {
+        scope: options.scope,
+        windowMs: options.windowMs,
+        maxRequests: options.maxRequests,
+      });
 
-    if (!existing || now - existing.windowStart >= options.windowMs) {
-      clients.set(clientId, { count: 1, windowStart: now });
       applyRateLimitHeaders(
         res,
         options.maxRequests,
-        options.maxRequests - 1,
-        now + options.windowMs,
+        decision.remaining,
+        decision.resetAt,
       );
+
+      if (!decision.allowed) {
+        res.setHeader('Retry-After', (decision.retryAfterSeconds ?? 1).toString());
+        res.status(429).json({
+          message: 'Too many requests, please try again later',
+        });
+        return;
+      }
+
       next();
-      return;
+    } catch (error) {
+      next(error);
     }
-
-    if (existing.count >= options.maxRequests) {
-      const retryAfterSeconds = Math.max(
-        1,
-        Math.ceil((options.windowMs - (now - existing.windowStart)) / 1000),
-      );
-
-      applyRateLimitHeaders(res, options.maxRequests, 0, existing.windowStart + options.windowMs);
-      res.setHeader('Retry-After', retryAfterSeconds.toString());
-      res.status(429).json({
-        message: 'Too many requests, please try again later',
-      });
-      return;
-    }
-
-    existing.count += 1;
-    clients.set(clientId, existing);
-    applyRateLimitHeaders(
-      res,
-      options.maxRequests,
-      options.maxRequests - existing.count,
-      existing.windowStart + options.windowMs,
-    );
-
-    next();
   };
 }
 
@@ -150,6 +304,7 @@ export function createEnvRateLimitMiddleware(options: EnvScopedRateLimitOptions)
 
   return buildScopedRateLimitMiddleware({
     enabled,
+    scope: options.scope,
     windowMs: toPositiveInteger(process.env[options.windowMsEnvVar], options.defaultWindowMs),
     maxRequests: toPositiveInteger(
       process.env[options.maxRequestsEnvVar],
@@ -169,6 +324,7 @@ export function createRateLimitMiddleware(
 
   const baseLimiter = buildScopedRateLimitMiddleware({
     enabled,
+    scope: 'api-global',
     windowMs,
     maxRequests,
   });

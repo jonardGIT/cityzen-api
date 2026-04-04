@@ -14,6 +14,9 @@ beforeAll(async () => {
     'CREATE TABLE IF NOT EXISTS password_reset_tokens (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), "createdAt" timestamptz NOT NULL DEFAULT NOW(), "updatedAt" timestamptz NOT NULL DEFAULT NOW(), "userId" uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE, "tokenHash" text NOT NULL UNIQUE, "expiresAt" timestamptz NOT NULL, "usedAt" timestamptz)',
   );
   await prisma.$executeRawUnsafe(
+    'CREATE TABLE IF NOT EXISTS rate_limit_buckets (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), "createdAt" timestamptz NOT NULL DEFAULT NOW(), "updatedAt" timestamptz NOT NULL DEFAULT NOW(), "bucketKey" text NOT NULL UNIQUE, count integer NOT NULL, "windowStart" timestamptz NOT NULL, "expiresAt" timestamptz NOT NULL)',
+  );
+  await prisma.$executeRawUnsafe(
     'CREATE TABLE IF NOT EXISTS statuses (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), "createdAt" timestamptz NOT NULL DEFAULT NOW(), "updatedAt" timestamptz NOT NULL DEFAULT NOW(), name text NOT NULL)',
   );
   await prisma.$executeRawUnsafe(
@@ -161,6 +164,9 @@ beforeAll(async () => {
     'CREATE INDEX IF NOT EXISTS password_reset_tokens_used_at_idx ON password_reset_tokens ("usedAt")',
   );
   await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS rate_limit_buckets_expires_at_idx ON rate_limit_buckets ("expiresAt")',
+  );
+  await prisma.$executeRawUnsafe(
     'CREATE OR REPLACE FUNCTION set_updated_at() RETURNS TRIGGER AS $$ BEGIN NEW."updatedAt" = NOW(); RETURN NEW; END; $$ LANGUAGE plpgsql',
   );
   await prisma.$executeRawUnsafe(`
@@ -176,6 +182,13 @@ beforeAll(async () => {
       IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'set_password_reset_tokens_updated_at') THEN
         CREATE TRIGGER set_password_reset_tokens_updated_at
         BEFORE UPDATE ON password_reset_tokens
+        FOR EACH ROW
+        EXECUTE FUNCTION set_updated_at();
+      END IF;
+
+      IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'set_rate_limit_buckets_updated_at') THEN
+        CREATE TRIGGER set_rate_limit_buckets_updated_at
+        BEFORE UPDATE ON rate_limit_buckets
         FOR EACH ROW
         EXECUTE FUNCTION set_updated_at();
       END IF;

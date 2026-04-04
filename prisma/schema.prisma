@@ -65,6 +65,19 @@ model PasswordResetToken {
   @@map("password_reset_tokens")
 }
 
+model RateLimitBucket {
+  id          String   @id @default(uuid()) @db.Uuid
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  bucketKey   String   @unique
+  count       Int
+  windowStart DateTime
+  expiresAt   DateTime
+
+  @@index([expiresAt])
+  @@map("rate_limit_buckets")
+}
+
 model AuditLog {
   id          String   @id @default(uuid()) @db.Uuid
   createdAt   DateTime @default(now())

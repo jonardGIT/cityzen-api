@@ -37,6 +37,7 @@ function buildAuthenticatedUserScopedKey(req: Request): string {
 }
 
 const loginRateLimit = createEnvRateLimitMiddleware({
+  scope: 'auth-login',
   windowMsEnvVar: 'AUTH_LOGIN_RATE_LIMIT_WINDOW_MS',
   maxRequestsEnvVar: 'AUTH_LOGIN_RATE_LIMIT_MAX_REQUESTS',
   defaultWindowMs: 60_000,
@@ -44,6 +45,7 @@ const loginRateLimit = createEnvRateLimitMiddleware({
   keyGenerator: buildEmailScopedKey,
 });
 const refreshRateLimit = createEnvRateLimitMiddleware({
+  scope: 'auth-refresh',
   windowMsEnvVar: 'AUTH_REFRESH_RATE_LIMIT_WINDOW_MS',
   maxRequestsEnvVar: 'AUTH_REFRESH_RATE_LIMIT_MAX_REQUESTS',
   defaultWindowMs: 60_000,
@@ -51,6 +53,7 @@ const refreshRateLimit = createEnvRateLimitMiddleware({
   keyGenerator: buildIpScopedKey,
 });
 const passwordResetRequestRateLimit = createEnvRateLimitMiddleware({
+  scope: 'auth-password-reset-request',
   windowMsEnvVar: 'AUTH_PASSWORD_RESET_REQUEST_RATE_LIMIT_WINDOW_MS',
   maxRequestsEnvVar: 'AUTH_PASSWORD_RESET_REQUEST_RATE_LIMIT_MAX_REQUESTS',
   defaultWindowMs: 3_600_000,
@@ -58,6 +61,7 @@ const passwordResetRequestRateLimit = createEnvRateLimitMiddleware({
   keyGenerator: buildEmailScopedKey,
 });
 const passwordResetConfirmRateLimit = createEnvRateLimitMiddleware({
+  scope: 'auth-password-reset-confirm',
   windowMsEnvVar: 'AUTH_PASSWORD_RESET_CONFIRM_RATE_LIMIT_WINDOW_MS',
   maxRequestsEnvVar: 'AUTH_PASSWORD_RESET_CONFIRM_RATE_LIMIT_MAX_REQUESTS',
   defaultWindowMs: 900_000,
@@ -65,6 +69,7 @@ const passwordResetConfirmRateLimit = createEnvRateLimitMiddleware({
   keyGenerator: buildIpScopedKey,
 });
 const mfaSetupRateLimit = createEnvRateLimitMiddleware({
+  scope: 'auth-mfa-setup',
   windowMsEnvVar: 'AUTH_MFA_SETUP_RATE_LIMIT_WINDOW_MS',
   maxRequestsEnvVar: 'AUTH_MFA_SETUP_RATE_LIMIT_MAX_REQUESTS',
   defaultWindowMs: 600_000,
@@ -72,6 +77,7 @@ const mfaSetupRateLimit = createEnvRateLimitMiddleware({
   keyGenerator: buildAuthenticatedUserScopedKey,
 });
 const mfaEnableRateLimit = createEnvRateLimitMiddleware({
+  scope: 'auth-mfa-enable',
   windowMsEnvVar: 'AUTH_MFA_ENABLE_RATE_LIMIT_WINDOW_MS',
   maxRequestsEnvVar: 'AUTH_MFA_ENABLE_RATE_LIMIT_MAX_REQUESTS',
   defaultWindowMs: 600_000,
@@ -79,6 +85,7 @@ const mfaEnableRateLimit = createEnvRateLimitMiddleware({
   keyGenerator: buildAuthenticatedUserScopedKey,
 });
 const mfaDisableRateLimit = createEnvRateLimitMiddleware({
+  scope: 'auth-mfa-disable',
   windowMsEnvVar: 'AUTH_MFA_DISABLE_RATE_LIMIT_WINDOW_MS',
   maxRequestsEnvVar: 'AUTH_MFA_DISABLE_RATE_LIMIT_MAX_REQUESTS',
   defaultWindowMs: 600_000,

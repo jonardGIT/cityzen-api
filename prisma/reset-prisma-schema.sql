@@ -13,6 +13,7 @@ DROP TABLE IF EXISTS categories CASCADE;
 DROP TABLE IF EXISTS severities CASCADE;
 DROP TABLE IF EXISTS password_reset_tokens CASCADE;
 DROP TABLE IF EXISTS auth_sessions CASCADE;
+DROP TABLE IF EXISTS rate_limit_buckets CASCADE;
 DROP TABLE IF EXISTS audit_logs CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS "User" CASCADE;
@@ -68,6 +69,16 @@ CREATE TABLE password_reset_tokens (
   "tokenHash" text NOT NULL UNIQUE,
   "expiresAt" timestamptz NOT NULL,
   "usedAt" timestamptz
+);
+
+CREATE TABLE rate_limit_buckets (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  "createdAt" timestamptz NOT NULL DEFAULT NOW(),
+  "updatedAt" timestamptz NOT NULL DEFAULT NOW(),
+  "bucketKey" text NOT NULL UNIQUE,
+  count integer NOT NULL,
+  "windowStart" timestamptz NOT NULL,
+  "expiresAt" timestamptz NOT NULL
 );
 
 CREATE TABLE citizens (
@@ -209,6 +220,7 @@ CREATE INDEX auth_sessions_revoked_at_idx ON auth_sessions ("revokedAt");
 CREATE INDEX password_reset_tokens_user_id_idx ON password_reset_tokens ("userId");
 CREATE INDEX password_reset_tokens_expires_at_idx ON password_reset_tokens ("expiresAt");
 CREATE INDEX password_reset_tokens_used_at_idx ON password_reset_tokens ("usedAt");
+CREATE INDEX rate_limit_buckets_expires_at_idx ON rate_limit_buckets ("expiresAt");
 CREATE INDEX audit_logs_timestamp_idx ON audit_logs (timestamp);
 CREATE INDEX audit_logs_actor_email_idx ON audit_logs ("actorEmail");
 CREATE INDEX audit_logs_resource_idx ON audit_logs (resource);
@@ -252,6 +264,11 @@ EXECUTE FUNCTION set_updated_at();
 
 CREATE TRIGGER set_password_reset_tokens_updated_at
 BEFORE UPDATE ON password_reset_tokens
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER set_rate_limit_buckets_updated_at
+BEFORE UPDATE ON rate_limit_buckets
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 

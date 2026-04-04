@@ -33,6 +33,7 @@ function buildAuthenticatedUserScopedKey(req: Request): string {
 }
 
 const incidentMediaUploadRateLimit = createEnvRateLimitMiddleware({
+  scope: 'incident-media-upload',
   windowMsEnvVar: 'INCIDENT_MEDIA_UPLOAD_RATE_LIMIT_WINDOW_MS',
   maxRequestsEnvVar: 'INCIDENT_MEDIA_UPLOAD_RATE_LIMIT_MAX_REQUESTS',
   defaultWindowMs: 600_000,
