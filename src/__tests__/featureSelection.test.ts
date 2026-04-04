@@ -68,7 +68,9 @@ describe('feature selection', () => {
     const userListParameters = document.paths['/users']?.get?.parameters;
     expect(userListParameters).toBeDefined();
     expect(
-      userListParameters?.some((parameter) => !('$ref' in parameter) && parameter.name === 'includeArchived'),
+      userListParameters?.some(
+        (parameter) => !('$ref' in parameter) && parameter.name === 'includeArchived',
+      ),
     ).toBe(false);
   });
 

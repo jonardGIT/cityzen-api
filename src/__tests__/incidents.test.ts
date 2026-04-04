@@ -246,13 +246,15 @@ describe(`POST ${BASE}/media/upload`, () => {
       return;
     }
 
-    jest.spyOn(supabaseStorageService, 'uploadIncidentMedia').mockRejectedValueOnce(
-      new supabaseStorageService.SupabaseStorageServiceError(
-        'SUPABASE_STORAGE_DISABLED',
-        'Supabase Storage is disabled for this environment',
-        503,
-      ),
-    );
+    jest
+      .spyOn(supabaseStorageService, 'uploadIncidentMedia')
+      .mockRejectedValueOnce(
+        new supabaseStorageService.SupabaseStorageServiceError(
+          'SUPABASE_STORAGE_DISABLED',
+          'Supabase Storage is disabled for this environment',
+          503,
+        ),
+      );
 
     const res = await request(app)
       .post(`${BASE}/media/upload`)
