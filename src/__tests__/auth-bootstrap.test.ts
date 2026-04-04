@@ -209,14 +209,23 @@ describe('Auth bootstrap endpoints', () => {
   });
 
   it('GET /auth/sessions should list active sessions and mark the current one', async () => {
-    const firstLogin = await request(app).post(`${API_V1}/auth/login`).send({
-      email: 'admin@xypes.local',
-      password: 'Password123!',
-    });
-    const secondLogin = await request(app).post(`${API_V1}/auth/login`).send({
-      email: 'admin@xypes.local',
-      password: 'Password123!',
-    });
+    const firstLogin = await request(app)
+      .post(`${API_V1}/auth/login`)
+      .set('User-Agent', 'curl/8.7.1')
+      .send({
+        email: 'admin@xypes.local',
+        password: 'Password123!',
+      });
+    const secondLogin = await request(app)
+      .post(`${API_V1}/auth/login`)
+      .set(
+        'User-Agent',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36',
+      )
+      .send({
+        email: 'admin@xypes.local',
+        password: 'Password123!',
+      });
 
     expect(firstLogin.status).toBe(200);
     expect(secondLogin.status).toBe(200);
@@ -228,12 +237,38 @@ describe('Auth bootstrap endpoints', () => {
     expect(sessions.status).toBe(200);
     expect(Array.isArray(sessions.body)).toBe(true);
     expect(
+      sessions.body.some(
+        (session: {
+          id: string;
+          status: string;
+          browserFamily: string | null;
+          deviceLabel: string | null;
+        }) =>
+          session.id === firstLogin.body.sessionId &&
+          session.status === 'active' &&
+          session.browserFamily === 'curl' &&
+          session.deviceLabel === 'curl',
+      ),
+    ).toBe(true);
+    expect(
       sessions.body.some((session: { id: string }) => session.id === firstLogin.body.sessionId),
     ).toBe(true);
     expect(
       sessions.body.some(
-        (session: { id: string; isCurrent: boolean }) =>
-          session.id === secondLogin.body.sessionId && session.isCurrent,
+        (session: {
+          id: string;
+          isCurrent: boolean;
+          browserFamily: string | null;
+          osFamily: string | null;
+          deviceLabel: string | null;
+          status: string;
+        }) =>
+          session.id === secondLogin.body.sessionId &&
+          session.isCurrent &&
+          session.browserFamily === 'Chrome' &&
+          session.osFamily === 'Linux' &&
+          session.deviceLabel === 'Chrome on Linux' &&
+          session.status === 'active',
       ),
     ).toBe(true);
   });

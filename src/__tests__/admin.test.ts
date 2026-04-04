@@ -40,9 +40,22 @@ describe('admin access review', () => {
   it(`allows SYSTEM_ADMIN to read ${API_V1}/admin/users/access-review`, async () => {
     process.env.ADMIN_ACCESS_REVIEW_STALE_DAYS = '30';
 
+    const adminLogin = await request(app)
+      .post(`${API_V1}/auth/login`)
+      .set(
+        'User-Agent',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/123.0.0.0 Safari/537.36',
+      )
+      .send({
+        email: 'admin@xypes.local',
+        password: 'Password123!',
+      });
+
+    expect(adminLogin.status).toBe(200);
+
     const response = await request(app)
       .get(`${API_V1}/admin/users/access-review`)
-      .set('Authorization', `Bearer ${adminToken}`);
+      .set('Authorization', `Bearer ${adminLogin.body.token}`);
 
     expect(response.status).toBe(200);
     expect(response.body.summary).toMatchObject({
@@ -72,6 +85,16 @@ describe('admin access review', () => {
       role: 'SYSTEM_ADMIN',
       hasActiveSessions: true,
       activeSessionCount: expect.any(Number),
+      latestSessionUserAgent: expect.any(String),
+      latestSessionBrowserFamily: 'Chrome',
+      latestSessionOsFamily: 'Windows',
+      latestSessionDeviceLabel: 'Chrome on Windows',
+    });
+
+    expect(flaggedUser).toMatchObject({
+      latestSessionUserAgent: null,
+      latestSessionIpAddress: null,
+      latestSessionDeviceLabel: null,
     });
   });
 

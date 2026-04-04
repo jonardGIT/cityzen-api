@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'crypto';
 import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma.js';
 import { normalizeUserRoleInput, type UserRole } from '../types/auth.js';
+import { getAuthSessionStatus, getSessionMetadata, type SessionStatus } from '../utils/sessionMetadata.js';
 
 const ACCESS_TOKEN_TTL_HOURS = 12;
 const REFRESH_TOKEN_TTL_DAYS = 30;
@@ -25,6 +26,10 @@ interface AuthSessionRecord {
   lastUsedAt: string | null;
   userAgent: string | null;
   ipAddress: string | null;
+  browserFamily: string | null;
+  osFamily: string | null;
+  deviceLabel: string | null;
+  status: SessionStatus;
 }
 
 function getJwtSecret(): string {
@@ -199,6 +204,7 @@ export async function revokeAllUserSessions(userId: string): Promise<void> {
 }
 
 export async function listAuthSessionsForUser(userId: string): Promise<AuthSessionRecord[]> {
+  const now = new Date();
   const sessions = await prisma.authSession.findMany({
     where: { userId },
     orderBy: [{ revokedAt: 'asc' }, { lastUsedAt: 'desc' }, { createdAt: 'desc' }],
@@ -217,6 +223,7 @@ export async function listAuthSessionsForUser(userId: string): Promise<AuthSessi
   });
 
   return sessions.map((session) => ({
+    ...getSessionMetadata(session.userAgent),
     id: session.id,
     createdAt: session.createdAt.toISOString(),
     updatedAt: session.updatedAt.toISOString(),
@@ -227,6 +234,11 @@ export async function listAuthSessionsForUser(userId: string): Promise<AuthSessi
     lastUsedAt: session.lastUsedAt?.toISOString() ?? null,
     userAgent: session.userAgent,
     ipAddress: session.ipAddress,
+    status: getAuthSessionStatus({
+      revokedAt: session.revokedAt,
+      refreshExpiresAt: session.refreshExpiresAt,
+      now,
+    }),
   }));
 }
 

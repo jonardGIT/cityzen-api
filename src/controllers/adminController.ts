@@ -5,6 +5,7 @@ import { MFA_REQUIRED_ROLES } from '../types/auth.js';
 import { buildPaginatedResponse, getListQuery, getPaginationQuery } from '../utils/request.js';
 import { getDataGovernanceReport } from '../utils/dataGovernance.js';
 import { usersListQueryConfig } from '../utils/listQueryConfig.js';
+import { getSessionMetadata } from '../utils/sessionMetadata.js';
 import { withArchiveScope } from '../utils/archive.js';
 
 function getAccessReviewStaleDays(): number {
@@ -147,6 +148,8 @@ export async function getPrivilegedAccessReviewReport(_req: Request, res: Respon
             lastUsedAt: true,
             refreshExpiresAt: true,
             revokedAt: true,
+            userAgent: true,
+            ipAddress: true,
           },
         })
       : [];
@@ -171,8 +174,18 @@ export async function getPrivilegedAccessReviewReport(_req: Request, res: Respon
 
       return latest;
     }, null);
+    const latestSession = userSessions.reduce<(typeof userSessions)[number] | null>((latest, session) => {
+      if (!latest) {
+        return session;
+      }
+
+      const candidate = session.lastUsedAt ?? session.createdAt;
+      const currentLatest = latest.lastUsedAt ?? latest.createdAt;
+      return candidate > currentLatest ? session : latest;
+    }, null);
     const stale = !lastSessionUsedAt || lastSessionUsedAt < staleBefore;
     const requiresReview = !user.mfaEnabled || stale;
+    const latestSessionMetadata = getSessionMetadata(latestSession?.userAgent ?? null);
 
     return {
       ...user,
@@ -180,6 +193,11 @@ export async function getPrivilegedAccessReviewReport(_req: Request, res: Respon
       activeSessionCount,
       hasActiveSessions: activeSessionCount > 0,
       lastSessionUsedAt: lastSessionUsedAt?.toISOString() ?? null,
+      latestSessionIpAddress: latestSession?.ipAddress ?? null,
+      latestSessionUserAgent: latestSession?.userAgent ?? null,
+      latestSessionBrowserFamily: latestSessionMetadata.browserFamily,
+      latestSessionOsFamily: latestSessionMetadata.osFamily,
+      latestSessionDeviceLabel: latestSessionMetadata.deviceLabel,
       stale,
       requiresReview,
       reviewReasons: [
