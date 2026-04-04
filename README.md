@@ -153,6 +153,7 @@ Important variables:
 
 - `JWT_SECRET`: required. Use a long random secret and rotate it if exposure is suspected.
 - `MFA_ENCRYPTION_KEY`: required if you enable MFA. Use a separate long random secret for encrypting stored TOTP seeds.
+- In production, the backend now rejects placeholder or test values for `JWT_SECRET`, `API_KEYS`, `MFA_ENCRYPTION_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`, and it requires secrets to meet minimum length checks before startup completes.
 - `SENTRY_DSN`: optional but required to send backend errors and traces to Sentry.
 - `SENTRY_SEND_DEFAULT_PII`: optional. Set to `true` only if you intentionally want request headers and user IP data sent to Sentry.
 - `SENTRY_TRACES_SAMPLE_RATE`: optional decimal from `0` to `1` for performance tracing volume.
