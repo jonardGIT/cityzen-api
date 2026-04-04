@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+  getDataGovernanceSummary,
   getAllUsersForAdmin,
   getPrivilegedAccessReviewReport,
   getPrivilegedMfaComplianceReport,
@@ -20,6 +21,13 @@ router.get(
   requireJwtAuth,
   requireRole('SYSTEM_ADMIN', 'DEPARTMENT_MANAGER'),
   getPrivilegedAccessReviewReport,
+);
+
+router.get(
+  '/security/data-governance',
+  requireJwtAuth,
+  requireRole('SYSTEM_ADMIN', 'DEPARTMENT_MANAGER', 'AUDITOR'),
+  getDataGovernanceSummary,
 );
 
 router.get(

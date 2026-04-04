@@ -1,7 +1,9 @@
 import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
+import { getFeatureSelection } from '../featureSelection.js';
 import { MFA_REQUIRED_ROLES } from '../types/auth.js';
 import { buildPaginatedResponse, getListQuery, getPaginationQuery } from '../utils/request.js';
+import { getDataGovernanceReport } from '../utils/dataGovernance.js';
 import { usersListQueryConfig } from '../utils/listQueryConfig.js';
 import { withArchiveScope } from '../utils/archive.js';
 
@@ -104,10 +106,7 @@ export async function getPrivilegedMfaComplianceReport(
 }
 
 // Returns privileged-account access review data with session activity and stale-account flags.
-export async function getPrivilegedAccessReviewReport(
-  _req: Request,
-  res: Response,
-): Promise<void> {
+export async function getPrivilegedAccessReviewReport(_req: Request, res: Response): Promise<void> {
   const staleAfterDays = getAccessReviewStaleDays();
   const staleBefore = new Date(Date.now() - staleAfterDays * 24 * 60 * 60 * 1000);
   const now = new Date();
@@ -204,4 +203,9 @@ export async function getPrivilegedAccessReviewReport(
     },
     data,
   });
+}
+
+// Returns configured data protection and retention guidance for administrative review.
+export async function getDataGovernanceSummary(_req: Request, res: Response): Promise<void> {
+  res.json(getDataGovernanceReport(process.env, getFeatureSelection()));
 }
