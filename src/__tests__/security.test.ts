@@ -260,9 +260,9 @@ describe('Shared-store rate limiting', () => {
     process.env.RATE_LIMIT_MAX_REQUESTS = '100';
 
     const { default: prisma } = await import('../lib/prisma.js');
-    const querySpy = jest.spyOn(prisma, '$queryRawUnsafe').mockRejectedValueOnce(
-      new Error('relation "rate_limit_buckets" does not exist'),
-    );
+    const querySpy = jest
+      .spyOn(prisma, '$queryRawUnsafe')
+      .mockRejectedValueOnce(new Error('relation "rate_limit_buckets" does not exist'));
 
     const { default: app, API_V1 } = await import('../app.js');
     const response = await request(app).post(`${API_V1}/auth/login`).send({
@@ -346,6 +346,21 @@ describe('Production privileged MFA enforcement', () => {
   it('fails closed for privileged users when production build disables MFA entirely', async () => {
     process.env.FEATURE_MFA_MODE = 'disabled';
 
+    jest.doMock('../generated/productionFeatureProfile.js', () => ({
+      productionFeatureProfile: {
+        locked: true,
+        profileName: 'test-production-profile',
+        builtAt: '2026-04-05T00:00:00.000Z',
+        selection: {
+          authProvider: 'local',
+          tokenMode: 'app-jwt',
+          mfaMode: 'disabled',
+          mediaStorage: 'disabled',
+          recordDeletion: 'archive',
+        },
+      },
+    }));
+
     const { default: prisma } = await import('../lib/prisma.js');
     await prisma.user.update({
       where: { email: 'admin@xypes.local' },
@@ -368,5 +383,7 @@ describe('Production privileged MFA enforcement', () => {
       'message',
       'Privileged MFA enforcement is enabled in production but MFA is disabled for this build',
     );
+
+    jest.dontMock('../generated/productionFeatureProfile.js');
   });
 });

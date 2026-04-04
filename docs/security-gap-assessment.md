@@ -1,6 +1,6 @@
 # Security Gap Assessment
 
-This assessment reflects the current backend state after the Supabase auth and JWT work, Supabase TOTP MFA support, persistent audit logging, revocable server-side sessions, refresh-token rotation, password reset flows, Supabase Storage incident media uploads, multi-file incident media persistence, archive-by-default CRUD behavior, restore endpoints, and archive-scope list browsing.
+This assessment reflects the current backend state after the Supabase auth and JWT work, Supabase TOTP MFA support, persistent audit logging, revocable server-side sessions, refresh-token rotation, password reset flows, Supabase Storage incident media uploads, multi-file incident media persistence, archive-by-default CRUD behavior, restore endpoints, archive-scope list browsing, centralized security alert forwarding, signed incident-media access support, stricter startup secret validation, admin governance reporting, and committed CI release-gate workflows.
 
 ## Current Security Posture
 
@@ -22,16 +22,17 @@ The API now has a credible application-layer security baseline and is materially
 - archive-by-default deletes reduce destructive data loss and keep normal reads scoped to active records
 - archive-aware auth checks prevent archived users from authenticating or continuing active session flows
 - baseline request throttling exists through rate limiting
+- committed CI security gates now cover dependency review, secret scanning, static analysis, build verification, and deploy-time verification before production rollout
 
-That means the API is no longer missing the basic auth, session, and operational safety controls most internal CRUD backends lack. The biggest remaining gaps are now distributed abuse resistance, centralized monitoring, storage confidentiality choices, secrets governance, and formal operational controls.
+That means the API is no longer missing the basic auth, session, and baseline release-safety controls most internal CRUD backends lack. The biggest remaining gaps are now distributed abuse resistance, centralized monitoring, storage confidentiality choices, recovery governance, secrets governance, and disciplined remediation of dependency findings.
 
 ## Practical Rating
 
 - Application-layer security maturity: about 7/10
-- Operational security maturity: about 4.5/10
-- Overall readiness for a government-facing production deployment: about 5.5/10 to 6/10
+- Operational security maturity: about 5.5/10
+- Overall readiness for a government-facing production deployment: about 6/10 to 6.5/10
 
-If all Supabase features are enabled and configured correctly, the identity posture improves further, but the overall rating still does not reach a high-assurance level because storage confidentiality, rate limiting, monitoring, and secrets governance remain open issues.
+If all Supabase features are enabled and configured correctly, the identity posture improves further, but the overall rating still does not reach a high-assurance level because storage confidentiality, distributed abuse resistance, monitoring, recovery governance, and secrets governance remain open issues.
 
 ## Implemented Controls
 
@@ -57,6 +58,15 @@ If all Supabase features are enabled and configured correctly, the identity post
 - Multi-file incident media persistence through ordered `mediaUrls`.
 - Archive-by-default CRUD semantics, restore endpoints, and archived-list browsing support.
 - OpenAPI and README documentation aligned to the current contract.
+- CI workflows for dependency review, secret scanning, CodeQL static analysis, focused build-and-test verification, and deploy-time release gating.
+
+## Latest Validation Snapshot
+
+Current locally validated results:
+
+- Focused security-sensitive suites passed: `featureSelection`, `health`, `startupEnv`, `auth-bootstrap`, `users`, `security`, and `incidents`.
+- Locked production feature-profile build passed.
+- Production dependency audit is currently clean for production dependencies.
 
 ## Remaining High-Priority Gaps
 
@@ -204,21 +214,23 @@ Recommendation:
 - Document role ownership and approval workflow.
 - Add periodic access review procedures for privileged accounts.
 
-### 9. Supply-chain, CI, and deployment hardening evidence
+### 9. Supply-chain, CI, and deployment hardening follow-through
 
 Current state:
 
-- The repository has integration tests and route/security coverage.
-- There is no committed evidence here for dependency scanning, SAST, container hardening, or release-gate security checks.
+- The repository now has committed workflows for dependency review, secret scanning, CodeQL analysis, and deploy-time verification.
+- Focused build-and-test release gates are now documented in the repository.
+- The current production dependency audit is clean after upgrading the vulnerable transitive dependency path.
+- Branch protection and release-approval evidence still depend on GitHub repository settings and operator discipline outside this codebase.
 
 Risk:
 
-- Actual security may be better than the repository alone shows, but there is limited auditable evidence for formal review.
+- The release story is materially better than before, but weak branch-protection enforcement and missing external approval evidence can still undercut confidence during formal review.
 
 Recommendation:
 
-- Add dependency scanning, code scanning, secret scanning, and release-time hardening checks to CI.
-- Keep evidence artifacts for remediation and release approvals.
+- Require branch protection for `main` and `develop` so the new workflows cannot be bypassed casually.
+- Keep release evidence and remediation notes for audit and change approval.
 
 ## Medium-Priority Gaps
 
@@ -254,7 +266,8 @@ If the goal is the next highest-value security work, the order should be:
 4. Add production-grade password reset delivery and privileged account recovery controls.
 5. Export audit and auth events to centralized monitoring with alerts.
 6. Formalize secrets management, retention rules, and privileged access review procedures.
+7. Enforce branch protection and release approval around the new CI gates.
 
 ## Practical Readiness Summary
 
-The API is materially stronger than a basic CRUD backend. It now has revocable sessions, rotating refresh tokens, privileged-role MFA, optional Supabase auth and JWT support, self-service session inventory and revocation, password reset tokens, audit logging, upload validation, archive-by-default deletes, restore endpoints, and stricter route protection. The biggest remaining blockers are no longer missing auth primitives. They are the operational controls around distributed abuse resistance, centralized monitoring, storage confidentiality, recovery governance, secrets handling, and formal deployment readiness.
+The API is materially stronger than a basic CRUD backend. It now has revocable sessions, rotating refresh tokens, privileged-role MFA, optional Supabase auth and JWT support, self-service session inventory and revocation, password reset tokens, audit logging, upload validation, archive-by-default deletes, restore endpoints, stricter route protection, and committed CI release gates. The biggest remaining blockers are no longer missing auth primitives, missing CI evidence, or the previously identified production dependency issue. They are the operational controls around distributed abuse resistance, centralized monitoring, storage confidentiality, recovery governance, and secrets handling.
