@@ -66,7 +66,9 @@ function shouldBypassPath(path: string, bypassPaths: readonly string[]): boolean
 
   return bypassPaths.some((candidate) => {
     const normalizedCandidate = normalizePath(candidate);
-    return normalizedPath === normalizedCandidate || normalizedPath.startsWith(`${normalizedCandidate}/`);
+    return (
+      normalizedPath === normalizedCandidate || normalizedPath.startsWith(`${normalizedCandidate}/`)
+    );
   });
 }
 
@@ -103,7 +105,12 @@ function buildScopedRateLimitMiddleware(options: ScopedRateLimitOptions): Reques
 
     if (!existing || now - existing.windowStart >= options.windowMs) {
       clients.set(clientId, { count: 1, windowStart: now });
-      applyRateLimitHeaders(res, options.maxRequests, options.maxRequests - 1, now + options.windowMs);
+      applyRateLimitHeaders(
+        res,
+        options.maxRequests,
+        options.maxRequests - 1,
+        now + options.windowMs,
+      );
       next();
       return;
     }
@@ -114,12 +121,7 @@ function buildScopedRateLimitMiddleware(options: ScopedRateLimitOptions): Reques
         Math.ceil((options.windowMs - (now - existing.windowStart)) / 1000),
       );
 
-      applyRateLimitHeaders(
-        res,
-        options.maxRequests,
-        0,
-        existing.windowStart + options.windowMs,
-      );
+      applyRateLimitHeaders(res, options.maxRequests, 0, existing.windowStart + options.windowMs);
       res.setHeader('Retry-After', retryAfterSeconds.toString());
       res.status(429).json({
         message: 'Too many requests, please try again later',
@@ -149,7 +151,10 @@ export function createEnvRateLimitMiddleware(options: EnvScopedRateLimitOptions)
   return buildScopedRateLimitMiddleware({
     enabled,
     windowMs: toPositiveInteger(process.env[options.windowMsEnvVar], options.defaultWindowMs),
-    maxRequests: toPositiveInteger(process.env[options.maxRequestsEnvVar], options.defaultMaxRequests),
+    maxRequests: toPositiveInteger(
+      process.env[options.maxRequestsEnvVar],
+      options.defaultMaxRequests,
+    ),
     keyGenerator: options.keyGenerator,
   });
 }

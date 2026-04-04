@@ -2,9 +2,11 @@ import request from 'supertest';
 import app, { API_V1 } from '../app.js';
 import { getAdminToken, getTokenForRole } from './helpers/auth.js';
 import { isArchiveEnabled } from '../utils/archive.js';
+import { MFA_REQUIRED_ROLES } from '../types/auth.js';
 
 const CAPABILITIES = `${API_V1}/users/capabilities`;
 const USERS = `${API_V1}/users`;
+const ADMIN_MFA_COMPLIANCE = `${API_V1}/admin/users/mfa-compliance`;
 const archiveEnabled = isArchiveEnabled();
 
 let adminToken = '';
@@ -147,6 +149,37 @@ describe(`GET ${USERS}`, () => {
       const second = new Date(res.body.data[1].updatedAt).getTime();
       expect(first).toBeGreaterThanOrEqual(second);
     }
+  });
+});
+
+describe(`GET ${ADMIN_MFA_COMPLIANCE}`, () => {
+  it('should return an MFA compliance report for privileged users', async () => {
+    const res = await request(app)
+      .get(ADMIN_MFA_COMPLIANCE)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('summary');
+    expect(res.body).toHaveProperty('data');
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.summary).toHaveProperty('totalPrivilegedUsers');
+    expect(res.body.summary).toHaveProperty('compliantUsers');
+    expect(res.body.summary).toHaveProperty('nonCompliantUsers');
+
+    for (const user of res.body.data) {
+      expect(MFA_REQUIRED_ROLES).toContain(user.role);
+      expect(user).toHaveProperty('requiresMfa', true);
+      expect(typeof user.compliant).toBe('boolean');
+    }
+  });
+
+  it('should return 403 for non-admin roles', async () => {
+    const dispatcherToken = await getTokenForRole('dispatcher@xypes.local');
+    const res = await request(app)
+      .get(ADMIN_MFA_COMPLIANCE)
+      .set('Authorization', `Bearer ${dispatcherToken}`);
+
+    expect(res.status).toBe(403);
   });
 });
 

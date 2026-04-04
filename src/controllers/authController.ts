@@ -14,7 +14,7 @@ import {
   revokeUserSession,
 } from '../services/authSessionService.js';
 import { createMfaSetup, verifyMfaCode } from '../utils/mfa.js';
-import { isLocalTotpFeatureEnabled } from '../featureSelection.js';
+import { isAnyMfaFeatureEnabled, isLocalTotpFeatureEnabled } from '../featureSelection.js';
 import {
   requestPasswordReset as createPasswordResetRequest,
   resetPasswordWithToken as consumePasswordResetToken,
@@ -40,6 +40,10 @@ import {
   updateSupabaseAuthUser,
 } from '../services/supabaseAuthService.js';
 import { isArchiveEnabled, withActiveRecords } from '../utils/archive.js';
+import {
+  isPrivilegedMfaFeatureMisconfigured,
+  requiresPrivilegedMfaEnrollment,
+} from '../utils/mfaPolicy.js';
 
 function isStrongPassword(password: string): boolean {
   return (
@@ -203,6 +207,21 @@ function buildSupabaseJwtResponse(
     expiresAt: session.expiresAt,
     refreshExpiresAt: session.refreshExpiresAt,
     user,
+  };
+}
+
+function applyPrivilegedMfaEnrollmentFlags<T extends Record<string, unknown>>(
+  role: UserRole,
+  mfaEnabled: boolean,
+  body: T,
+): T & { mfaEnrollmentRequired?: boolean } {
+  if (!requiresPrivilegedMfaEnrollment(role, mfaEnabled)) {
+    return body;
+  }
+
+  return {
+    ...body,
+    mfaEnrollmentRequired: true,
   };
 }
 
@@ -477,6 +496,14 @@ export async function login(req: Request, res: Response): Promise<void> {
 
   const role = normalizeUserRoleInput(user.role) ?? 'CITIZEN_REPORTER';
 
+  if (isPrivilegedMfaFeatureMisconfigured(role)) {
+    await revokeSupabaseTokenQuietly(supabaseJwtSession?.token);
+    res.status(503).json({
+      message: 'Privileged MFA enforcement is enabled in production but MFA is disabled for this build',
+    });
+    return;
+  }
+
   if (supabaseJwtSession && requiresSupabaseTotpForUser(role, user.mfaEnabled)) {
     try {
       const assurance = await getSupabaseMfaAssuranceLevel(supabaseJwtSession.token);
@@ -574,7 +601,10 @@ export async function login(req: Request, res: Response): Promise<void> {
 
   if (supabaseJwtSession) {
     res.json(
-      buildSupabaseJwtResponse(supabaseJwtSession, {
+      applyPrivilegedMfaEnrollmentFlags(
+        role,
+        user.mfaEnabled,
+        buildSupabaseJwtResponse(supabaseJwtSession, {
         id: user.id,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
@@ -583,7 +613,8 @@ export async function login(req: Request, res: Response): Promise<void> {
         role,
         mfaEnabled: user.mfaEnabled,
         mfaEnabledAt: user.mfaEnabledAt,
-      }),
+        }),
+      ),
     );
     return;
   }
@@ -596,24 +627,26 @@ export async function login(req: Request, res: Response): Promise<void> {
     ipAddress: req.ip ?? null,
   });
 
-  res.json({
-    token: session.token,
-    refreshToken: session.refreshToken,
-    tokenType: 'Bearer',
-    sessionId: session.sessionId,
-    expiresAt: session.expiresAt,
-    refreshExpiresAt: session.refreshExpiresAt,
-    user: {
-      id: user.id,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-      name: user.name,
-      email: user.email,
-      role,
-      mfaEnabled: user.mfaEnabled,
-      mfaEnabledAt: user.mfaEnabledAt,
-    },
-  });
+  res.json(
+    applyPrivilegedMfaEnrollmentFlags(role, user.mfaEnabled, {
+      token: session.token,
+      refreshToken: session.refreshToken,
+      tokenType: 'Bearer',
+      sessionId: session.sessionId,
+      expiresAt: session.expiresAt,
+      refreshExpiresAt: session.refreshExpiresAt,
+      user: {
+        id: user.id,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        name: user.name,
+        email: user.email,
+        role,
+        mfaEnabled: user.mfaEnabled,
+        mfaEnabledAt: user.mfaEnabledAt,
+      },
+    }),
+  );
 }
 
 // Creates a one-time password reset token for account recovery without exposing whether the email exists.

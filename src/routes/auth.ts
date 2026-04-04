@@ -26,7 +26,8 @@ function buildIpScopedKey(req: Request): string {
 }
 
 function buildEmailScopedKey(req: Request): string {
-  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : 'missing-email';
+  const email =
+    typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : 'missing-email';
   return `${buildIpScopedKey(req)}:${email}`;
 }
 

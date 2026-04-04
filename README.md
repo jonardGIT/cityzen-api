@@ -195,6 +195,12 @@ When `SUPABASE_TOTP_ENABLED=true`, privileged-role MFA uses Supabase Auth's TOTP
 - `POST /auth/mfa/setup`, `POST /auth/mfa/enable`, and `POST /auth/mfa/disable` require the caller's current Supabase `refreshToken` in the request body so the backend can perform session-scoped MFA operations against Supabase.
 - Protected routes reject privileged users who only have an `aal1` Supabase session after first-factor sign-in.
 
+When `NODE_ENV=production`, privileged roles (`SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`) are now treated as MFA-required operationally:
+
+- If the selected production feature profile disables MFA entirely, privileged login fails closed with a `503` configuration error.
+- If MFA is enabled in the build but the privileged account is not enrolled yet, login still succeeds but returns `mfaEnrollmentRequired=true` and the resulting session is limited to MFA enrollment routes until setup is completed.
+- Admin operators can review current privileged MFA compliance through `GET /api/v1/admin/users/mfa-compliance`.
+
 Security notes:
 
 - Keep `.env`, `.env.development`, and any real connection strings out of source control. This repository ignores them, but leaked values should still be rotated.

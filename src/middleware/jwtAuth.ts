@@ -16,6 +16,11 @@ import {
   type UserRole,
 } from '../types/auth.js';
 import { isArchiveEnabled, withActiveRecords } from '../utils/archive.js';
+import {
+  isPathAllowedDuringMfaEnrollment,
+  isPrivilegedMfaFeatureMisconfigured,
+  requiresPrivilegedMfaEnrollment,
+} from '../utils/mfaPolicy.js';
 
 interface AuthenticatedRequest extends Request {
   authUser?: AuthUser;
@@ -156,10 +161,29 @@ async function requireSupabaseJwtAuth(
       }
     }
 
+    if (isPrivilegedMfaFeatureMisconfigured(normalizedRole)) {
+      res.status(503).json({
+        message: 'Privileged MFA enforcement is enabled in production but MFA is disabled for this build',
+      });
+      return;
+    }
+
+    if (
+      requiresPrivilegedMfaEnrollment(normalizedRole, user.mfaEnabled) &&
+      !isPathAllowedDuringMfaEnrollment(req.originalUrl)
+    ) {
+      res.status(403).json({
+        message: 'Privileged MFA enrollment is required before accessing this route',
+        mfaEnrollmentRequired: true,
+      });
+      return;
+    }
+
     (req as AuthenticatedRequest).authUser = {
       id: user.id,
       email: user.email,
       role: normalizedRole,
+      mfaEnabled: user.mfaEnabled,
     };
     (req as AuthenticatedRequest).authSessionId = identity.sessionId ?? undefined;
     (req as AuthenticatedRequest).authAccessToken = token;
@@ -222,6 +246,7 @@ export async function requireJwtAuth(
             email: true,
             role: true,
             archivedAt: true,
+            mfaEnabled: true,
           },
         },
       },
@@ -244,10 +269,29 @@ export async function requireJwtAuth(
       return;
     }
 
+    if (isPrivilegedMfaFeatureMisconfigured(normalizedRole)) {
+      res.status(503).json({
+        message: 'Privileged MFA enforcement is enabled in production but MFA is disabled for this build',
+      });
+      return;
+    }
+
+    if (
+      requiresPrivilegedMfaEnrollment(normalizedRole, session.user.mfaEnabled) &&
+      !isPathAllowedDuringMfaEnrollment(req.originalUrl)
+    ) {
+      res.status(403).json({
+        message: 'Privileged MFA enrollment is required before accessing this route',
+        mfaEnrollmentRequired: true,
+      });
+      return;
+    }
+
     (req as AuthenticatedRequest).authUser = {
       id: session.user.id,
       email: session.user.email,
       role: normalizedRole,
+      mfaEnabled: session.user.mfaEnabled,
     };
     (req as AuthenticatedRequest).authSessionId = session.id;
     (req as AuthenticatedRequest).authAccessToken = token;

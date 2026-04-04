@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
+import { MFA_REQUIRED_ROLES } from '../types/auth.js';
 import { buildPaginatedResponse, getListQuery, getPaginationQuery } from '../utils/request.js';
 import { usersListQueryConfig } from '../utils/listQueryConfig.js';
 import { withArchiveScope } from '../utils/archive.js';
@@ -45,4 +46,46 @@ export async function getAllUsersForAdmin(req: Request, res: Response): Promise<
   });
 
   res.json(users);
+}
+
+// Returns privileged-user MFA compliance data for operational review.
+export async function getPrivilegedMfaComplianceReport(_req: Request, res: Response): Promise<void> {
+  const privilegedUsers = await prisma.user.findMany({
+    where: withArchiveScope(
+      {
+        role: {
+          in: MFA_REQUIRED_ROLES,
+        },
+      },
+      'active',
+    ) as any,
+    select: {
+      id: true,
+      createdAt: true,
+      updatedAt: true,
+      name: true,
+      email: true,
+      role: true,
+      mfaEnabled: true,
+      mfaEnabledAt: true,
+    },
+    orderBy: [{ role: 'asc' }, { email: 'asc' }],
+  });
+
+  const data = privilegedUsers.map((user) => ({
+    ...user,
+    requiresMfa: true,
+    compliant: user.mfaEnabled,
+  }));
+
+  const compliantCount = data.filter((user) => user.compliant).length;
+
+  res.json({
+    summary: {
+      totalPrivilegedUsers: data.length,
+      compliantUsers: compliantCount,
+      nonCompliantUsers: data.length - compliantCount,
+    },
+    data,
+  });
 }
