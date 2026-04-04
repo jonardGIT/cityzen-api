@@ -367,11 +367,15 @@ export async function createIncident(req: Request, res: Response): Promise<void>
       res.status(400).json({ message: 'citizenId does not reference a valid Citizen' });
       return;
     }
-    if (!(await prisma.category.findFirst({ where: withActiveRecords({ id: categoryId }) as any }))) {
+    if (
+      !(await prisma.category.findFirst({ where: withActiveRecords({ id: categoryId }) as any }))
+    ) {
       res.status(400).json({ message: 'categoryId does not reference a valid Category' });
       return;
     }
-    if (!(await prisma.severity.findFirst({ where: withActiveRecords({ id: severityId }) as any }))) {
+    if (
+      !(await prisma.severity.findFirst({ where: withActiveRecords({ id: severityId }) as any }))
+    ) {
       res.status(400).json({ message: 'severityId does not reference a valid Severity' });
       return;
     }
@@ -458,7 +462,9 @@ export async function createCitizenIncidentReport(req: Request, res: Response): 
       });
       return;
     }
-    const reportedStatus = await prisma.status.findFirst({ where: withActiveRecords({ name: 'Reported' }) as any });
+    const reportedStatus = await prisma.status.findFirst({
+      where: withActiveRecords({ name: 'Reported' }) as any,
+    });
     if (!reportedStatus) {
       res
         .status(500)
@@ -466,11 +472,15 @@ export async function createCitizenIncidentReport(req: Request, res: Response): 
       return;
     }
     const statusId = reportedStatus.id;
-    if (!(await prisma.category.findFirst({ where: withActiveRecords({ id: categoryId }) as any }))) {
+    if (
+      !(await prisma.category.findFirst({ where: withActiveRecords({ id: categoryId }) as any }))
+    ) {
       res.status(400).json({ message: 'categoryId does not reference a valid Category' });
       return;
     }
-    if (!(await prisma.severity.findFirst({ where: withActiveRecords({ id: severityId }) as any }))) {
+    if (
+      !(await prisma.severity.findFirst({ where: withActiveRecords({ id: severityId }) as any }))
+    ) {
       res.status(400).json({ message: 'severityId does not reference a valid Severity' });
       return;
     }
@@ -710,9 +720,15 @@ export async function restoreIncident(req: Request, res: Response): Promise<void
 
   const [status, citizen, category, severity] = await Promise.all([
     prisma.status.findFirst({ where: withActiveRecords({ id: existingIncident.statusId }) as any }),
-    prisma.citizen.findFirst({ where: withActiveRecords({ id: existingIncident.citizenId }) as any }),
-    prisma.category.findFirst({ where: withActiveRecords({ id: existingIncident.categoryId }) as any }),
-    prisma.severity.findFirst({ where: withActiveRecords({ id: existingIncident.severityId }) as any }),
+    prisma.citizen.findFirst({
+      where: withActiveRecords({ id: existingIncident.citizenId }) as any,
+    }),
+    prisma.category.findFirst({
+      where: withActiveRecords({ id: existingIncident.categoryId }) as any,
+    }),
+    prisma.severity.findFirst({
+      where: withActiveRecords({ id: existingIncident.severityId }) as any,
+    }),
   ]);
 
   if (!status || !citizen || !category || !severity) {

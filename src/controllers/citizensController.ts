@@ -144,7 +144,9 @@ export async function updateCitizen(req: Request, res: Response): Promise<void> 
   }
 
   const { name, contactInfo, preferredChannel } = req.body as Partial<Citizen>;
-  const existingCitizen = await prisma.citizen.findFirst({ where: withActiveRecords({ id }) as any });
+  const existingCitizen = await prisma.citizen.findFirst({
+    where: withActiveRecords({ id }) as any,
+  });
 
   if (!existingCitizen) {
     res.status(404).json({ message: 'Citizen not found' });
@@ -170,7 +172,9 @@ export async function deleteCitizen(req: Request, res: Response): Promise<void> 
     return;
   }
 
-  const existingCitizen = await prisma.citizen.findFirst({ where: withActiveRecords({ id }) as any });
+  const existingCitizen = await prisma.citizen.findFirst({
+    where: withActiveRecords({ id }) as any,
+  });
 
   if (!existingCitizen) {
     res.status(404).json({ message: 'Citizen not found' });
@@ -204,7 +208,9 @@ export async function restoreCitizen(req: Request, res: Response): Promise<void>
     return;
   }
 
-  const existingCitizen = await prisma.citizen.findFirst({ where: withArchivedRecords({ id }) as any });
+  const existingCitizen = await prisma.citizen.findFirst({
+    where: withArchivedRecords({ id }) as any,
+  });
   if (!existingCitizen) {
     res.status(404).json({ message: 'Archived citizen not found' });
     return;

@@ -23,7 +23,7 @@ router.post(
   requireRole(...ADMIN_ROLES),
   createSeverityValidator,
   validateRequest,
-  asyncHandler(createSeverity)
+  asyncHandler(createSeverity),
 );
 router.patch(
   '/:id',
@@ -31,9 +31,14 @@ router.patch(
   requireRole(...ADMIN_ROLES),
   updateSeverityValidator,
   validateRequest,
-  asyncHandler(updateSeverity)
+  asyncHandler(updateSeverity),
 );
 router.delete('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(deleteSeverity));
-router.post('/:id/restore', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(restoreSeverity));
+router.post(
+  '/:id/restore',
+  requireJwtAuth,
+  requireRole(...ADMIN_ROLES),
+  asyncHandler(restoreSeverity),
+);
 
 export default router;

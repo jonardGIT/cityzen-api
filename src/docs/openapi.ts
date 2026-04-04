@@ -705,7 +705,10 @@ export const openApiDocument: OpenAPIV3.Document = {
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
-          '200': jsonResponse({ $ref: '#/components/schemas/CitizenIncident' }, 'Incident restored.'),
+          '200': jsonResponse(
+            { $ref: '#/components/schemas/CitizenIncident' },
+            'Incident restored.',
+          ),
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
           '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
           '404': jsonResponse(
@@ -967,14 +970,18 @@ export const openApiDocument: OpenAPIV3.Document = {
       post: {
         tags: ['User'],
         summary: 'Restore user',
-        description: 'Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER when archive mode is enabled.',
+        description:
+          'Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER when archive mode is enabled.',
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
           '200': jsonResponse({ $ref: '#/components/schemas/UserSummary' }, 'User restored.'),
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
           '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
-          '404': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Archived user not found.'),
+          '404': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Archived user not found.',
+          ),
           '409': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Conflict.'),
         },
       },

@@ -87,11 +87,17 @@ export async function createAssignment(req: Request, res: Response): Promise<voi
     return;
   }
 
-  if (!(await prisma.citizenIncident.findFirst({ where: withActiveRecords({ id: incidentId }) as any }))) {
+  if (
+    !(await prisma.citizenIncident.findFirst({
+      where: withActiveRecords({ id: incidentId }) as any,
+    }))
+  ) {
     res.status(422).json({ message: 'incidentId does not reference a valid CitizenIncident' });
     return;
   }
-  if (!(await prisma.responder.findFirst({ where: withActiveRecords({ id: responderId }) as any }))) {
+  if (
+    !(await prisma.responder.findFirst({ where: withActiveRecords({ id: responderId }) as any }))
+  ) {
     res.status(422).json({ message: 'responderId does not reference a valid Responder' });
     return;
   }
@@ -131,7 +137,9 @@ export async function updateAssignment(req: Request, res: Response): Promise<voi
 
   if (
     incidentId !== undefined &&
-    !(await prisma.citizenIncident.findFirst({ where: withActiveRecords({ id: incidentId }) as any }))
+    !(await prisma.citizenIncident.findFirst({
+      where: withActiveRecords({ id: incidentId }) as any,
+    }))
   ) {
     res.status(422).json({ message: 'incidentId does not reference a valid CitizenIncident' });
     return;
@@ -203,17 +211,25 @@ export async function restoreAssignment(req: Request, res: Response): Promise<vo
   }
 
   const [incident, responder] = await Promise.all([
-    prisma.citizenIncident.findFirst({ where: withActiveRecords({ id: existingAssignment.incidentId }) as any }),
-    prisma.responder.findFirst({ where: withActiveRecords({ id: existingAssignment.responderId }) as any }),
+    prisma.citizenIncident.findFirst({
+      where: withActiveRecords({ id: existingAssignment.incidentId }) as any,
+    }),
+    prisma.responder.findFirst({
+      where: withActiveRecords({ id: existingAssignment.responderId }) as any,
+    }),
   ]);
 
   if (!incident) {
-    res.status(409).json({ message: 'Conflict: assignment cannot be restored while its incident is archived' });
+    res
+      .status(409)
+      .json({ message: 'Conflict: assignment cannot be restored while its incident is archived' });
     return;
   }
 
   if (!responder) {
-    res.status(409).json({ message: 'Conflict: assignment cannot be restored while its responder is archived' });
+    res
+      .status(409)
+      .json({ message: 'Conflict: assignment cannot be restored while its responder is archived' });
     return;
   }
 

@@ -23,7 +23,7 @@ router.post(
   requireRole(...ADMIN_ROLES),
   createCategoryValidator,
   validateRequest,
-  asyncHandler(createCategory)
+  asyncHandler(createCategory),
 );
 router.patch(
   '/:id',
@@ -31,9 +31,14 @@ router.patch(
   requireRole(...ADMIN_ROLES),
   updateCategoryValidator,
   validateRequest,
-  asyncHandler(updateCategory)
+  asyncHandler(updateCategory),
 );
 router.delete('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(deleteCategory));
-router.post('/:id/restore', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(restoreCategory));
+router.post(
+  '/:id/restore',
+  requireJwtAuth,
+  requireRole(...ADMIN_ROLES),
+  asyncHandler(restoreCategory),
+);
 
 export default router;

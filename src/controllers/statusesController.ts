@@ -143,7 +143,9 @@ export async function restoreStatus(req: Request, res: Response): Promise<void> 
     return;
   }
 
-  const existingStatus = await prisma.status.findFirst({ where: withArchivedRecords({ id }) as any });
+  const existingStatus = await prisma.status.findFirst({
+    where: withArchivedRecords({ id }) as any,
+  });
   if (!existingStatus) {
     res.status(404).json({ message: 'Archived status not found' });
     return;

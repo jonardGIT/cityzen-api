@@ -90,7 +90,9 @@ export async function updateCategory(req: Request, res: Response): Promise<void>
   }
 
   const { name, subCategory } = req.body as { name?: string; subCategory?: string | null };
-  const existingCategory = await prisma.category.findFirst({ where: withActiveRecords({ id }) as any });
+  const existingCategory = await prisma.category.findFirst({
+    where: withActiveRecords({ id }) as any,
+  });
 
   if (!existingCategory) {
     res.status(404).json({ message: 'Category not found' });
@@ -115,7 +117,9 @@ export async function deleteCategory(req: Request, res: Response): Promise<void>
     return;
   }
 
-  const existingCategory = await prisma.category.findFirst({ where: withActiveRecords({ id }) as any });
+  const existingCategory = await prisma.category.findFirst({
+    where: withActiveRecords({ id }) as any,
+  });
 
   if (!existingCategory) {
     res.status(404).json({ message: 'Category not found' });
@@ -149,7 +153,9 @@ export async function restoreCategory(req: Request, res: Response): Promise<void
     return;
   }
 
-  const existingCategory = await prisma.category.findFirst({ where: withArchivedRecords({ id }) as any });
+  const existingCategory = await prisma.category.findFirst({
+    where: withArchivedRecords({ id }) as any,
+  });
   if (!existingCategory) {
     res.status(404).json({ message: 'Archived category not found' });
     return;

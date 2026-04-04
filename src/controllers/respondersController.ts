@@ -203,7 +203,9 @@ export async function restoreResponder(req: Request, res: Response): Promise<voi
     where: withActiveRecords({ id: existingResponder.agencyId }) as any,
   });
   if (!agency) {
-    res.status(409).json({ message: 'Conflict: responder cannot be restored while its agency is archived' });
+    res
+      .status(409)
+      .json({ message: 'Conflict: responder cannot be restored while its agency is archived' });
     return;
   }
 

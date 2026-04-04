@@ -90,7 +90,9 @@ export async function updateSeverity(req: Request, res: Response): Promise<void>
   }
 
   const { level, definition } = req.body as { level?: string; definition?: string | null };
-  const existingSeverity = await prisma.severity.findFirst({ where: withActiveRecords({ id }) as any });
+  const existingSeverity = await prisma.severity.findFirst({
+    where: withActiveRecords({ id }) as any,
+  });
 
   if (!existingSeverity) {
     res.status(404).json({ message: 'Severity not found' });
@@ -115,7 +117,9 @@ export async function deleteSeverity(req: Request, res: Response): Promise<void>
     return;
   }
 
-  const existingSeverity = await prisma.severity.findFirst({ where: withActiveRecords({ id }) as any });
+  const existingSeverity = await prisma.severity.findFirst({
+    where: withActiveRecords({ id }) as any,
+  });
 
   if (!existingSeverity) {
     res.status(404).json({ message: 'Severity not found' });
@@ -149,7 +153,9 @@ export async function restoreSeverity(req: Request, res: Response): Promise<void
     return;
   }
 
-  const existingSeverity = await prisma.severity.findFirst({ where: withArchivedRecords({ id }) as any });
+  const existingSeverity = await prisma.severity.findFirst({
+    where: withArchivedRecords({ id }) as any,
+  });
   if (!existingSeverity) {
     res.status(404).json({ message: 'Archived severity not found' });
     return;

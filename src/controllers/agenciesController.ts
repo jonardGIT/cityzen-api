@@ -136,7 +136,9 @@ export async function restoreAgency(req: Request, res: Response): Promise<void> 
     return;
   }
 
-  const existingAgency = await prisma.agency.findFirst({ where: withArchivedRecords({ id }) as any });
+  const existingAgency = await prisma.agency.findFirst({
+    where: withArchivedRecords({ id }) as any,
+  });
   if (!existingAgency) {
     res.status(404).json({ message: 'Archived agency not found' });
     return;

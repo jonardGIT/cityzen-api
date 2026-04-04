@@ -47,6 +47,11 @@ router.patch(
   asyncHandler(updateCitizen),
 );
 router.delete('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(deleteCitizen));
-router.post('/:id/restore', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(restoreCitizen));
+router.post(
+  '/:id/restore',
+  requireJwtAuth,
+  requireRole(...ADMIN_ROLES),
+  asyncHandler(restoreCitizen),
+);
 
 export default router;

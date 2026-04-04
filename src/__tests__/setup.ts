@@ -70,15 +70,33 @@ beforeAll(async () => {
     'ALTER TABLE incidents ADD COLUMN IF NOT EXISTS "postalCode" text',
   );
   await prisma.$executeRawUnsafe('ALTER TABLE incidents ADD COLUMN IF NOT EXISTS landmark text');
-  await prisma.$executeRawUnsafe('ALTER TABLE users ADD COLUMN IF NOT EXISTS "archivedAt" timestamptz');
-  await prisma.$executeRawUnsafe('ALTER TABLE citizens ADD COLUMN IF NOT EXISTS "archivedAt" timestamptz');
-  await prisma.$executeRawUnsafe('ALTER TABLE agencies ADD COLUMN IF NOT EXISTS "archivedAt" timestamptz');
-  await prisma.$executeRawUnsafe('ALTER TABLE responders ADD COLUMN IF NOT EXISTS "archivedAt" timestamptz');
-  await prisma.$executeRawUnsafe('ALTER TABLE statuses ADD COLUMN IF NOT EXISTS "archivedAt" timestamptz');
-  await prisma.$executeRawUnsafe('ALTER TABLE categories ADD COLUMN IF NOT EXISTS "archivedAt" timestamptz');
-  await prisma.$executeRawUnsafe('ALTER TABLE severities ADD COLUMN IF NOT EXISTS "archivedAt" timestamptz');
-  await prisma.$executeRawUnsafe('ALTER TABLE incidents ADD COLUMN IF NOT EXISTS "archivedAt" timestamptz');
-  await prisma.$executeRawUnsafe('ALTER TABLE assignments ADD COLUMN IF NOT EXISTS "archivedAt" timestamptz');
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE users ADD COLUMN IF NOT EXISTS "archivedAt" timestamptz',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE citizens ADD COLUMN IF NOT EXISTS "archivedAt" timestamptz',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE agencies ADD COLUMN IF NOT EXISTS "archivedAt" timestamptz',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE responders ADD COLUMN IF NOT EXISTS "archivedAt" timestamptz',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE statuses ADD COLUMN IF NOT EXISTS "archivedAt" timestamptz',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE categories ADD COLUMN IF NOT EXISTS "archivedAt" timestamptz',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE severities ADD COLUMN IF NOT EXISTS "archivedAt" timestamptz',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE incidents ADD COLUMN IF NOT EXISTS "archivedAt" timestamptz',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE assignments ADD COLUMN IF NOT EXISTS "archivedAt" timestamptz',
+  );
   await prisma.$executeRawUnsafe(
     'ALTER TABLE auth_sessions ADD COLUMN IF NOT EXISTS "refreshTokenHash" text NOT NULL DEFAULT \'\'',
   );
@@ -97,15 +115,33 @@ beforeAll(async () => {
   await prisma.$executeRawUnsafe(
     'CREATE INDEX IF NOT EXISTS incident_media_incident_id_display_order_idx ON incident_media ("incidentId", "displayOrder")',
   );
-  await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS users_archived_at_idx ON users ("archivedAt")');
-  await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS citizens_archived_at_idx ON citizens ("archivedAt")');
-  await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS agencies_archived_at_idx ON agencies ("archivedAt")');
-  await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS responders_archived_at_idx ON responders ("archivedAt")');
-  await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS statuses_archived_at_idx ON statuses ("archivedAt")');
-  await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS categories_archived_at_idx ON categories ("archivedAt")');
-  await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS severities_archived_at_idx ON severities ("archivedAt")');
-  await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS incidents_archived_at_idx ON incidents ("archivedAt")');
-  await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS assignments_archived_at_idx ON assignments ("archivedAt")');
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS users_archived_at_idx ON users ("archivedAt")',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS citizens_archived_at_idx ON citizens ("archivedAt")',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS agencies_archived_at_idx ON agencies ("archivedAt")',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS responders_archived_at_idx ON responders ("archivedAt")',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS statuses_archived_at_idx ON statuses ("archivedAt")',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS categories_archived_at_idx ON categories ("archivedAt")',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS severities_archived_at_idx ON severities ("archivedAt")',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS incidents_archived_at_idx ON incidents ("archivedAt")',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS assignments_archived_at_idx ON assignments ("archivedAt")',
+  );
   await prisma.$executeRawUnsafe(
     'CREATE INDEX IF NOT EXISTS auth_sessions_expires_at_idx ON auth_sessions ("expiresAt")',
   );
