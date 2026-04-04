@@ -184,6 +184,10 @@ describe('Audit log persistence', () => {
     delete process.env.SECURITY_ALERT_LOGIN_FAILURE_WINDOW_MS;
     delete process.env.SECURITY_ALERT_PASSWORD_RESET_THRESHOLD;
     delete process.env.SECURITY_ALERT_PASSWORD_RESET_WINDOW_MS;
+    delete process.env.SECURITY_ALERT_REFRESH_FAILURE_THRESHOLD;
+    delete process.env.SECURITY_ALERT_REFRESH_FAILURE_WINDOW_MS;
+    delete process.env.SECURITY_ALERT_SESSION_CHURN_THRESHOLD;
+    delete process.env.SECURITY_ALERT_SESSION_CHURN_WINDOW_MS;
     jest.restoreAllMocks();
   });
 
@@ -314,6 +318,39 @@ describe('Audit log persistence', () => {
     });
     expect(payload.aggregate).toMatchObject({
       identity: actorEmail,
+      count: 3,
+      windowMs: 600000,
+    });
+  });
+
+  it('forwards a security alert after repeated failed refresh attempts cross the threshold', async () => {
+    process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
+    process.env.SECURITY_ALERT_REFRESH_FAILURE_THRESHOLD = '3';
+    process.env.SECURITY_ALERT_REFRESH_FAILURE_WINDOW_MS = '600000';
+
+    const originalFetch = global.fetch;
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    await request(app).post(`${API_V1}/auth/refresh`).send({ refreshToken: 'invalid-token-one' });
+    await request(app).post(`${API_V1}/auth/refresh`).send({ refreshToken: 'invalid-token-two' });
+    await request(app)
+      .post(`${API_V1}/auth/refresh`)
+      .send({ refreshToken: 'invalid-token-three' });
+
+    global.fetch = originalFetch;
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')) as Record<
+      string,
+      unknown
+    >;
+    expect(payload).toMatchObject({
+      type: 'security-alert',
+      ruleId: 'repeated-refresh-failures',
+      severity: 'high',
+    });
+    expect(payload.aggregate).toMatchObject({
       count: 3,
       windowMs: 600000,
     });
@@ -500,6 +537,72 @@ describe('Audit log persistence', () => {
       type: 'security-alert',
       ruleId: 'user-archived',
       severity: 'critical',
+    });
+  });
+
+  it('forwards a security alert after repeated session revocations cross the threshold', async () => {
+    process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
+    process.env.SECURITY_ALERT_SESSION_CHURN_THRESHOLD = '3';
+    process.env.SECURITY_ALERT_SESSION_CHURN_WINDOW_MS = '600000';
+
+    const originalFetch = global.fetch;
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const firstLogin = await request(app).post(`${API_V1}/auth/login`).send({
+      email: 'admin@xypes.local',
+      password: 'Password123!',
+    });
+    const secondLogin = await request(app).post(`${API_V1}/auth/login`).send({
+      email: 'admin@xypes.local',
+      password: 'Password123!',
+    });
+    const thirdLogin = await request(app).post(`${API_V1}/auth/login`).send({
+      email: 'admin@xypes.local',
+      password: 'Password123!',
+    });
+    const fourthLogin = await request(app).post(`${API_V1}/auth/login`).send({
+      email: 'admin@xypes.local',
+      password: 'Password123!',
+    });
+
+    expect(firstLogin.status).toBe(200);
+    expect(secondLogin.status).toBe(200);
+    expect(thirdLogin.status).toBe(200);
+    expect(fourthLogin.status).toBe(200);
+
+    const actorToken = fourthLogin.body.token as string;
+
+    const revokeFirst = await request(app)
+      .delete(`${API_V1}/auth/sessions/${firstLogin.body.sessionId as string}`)
+      .set('Authorization', `Bearer ${actorToken}`);
+    const revokeSecond = await request(app)
+      .delete(`${API_V1}/auth/sessions/${secondLogin.body.sessionId as string}`)
+      .set('Authorization', `Bearer ${actorToken}`);
+    const revokeThird = await request(app)
+      .delete(`${API_V1}/auth/sessions/${thirdLogin.body.sessionId as string}`)
+      .set('Authorization', `Bearer ${actorToken}`);
+
+    global.fetch = originalFetch;
+
+    expect(revokeFirst.status).toBe(204);
+    expect(revokeSecond.status).toBe(204);
+    expect(revokeThird.status).toBe(204);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')) as Record<
+      string,
+      unknown
+    >;
+    expect(payload).toMatchObject({
+      type: 'security-alert',
+      ruleId: 'session-churn-anomaly',
+      severity: 'medium',
+    });
+    expect(payload.aggregate).toMatchObject({
+      identity: 'admin@xypes.local',
+      count: 3,
+      windowMs: 600000,
     });
   });
 

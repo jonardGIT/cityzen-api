@@ -61,6 +61,22 @@ function getPasswordResetAlertWindowMs(): number {
   return toPositiveInteger(process.env.SECURITY_ALERT_PASSWORD_RESET_WINDOW_MS, 60 * 60_000);
 }
 
+function getRefreshFailureAlertThreshold(): number {
+  return toPositiveInteger(process.env.SECURITY_ALERT_REFRESH_FAILURE_THRESHOLD, 5);
+}
+
+function getRefreshFailureAlertWindowMs(): number {
+  return toPositiveInteger(process.env.SECURITY_ALERT_REFRESH_FAILURE_WINDOW_MS, 15 * 60_000);
+}
+
+function getSessionChurnAlertThreshold(): number {
+  return toPositiveInteger(process.env.SECURITY_ALERT_SESSION_CHURN_THRESHOLD, 3);
+}
+
+function getSessionChurnAlertWindowMs(): number {
+  return toPositiveInteger(process.env.SECURITY_ALERT_SESSION_CHURN_WINDOW_MS, 15 * 60_000);
+}
+
 function getAggregateIdentity(input: CreateAuditLogInput): string {
   return input.actorEmail ?? input.ipAddress ?? 'unknown';
 }
@@ -249,6 +265,34 @@ function buildAggregateRules(input: CreateAuditLogInput): SecurityAlertRule[] {
         'repeated-password-reset-requests',
         'medium',
         'Repeated password reset requests crossed the configured threshold',
+      ),
+    );
+  }
+
+  if (input.action === 'refresh' && input.outcome === 'failure') {
+    rules.push(
+      buildThresholdAlert(
+        input,
+        'refresh-failure',
+        getRefreshFailureAlertThreshold(),
+        getRefreshFailureAlertWindowMs(),
+        'repeated-refresh-failures',
+        'high',
+        'Repeated refresh token failures crossed the configured threshold',
+      ),
+    );
+  }
+
+  if (input.action === 'session_revoke' && input.outcome === 'success') {
+    rules.push(
+      buildThresholdAlert(
+        input,
+        'session-churn',
+        getSessionChurnAlertThreshold(),
+        getSessionChurnAlertWindowMs(),
+        'session-churn-anomaly',
+        'medium',
+        'Repeated session revocations crossed the configured threshold',
       ),
     );
   }

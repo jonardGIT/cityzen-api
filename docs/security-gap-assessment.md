@@ -156,6 +156,7 @@ Current state:
 - Audit logs are persisted in the application database and exposed by admin API.
 - Sentry can capture backend exceptions and traces when configured.
 - The repository now includes an operational runbook for alert routing, triage, privileged recovery, and break-glass review.
+- Webhook-based security alert forwarding already covers repeated login failures, repeated password reset requests, repeated refresh failures, password reset delivery failures, session-revocation churn, and privileged account changes.
 - Production startup validation now rejects invalid or non-HTTPS alert and password-reset delivery webhook URLs.
 
 Risk:
@@ -167,7 +168,7 @@ Risk:
 Recommendation:
 
 - Forward logs to centralized monitoring or SIEM.
-- Alert on repeated auth failures, session churn anomalies, privilege changes, suspicious MFA resets, suspicious password reset activity, unusual admin actions, and suspicious media upload patterns.
+- Keep expanding tuned alert rules for suspicious MFA resets, unusual admin actions, and suspicious media upload patterns.
 - Treat the runbook as an operational minimum, not as a substitute for external monitoring infrastructure.
 
 ### 6. Secrets and key management maturity
@@ -276,13 +277,12 @@ Recommendation:
 
 If the goal is the next highest-value security work, the order should be:
 
-1. Move rate limiting to a shared durable store and tighten auth and upload-specific limits.
-2. Enforce MFA operationally for privileged roles and define recovery or break-glass procedures.
-3. Replace public-media assumptions with a private-bucket or signed-URL evidence model for sensitive incident media.
-4. Add production-grade password reset delivery and privileged account recovery controls.
-5. Export audit and auth events to centralized monitoring with alerts.
-6. Formalize retention rules and keep privileged access review procedures under active operational use.
-7. Enforce the documented secret-management, branch-protection, and release-approval controls around the new CI gates.
+1. Enforce MFA operationally for privileged roles and define recovery or break-glass procedures.
+2. Replace public-media assumptions with a private-bucket or signed-URL evidence model for sensitive incident media.
+3. Add production-grade password reset delivery and privileged account recovery controls.
+4. Export audit and auth events to centralized monitoring or SIEM and continue expanding tuned alerting.
+5. Formalize retention rules and keep privileged access review procedures under active operational use.
+6. Enforce the documented secret-management, branch-protection, and release-approval controls around the new CI gates.
 
 ## Practical Readiness Summary
 
