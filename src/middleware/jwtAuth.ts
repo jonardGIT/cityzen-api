@@ -163,7 +163,8 @@ async function requireSupabaseJwtAuth(
 
     if (isPrivilegedMfaFeatureMisconfigured(normalizedRole)) {
       res.status(503).json({
-        message: 'Privileged MFA enforcement is enabled in production but MFA is disabled for this build',
+        message:
+          'Privileged MFA enforcement is enabled in production but MFA is disabled for this build',
       });
       return;
     }
@@ -271,7 +272,8 @@ export async function requireJwtAuth(
 
     if (isPrivilegedMfaFeatureMisconfigured(normalizedRole)) {
       res.status(503).json({
-        message: 'Privileged MFA enforcement is enabled in production but MFA is disabled for this build',
+        message:
+          'Privileged MFA enforcement is enabled in production but MFA is disabled for this build',
       });
       return;
     }

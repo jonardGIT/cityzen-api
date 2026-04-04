@@ -49,7 +49,10 @@ export async function getAllUsersForAdmin(req: Request, res: Response): Promise<
 }
 
 // Returns privileged-user MFA compliance data for operational review.
-export async function getPrivilegedMfaComplianceReport(_req: Request, res: Response): Promise<void> {
+export async function getPrivilegedMfaComplianceReport(
+  _req: Request,
+  res: Response,
+): Promise<void> {
   const privilegedUsers = await prisma.user.findMany({
     where: withArchiveScope(
       {

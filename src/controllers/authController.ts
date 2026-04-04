@@ -499,7 +499,8 @@ export async function login(req: Request, res: Response): Promise<void> {
   if (isPrivilegedMfaFeatureMisconfigured(role)) {
     await revokeSupabaseTokenQuietly(supabaseJwtSession?.token);
     res.status(503).json({
-      message: 'Privileged MFA enforcement is enabled in production but MFA is disabled for this build',
+      message:
+        'Privileged MFA enforcement is enabled in production but MFA is disabled for this build',
     });
     return;
   }
@@ -605,14 +606,14 @@ export async function login(req: Request, res: Response): Promise<void> {
         role,
         user.mfaEnabled,
         buildSupabaseJwtResponse(supabaseJwtSession, {
-        id: user.id,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-        name: user.name,
-        email: user.email,
-        role,
-        mfaEnabled: user.mfaEnabled,
-        mfaEnabledAt: user.mfaEnabledAt,
+          id: user.id,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+          name: user.name,
+          email: user.email,
+          role,
+          mfaEnabled: user.mfaEnabled,
+          mfaEnabledAt: user.mfaEnabledAt,
         }),
       ),
     );
