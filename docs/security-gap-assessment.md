@@ -119,20 +119,22 @@ Current state:
 - Supabase Storage upload is implemented.
 - Signed storage mode persists stable managed references while returning short-lived access URLs.
 - Production startup validation now rejects public media access mode when Supabase incident media storage is enabled.
+- Production startup validation now also requires an HTTPS media-scan webhook when Supabase incident media storage is enabled.
 - The API now supports an authenticated incident-media access endpoint that resolves a just-in-time access URL after incident-level authorization.
+- Uploads can now be failed closed if media-scan submission is unavailable, and uploaded objects are cleaned up before the request succeeds.
 - Storage uploads validate MIME type and size, and replaced files can be archived.
 - Incident media upload attempts are now audited and can trigger threshold alerts for suspicious repeated upload activity.
 
 Risk:
 
 - Sensitive evidence still depends on operators keeping the signed-access configuration and storage controls intact.
-- There is still no malware scanning, file quarantine, content moderation, or full streaming or proxy retrieval layer.
+- The current scan integration only submits uploaded objects for downstream scanning; it is not yet a full quarantine, verdict-enforcement, or content-moderation pipeline.
 
 Recommendation:
 
 - Keep signed/private media access enforced in production and verify it during deployment review.
 - Expand the authenticated media-access path into a stronger proxy or streaming retrieval layer where content inspection, download controls, or richer access auditing is required.
-- Add malware scanning or file quarantine for uploaded evidence.
+- Expand the scan webhook into a full quarantine and verdict workflow before treating uploaded evidence as fully trusted.
 - Define classification rules for what can be publicly retrievable versus restricted.
 
 ### 4. Password reset delivery and account recovery maturity

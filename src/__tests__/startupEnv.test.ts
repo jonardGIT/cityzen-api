@@ -25,6 +25,7 @@ describe('startup environment validation', () => {
           MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
           SUPABASE_SERVICE_ROLE_KEY: 'prod-service-role-key-0123456789-abcdef-uvwxyz',
           SUPABASE_STORAGE_ACCESS_MODE: 'signed',
+          SUPABASE_STORAGE_SCAN_WEBHOOK_URL: 'https://security.example.gov/media-scan',
           PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'https://security.example.gov/password-reset',
           SECURITY_ALERT_WEBHOOK_URL: 'https://security.example.gov/alerts',
         },
@@ -96,6 +97,7 @@ describe('startup environment validation', () => {
           JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
           SUPABASE_SERVICE_ROLE_KEY: 'your-service-role-key',
           MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
+          SUPABASE_STORAGE_SCAN_WEBHOOK_URL: 'https://security.example.gov/media-scan',
         },
         selection: createSelection({ mfaMode: 'local-totp', mediaStorage: 'supabase-storage' }),
       }),
@@ -111,12 +113,28 @@ describe('startup environment validation', () => {
           SUPABASE_SERVICE_ROLE_KEY: 'prod-service-role-key-0123456789-abcdef-uvwxyz',
           MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
           SUPABASE_STORAGE_ACCESS_MODE: 'public',
+          SUPABASE_STORAGE_SCAN_WEBHOOK_URL: 'https://security.example.gov/media-scan',
         },
         selection: createSelection({ mfaMode: 'local-totp', mediaStorage: 'supabase-storage' }),
       }),
     ).toThrow(
       'SUPABASE_STORAGE_ACCESS_MODE must be set to signed in production when Supabase media storage is enabled',
     );
+  });
+
+  it('requires incident media scan webhook configuration in production when media storage is enabled', () => {
+    expect(() =>
+      validateStartupEnvironment({
+        env: {
+          NODE_ENV: 'production',
+          JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
+          SUPABASE_SERVICE_ROLE_KEY: 'prod-service-role-key-0123456789-abcdef-uvwxyz',
+          MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
+          SUPABASE_STORAGE_ACCESS_MODE: 'signed',
+        },
+        selection: createSelection({ mfaMode: 'local-totp', mediaStorage: 'supabase-storage' }),
+      }),
+    ).toThrow('SUPABASE_STORAGE_SCAN_WEBHOOK_URL must be configured in production');
   });
 
   it('rejects non-HTTPS password reset delivery webhooks in production', () => {
@@ -126,6 +144,7 @@ describe('startup environment validation', () => {
           NODE_ENV: 'production',
           JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
           MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
+          SUPABASE_STORAGE_SCAN_WEBHOOK_URL: 'https://security.example.gov/media-scan',
           PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'http://insecure.example.test/reset',
         },
         selection: createSelection({ mfaMode: 'local-totp' }),
@@ -140,6 +159,7 @@ describe('startup environment validation', () => {
           NODE_ENV: 'production',
           JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
           MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
+          SUPABASE_STORAGE_SCAN_WEBHOOK_URL: 'https://security.example.gov/media-scan',
         },
         selection: createSelection({ mfaMode: 'local-totp' }),
       }),
@@ -153,6 +173,7 @@ describe('startup environment validation', () => {
           NODE_ENV: 'production',
           JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
           MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
+          SUPABASE_STORAGE_SCAN_WEBHOOK_URL: 'https://security.example.gov/media-scan',
           PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'https://security.example.gov/password-reset',
           SECURITY_ALERT_WEBHOOK_URL: 'not-a-url',
         },

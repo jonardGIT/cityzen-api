@@ -689,7 +689,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         tags: ['Incident'],
         summary: 'Upload incident media to Supabase Storage',
         description:
-          'Accepts either one base64-encoded file or a `files` array and returns reusable media references for incident persistence. In `public` storage mode these are public URLs; in `signed` mode the response also includes short-lived access URLs for preview while the persisted values remain stable managed references.',
+          'Accepts either one base64-encoded file or a `files` array and returns reusable media references for incident persistence. In `public` storage mode these are public URLs; in `signed` mode the response also includes short-lived access URLs for preview while the persisted values remain stable managed references. When a media scan webhook is configured, the upload completes only after the object is successfully submitted for downstream scanning.',
         security: apiKeyAndBearerSecurity,
         requestBody: {
           required: true,
@@ -716,7 +716,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
           ),
           '503': jsonResponse(
             { $ref: '#/components/schemas/ErrorResponse' },
-            'Supabase Storage is disabled or misconfigured.',
+            'Supabase Storage is disabled, misconfigured, or downstream media scanning is unavailable.',
           ),
         },
       },

@@ -158,6 +158,11 @@ function getSignedUrlTtlSeconds(): number {
   return Math.floor(parsedValue);
 }
 
+function getMediaScanWebhookUrl(): string | null {
+  const value = process.env.SUPABASE_STORAGE_SCAN_WEBHOOK_URL?.trim();
+  return value ? value : null;
+}
+
 function getArchivePrefix(): string {
   const value = process.env.SUPABASE_STORAGE_ARCHIVE_PREFIX?.trim();
   return value && value.length > 0 ? value.replace(/^\/+|\/+$/g, '') : 'archive/incidents';
@@ -201,6 +206,51 @@ function createStorageClient() {
       persistSession: false,
     },
   });
+}
+
+async function removeUploadedObject(
+  client: ReturnType<typeof createStorageClient>,
+  bucket: string,
+  objectPath: string,
+): Promise<void> {
+  try {
+    await client.storage.from(bucket).remove([objectPath]);
+  } catch {
+    // Best-effort cleanup when a downstream scan submission fails.
+  }
+}
+
+async function submitMediaScanRequest(
+  input: UploadIncidentMediaInput,
+  upload: UploadIncidentMediaResult,
+): Promise<void> {
+  const webhookUrl = getMediaScanWebhookUrl();
+  if (!webhookUrl) {
+    return;
+  }
+
+  const response = await fetch(webhookUrl, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      type: 'incident-media-scan',
+      actorUserId: input.actorUserId,
+      incidentId: input.incidentId ?? null,
+      bucket: upload.bucket,
+      objectPath: upload.objectPath,
+      mediaUrl: upload.mediaUrl,
+      accessUrl: upload.accessUrl,
+      contentType: upload.contentType,
+      fileName: upload.fileName,
+      size: upload.size,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Incident media scan webhook returned HTTP ${response.status}`);
+  }
 }
 
 function sanitizeFileName(fileName: string): string {
@@ -534,7 +584,7 @@ export async function uploadIncidentMedia(
   const mediaUrl =
     accessMode === 'signed' ? buildManagedMediaReference(bucket, objectPath) : accessUrl;
 
-  return {
+  const upload = {
     bucket,
     objectPath,
     mediaUrl,
@@ -543,4 +593,17 @@ export async function uploadIncidentMedia(
     fileName: sanitizeFileName(input.fileName),
     size: fileBuffer.length,
   };
+
+  try {
+    await submitMediaScanRequest(input, upload);
+  } catch (error) {
+    await removeUploadedObject(client, bucket, objectPath);
+    throw new SupabaseStorageServiceError(
+      'SUPABASE_STORAGE_SCAN_FAILED',
+      error instanceof Error ? error.message : 'Incident media scanning is not available',
+      503,
+    );
+  }
+
+  return upload;
 }
