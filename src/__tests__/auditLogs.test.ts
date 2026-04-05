@@ -194,6 +194,8 @@ describe('Audit log persistence', () => {
     delete process.env.SECURITY_ALERT_MEDIA_UPLOAD_WINDOW_MS;
     delete process.env.SECURITY_ALERT_MEDIA_ACCESS_THRESHOLD;
     delete process.env.SECURITY_ALERT_MEDIA_ACCESS_WINDOW_MS;
+    delete process.env.SECURITY_ALERT_MFA_SETUP_THRESHOLD;
+    delete process.env.SECURITY_ALERT_MFA_SETUP_WINDOW_MS;
     jest.restoreAllMocks();
   });
 
@@ -861,6 +863,74 @@ describe('Audit log persistence', () => {
       identity: 'admin@xypes.local',
       count: 3,
       windowMs: 600000,
+    });
+  });
+
+  it('forwards a security alert after repeated MFA setup resets cross the threshold', async () => {
+    process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
+    process.env.SECURITY_ALERT_MFA_SETUP_THRESHOLD = '3';
+    process.env.SECURITY_ALERT_MFA_SETUP_WINDOW_MS = '600000';
+
+    await prisma.user.update({
+      where: { email: 'admin@xypes.local' },
+      data: {
+        passwordHash: await bcrypt.hash('Password123!', 10),
+        mfaEnabled: false,
+        mfaSecretEncrypted: null,
+        mfaEnabledAt: null,
+      },
+    });
+
+    const login = await request(app).post(`${API_V1}/auth/login`).send({
+      email: 'admin@xypes.local',
+      password: 'Password123!',
+    });
+
+    expect(login.status).toBe(200);
+
+    const originalFetch = global.fetch;
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const firstSetup = await request(app)
+      .post(`${API_V1}/auth/mfa/setup`)
+      .set('Authorization', `Bearer ${login.body.token as string}`);
+    const secondSetup = await request(app)
+      .post(`${API_V1}/auth/mfa/setup`)
+      .set('Authorization', `Bearer ${login.body.token as string}`);
+    const thirdSetup = await request(app)
+      .post(`${API_V1}/auth/mfa/setup`)
+      .set('Authorization', `Bearer ${login.body.token as string}`);
+
+    global.fetch = originalFetch;
+
+    expect(firstSetup.status).toBe(200);
+    expect(secondSetup.status).toBe(200);
+    expect(thirdSetup.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')) as Record<
+      string,
+      unknown
+    >;
+    expect(payload).toMatchObject({
+      type: 'security-alert',
+      ruleId: 'repeated-mfa-setup-resets',
+      severity: 'medium',
+    });
+    expect(payload.aggregate).toMatchObject({
+      identity: 'admin@xypes.local',
+      count: 3,
+      windowMs: 600000,
+    });
+
+    await prisma.user.update({
+      where: { email: 'admin@xypes.local' },
+      data: {
+        mfaEnabled: false,
+        mfaSecretEncrypted: null,
+        mfaEnabledAt: null,
+      },
     });
   });
 
