@@ -186,6 +186,8 @@ describe('Audit log persistence', () => {
     delete process.env.SECURITY_ALERT_PASSWORD_RESET_WINDOW_MS;
     delete process.env.SECURITY_ALERT_PRIVILEGED_RECOVERY_BLOCKED_THRESHOLD;
     delete process.env.SECURITY_ALERT_PRIVILEGED_RECOVERY_BLOCKED_WINDOW_MS;
+    delete process.env.SECURITY_ALERT_PRIVILEGED_USER_CHANGE_THRESHOLD;
+    delete process.env.SECURITY_ALERT_PRIVILEGED_USER_CHANGE_WINDOW_MS;
     delete process.env.SECURITY_ALERT_PASSWORD_RESET_CONFIRM_FAILURE_THRESHOLD;
     delete process.env.SECURITY_ALERT_PASSWORD_RESET_CONFIRM_FAILURE_WINDOW_MS;
     delete process.env.SECURITY_ALERT_REFRESH_FAILURE_THRESHOLD;
@@ -591,6 +593,7 @@ describe('Audit log persistence', () => {
 
   it('forwards critical alerts for privileged role changes and archives', async () => {
     process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
+    process.env.SECURITY_ALERT_PRIVILEGED_USER_CHANGE_THRESHOLD = '99';
 
     const originalFetch = global.fetch;
     const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
@@ -647,6 +650,7 @@ describe('Audit log persistence', () => {
 
   it('records and alerts on privileged user restoration', async () => {
     process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
+    process.env.SECURITY_ALERT_PRIVILEGED_USER_CHANGE_THRESHOLD = '99';
 
     const archivedUser = await prisma.user.create({
       data: {
@@ -699,6 +703,88 @@ describe('Audit log persistence', () => {
       type: 'security-alert',
       ruleId: 'user-restored',
       severity: 'critical',
+    });
+  });
+
+  it('forwards a security alert after repeated privileged user-management actions cross the threshold', async () => {
+    process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
+    process.env.SECURITY_ALERT_PRIVILEGED_USER_CHANGE_THRESHOLD = '3';
+    process.env.SECURITY_ALERT_PRIVILEGED_USER_CHANGE_WINDOW_MS = '600000';
+
+    const unique = Date.now();
+    const actorEmail = `burst.manager.${unique}@postman.local`;
+
+    await prisma.user.create({
+      data: {
+        name: `Burst Manager ${unique}`,
+        email: actorEmail,
+        passwordHash: await bcrypt.hash('Password123!', 10),
+        role: 'DEPARTMENT_MANAGER',
+        mfaEnabled: false,
+        mfaSecretEncrypted: null,
+        mfaEnabledAt: null,
+      },
+    });
+
+    const login = await request(app).post(`${API_V1}/auth/login`).send({
+      email: actorEmail,
+      password: 'Password123!',
+    });
+
+    expect(login.status).toBe(200);
+
+    const originalFetch = global.fetch;
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const firstCreate = await request(app)
+      .post(`${API_V1}/users`)
+      .set('Authorization', `Bearer ${login.body.token as string}`)
+      .send({
+        name: `Burst Dispatcher A ${unique}`,
+        email: `burst.dispatcher.a.${unique}@postman.local`,
+        password: 'Password1234!@#',
+        role: 'DISPATCHER',
+      });
+    const secondCreate = await request(app)
+      .post(`${API_V1}/users`)
+      .set('Authorization', `Bearer ${login.body.token as string}`)
+      .send({
+        name: `Burst Dispatcher B ${unique}`,
+        email: `burst.dispatcher.b.${unique}@postman.local`,
+        password: 'Password1234!@#',
+        role: 'DISPATCHER',
+      });
+    const thirdCreate = await request(app)
+      .post(`${API_V1}/users`)
+      .set('Authorization', `Bearer ${login.body.token as string}`)
+      .send({
+        name: `Burst Supervisor ${unique}`,
+        email: `burst.supervisor.${unique}@postman.local`,
+        password: 'Password1234!@#',
+        role: 'SUPERVISOR',
+      });
+
+    global.fetch = originalFetch;
+
+    expect(firstCreate.status).toBe(201);
+    expect(secondCreate.status).toBe(201);
+    expect(thirdCreate.status).toBe(201);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+
+    const payload = JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body ?? '{}')) as Record<
+      string,
+      unknown
+    >;
+    expect(payload).toMatchObject({
+      type: 'security-alert',
+      ruleId: 'privileged-user-change-burst',
+      severity: 'critical',
+    });
+    expect(payload.aggregate).toMatchObject({
+      identity: actorEmail,
+      count: 3,
+      windowMs: 600000,
     });
   });
 

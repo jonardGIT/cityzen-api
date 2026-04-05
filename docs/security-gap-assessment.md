@@ -198,7 +198,7 @@ Current state:
 - Audit logs are persisted in the application database and exposed by admin API.
 - Sentry can capture backend exceptions and traces when configured.
 - The repository now includes an operational runbook for alert routing, triage, privileged recovery, and break-glass review.
-- Webhook-based security alert forwarding already covers repeated login failures, repeated password reset requests, repeated blocked privileged recovery attempts, repeated refresh failures, password reset delivery failures, repeated MFA setup resets, session-revocation churn, and privileged account changes including archival and restoration.
+- Webhook-based security alert forwarding already covers repeated login failures, repeated password reset requests, repeated blocked privileged recovery attempts, repeated refresh failures, password reset delivery failures, repeated MFA setup resets, session-revocation churn, burst privileged user-management activity, and privileged account changes including archival and restoration.
 - Production startup validation now rejects invalid or non-HTTPS alert and password-reset delivery webhook URLs.
 
 Risk:
@@ -210,7 +210,7 @@ Risk:
 Recommendation:
 
 - Forward logs to centralized monitoring or SIEM.
-- Keep expanding tuned alert rules for unusual admin actions and deeper privileged recovery signals.
+- Keep expanding tuned alert rules for deeper privileged recovery signals and downstream cross-system correlation.
 - Treat the runbook as an operational minimum, not as a substitute for external monitoring infrastructure.
 
 ### 6. Secrets and key management maturity

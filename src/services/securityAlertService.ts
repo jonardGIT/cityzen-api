@@ -72,6 +72,14 @@ function getPrivilegedRecoveryBlockedAlertWindowMs(): number {
   );
 }
 
+function getPrivilegedUserChangeAlertThreshold(): number {
+  return toPositiveInteger(process.env.SECURITY_ALERT_PRIVILEGED_USER_CHANGE_THRESHOLD, 3);
+}
+
+function getPrivilegedUserChangeAlertWindowMs(): number {
+  return toPositiveInteger(process.env.SECURITY_ALERT_PRIVILEGED_USER_CHANGE_WINDOW_MS, 15 * 60_000);
+}
+
 function getPasswordResetConfirmFailureAlertThreshold(): number {
   return toPositiveInteger(process.env.SECURITY_ALERT_PASSWORD_RESET_CONFIRM_FAILURE_THRESHOLD, 5);
 }
@@ -338,6 +346,25 @@ function buildAggregateRules(input: CreateAuditLogInput): SecurityAlertRule[] {
         'repeated-privileged-recovery-blocks',
         'high',
         'Repeated blocked privileged recovery attempts crossed the configured threshold',
+      ),
+    );
+  }
+
+  if (
+    input.resource === 'users' &&
+    input.outcome === 'success' &&
+    metadata?.privilegedTarget === true &&
+    ['create', 'update', 'delete', 'restore'].includes(input.action)
+  ) {
+    rules.push(
+      buildThresholdAlert(
+        input,
+        'privileged-user-change',
+        getPrivilegedUserChangeAlertThreshold(),
+        getPrivilegedUserChangeAlertWindowMs(),
+        'privileged-user-change-burst',
+        'critical',
+        'Repeated privileged user-management actions crossed the configured threshold',
       ),
     );
   }
