@@ -14,8 +14,8 @@ Security requirements:
 - Requests must include:
   - Authorization: Bearer <jwt>
   - x-api-key when the deployment uses API key protection
-- Only SUPER_ADMIN and ADMIN users should be able to access the audit log UI and trigger audit log requests.
-- DISPATCHER, RESPONDER, and VIEWER must be blocked in both navigation and route-level guards.
+- Only `SYSTEM_ADMIN` and `AUDITOR` users should be able to access the audit log UI and trigger audit log requests.
+- `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`, `RESPONDER`, and `CITIZEN_REPORTER` must be blocked in both navigation and route-level guards.
 - On 401, clear auth state and redirect to login.
 - On 403, show a forbidden state and do not retry automatically.
 
@@ -68,7 +68,7 @@ Functional requirements:
 1. Access model
 
 - Add an Audit Logs section to the admin dashboard navigation.
-- Only render it for SUPER_ADMIN and ADMIN.
+- Only render it for `SYSTEM_ADMIN` and `AUDITOR`.
 - Add route protection so direct URL access is also blocked for lower roles.
 
 2. Audit log list page

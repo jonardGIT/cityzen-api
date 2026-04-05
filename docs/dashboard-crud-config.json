@@ -13,6 +13,61 @@
       "capabilitiesPath": "/users/capabilities",
       "citizenLinkPath": "/citizens/link-me",
       "incidentReportPath": "/incidents/report"
+    },
+    "optionalEndpoints": {
+      "sessions": {
+        "method": "GET",
+        "path": "/auth/sessions",
+        "authRequired": true,
+        "featureGate": {
+          "feature": "tokenMode",
+          "requires": "app-jwt"
+        },
+        "notes": "Available only when tokenMode is app-jwt. Feature-aware OpenAPI output omits session inventory endpoints for other token modes."
+      },
+      "revokeSession": {
+        "method": "DELETE",
+        "path": "/auth/sessions/{id}",
+        "authRequired": true,
+        "featureGate": {
+          "feature": "tokenMode",
+          "requires": "app-jwt"
+        },
+        "notes": "Available only when tokenMode is app-jwt."
+      },
+      "mfaSetup": {
+        "method": "POST",
+        "path": "/auth/mfa/setup",
+        "authRequired": true,
+        "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"],
+        "featureGate": {
+          "feature": "mfaMode",
+          "requiresAnyOf": ["local-totp", "supabase-totp"]
+        },
+        "notes": "Available only when MFA is enabled in the selected feature profile."
+      },
+      "mfaEnable": {
+        "method": "POST",
+        "path": "/auth/mfa/enable",
+        "authRequired": true,
+        "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"],
+        "featureGate": {
+          "feature": "mfaMode",
+          "requiresAnyOf": ["local-totp", "supabase-totp"]
+        },
+        "notes": "Available only when MFA is enabled in the selected feature profile."
+      },
+      "mfaDisable": {
+        "method": "POST",
+        "path": "/auth/mfa/disable",
+        "authRequired": true,
+        "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"],
+        "featureGate": {
+          "feature": "mfaMode",
+          "requiresAnyOf": ["local-totp", "supabase-totp"]
+        },
+        "notes": "Available only when MFA is enabled in the selected feature profile."
+      }
     }
   },
   "resources": [
@@ -62,6 +117,10 @@
           "method": "POST",
           "path": "/citizens/{id}/restore",
           "authRequired": true,
+          "featureGate": {
+            "feature": "recordDeletion",
+            "requires": "archive"
+          },
           "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         }
       }
@@ -105,6 +164,10 @@
           "method": "POST",
           "path": "/agencies/{id}/restore",
           "authRequired": true,
+          "featureGate": {
+            "feature": "recordDeletion",
+            "requires": "archive"
+          },
           "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         }
       }
@@ -148,6 +211,10 @@
           "method": "POST",
           "path": "/responders/{id}/restore",
           "authRequired": true,
+          "featureGate": {
+            "feature": "recordDeletion",
+            "requires": "archive"
+          },
           "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         }
       }
@@ -207,6 +274,10 @@
           "method": "POST",
           "path": "/statuses/{id}/restore",
           "authRequired": true,
+          "featureGate": {
+            "feature": "recordDeletion",
+            "requires": "archive"
+          },
           "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         }
       }
@@ -266,6 +337,10 @@
           "method": "POST",
           "path": "/categories/{id}/restore",
           "authRequired": true,
+          "featureGate": {
+            "feature": "recordDeletion",
+            "requires": "archive"
+          },
           "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         }
       }
@@ -325,6 +400,10 @@
           "method": "POST",
           "path": "/severities/{id}/restore",
           "authRequired": true,
+          "featureGate": {
+            "feature": "recordDeletion",
+            "requires": "archive"
+          },
           "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         }
       }
@@ -411,6 +490,10 @@
           "method": "POST",
           "path": "/incidents/{id}/restore",
           "authRequired": true,
+          "featureGate": {
+            "feature": "recordDeletion",
+            "requires": "archive"
+          },
           "allowedRoles": [
             "SYSTEM_ADMIN",
             "DEPARTMENT_MANAGER",
@@ -438,6 +521,10 @@
           "method": "POST",
           "path": "/incidents/media/upload",
           "authRequired": true,
+          "featureGate": {
+            "feature": "mediaStorage",
+            "requires": "supabase-storage"
+          },
           "allowedRoles": [
             "SYSTEM_ADMIN",
             "DEPARTMENT_MANAGER",
@@ -446,7 +533,7 @@
             "RESPONDER",
             "CITIZEN_REPORTER"
           ],
-          "notes": "Available only when the selected feature profile enables incident media uploads."
+          "notes": "Available only when the selected feature profile enables incident media uploads. Feature-aware OpenAPI output omits this operation when mediaStorage is disabled."
         }
       }
     },
@@ -489,6 +576,10 @@
           "method": "POST",
           "path": "/assignments/{id}/restore",
           "authRequired": true,
+          "featureGate": {
+            "feature": "recordDeletion",
+            "requires": "archive"
+          },
           "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"]
         }
       }
@@ -546,6 +637,10 @@
           "method": "POST",
           "path": "/users/{id}/restore",
           "authRequired": true,
+          "featureGate": {
+            "feature": "recordDeletion",
+            "requires": "archive"
+          },
           "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         }
       }

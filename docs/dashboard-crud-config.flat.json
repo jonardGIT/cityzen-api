@@ -3,7 +3,72 @@
   "auth": {
     "type": "bearer",
     "tokenHeader": "Authorization",
-    "tokenPrefix": "Bearer"
+    "tokenPrefix": "Bearer",
+    "optionalEndpoints": [
+      {
+        "operation": "sessions",
+        "method": "GET",
+        "path": "/auth/sessions",
+        "fullPath": "/api/v1/auth/sessions",
+        "authRequired": true,
+        "featureGate": {
+          "feature": "tokenMode",
+          "requires": "app-jwt"
+        },
+        "notes": "Available only when tokenMode is app-jwt. Feature-aware OpenAPI output omits session inventory endpoints for other token modes."
+      },
+      {
+        "operation": "revokeSession",
+        "method": "DELETE",
+        "path": "/auth/sessions/{id}",
+        "fullPath": "/api/v1/auth/sessions/{id}",
+        "authRequired": true,
+        "featureGate": {
+          "feature": "tokenMode",
+          "requires": "app-jwt"
+        },
+        "notes": "Available only when tokenMode is app-jwt."
+      },
+      {
+        "operation": "mfaSetup",
+        "method": "POST",
+        "path": "/auth/mfa/setup",
+        "fullPath": "/api/v1/auth/mfa/setup",
+        "authRequired": true,
+        "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"],
+        "featureGate": {
+          "feature": "mfaMode",
+          "requiresAnyOf": ["local-totp", "supabase-totp"]
+        },
+        "notes": "Available only when MFA is enabled in the selected feature profile."
+      },
+      {
+        "operation": "mfaEnable",
+        "method": "POST",
+        "path": "/auth/mfa/enable",
+        "fullPath": "/api/v1/auth/mfa/enable",
+        "authRequired": true,
+        "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"],
+        "featureGate": {
+          "feature": "mfaMode",
+          "requiresAnyOf": ["local-totp", "supabase-totp"]
+        },
+        "notes": "Available only when MFA is enabled in the selected feature profile."
+      },
+      {
+        "operation": "mfaDisable",
+        "method": "POST",
+        "path": "/auth/mfa/disable",
+        "fullPath": "/api/v1/auth/mfa/disable",
+        "authRequired": true,
+        "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"],
+        "featureGate": {
+          "feature": "mfaMode",
+          "requiresAnyOf": ["local-totp", "supabase-totp"]
+        },
+        "notes": "Available only when MFA is enabled in the selected feature profile."
+      }
+    ]
   },
   "endpoints": [
     {
@@ -75,6 +140,10 @@
       "path": "/citizens/{id}/restore",
       "fullPath": "/api/v1/citizens/{id}/restore",
       "authRequired": true,
+      "featureGate": {
+        "feature": "recordDeletion",
+        "requires": "archive"
+      },
       "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
     },
 
@@ -136,6 +205,10 @@
       "path": "/agencies/{id}/restore",
       "fullPath": "/api/v1/agencies/{id}/restore",
       "authRequired": true,
+      "featureGate": {
+        "feature": "recordDeletion",
+        "requires": "archive"
+      },
       "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
     },
 
@@ -197,6 +270,10 @@
       "path": "/responders/{id}/restore",
       "fullPath": "/api/v1/responders/{id}/restore",
       "authRequired": true,
+      "featureGate": {
+        "feature": "recordDeletion",
+        "requires": "archive"
+      },
       "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
     },
 
@@ -274,6 +351,10 @@
       "path": "/statuses/{id}/restore",
       "fullPath": "/api/v1/statuses/{id}/restore",
       "authRequired": true,
+      "featureGate": {
+        "feature": "recordDeletion",
+        "requires": "archive"
+      },
       "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
     },
 
@@ -351,6 +432,10 @@
       "path": "/categories/{id}/restore",
       "fullPath": "/api/v1/categories/{id}/restore",
       "authRequired": true,
+      "featureGate": {
+        "feature": "recordDeletion",
+        "requires": "archive"
+      },
       "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
     },
 
@@ -428,6 +513,10 @@
       "path": "/severities/{id}/restore",
       "fullPath": "/api/v1/severities/{id}/restore",
       "authRequired": true,
+      "featureGate": {
+        "feature": "recordDeletion",
+        "requires": "archive"
+      },
       "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
     },
 
@@ -536,6 +625,10 @@
       "path": "/incidents/{id}/restore",
       "fullPath": "/api/v1/incidents/{id}/restore",
       "authRequired": true,
+      "featureGate": {
+        "feature": "recordDeletion",
+        "requires": "archive"
+      },
       "allowedRoles": [
         "SYSTEM_ADMIN",
         "DEPARTMENT_MANAGER",
@@ -571,6 +664,10 @@
       "path": "/incidents/media/upload",
       "fullPath": "/api/v1/incidents/media/upload",
       "authRequired": true,
+      "featureGate": {
+        "feature": "mediaStorage",
+        "requires": "supabase-storage"
+      },
       "allowedRoles": [
         "SYSTEM_ADMIN",
         "DEPARTMENT_MANAGER",
@@ -579,7 +676,7 @@
         "RESPONDER",
         "CITIZEN_REPORTER"
       ],
-      "notes": "Available only when the selected feature profile enables incident media uploads."
+      "notes": "Available only when the selected feature profile enables incident media uploads. Feature-aware OpenAPI output omits this operation when mediaStorage is disabled."
     },
 
     {
@@ -640,6 +737,10 @@
       "path": "/assignments/{id}/restore",
       "fullPath": "/api/v1/assignments/{id}/restore",
       "authRequired": true,
+      "featureGate": {
+        "feature": "recordDeletion",
+        "requires": "archive"
+      },
       "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"]
     },
 
@@ -719,6 +820,10 @@
       "path": "/users/{id}/restore",
       "fullPath": "/api/v1/users/{id}/restore",
       "authRequired": true,
+      "featureGate": {
+        "feature": "recordDeletion",
+        "requires": "archive"
+      },
       "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
     }
   ]
