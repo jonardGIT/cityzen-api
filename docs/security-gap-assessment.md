@@ -143,16 +143,17 @@ Current state:
 - Reset completion revokes active sessions.
 - Non-production environments can expose reset tokens for local testing.
 - Abuse monitoring now covers repeated password reset requests, repeated password reset confirmation failures, and delivery outages.
+- Production startup validation now rejects missing or invalid password-reset delivery webhook configuration.
 - There is still no production-grade delivery channel such as verified email or SMS.
 - A repository-level operational recovery and break-glass procedure is now documented, but it still depends on operators following it correctly.
 
 Risk:
 
-- The recovery primitive exists, but production recovery is still incomplete without secure token delivery and stronger operator controls.
+- The recovery primitive now fails closed when delivery is unconfigured, but production recovery is still incomplete without a stronger verified delivery channel and operator controls.
 
 Recommendation:
 
-- Add verified delivery for reset tokens.
+- Replace the webhook-only baseline with a verified delivery channel for reset tokens.
 - Keep reset throttling and monitoring rules tuned for both request and confirmation abuse patterns.
 - Keep the documented privileged-account recovery process under change control and exercise it periodically.
 

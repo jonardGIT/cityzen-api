@@ -106,7 +106,19 @@ function validateOptionalHttpsUrl(env: NodeJS.ProcessEnv, name: string): void {
   }
 }
 
-function validateSupabaseStorageAccessMode(env: NodeJS.ProcessEnv, selection: FeatureSelection): void {
+function validateRequiredHttpsUrl(env: NodeJS.ProcessEnv, name: string): void {
+  const value = env[name]?.trim();
+  if (!value) {
+    throw new Error(`${name} must be configured in production`);
+  }
+
+  validateOptionalHttpsUrl(env, name);
+}
+
+function validateSupabaseStorageAccessMode(
+  env: NodeJS.ProcessEnv,
+  selection: FeatureSelection,
+): void {
   if (selection.mediaStorage !== 'supabase-storage') {
     return;
   }
@@ -144,6 +156,6 @@ export function validateStartupEnvironment({ env, selection }: StartupValidation
 
   validateSupabaseStorageAccessMode(env, selection);
 
-  validateOptionalHttpsUrl(env, 'PASSWORD_RESET_DELIVERY_WEBHOOK_URL');
+  validateRequiredHttpsUrl(env, 'PASSWORD_RESET_DELIVERY_WEBHOOK_URL');
   validateOptionalHttpsUrl(env, 'SECURITY_ALERT_WEBHOOK_URL');
 }

@@ -133,6 +133,19 @@ describe('startup environment validation', () => {
     ).toThrow('PASSWORD_RESET_DELIVERY_WEBHOOK_URL must use HTTPS in production');
   });
 
+  it('requires password reset delivery to be configured in production', () => {
+    expect(() =>
+      validateStartupEnvironment({
+        env: {
+          NODE_ENV: 'production',
+          JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
+          MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
+        },
+        selection: createSelection({ mfaMode: 'local-totp' }),
+      }),
+    ).toThrow('PASSWORD_RESET_DELIVERY_WEBHOOK_URL must be configured in production');
+  });
+
   it('rejects invalid security alert webhook URLs in production', () => {
     expect(() =>
       validateStartupEnvironment({
@@ -140,6 +153,7 @@ describe('startup environment validation', () => {
           NODE_ENV: 'production',
           JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
           MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
+          PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'https://security.example.gov/password-reset',
           SECURITY_ALERT_WEBHOOK_URL: 'not-a-url',
         },
         selection: createSelection({ mfaMode: 'local-totp' }),
