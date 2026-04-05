@@ -123,7 +123,7 @@ Current state:
 - The API now supports an authenticated incident-media access endpoint that resolves a just-in-time access URL after incident-level authorization.
 - Uploads can now be failed closed if media-scan submission is unavailable, and uploaded objects are cleaned up before the request succeeds.
 - Storage uploads validate MIME type and size, and replaced files can be archived.
-- Incident media upload attempts are now audited and can trigger threshold alerts for suspicious repeated upload activity.
+- Incident media upload attempts and repeated authenticated media access requests are now audited and can trigger threshold alerts for suspicious activity.
 
 Risk:
 

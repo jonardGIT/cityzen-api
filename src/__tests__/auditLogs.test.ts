@@ -192,6 +192,8 @@ describe('Audit log persistence', () => {
     delete process.env.SECURITY_ALERT_SESSION_CHURN_WINDOW_MS;
     delete process.env.SECURITY_ALERT_MEDIA_UPLOAD_THRESHOLD;
     delete process.env.SECURITY_ALERT_MEDIA_UPLOAD_WINDOW_MS;
+    delete process.env.SECURITY_ALERT_MEDIA_ACCESS_THRESHOLD;
+    delete process.env.SECURITY_ALERT_MEDIA_ACCESS_WINDOW_MS;
     jest.restoreAllMocks();
   });
 
@@ -772,6 +774,91 @@ describe('Audit log persistence', () => {
       severity: 'medium',
     });
     expect(payload.aggregate).toMatchObject({
+      count: 3,
+      windowMs: 600000,
+    });
+  });
+
+  it('forwards a security alert after repeated incident media access requests cross the threshold', async () => {
+    process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
+    process.env.SECURITY_ALERT_MEDIA_ACCESS_THRESHOLD = '3';
+    process.env.SECURITY_ALERT_MEDIA_ACCESS_WINDOW_MS = '600000';
+
+    const originalFetch = global.fetch;
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const statusesRes = await request(app)
+      .get(`${API_V1}/statuses`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(statusesRes.status).toBe(200);
+    const statusId = (statusesRes.body[0] as { id: string }).id;
+
+    const citizenRes = await request(app)
+      .post(`${API_V1}/citizens`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: `Alert Media Citizen ${Date.now()}`,
+        contactInfo: `alert.media.${Date.now()}@mail.com`,
+        preferredChannel: 'app',
+      });
+    expect(citizenRes.status).toBe(201);
+
+    const categoryId = await createCategory(adminToken);
+    const severityId = await createSeverity(adminToken);
+
+    const incidentRes = await request(app)
+      .post(`${API_V1}/incidents`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        description: 'Alert media access incident',
+        mediaUrls: ['supabase://incident-media/incidents/private/alert-access-photo.jpg'],
+        statusId,
+        citizenId: citizenRes.body.id,
+        categoryId,
+        severityId,
+        ...buildIncidentLocationSnapshot(),
+      });
+    expect(incidentRes.status).toBe(201);
+
+    const incidentRecord = await prisma.citizenIncident.findUniqueOrThrow({
+      where: { id: incidentRes.body.id },
+      include: {
+        mediaFiles: {
+          orderBy: { displayOrder: 'asc' },
+        },
+      },
+    });
+    const mediaId = incidentRecord.mediaFiles[0]?.id as string;
+
+    const firstAccess = await request(app)
+      .get(`${API_V1}/incidents/${incidentRes.body.id}/media/${mediaId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    const secondAccess = await request(app)
+      .get(`${API_V1}/incidents/${incidentRes.body.id}/media/${mediaId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    const thirdAccess = await request(app)
+      .get(`${API_V1}/incidents/${incidentRes.body.id}/media/${mediaId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    global.fetch = originalFetch;
+
+    expect(firstAccess.status).toBe(200);
+    expect(secondAccess.status).toBe(200);
+    expect(thirdAccess.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')) as Record<
+      string,
+      unknown
+    >;
+    expect(payload).toMatchObject({
+      type: 'security-alert',
+      ruleId: 'repeated-media-access-requests',
+      severity: 'medium',
+    });
+    expect(payload.aggregate).toMatchObject({
+      identity: 'admin@xypes.local',
       count: 3,
       windowMs: 600000,
     });

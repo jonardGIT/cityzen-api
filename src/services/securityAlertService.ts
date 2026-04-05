@@ -96,6 +96,14 @@ function getMediaUploadAlertWindowMs(): number {
   return toPositiveInteger(process.env.SECURITY_ALERT_MEDIA_UPLOAD_WINDOW_MS, 15 * 60_000);
 }
 
+function getMediaAccessAlertThreshold(): number {
+  return toPositiveInteger(process.env.SECURITY_ALERT_MEDIA_ACCESS_THRESHOLD, 10);
+}
+
+function getMediaAccessAlertWindowMs(): number {
+  return toPositiveInteger(process.env.SECURITY_ALERT_MEDIA_ACCESS_WINDOW_MS, 15 * 60_000);
+}
+
 function getAggregateIdentity(input: CreateAuditLogInput): string {
   return input.actorEmail ?? input.ipAddress ?? 'unknown';
 }
@@ -340,6 +348,20 @@ function buildAggregateRules(input: CreateAuditLogInput): SecurityAlertRule[] {
         'repeated-media-upload-attempts',
         'medium',
         'Repeated incident media upload attempts crossed the configured threshold',
+      ),
+    );
+  }
+
+  if (input.action === 'media_access' && input.outcome === 'success') {
+    rules.push(
+      buildThresholdAlert(
+        input,
+        'media-access',
+        getMediaAccessAlertThreshold(),
+        getMediaAccessAlertWindowMs(),
+        'repeated-media-access-requests',
+        'medium',
+        'Repeated incident media access requests crossed the configured threshold',
       ),
     );
   }
