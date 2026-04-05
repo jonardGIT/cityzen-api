@@ -1,7 +1,9 @@
 Build a production-ready audit log module for the Xypes CIRS dashboard using the backend contract in this repository.
 
+Use `docs/dashboard-current-feature-prompt.md` as the governing prompt when role-model, auth, or OpenAPI/config reconciliation questions arise.
+
 Goal:
-Implement an admin-only dashboard experience that reads durable server-side audit logs from the API and replaces any browser-local audit history approach.
+Implement a `SYSTEM_ADMIN`- and `AUDITOR`-only dashboard experience that reads durable server-side audit logs from the API and replaces any browser-local audit history approach.
 
 Primary backend contract:
 
@@ -197,9 +199,9 @@ Functional requirements:
 
 10. Acceptance criteria
 
-- Admin users can list audit logs from the API.
-- Admin users can open a single audit log detail view.
-- Non-admin roles cannot see or access the audit log section.
+- `SYSTEM_ADMIN` and `AUDITOR` users can list audit logs from the API.
+- `SYSTEM_ADMIN` and `AUDITOR` users can open a single audit log detail view.
+- `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`, `RESPONDER`, and `CITIZEN_REPORTER` cannot see or access the audit log section.
 - Pagination, sorting, search, and filters all work against the backend list-query contract.
 - 401, 403, 404, and 422 are handled consistently.
 - No audit history relies on localStorage.

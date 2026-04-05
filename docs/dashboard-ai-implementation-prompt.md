@@ -1,5 +1,7 @@
 Build a production-ready admin dashboard module using the API config files in this repository.
 
+Use `docs/dashboard-current-feature-prompt.md` as the governing prompt when feature-gating, optional endpoints, or OpenAPI/config reconciliation questions arise.
+
 Primary input files:
 
 - docs/dashboard-crud-config.json (resource-based structure)
@@ -29,6 +31,7 @@ Functional requirements:
 - Assume current user role is available from auth state (`SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`, `RESPONDER`, `CITIZEN_REPORTER`, `AUDITOR`).
 - Hide or disable action buttons (Create, Edit, Delete) if current role is not included in allowedRoles.
 - Treat `authRequired` in the config files as authoritative; the current dashboard resource routes are authenticated.
+- Respect `featureGate` metadata in the config files. Do not render or call feature-gated operations when the current deployment does not expose them.
 - Add a reusable hasPermission(endpoint, role) helper.
 - For incident list/get when role is `CITIZEN_REPORTER`, show only the logged-in user's own incidents.
 - Citizens list/get/create/update/delete are admin-only; keep `citizens/link-me` as a dedicated citizen self-service action rather than a normal admin CRUD form.
@@ -45,7 +48,12 @@ Functional requirements:
   - Report form for incidents (report endpoint)
   - Update form (update endpoint)
   - Delete action with confirmation modal (delete endpoint)
-- Use endpoint.operation values: list, get, create, linkMe, report, update, delete.
+- Conditionally support additional operations when present and active in config/OpenAPI:
+  - restore
+  - mediaAccess
+  - mediaUpload
+  - capabilities
+- Use `endpoint.operation` values from config rather than assuming a fixed operation list for every resource.
 
 4. Generic API client
 
@@ -98,6 +106,7 @@ Functional requirements:
 8. Data refresh strategy
 
 - After create/update/delete, refetch list endpoint for that resource.
+- After restore, refetch list endpoint when archive mode is active.
 - Keep local optimistic updates optional, but prioritize correctness.
 
 9. Error behavior
@@ -151,6 +160,8 @@ Security alignment notes:
 
 - `/api/v1/auth/register`, `/api/v1/auth/login`, and `/api/v1/auth/refresh` are public auth bootstrap/renewal routes.
 - `/api/v1/auth/mfa/setup`, `/api/v1/auth/mfa/enable`, and `/api/v1/auth/mfa/disable` require a privileged JWT. Use the current backend role metadata and dashboard config rather than legacy role names.
+- `/api/v1/auth/sessions` and `/api/v1/auth/sessions/{id}` are optional and exist only when the active feature selection uses `tokenMode=app-jwt`.
+- `/api/v1/auth/mfa/setup`, `/api/v1/auth/mfa/enable`, and `/api/v1/auth/mfa/disable` are optional and exist only when the active feature selection enables MFA.
 - `/api/v1/auth/me` and `/api/v1/auth/logout` require JWT bearer auth.
 - Login/register/refresh responses now include `sessionId`, `expiresAt`, `refreshExpiresAt`, and a rotated `refreshToken`; use the metadata for session handling, not as a replacement for the bearer token.
 - Every successful refresh invalidates the previous refresh token, so the dashboard must replace stored refresh state atomically.
@@ -181,6 +192,7 @@ Acceptance criteria:
 
 - All resources in docs/dashboard-crud-config.flat.json render in dashboard navigation.
 - Allowed actions vary correctly by role.
+- Feature-gated operations are shown only when active for the current deployment.
 - CRUD operations execute against the API paths from config.
 - Unauthorized actions are not executable from UI.
 - Errors and loading states are handled consistently.
