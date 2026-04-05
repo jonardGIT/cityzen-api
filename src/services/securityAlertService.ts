@@ -61,6 +61,17 @@ function getPasswordResetAlertWindowMs(): number {
   return toPositiveInteger(process.env.SECURITY_ALERT_PASSWORD_RESET_WINDOW_MS, 60 * 60_000);
 }
 
+function getPrivilegedRecoveryBlockedAlertThreshold(): number {
+  return toPositiveInteger(process.env.SECURITY_ALERT_PRIVILEGED_RECOVERY_BLOCKED_THRESHOLD, 3);
+}
+
+function getPrivilegedRecoveryBlockedAlertWindowMs(): number {
+  return toPositiveInteger(
+    process.env.SECURITY_ALERT_PRIVILEGED_RECOVERY_BLOCKED_WINDOW_MS,
+    60 * 60_000,
+  );
+}
+
 function getPasswordResetConfirmFailureAlertThreshold(): number {
   return toPositiveInteger(process.env.SECURITY_ALERT_PASSWORD_RESET_CONFIRM_FAILURE_THRESHOLD, 5);
 }
@@ -274,6 +285,7 @@ function buildImmediateRules(input: CreateAuditLogInput): SecurityAlertRule[] {
 }
 
 function buildAggregateRules(input: CreateAuditLogInput): SecurityAlertRule[] {
+  const metadata = isObject(input.metadata) ? (input.metadata as Prisma.InputJsonObject) : null;
   const rules: Array<SecurityAlertRule | null> = [];
 
   if (input.action === 'login' && input.outcome === 'failure') {
@@ -300,6 +312,24 @@ function buildAggregateRules(input: CreateAuditLogInput): SecurityAlertRule[] {
         'repeated-password-reset-requests',
         'medium',
         'Repeated password reset requests crossed the configured threshold',
+      ),
+    );
+  }
+
+  if (
+    input.action === 'password_reset_request' &&
+    input.outcome === 'success' &&
+    metadata?.privilegedRecoveryBlocked === true
+  ) {
+    rules.push(
+      buildThresholdAlert(
+        input,
+        'privileged-recovery-blocked',
+        getPrivilegedRecoveryBlockedAlertThreshold(),
+        getPrivilegedRecoveryBlockedAlertWindowMs(),
+        'repeated-privileged-recovery-blocks',
+        'high',
+        'Repeated blocked privileged recovery attempts crossed the configured threshold',
       ),
     );
   }

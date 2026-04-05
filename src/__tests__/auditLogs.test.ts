@@ -184,6 +184,8 @@ describe('Audit log persistence', () => {
     delete process.env.SECURITY_ALERT_LOGIN_FAILURE_WINDOW_MS;
     delete process.env.SECURITY_ALERT_PASSWORD_RESET_THRESHOLD;
     delete process.env.SECURITY_ALERT_PASSWORD_RESET_WINDOW_MS;
+    delete process.env.SECURITY_ALERT_PRIVILEGED_RECOVERY_BLOCKED_THRESHOLD;
+    delete process.env.SECURITY_ALERT_PRIVILEGED_RECOVERY_BLOCKED_WINDOW_MS;
     delete process.env.SECURITY_ALERT_PASSWORD_RESET_CONFIRM_FAILURE_THRESHOLD;
     delete process.env.SECURITY_ALERT_PASSWORD_RESET_CONFIRM_FAILURE_WINDOW_MS;
     delete process.env.SECURITY_ALERT_REFRESH_FAILURE_THRESHOLD;
@@ -440,6 +442,62 @@ describe('Audit log persistence', () => {
       type: 'security-alert',
       ruleId: 'privileged-password-reset-blocked',
       severity: 'high',
+    });
+  });
+
+  it('forwards a security alert after repeated blocked privileged recovery attempts cross the threshold', async () => {
+    process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
+    process.env.SECURITY_ALERT_PASSWORD_RESET_THRESHOLD = '99';
+    process.env.SECURITY_ALERT_PRIVILEGED_RECOVERY_BLOCKED_THRESHOLD = '3';
+    process.env.SECURITY_ALERT_PRIVILEGED_RECOVERY_BLOCKED_WINDOW_MS = '600000';
+
+    const unique = Date.now();
+    const email = `privileged.reset.${unique}@postman.local`;
+
+    await prisma.user.create({
+      data: {
+        name: `Privileged Reset ${unique}`,
+        email,
+        passwordHash: await bcrypt.hash('Password123!', 10),
+        role: 'DEPARTMENT_MANAGER',
+        mfaEnabled: false,
+        mfaSecretEncrypted: null,
+        mfaEnabledAt: null,
+      },
+    });
+
+    const originalFetch = global.fetch;
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalWebhookUrl = process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL;
+    process.env.NODE_ENV = 'production';
+    process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL = 'https://example.test/password-reset';
+
+    await request(app).post(`${API_V1}/auth/password-reset/request`).send({ email });
+    await request(app).post(`${API_V1}/auth/password-reset/request`).send({ email });
+    await request(app).post(`${API_V1}/auth/password-reset/request`).send({ email });
+
+    process.env.NODE_ENV = originalNodeEnv;
+    process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL = originalWebhookUrl;
+    global.fetch = originalFetch;
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+
+    const payload = JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body ?? '{}')) as Record<
+      string,
+      unknown
+    >;
+    expect(payload).toMatchObject({
+      type: 'security-alert',
+      ruleId: 'repeated-privileged-recovery-blocks',
+      severity: 'high',
+    });
+    expect(payload.aggregate).toMatchObject({
+      identity: email,
+      count: 3,
+      windowMs: 600000,
     });
   });
 
