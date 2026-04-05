@@ -26,12 +26,12 @@ Functional requirements:
 
 2. Authorization and UI gating
 
-- Assume current user role is available from auth state (SUPER_ADMIN, ADMIN, DISPATCHER, RESPONDER, VIEWER).
+- Assume current user role is available from auth state (`SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`, `RESPONDER`, `CITIZEN_REPORTER`, `AUDITOR`).
 - Hide or disable action buttons (Create, Edit, Delete) if current role is not included in allowedRoles.
-- List and Get views should remain visible where config allows unauthenticated access.
+- Treat `authRequired` in the config files as authoritative; the current dashboard resource routes are authenticated.
 - Add a reusable hasPermission(endpoint, role) helper.
-- For incident list/get when role is VIEWER, show only the logged-in user's own incidents.
-- Citizens list/get/create/update/delete are admin-only; keep `citizens/link-me` as a dedicated viewer action rather than a normal admin CRUD form.
+- For incident list/get when role is `CITIZEN_REPORTER`, show only the logged-in user's own incidents.
+- Citizens list/get/create/update/delete are admin-only; keep `citizens/link-me` as a dedicated citizen self-service action rather than a normal admin CRUD form.
 
 3. Dynamic resource pages
 
@@ -69,15 +69,16 @@ Functional requirements:
   - statuses: name
   - categories: name, subCategory
   - severities: level, definition
-  - incidents: description, mediaUrl, statusId, citizenId, categoryId, severityId, latitude, longitude, addressLine1, addressLine2, barangay, districtName, cityName, provinceName, regionName, postalCode, landmark
+  - incidents: description, statusId, citizenId, categoryId, severityId, latitude, longitude, addressLine1, addressLine2, barangay, districtName, cityName, provinceName, regionName, postalCode, landmark
   - assignments: incidentId, responderId, responseStart, responseEnd, outcome, notes
 - Support partial payload on update.
 - For citizens linkMe operation, use payload fields:
   - name, preferredChannel
   - Do not send contactInfo for linkMe; backend binds it to authenticated user email.
 - For incidents report operation, use payload fields:
-  - description, mediaUrl, dateReported, categoryId, severityId, latitude, longitude, addressLine1, addressLine2, barangay, districtName, cityName, provinceName, regionName, postalCode, landmark
+  - description, dateReported, categoryId, severityId, latitude, longitude, addressLine1, addressLine2, barangay, districtName, cityName, provinceName, regionName, postalCode, landmark
   - Do not send citizenId for report; backend infers it from authenticated user email.
+  - Use the dedicated incident media upload endpoint for attachments instead of embedding `mediaUrl` in the incident payload.
 
 6. UX requirements
 
@@ -141,7 +142,7 @@ Incident location contract:
 
 Mobile citizen flow requirements:
 
-1. Citizen signs up via /api/v1/auth/register (VIEWER role by default).
+1. Citizen signs up via /api/v1/auth/register (`CITIZEN_REPORTER` role by default in the current role model).
 2. App calls /api/v1/citizens/link-me to create/update citizen profile linked to auth email.
 3. Citizen creates incident via /api/v1/incidents/report.
 4. Citizen views own incidents via /api/v1/incidents and /api/v1/incidents/{id} only.
@@ -149,7 +150,7 @@ Mobile citizen flow requirements:
 Security alignment notes:
 
 - `/api/v1/auth/register`, `/api/v1/auth/login`, and `/api/v1/auth/refresh` are public auth bootstrap/renewal routes.
-- `/api/v1/auth/mfa/setup`, `/api/v1/auth/mfa/enable`, and `/api/v1/auth/mfa/disable` require a privileged JWT (`SUPER_ADMIN`, `ADMIN`, or `DISPATCHER`).
+- `/api/v1/auth/mfa/setup`, `/api/v1/auth/mfa/enable`, and `/api/v1/auth/mfa/disable` require a privileged JWT. Use the current backend role metadata and dashboard config rather than legacy role names.
 - `/api/v1/auth/me` and `/api/v1/auth/logout` require JWT bearer auth.
 - Login/register/refresh responses now include `sessionId`, `expiresAt`, `refreshExpiresAt`, and a rotated `refreshToken`; use the metadata for session handling, not as a replacement for the bearer token.
 - Every successful refresh invalidates the previous refresh token, so the dashboard must replace stored refresh state atomically.

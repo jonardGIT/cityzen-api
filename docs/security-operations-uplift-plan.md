@@ -188,6 +188,31 @@ Track these metrics during rollout:
 - number of control exceptions or release bypasses per quarter
 - number of privileged recovery events reviewed within the target window
 
+## Technology Fit
+
+For this codebase, the most practical technology choices are:
+
+- `Redis` or `Valkey` as the next shared-control substrate.
+Reason: the API already has shared rate limiting, threshold-based security alerts, and several workflows that would benefit from low-latency counters or queues.
+
+- `Grafana Loki`, `OpenSearch`, or a managed SIEM as the centralized telemetry sink.
+Reason: the backend already emits audit events, webhook alerts, Sentry issues, and deploy verification results, so the missing capability is consolidation and retention rather than event generation.
+
+- `BullMQ` if Redis is adopted, or a managed queue equivalent.
+Reason: password-reset delivery, media-scan submission, and future evidence-processing workflows are better handled as retriable background jobs than synchronous request-side effects once operational volume grows.
+
+- A managed secret store such as `AWS Secrets Manager`, `GCP Secret Manager`, `Azure Key Vault`, `HashiCorp Vault`, or `1Password Connect`.
+Reason: the current architecture already depends on several high-value secrets and webhook credentials; the biggest gap is operational handling and rotation evidence.
+
+- Continue using `Sentry` for exceptions and traces, but not as the only long-term security event store.
+Reason: it fits runtime fault visibility well, but it is not a substitute for durable audit retention or SIEM-style correlation.
+
+Technology choices that are lower priority for the current backend:
+
+- replacing Express with another HTTP framework
+- replacing Prisma before operational maturity gaps are closed
+- introducing a service mesh or microservice split before background-job and telemetry needs justify the complexity
+
 ## Acceptance Checklist
 
 This initiative is not complete until all of the following are true:

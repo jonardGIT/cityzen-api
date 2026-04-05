@@ -1,3 +1,7 @@
+-- Baseline reset script for the current API schema.
+-- Use this only for clean-room setup, disposable environments, or deliberate full resets.
+-- For existing databases that must retain data, prefer the additive `prisma/add-*.sql` scripts that match the features you are enabling.
+
 BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;

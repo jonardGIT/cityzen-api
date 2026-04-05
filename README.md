@@ -45,6 +45,14 @@ Current platform capabilities:
 - Jest + Supertest
 - Swagger UI Express
 
+Recommended infrastructure extensions for the current architecture:
+
+- `Redis` or `Valkey` for lower-latency shared rate limiting, short-lived security counters, and future queue-backed workflows.
+- `Grafana Loki`, `OpenSearch`, or a managed SIEM for centralized audit-log exports, security alert retention, and deploy-event correlation.
+- `Sentry` for exception and trace visibility remains a good fit; keep it focused on app/runtime failures rather than long-term audit retention.
+- `BullMQ` if you add Redis, or a managed queue equivalent, for async password-reset delivery, media-scan orchestration, and retriable background jobs.
+- A managed secret store such as `AWS Secrets Manager`, `GCP Secret Manager`, `Azure Key Vault`, `HashiCorp Vault`, or `1Password Connect` for production runtime and deploy secrets.
+
 ## Project Structure
 
 ### src folder
@@ -83,15 +91,9 @@ Current platform capabilities:
   - Inserts realistic sample data.
   - Provides at least 10 rows for core domain tables and a smaller user set.
 
-- `prisma/elgu-admin.schema.prisma`: separate Prisma schema scaffold for the eLGU mobile admin domain.
-  - Uses `ELGU_DATABASE_URL` for a dedicated database.
-  - Defines models for mobile users, dashboard admins, news posts, and mobile app content.
-
-- `prisma/elgu-admin-reset-schema.sql`: reset script for the separate eLGU admin database.
-  - Drops and recreates the eLGU admin tables and enums.
-
-- `prisma/elgu-admin-seed-data.sql`: initial seed script for the eLGU admin database.
-  - Seeds admin roles, admin users, mobile users, news posts, and app content items.
+- `prisma/elgu-admin.schema.prisma`, `prisma/elgu-admin-reset-schema.sql`, `prisma/elgu-admin-seed-data.sql`: legacy scaffolding for a separate eLGU mobile-admin domain.
+  - These files are not wired to the current API routes, controllers, or runtime startup.
+  - Treat them as archived reference material unless that separate domain is revived intentionally.
 
 ## Getting Started
 
@@ -217,6 +219,13 @@ Production feature-profile variables:
 - `FEATURE_RECORD_DELETION`: required for `npm run build:production`. Choose `hard-delete` or `archive`.
 - `FEATURE_PROFILE_NAME`: optional human-readable name embedded into the production build profile.
 
+Feature-selection constraints:
+
+- `FEATURE_TOKEN_MODE=supabase-jwt` requires `FEATURE_AUTH_PROVIDER=supabase`.
+- `FEATURE_MFA_MODE=supabase-totp` requires `FEATURE_TOKEN_MODE=supabase-jwt`.
+- `FEATURE_MFA_MODE=disabled` is not valid for production builds when privileged roles are present; production startup now fails closed if MFA is disabled.
+- `FEATURE_MEDIA_STORAGE=supabase-storage` should be paired with signed/private media access and a configured media-scan webhook in production.
+
 `npm run build:production` requires one explicit selection per feature group and locks those selections into the production build. Unselected feature routes and behaviors are not mounted in the running production app, and the generated OpenAPI document hides those disabled routes as well. This is a fail-closed production profile, not a tree-shaking or code-stripping build.
 
 When `SUPABASE_JWT_ENABLED=true`, the backend verifies Supabase bearer tokens on protected routes and returns Supabase access/refresh tokens from login and refresh endpoints. The legacy session-management endpoints `/auth/sessions` and `/auth/sessions/:id` remain available only in app-JWT mode because Supabase does not expose arbitrary session listing/revocation in the same shape.
@@ -246,8 +255,8 @@ Password reset recovery behavior:
 Centralized security alerting:
 
 - When `SECURITY_ALERT_WEBHOOK_URL` is configured, the backend forwards selected high-risk audit events to that webhook after the audit log is persisted.
-- Current alert rules cover repeated failed logins, repeated password reset requests, privileged self-service reset attempts blocked in production, successful password reset completions, and privileged MFA disable events.
-- Current alert rules also cover privileged user creation, user role changes, admin-triggered password resets, and user archive/delete events.
+- Current alert rules cover repeated failed logins, repeated password reset requests, repeated blocked privileged recovery attempts, repeated failed password reset confirmations, repeated refresh failures, repeated session revocations, repeated MFA setup resets, repeated incident media upload attempts, and repeated incident media access requests.
+- Current alert rules also cover privileged MFA disable events, successful password reset completions, privileged user creation, user role changes, admin-triggered password resets, user archive/delete events, user restoration events, and burst privileged user-management activity.
 - Alert forwarding is additive: requests do not fail if the monitoring webhook is unavailable, but the backend logs the alert-delivery failure locally.
 
 Security notes:
@@ -278,6 +287,17 @@ If you are enabling multi-file incident media on an existing database, also run:
 If you are enabling archive-by-default deletes and active-only reads on an existing database, also run:
 
 1. `prisma/add-archived-at.sql`
+
+If you are enabling auth sessions, password reset, shared rate limiting, or MFA on an older database, also run the additive scripts that match the runtime features you are turning on:
+
+1. `prisma/add-auth-sessions.sql`
+2. `prisma/add-password-reset-tokens.sql`
+3. `prisma/add-rate-limit-buckets.sql`
+4. `prisma/add-user-mfa.sql`
+
+Legacy note:
+
+- The `prisma/elgu-admin*` files are not part of the current API bootstrap or route surface. Do not apply them unless you are intentionally reviving that separate domain.
 
 If you are enabling persistent audit logging on an existing database, also run:
 
