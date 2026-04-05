@@ -6,72 +6,720 @@
     "tokenPrefix": "Bearer"
   },
   "endpoints": [
-    { "resource": "citizens", "label": "Citizens", "operation": "list", "method": "GET", "path": "/citizens", "fullPath": "/api/v1/citizens", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
-    { "resource": "citizens", "label": "Citizens", "operation": "get", "method": "GET", "path": "/citizens/{id}", "fullPath": "/api/v1/citizens/{id}", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
-    { "resource": "citizens", "label": "Citizens", "operation": "create", "method": "POST", "path": "/citizens", "fullPath": "/api/v1/citizens", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
-    { "resource": "citizens", "label": "Citizens", "operation": "linkMe", "method": "POST", "path": "/citizens/link-me", "fullPath": "/api/v1/citizens/link-me", "authRequired": true, "allowedRoles": ["CITIZEN_REPORTER"], "notes": "Creates or updates the authenticated citizen reporter's linked citizen profile. contactInfo is inferred from the authenticated email." },
-    { "resource": "citizens", "label": "Citizens", "operation": "update", "method": "PATCH", "path": "/citizens/{id}", "fullPath": "/api/v1/citizens/{id}", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
-    { "resource": "citizens", "label": "Citizens", "operation": "delete", "method": "DELETE", "path": "/citizens/{id}", "fullPath": "/api/v1/citizens/{id}", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
-    { "resource": "citizens", "label": "Citizens", "operation": "restore", "method": "POST", "path": "/citizens/{id}/restore", "fullPath": "/api/v1/citizens/{id}/restore", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
+    {
+      "resource": "citizens",
+      "label": "Citizens",
+      "operation": "list",
+      "method": "GET",
+      "path": "/citizens",
+      "fullPath": "/api/v1/citizens",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
+    {
+      "resource": "citizens",
+      "label": "Citizens",
+      "operation": "get",
+      "method": "GET",
+      "path": "/citizens/{id}",
+      "fullPath": "/api/v1/citizens/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
+    {
+      "resource": "citizens",
+      "label": "Citizens",
+      "operation": "create",
+      "method": "POST",
+      "path": "/citizens",
+      "fullPath": "/api/v1/citizens",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
+    {
+      "resource": "citizens",
+      "label": "Citizens",
+      "operation": "linkMe",
+      "method": "POST",
+      "path": "/citizens/link-me",
+      "fullPath": "/api/v1/citizens/link-me",
+      "authRequired": true,
+      "allowedRoles": ["CITIZEN_REPORTER"],
+      "notes": "Creates or updates the authenticated citizen reporter's linked citizen profile. contactInfo is inferred from the authenticated email."
+    },
+    {
+      "resource": "citizens",
+      "label": "Citizens",
+      "operation": "update",
+      "method": "PATCH",
+      "path": "/citizens/{id}",
+      "fullPath": "/api/v1/citizens/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
+    {
+      "resource": "citizens",
+      "label": "Citizens",
+      "operation": "delete",
+      "method": "DELETE",
+      "path": "/citizens/{id}",
+      "fullPath": "/api/v1/citizens/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
+    {
+      "resource": "citizens",
+      "label": "Citizens",
+      "operation": "restore",
+      "method": "POST",
+      "path": "/citizens/{id}/restore",
+      "fullPath": "/api/v1/citizens/{id}/restore",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
 
-    { "resource": "agencies", "label": "Agencies", "operation": "list", "method": "GET", "path": "/agencies", "fullPath": "/api/v1/agencies", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"] },
-    { "resource": "agencies", "label": "Agencies", "operation": "get", "method": "GET", "path": "/agencies/{id}", "fullPath": "/api/v1/agencies/{id}", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"] },
-    { "resource": "agencies", "label": "Agencies", "operation": "create", "method": "POST", "path": "/agencies", "fullPath": "/api/v1/agencies", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
-    { "resource": "agencies", "label": "Agencies", "operation": "update", "method": "PATCH", "path": "/agencies/{id}", "fullPath": "/api/v1/agencies/{id}", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
-    { "resource": "agencies", "label": "Agencies", "operation": "delete", "method": "DELETE", "path": "/agencies/{id}", "fullPath": "/api/v1/agencies/{id}", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
-    { "resource": "agencies", "label": "Agencies", "operation": "restore", "method": "POST", "path": "/agencies/{id}/restore", "fullPath": "/api/v1/agencies/{id}/restore", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
+    {
+      "resource": "agencies",
+      "label": "Agencies",
+      "operation": "list",
+      "method": "GET",
+      "path": "/agencies",
+      "fullPath": "/api/v1/agencies",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"]
+    },
+    {
+      "resource": "agencies",
+      "label": "Agencies",
+      "operation": "get",
+      "method": "GET",
+      "path": "/agencies/{id}",
+      "fullPath": "/api/v1/agencies/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"]
+    },
+    {
+      "resource": "agencies",
+      "label": "Agencies",
+      "operation": "create",
+      "method": "POST",
+      "path": "/agencies",
+      "fullPath": "/api/v1/agencies",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
+    {
+      "resource": "agencies",
+      "label": "Agencies",
+      "operation": "update",
+      "method": "PATCH",
+      "path": "/agencies/{id}",
+      "fullPath": "/api/v1/agencies/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
+    {
+      "resource": "agencies",
+      "label": "Agencies",
+      "operation": "delete",
+      "method": "DELETE",
+      "path": "/agencies/{id}",
+      "fullPath": "/api/v1/agencies/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
+    {
+      "resource": "agencies",
+      "label": "Agencies",
+      "operation": "restore",
+      "method": "POST",
+      "path": "/agencies/{id}/restore",
+      "fullPath": "/api/v1/agencies/{id}/restore",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
 
-    { "resource": "responders", "label": "Responders", "operation": "list", "method": "GET", "path": "/responders", "fullPath": "/api/v1/responders", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"] },
-    { "resource": "responders", "label": "Responders", "operation": "get", "method": "GET", "path": "/responders/{id}", "fullPath": "/api/v1/responders/{id}", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"] },
-    { "resource": "responders", "label": "Responders", "operation": "create", "method": "POST", "path": "/responders", "fullPath": "/api/v1/responders", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
-    { "resource": "responders", "label": "Responders", "operation": "update", "method": "PATCH", "path": "/responders/{id}", "fullPath": "/api/v1/responders/{id}", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
-    { "resource": "responders", "label": "Responders", "operation": "delete", "method": "DELETE", "path": "/responders/{id}", "fullPath": "/api/v1/responders/{id}", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
-    { "resource": "responders", "label": "Responders", "operation": "restore", "method": "POST", "path": "/responders/{id}/restore", "fullPath": "/api/v1/responders/{id}/restore", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
+    {
+      "resource": "responders",
+      "label": "Responders",
+      "operation": "list",
+      "method": "GET",
+      "path": "/responders",
+      "fullPath": "/api/v1/responders",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"]
+    },
+    {
+      "resource": "responders",
+      "label": "Responders",
+      "operation": "get",
+      "method": "GET",
+      "path": "/responders/{id}",
+      "fullPath": "/api/v1/responders/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"]
+    },
+    {
+      "resource": "responders",
+      "label": "Responders",
+      "operation": "create",
+      "method": "POST",
+      "path": "/responders",
+      "fullPath": "/api/v1/responders",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
+    {
+      "resource": "responders",
+      "label": "Responders",
+      "operation": "update",
+      "method": "PATCH",
+      "path": "/responders/{id}",
+      "fullPath": "/api/v1/responders/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
+    {
+      "resource": "responders",
+      "label": "Responders",
+      "operation": "delete",
+      "method": "DELETE",
+      "path": "/responders/{id}",
+      "fullPath": "/api/v1/responders/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
+    {
+      "resource": "responders",
+      "label": "Responders",
+      "operation": "restore",
+      "method": "POST",
+      "path": "/responders/{id}/restore",
+      "fullPath": "/api/v1/responders/{id}/restore",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
 
-    { "resource": "statuses", "label": "Statuses", "operation": "list", "method": "GET", "path": "/statuses", "fullPath": "/api/v1/statuses", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER", "RESPONDER", "CITIZEN_REPORTER", "AUDITOR"] },
-    { "resource": "statuses", "label": "Statuses", "operation": "get", "method": "GET", "path": "/statuses/{id}", "fullPath": "/api/v1/statuses/{id}", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER", "RESPONDER", "CITIZEN_REPORTER", "AUDITOR"] },
-    { "resource": "statuses", "label": "Statuses", "operation": "create", "method": "POST", "path": "/statuses", "fullPath": "/api/v1/statuses", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
-    { "resource": "statuses", "label": "Statuses", "operation": "update", "method": "PATCH", "path": "/statuses/{id}", "fullPath": "/api/v1/statuses/{id}", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
-    { "resource": "statuses", "label": "Statuses", "operation": "delete", "method": "DELETE", "path": "/statuses/{id}", "fullPath": "/api/v1/statuses/{id}", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
-    { "resource": "statuses", "label": "Statuses", "operation": "restore", "method": "POST", "path": "/statuses/{id}/restore", "fullPath": "/api/v1/statuses/{id}/restore", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
+    {
+      "resource": "statuses",
+      "label": "Statuses",
+      "operation": "list",
+      "method": "GET",
+      "path": "/statuses",
+      "fullPath": "/api/v1/statuses",
+      "authRequired": true,
+      "allowedRoles": [
+        "SYSTEM_ADMIN",
+        "DEPARTMENT_MANAGER",
+        "SUPERVISOR",
+        "DISPATCHER",
+        "RESPONDER",
+        "CITIZEN_REPORTER",
+        "AUDITOR"
+      ]
+    },
+    {
+      "resource": "statuses",
+      "label": "Statuses",
+      "operation": "get",
+      "method": "GET",
+      "path": "/statuses/{id}",
+      "fullPath": "/api/v1/statuses/{id}",
+      "authRequired": true,
+      "allowedRoles": [
+        "SYSTEM_ADMIN",
+        "DEPARTMENT_MANAGER",
+        "SUPERVISOR",
+        "DISPATCHER",
+        "RESPONDER",
+        "CITIZEN_REPORTER",
+        "AUDITOR"
+      ]
+    },
+    {
+      "resource": "statuses",
+      "label": "Statuses",
+      "operation": "create",
+      "method": "POST",
+      "path": "/statuses",
+      "fullPath": "/api/v1/statuses",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
+    {
+      "resource": "statuses",
+      "label": "Statuses",
+      "operation": "update",
+      "method": "PATCH",
+      "path": "/statuses/{id}",
+      "fullPath": "/api/v1/statuses/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
+    {
+      "resource": "statuses",
+      "label": "Statuses",
+      "operation": "delete",
+      "method": "DELETE",
+      "path": "/statuses/{id}",
+      "fullPath": "/api/v1/statuses/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
+    {
+      "resource": "statuses",
+      "label": "Statuses",
+      "operation": "restore",
+      "method": "POST",
+      "path": "/statuses/{id}/restore",
+      "fullPath": "/api/v1/statuses/{id}/restore",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
 
-    { "resource": "categories", "label": "Categories", "operation": "list", "method": "GET", "path": "/categories", "fullPath": "/api/v1/categories", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER", "RESPONDER", "CITIZEN_REPORTER", "AUDITOR"] },
-    { "resource": "categories", "label": "Categories", "operation": "get", "method": "GET", "path": "/categories/{id}", "fullPath": "/api/v1/categories/{id}", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER", "RESPONDER", "CITIZEN_REPORTER", "AUDITOR"] },
-    { "resource": "categories", "label": "Categories", "operation": "create", "method": "POST", "path": "/categories", "fullPath": "/api/v1/categories", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
-    { "resource": "categories", "label": "Categories", "operation": "update", "method": "PATCH", "path": "/categories/{id}", "fullPath": "/api/v1/categories/{id}", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
-    { "resource": "categories", "label": "Categories", "operation": "delete", "method": "DELETE", "path": "/categories/{id}", "fullPath": "/api/v1/categories/{id}", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
-    { "resource": "categories", "label": "Categories", "operation": "restore", "method": "POST", "path": "/categories/{id}/restore", "fullPath": "/api/v1/categories/{id}/restore", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
+    {
+      "resource": "categories",
+      "label": "Categories",
+      "operation": "list",
+      "method": "GET",
+      "path": "/categories",
+      "fullPath": "/api/v1/categories",
+      "authRequired": true,
+      "allowedRoles": [
+        "SYSTEM_ADMIN",
+        "DEPARTMENT_MANAGER",
+        "SUPERVISOR",
+        "DISPATCHER",
+        "RESPONDER",
+        "CITIZEN_REPORTER",
+        "AUDITOR"
+      ]
+    },
+    {
+      "resource": "categories",
+      "label": "Categories",
+      "operation": "get",
+      "method": "GET",
+      "path": "/categories/{id}",
+      "fullPath": "/api/v1/categories/{id}",
+      "authRequired": true,
+      "allowedRoles": [
+        "SYSTEM_ADMIN",
+        "DEPARTMENT_MANAGER",
+        "SUPERVISOR",
+        "DISPATCHER",
+        "RESPONDER",
+        "CITIZEN_REPORTER",
+        "AUDITOR"
+      ]
+    },
+    {
+      "resource": "categories",
+      "label": "Categories",
+      "operation": "create",
+      "method": "POST",
+      "path": "/categories",
+      "fullPath": "/api/v1/categories",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
+    {
+      "resource": "categories",
+      "label": "Categories",
+      "operation": "update",
+      "method": "PATCH",
+      "path": "/categories/{id}",
+      "fullPath": "/api/v1/categories/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
+    {
+      "resource": "categories",
+      "label": "Categories",
+      "operation": "delete",
+      "method": "DELETE",
+      "path": "/categories/{id}",
+      "fullPath": "/api/v1/categories/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
+    {
+      "resource": "categories",
+      "label": "Categories",
+      "operation": "restore",
+      "method": "POST",
+      "path": "/categories/{id}/restore",
+      "fullPath": "/api/v1/categories/{id}/restore",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
 
-    { "resource": "severities", "label": "Severities", "operation": "list", "method": "GET", "path": "/severities", "fullPath": "/api/v1/severities", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER", "RESPONDER", "CITIZEN_REPORTER", "AUDITOR"] },
-    { "resource": "severities", "label": "Severities", "operation": "get", "method": "GET", "path": "/severities/{id}", "fullPath": "/api/v1/severities/{id}", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER", "RESPONDER", "CITIZEN_REPORTER", "AUDITOR"] },
-    { "resource": "severities", "label": "Severities", "operation": "create", "method": "POST", "path": "/severities", "fullPath": "/api/v1/severities", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
-    { "resource": "severities", "label": "Severities", "operation": "update", "method": "PATCH", "path": "/severities/{id}", "fullPath": "/api/v1/severities/{id}", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
-    { "resource": "severities", "label": "Severities", "operation": "delete", "method": "DELETE", "path": "/severities/{id}", "fullPath": "/api/v1/severities/{id}", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
-    { "resource": "severities", "label": "Severities", "operation": "restore", "method": "POST", "path": "/severities/{id}/restore", "fullPath": "/api/v1/severities/{id}/restore", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
+    {
+      "resource": "severities",
+      "label": "Severities",
+      "operation": "list",
+      "method": "GET",
+      "path": "/severities",
+      "fullPath": "/api/v1/severities",
+      "authRequired": true,
+      "allowedRoles": [
+        "SYSTEM_ADMIN",
+        "DEPARTMENT_MANAGER",
+        "SUPERVISOR",
+        "DISPATCHER",
+        "RESPONDER",
+        "CITIZEN_REPORTER",
+        "AUDITOR"
+      ]
+    },
+    {
+      "resource": "severities",
+      "label": "Severities",
+      "operation": "get",
+      "method": "GET",
+      "path": "/severities/{id}",
+      "fullPath": "/api/v1/severities/{id}",
+      "authRequired": true,
+      "allowedRoles": [
+        "SYSTEM_ADMIN",
+        "DEPARTMENT_MANAGER",
+        "SUPERVISOR",
+        "DISPATCHER",
+        "RESPONDER",
+        "CITIZEN_REPORTER",
+        "AUDITOR"
+      ]
+    },
+    {
+      "resource": "severities",
+      "label": "Severities",
+      "operation": "create",
+      "method": "POST",
+      "path": "/severities",
+      "fullPath": "/api/v1/severities",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
+    {
+      "resource": "severities",
+      "label": "Severities",
+      "operation": "update",
+      "method": "PATCH",
+      "path": "/severities/{id}",
+      "fullPath": "/api/v1/severities/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
+    {
+      "resource": "severities",
+      "label": "Severities",
+      "operation": "delete",
+      "method": "DELETE",
+      "path": "/severities/{id}",
+      "fullPath": "/api/v1/severities/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
+    {
+      "resource": "severities",
+      "label": "Severities",
+      "operation": "restore",
+      "method": "POST",
+      "path": "/severities/{id}/restore",
+      "fullPath": "/api/v1/severities/{id}/restore",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
 
-    { "resource": "incidents", "label": "Incidents", "operation": "list", "method": "GET", "path": "/incidents", "fullPath": "/api/v1/incidents", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER", "RESPONDER", "CITIZEN_REPORTER", "AUDITOR"], "notes": "The backend applies role-aware scoping. Citizen reporters only receive their own incidents." },
-    { "resource": "incidents", "label": "Incidents", "operation": "get", "method": "GET", "path": "/incidents/{id}", "fullPath": "/api/v1/incidents/{id}", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER", "RESPONDER", "CITIZEN_REPORTER", "AUDITOR"], "notes": "The backend enforces per-role incident visibility. Citizen reporters can only access their own incident IDs." },
-    { "resource": "incidents", "label": "Incidents", "operation": "create", "method": "POST", "path": "/incidents", "fullPath": "/api/v1/incidents", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER", "RESPONDER"] },
-    { "resource": "incidents", "label": "Incidents", "operation": "report", "method": "POST", "path": "/incidents/report", "fullPath": "/api/v1/incidents/report", "authRequired": true, "allowedRoles": ["CITIZEN_REPORTER"], "notes": "Citizen self-report endpoint. citizenId is inferred from the authenticated user context." },
-    { "resource": "incidents", "label": "Incidents", "operation": "update", "method": "PATCH", "path": "/incidents/{id}", "fullPath": "/api/v1/incidents/{id}", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER", "RESPONDER"] },
-    { "resource": "incidents", "label": "Incidents", "operation": "delete", "method": "DELETE", "path": "/incidents/{id}", "fullPath": "/api/v1/incidents/{id}", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER", "RESPONDER"] },
-    { "resource": "incidents", "label": "Incidents", "operation": "restore", "method": "POST", "path": "/incidents/{id}/restore", "fullPath": "/api/v1/incidents/{id}/restore", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER", "RESPONDER"] },
-    { "resource": "incidents", "label": "Incidents", "operation": "mediaAccess", "method": "GET", "path": "/incidents/{id}/media/{mediaId}", "fullPath": "/api/v1/incidents/{id}/media/{mediaId}", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER", "RESPONDER", "CITIZEN_REPORTER", "AUDITOR"], "notes": "Authenticated media access endpoint. The backend enforces incident-level authorization before resolving an access URL." },
-    { "resource": "incidents", "label": "Incidents", "operation": "mediaUpload", "method": "POST", "path": "/incidents/media/upload", "fullPath": "/api/v1/incidents/media/upload", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER", "RESPONDER", "CITIZEN_REPORTER"], "notes": "Available only when the selected feature profile enables incident media uploads." },
+    {
+      "resource": "incidents",
+      "label": "Incidents",
+      "operation": "list",
+      "method": "GET",
+      "path": "/incidents",
+      "fullPath": "/api/v1/incidents",
+      "authRequired": true,
+      "allowedRoles": [
+        "SYSTEM_ADMIN",
+        "DEPARTMENT_MANAGER",
+        "SUPERVISOR",
+        "DISPATCHER",
+        "RESPONDER",
+        "CITIZEN_REPORTER",
+        "AUDITOR"
+      ],
+      "notes": "The backend applies role-aware scoping. Citizen reporters only receive their own incidents."
+    },
+    {
+      "resource": "incidents",
+      "label": "Incidents",
+      "operation": "get",
+      "method": "GET",
+      "path": "/incidents/{id}",
+      "fullPath": "/api/v1/incidents/{id}",
+      "authRequired": true,
+      "allowedRoles": [
+        "SYSTEM_ADMIN",
+        "DEPARTMENT_MANAGER",
+        "SUPERVISOR",
+        "DISPATCHER",
+        "RESPONDER",
+        "CITIZEN_REPORTER",
+        "AUDITOR"
+      ],
+      "notes": "The backend enforces per-role incident visibility. Citizen reporters can only access their own incident IDs."
+    },
+    {
+      "resource": "incidents",
+      "label": "Incidents",
+      "operation": "create",
+      "method": "POST",
+      "path": "/incidents",
+      "fullPath": "/api/v1/incidents",
+      "authRequired": true,
+      "allowedRoles": [
+        "SYSTEM_ADMIN",
+        "DEPARTMENT_MANAGER",
+        "SUPERVISOR",
+        "DISPATCHER",
+        "RESPONDER"
+      ]
+    },
+    {
+      "resource": "incidents",
+      "label": "Incidents",
+      "operation": "report",
+      "method": "POST",
+      "path": "/incidents/report",
+      "fullPath": "/api/v1/incidents/report",
+      "authRequired": true,
+      "allowedRoles": ["CITIZEN_REPORTER"],
+      "notes": "Citizen self-report endpoint. citizenId is inferred from the authenticated user context."
+    },
+    {
+      "resource": "incidents",
+      "label": "Incidents",
+      "operation": "update",
+      "method": "PATCH",
+      "path": "/incidents/{id}",
+      "fullPath": "/api/v1/incidents/{id}",
+      "authRequired": true,
+      "allowedRoles": [
+        "SYSTEM_ADMIN",
+        "DEPARTMENT_MANAGER",
+        "SUPERVISOR",
+        "DISPATCHER",
+        "RESPONDER"
+      ]
+    },
+    {
+      "resource": "incidents",
+      "label": "Incidents",
+      "operation": "delete",
+      "method": "DELETE",
+      "path": "/incidents/{id}",
+      "fullPath": "/api/v1/incidents/{id}",
+      "authRequired": true,
+      "allowedRoles": [
+        "SYSTEM_ADMIN",
+        "DEPARTMENT_MANAGER",
+        "SUPERVISOR",
+        "DISPATCHER",
+        "RESPONDER"
+      ]
+    },
+    {
+      "resource": "incidents",
+      "label": "Incidents",
+      "operation": "restore",
+      "method": "POST",
+      "path": "/incidents/{id}/restore",
+      "fullPath": "/api/v1/incidents/{id}/restore",
+      "authRequired": true,
+      "allowedRoles": [
+        "SYSTEM_ADMIN",
+        "DEPARTMENT_MANAGER",
+        "SUPERVISOR",
+        "DISPATCHER",
+        "RESPONDER"
+      ]
+    },
+    {
+      "resource": "incidents",
+      "label": "Incidents",
+      "operation": "mediaAccess",
+      "method": "GET",
+      "path": "/incidents/{id}/media/{mediaId}",
+      "fullPath": "/api/v1/incidents/{id}/media/{mediaId}",
+      "authRequired": true,
+      "allowedRoles": [
+        "SYSTEM_ADMIN",
+        "DEPARTMENT_MANAGER",
+        "SUPERVISOR",
+        "DISPATCHER",
+        "RESPONDER",
+        "CITIZEN_REPORTER",
+        "AUDITOR"
+      ],
+      "notes": "Authenticated media access endpoint. The backend enforces incident-level authorization before resolving an access URL."
+    },
+    {
+      "resource": "incidents",
+      "label": "Incidents",
+      "operation": "mediaUpload",
+      "method": "POST",
+      "path": "/incidents/media/upload",
+      "fullPath": "/api/v1/incidents/media/upload",
+      "authRequired": true,
+      "allowedRoles": [
+        "SYSTEM_ADMIN",
+        "DEPARTMENT_MANAGER",
+        "SUPERVISOR",
+        "DISPATCHER",
+        "RESPONDER",
+        "CITIZEN_REPORTER"
+      ],
+      "notes": "Available only when the selected feature profile enables incident media uploads."
+    },
 
-    { "resource": "assignments", "label": "Assignments", "operation": "list", "method": "GET", "path": "/assignments", "fullPath": "/api/v1/assignments", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"] },
-    { "resource": "assignments", "label": "Assignments", "operation": "get", "method": "GET", "path": "/assignments/{id}", "fullPath": "/api/v1/assignments/{id}", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"] },
-    { "resource": "assignments", "label": "Assignments", "operation": "create", "method": "POST", "path": "/assignments", "fullPath": "/api/v1/assignments", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"] },
-    { "resource": "assignments", "label": "Assignments", "operation": "update", "method": "PATCH", "path": "/assignments/{id}", "fullPath": "/api/v1/assignments/{id}", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"] },
-    { "resource": "assignments", "label": "Assignments", "operation": "delete", "method": "DELETE", "path": "/assignments/{id}", "fullPath": "/api/v1/assignments/{id}", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"] },
-    { "resource": "assignments", "label": "Assignments", "operation": "restore", "method": "POST", "path": "/assignments/{id}/restore", "fullPath": "/api/v1/assignments/{id}/restore", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"] },
+    {
+      "resource": "assignments",
+      "label": "Assignments",
+      "operation": "list",
+      "method": "GET",
+      "path": "/assignments",
+      "fullPath": "/api/v1/assignments",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"]
+    },
+    {
+      "resource": "assignments",
+      "label": "Assignments",
+      "operation": "get",
+      "method": "GET",
+      "path": "/assignments/{id}",
+      "fullPath": "/api/v1/assignments/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"]
+    },
+    {
+      "resource": "assignments",
+      "label": "Assignments",
+      "operation": "create",
+      "method": "POST",
+      "path": "/assignments",
+      "fullPath": "/api/v1/assignments",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"]
+    },
+    {
+      "resource": "assignments",
+      "label": "Assignments",
+      "operation": "update",
+      "method": "PATCH",
+      "path": "/assignments/{id}",
+      "fullPath": "/api/v1/assignments/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"]
+    },
+    {
+      "resource": "assignments",
+      "label": "Assignments",
+      "operation": "delete",
+      "method": "DELETE",
+      "path": "/assignments/{id}",
+      "fullPath": "/api/v1/assignments/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"]
+    },
+    {
+      "resource": "assignments",
+      "label": "Assignments",
+      "operation": "restore",
+      "method": "POST",
+      "path": "/assignments/{id}/restore",
+      "fullPath": "/api/v1/assignments/{id}/restore",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"]
+    },
 
-    { "resource": "users", "label": "Users", "operation": "capabilities", "method": "GET", "path": "/users/capabilities", "fullPath": "/api/v1/users/capabilities", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER", "RESPONDER", "CITIZEN_REPORTER", "AUDITOR"] },
-    { "resource": "users", "label": "Users", "operation": "list", "method": "GET", "path": "/users", "fullPath": "/api/v1/users", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
-    { "resource": "users", "label": "Users", "operation": "get", "method": "GET", "path": "/users/{id}", "fullPath": "/api/v1/users/{id}", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
-    { "resource": "users", "label": "Users", "operation": "create", "method": "POST", "path": "/users", "fullPath": "/api/v1/users", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
-    { "resource": "users", "label": "Users", "operation": "update", "method": "PATCH", "path": "/users/{id}", "fullPath": "/api/v1/users/{id}", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
-    { "resource": "users", "label": "Users", "operation": "delete", "method": "DELETE", "path": "/users/{id}", "fullPath": "/api/v1/users/{id}", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] },
-    { "resource": "users", "label": "Users", "operation": "restore", "method": "POST", "path": "/users/{id}/restore", "fullPath": "/api/v1/users/{id}/restore", "authRequired": true, "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"] }
+    {
+      "resource": "users",
+      "label": "Users",
+      "operation": "capabilities",
+      "method": "GET",
+      "path": "/users/capabilities",
+      "fullPath": "/api/v1/users/capabilities",
+      "authRequired": true,
+      "allowedRoles": [
+        "SYSTEM_ADMIN",
+        "DEPARTMENT_MANAGER",
+        "SUPERVISOR",
+        "DISPATCHER",
+        "RESPONDER",
+        "CITIZEN_REPORTER",
+        "AUDITOR"
+      ]
+    },
+    {
+      "resource": "users",
+      "label": "Users",
+      "operation": "list",
+      "method": "GET",
+      "path": "/users",
+      "fullPath": "/api/v1/users",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
+    {
+      "resource": "users",
+      "label": "Users",
+      "operation": "get",
+      "method": "GET",
+      "path": "/users/{id}",
+      "fullPath": "/api/v1/users/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
+    {
+      "resource": "users",
+      "label": "Users",
+      "operation": "create",
+      "method": "POST",
+      "path": "/users",
+      "fullPath": "/api/v1/users",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
+    {
+      "resource": "users",
+      "label": "Users",
+      "operation": "update",
+      "method": "PATCH",
+      "path": "/users/{id}",
+      "fullPath": "/api/v1/users/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
+    {
+      "resource": "users",
+      "label": "Users",
+      "operation": "delete",
+      "method": "DELETE",
+      "path": "/users/{id}",
+      "fullPath": "/api/v1/users/{id}",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    },
+    {
+      "resource": "users",
+      "label": "Users",
+      "operation": "restore",
+      "method": "POST",
+      "path": "/users/{id}/restore",
+      "fullPath": "/api/v1/users/{id}/restore",
+      "authRequired": true,
+      "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+    }
   ]
 }
