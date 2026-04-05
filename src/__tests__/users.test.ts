@@ -1,4 +1,5 @@
 import request from 'supertest';
+import prisma from '../lib/prisma.js';
 import app, { API_V1 } from '../app.js';
 import { getAdminToken, getTokenForRole } from './helpers/auth.js';
 import { isArchiveEnabled } from '../utils/archive.js';
@@ -184,9 +185,13 @@ describe(`GET ${ADMIN_MFA_COMPLIANCE}`, () => {
 });
 
 describe(`POST ${USERS}/:id/restore`, () => {
-  let archivedUserId = '';
+  let departmentManagerToken = '';
 
   beforeAll(async () => {
+    departmentManagerToken = await getTokenForRole('ops.lead@xypes.local');
+  });
+
+  async function createArchivedUser(role: string) {
     const unique = Date.now();
     const createRes = await request(app)
       .post(USERS)
@@ -195,20 +200,23 @@ describe(`POST ${USERS}/:id/restore`, () => {
         name: `Restorable User ${unique}`,
         email: `restorable.${unique}@xypes.local`,
         password: 'Password123!',
-        role: 'CITIZEN_REPORTER',
+        role,
       });
 
     expect(createRes.status).toBe(201);
-    archivedUserId = createRes.body.id;
+    const archivedUserId = createRes.body.id as string;
 
     const deleteRes = await request(app)
       .delete(`${USERS}/${archivedUserId}`)
       .set('Authorization', `Bearer ${adminToken}`);
 
     expect(deleteRes.status).toBe(204);
-  });
+    return archivedUserId;
+  }
 
   it('should restore an archived user and make it visible again', async () => {
+    const archivedUserId = await createArchivedUser('CITIZEN_REPORTER');
+
     const restoreRes = await request(app)
       .post(`${USERS}/${archivedUserId}/restore`)
       .set('Authorization', `Bearer ${adminToken}`);
@@ -219,6 +227,7 @@ describe(`POST ${USERS}/:id/restore`, () => {
     }
 
     expect(restoreRes.status).toBe(200);
+
     expect(restoreRes.body).toHaveProperty('id', archivedUserId);
 
     const fetchRes = await request(app)
@@ -227,5 +236,34 @@ describe(`POST ${USERS}/:id/restore`, () => {
 
     expect(fetchRes.status).toBe(200);
     expect(fetchRes.body).toHaveProperty('id', archivedUserId);
+  });
+
+  it('should enforce role hierarchy when restoring archived users', async () => {
+    const unique = Date.now();
+
+    const archivedPrivilegedUser = await prisma.user.create({
+      data: {
+        name: `Archived System Admin ${unique}`,
+        email: `archived.system.admin.${unique}@xypes.local`,
+        passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+        role: 'SYSTEM_ADMIN',
+        archivedAt: new Date(),
+        mfaEnabled: false,
+        mfaSecretEncrypted: null,
+        mfaEnabledAt: null,
+      },
+      select: { id: true },
+    });
+
+    const restoreRes = await request(app)
+      .post(`${USERS}/${archivedPrivilegedUser.id}/restore`)
+      .set('Authorization', `Bearer ${departmentManagerToken}`);
+
+    if (!archiveEnabled) {
+      expect(restoreRes.status).toBe(404);
+      return;
+    }
+
+    expect(restoreRes.status).toBe(403);
   });
 });

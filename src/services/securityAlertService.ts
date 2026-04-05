@@ -281,6 +281,14 @@ function buildImmediateRules(input: CreateAuditLogInput): SecurityAlertRule[] {
     });
   }
 
+  if (input.resource === 'users' && input.action === 'restore' && input.outcome === 'success') {
+    rules.push({
+      ruleId: 'user-restored',
+      severity: isPrivilegedRoleValue(managedUserRole) ? 'critical' : 'high',
+      summary: 'A user account was restored',
+    });
+  }
+
   return rules;
 }
 

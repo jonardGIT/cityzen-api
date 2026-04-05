@@ -645,6 +645,63 @@ describe('Audit log persistence', () => {
     });
   });
 
+  it('records and alerts on privileged user restoration', async () => {
+    process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
+
+    const archivedUser = await prisma.user.create({
+      data: {
+        name: `Restored Dispatcher ${Date.now()}`,
+        email: `restored.dispatcher.${Date.now()}@postman.local`,
+        passwordHash: await bcrypt.hash('Password123!', 10),
+        role: 'DISPATCHER',
+        archivedAt: new Date(),
+        mfaEnabled: false,
+        mfaSecretEncrypted: null,
+        mfaEnabledAt: null,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    const originalFetch = global.fetch;
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const restoreRes = await request(app)
+      .post(`${API_V1}/users/${archivedUser.id}/restore`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    global.fetch = originalFetch;
+
+    expect(restoreRes.status).toBe(200);
+
+    const latest = await getLatestAuditLog(adminToken);
+    expect(latest).toMatchObject({
+      action: 'restore',
+      resource: 'users',
+      outcome: 'success',
+      actorEmail: 'admin@xypes.local',
+      targetId: archivedUser.id,
+      statusCode: 200,
+    });
+
+    const metadata = latest.metadata as Record<string, unknown> | undefined;
+    expect(metadata?.managedUserRole).toBe('DISPATCHER');
+    expect(metadata?.restoredFromArchive).toBe(true);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')) as Record<
+      string,
+      unknown
+    >;
+    expect(payload).toMatchObject({
+      type: 'security-alert',
+      ruleId: 'user-restored',
+      severity: 'critical',
+    });
+  });
+
   it('forwards a security alert after repeated session revocations cross the threshold', async () => {
     process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
     process.env.SECURITY_ALERT_SESSION_CHURN_THRESHOLD = '3';
@@ -772,7 +829,9 @@ describe('Audit log persistence', () => {
     });
 
     const accessRes = await request(app)
-      .get(`${API_V1}/incidents/${incidentRes.body.id}/media/${incidentRecord.mediaFiles[0]?.id as string}`)
+      .get(
+        `${API_V1}/incidents/${incidentRes.body.id}/media/${incidentRecord.mediaFiles[0]?.id as string}`,
+      )
       .set('Authorization', `Bearer ${adminToken}`);
 
     expect(accessRes.status).toBe(200);

@@ -32,7 +32,39 @@ That means the API is no longer missing the basic auth, session, and baseline re
 - Operational security maturity: about 5.5/10
 - Overall readiness for a government-facing production deployment: about 6/10 to 6.5/10
 
-If all Supabase features are enabled and configured correctly, the identity posture improves further, but the overall rating still does not reach a high-assurance level because storage confidentiality, distributed abuse resistance, monitoring, recovery governance, and secrets governance remain open issues.
+If all Supabase features are enabled and configured correctly, the identity posture improves further, but the overall rating still does not reach a high-assurance level because storage confidentiality, distributed abuse resistance, monitoring, recovery governance, secrets governance, and externally verifiable operational controls remain open issues.
+
+The limiting factor is now mostly operational maturity rather than missing application-layer auth features. Another narrow backend hardening change will help incrementally, but it will not move the rating as much as a real production security operations uplift.
+
+## Highest-Leverage Next Move
+
+If only one major initiative is funded next, make it a production security operations uplift rather than another isolated API feature.
+
+Recommended scope:
+
+- Forward audit logs, threshold alerts, Sentry events, and deploy or CI failures into a centralized SIEM or log platform with durable retention.
+- Route `high` and `critical` alerts into an on-call or ticketing workflow with named ownership and acknowledgement targets.
+- Move production secrets into a managed vault or secret manager with rotation evidence, dual-control access for break-glass credentials, and deployment-time retrieval.
+- Enforce branch protection, required checks, release approval, and evidence retention in the live repository and deployment environment.
+
+Why this is the best big move:
+
+- The backend already has most of the application-layer primitives it was missing: session revocation, refresh rotation, MFA, audit logging, scoped throttling, signed media access, production startup fail-closed checks, and release-gate workflows.
+- The current rating is being held down by weak external evidence and weak tamper resistance, not by the absence of one more auth endpoint.
+- This single program improves incident response, compliance defensibility, recovery governance, secrets handling, and release assurance at the same time.
+
+Expected impact if executed well:
+
+- Operational security maturity could move from about `5.5/10` to about `7/10`.
+- Overall readiness could move from about `6/10 to 6.5/10` toward about `7/10`, assuming the existing technical controls are kept enabled in production.
+
+What not to choose as the next big move:
+
+- Another narrow auth feature by itself.
+- More local webhook rules without a real downstream monitoring destination.
+- A media-processing enhancement alone.
+
+Those are still useful, but they will not change the rating as much as converting the current repository-level controls into enforced, externally visible production operations.
 
 ## Implemented Controls
 
@@ -166,7 +198,7 @@ Current state:
 - Audit logs are persisted in the application database and exposed by admin API.
 - Sentry can capture backend exceptions and traces when configured.
 - The repository now includes an operational runbook for alert routing, triage, privileged recovery, and break-glass review.
-- Webhook-based security alert forwarding already covers repeated login failures, repeated password reset requests, repeated blocked privileged recovery attempts, repeated refresh failures, password reset delivery failures, repeated MFA setup resets, session-revocation churn, and privileged account changes.
+- Webhook-based security alert forwarding already covers repeated login failures, repeated password reset requests, repeated blocked privileged recovery attempts, repeated refresh failures, password reset delivery failures, repeated MFA setup resets, session-revocation churn, and privileged account changes including archival and restoration.
 - Production startup validation now rejects invalid or non-HTTPS alert and password-reset delivery webhook URLs.
 
 Risk:

@@ -69,7 +69,10 @@ function getAuditEvent(method: string, path: string): AuditEventDefinition | nul
     return { action: 'media_upload', resource: 'incidents' };
   }
 
-  if (upperMethod === 'GET' && /^\/incidents\/[A-Za-z0-9-]+\/media\/[A-Za-z0-9-]+$/.test(normalizedPath)) {
+  if (
+    upperMethod === 'GET' &&
+    /^\/incidents\/[A-Za-z0-9-]+\/media\/[A-Za-z0-9-]+$/.test(normalizedPath)
+  ) {
     return { action: 'media_access', resource: 'incidents' };
   }
 
@@ -92,6 +95,10 @@ function getAuditEvent(method: string, path: string): AuditEventDefinition | nul
 
   if (upperMethod === 'POST' && !idSegment) {
     return { action: 'create', resource: resourceSegment };
+  }
+
+  if (upperMethod === 'POST' && idSegment && extraSegment === 'restore') {
+    return { action: 'restore', resource: resourceSegment };
   }
 
   if ((upperMethod === 'PATCH' || upperMethod === 'DELETE') && idSegment && !extraSegment) {

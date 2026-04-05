@@ -475,8 +475,14 @@ export async function deleteUser(req: Request, res: Response): Promise<void> {
 }
 
 export async function restoreUser(req: Request, res: Response): Promise<void> {
+  const authUser = getAuthUser(req);
   const id = getUserId(req, res);
   if (id === null) return;
+
+  if (!authUser) {
+    res.status(401).json({ message: 'Unauthorized: missing authentication context' });
+    return;
+  }
 
   if (!isArchiveEnabled()) {
     res.status(409).json({ message: 'Archive mode is disabled; restore is unavailable' });
@@ -492,11 +498,33 @@ export async function restoreUser(req: Request, res: Response): Promise<void> {
     return;
   }
 
+  const existingUserRole = getStoredUserRole(user.role);
+  if (!existingUserRole) {
+    res.status(500).json({ message: 'Invalid stored user role' });
+    return;
+  }
+
+  if (!canManageRole(authUser.role, existingUserRole)) {
+    res.status(403).json({
+      message: 'Forbidden: you are not allowed to restore that user role',
+    });
+    return;
+  }
+
   const restoredUser = await prisma.user.update({
     where: { id },
     data: { archivedAt: null },
     select: userSelect,
   });
+
+  res.locals.auditMetadata = {
+    previousRole: existingUserRole,
+    managedUserRole: existingUserRole,
+    privilegedTarget: ['SYSTEM_ADMIN', 'DEPARTMENT_MANAGER', 'SUPERVISOR', 'DISPATCHER'].includes(
+      existingUserRole,
+    ),
+    restoredFromArchive: true,
+  };
 
   res.json(restoredUser);
 }
