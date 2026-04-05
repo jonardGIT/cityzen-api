@@ -66,6 +66,8 @@ What not to choose as the next big move:
 
 Those are still useful, but they will not change the rating as much as converting the current repository-level controls into enforced, externally visible production operations.
 
+The recommended execution plan for this initiative is documented in `docs/security-operations-uplift-plan.md`.
+
 ## Implemented Controls
 
 - Required `JWT_SECRET` at startup.
