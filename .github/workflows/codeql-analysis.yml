@@ -19,6 +19,7 @@ permissions:
 
 jobs:
   analyze:
+    if: github.event.repository.private == false || vars.ENABLE_GITHUB_CODE_SCANNING == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -26,6 +27,10 @@ jobs:
         language:
           - javascript-typescript
     steps:
+      - name: Explain private-repo opt-in
+        run: |
+          echo "CodeQL is running because this repository is public or ENABLE_GITHUB_CODE_SCANNING=true is set."
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
