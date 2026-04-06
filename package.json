@@ -7,8 +7,8 @@
     "build": "tsc",
     "build:production": "tsx scripts/buildProduction.ts",
     "start": "node dist/server.js",
-    "dev": "dotenv -e .env.development -- nodemon --watch src --ext ts --exec \"tsx src/server.ts\"",
-    "supabase:backfill-seed": "dotenv -e .env.development -- tsx scripts/backfillSupabaseSeedUsers.ts",
+    "dev": "dotenv -o -e .env.development -- nodemon --watch src --ext ts --exec \"tsx src/server.ts\"",
+    "supabase:backfill-seed": "dotenv -o -e .env.development -- tsx scripts/backfillSupabaseSeedUsers.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"

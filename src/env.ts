@@ -12,4 +12,4 @@ function resolveEnvFile(): string {
   return '.env.development';
 }
 
-dotenv.config({ path: resolveEnvFile() });
+dotenv.config({ path: resolveEnvFile(), override: true });
