@@ -19,10 +19,20 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
+      - name: Explain current dependency review mode
+        run: |
+          if [ "${{ github.event.repository.private }}" = "false" ] || [ "${{ vars.ENABLE_GITHUB_DEPENDENCY_REVIEW }}" = "true" ]; then
+            echo "Dependency review is enabled for this run."
+          else
+            echo "Dependency review is disabled for this private repository. Enable Dependency Graph and GitHub Advanced Security, then set ENABLE_GITHUB_DEPENDENCY_REVIEW=true to turn it back on."
+          fi
+
       - name: Checkout repository
+        if: github.event.repository.private == false || vars.ENABLE_GITHUB_DEPENDENCY_REVIEW == 'true'
         uses: actions/checkout@v4
 
       - name: Review dependency changes
+        if: github.event.repository.private == false || vars.ENABLE_GITHUB_DEPENDENCY_REVIEW == 'true'
         uses: actions/dependency-review-action@v4
 
   build-test-and-audit:
