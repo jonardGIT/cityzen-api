@@ -62,6 +62,32 @@ const DATABASE_BUCKET_CLEANUP_INTERVAL_MS = 300_000;
 let lastDatabaseBucketCleanupAt = 0;
 let hasLoggedDatabaseLimiterFallback = false;
 let hasLoggedDatabaseLimiterFailure = false;
+let hasEnsuredDatabaseLimiterSchema = false;
+let databaseLimiterSchemaInitPromise: Promise<void> | null = null;
+
+async function ensureDatabaseRateLimitSchema(): Promise<void> {
+  if (hasEnsuredDatabaseLimiterSchema) {
+    return;
+  }
+
+  if (!databaseLimiterSchemaInitPromise) {
+    databaseLimiterSchemaInitPromise = (async () => {
+      await prisma.$executeRawUnsafe('CREATE EXTENSION IF NOT EXISTS pgcrypto');
+      await prisma.$executeRawUnsafe(
+        'CREATE TABLE IF NOT EXISTS rate_limit_buckets (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), "createdAt" timestamptz NOT NULL DEFAULT NOW(), "updatedAt" timestamptz NOT NULL DEFAULT NOW(), "bucketKey" text NOT NULL UNIQUE, count integer NOT NULL, "windowStart" timestamptz NOT NULL, "expiresAt" timestamptz NOT NULL)',
+      );
+      await prisma.$executeRawUnsafe(
+        'CREATE INDEX IF NOT EXISTS rate_limit_buckets_expires_at_idx ON rate_limit_buckets ("expiresAt")',
+      );
+      hasEnsuredDatabaseLimiterSchema = true;
+    })().catch((error) => {
+      databaseLimiterSchemaInitPromise = null;
+      throw error;
+    });
+  }
+
+  await databaseLimiterSchemaInitPromise;
+}
 
 // Parses a positive integer from env, falling back to a safe default.
 function toPositiveInteger(value: string | undefined, fallback: number): number {
@@ -188,6 +214,7 @@ class DatabaseRateLimitStore implements RateLimitStore {
     const resetAt = now + options.windowMs;
 
     try {
+      await ensureDatabaseRateLimitSchema();
       await maybePruneExpiredDatabaseBuckets();
 
       const rows = await prisma.$queryRawUnsafe<RateLimitBucketRow[]>(

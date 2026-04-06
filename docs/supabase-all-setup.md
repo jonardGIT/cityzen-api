@@ -43,11 +43,19 @@ Point the API at the Supabase Postgres database.
 Required variables:
 
 ```dotenv
-DATABASE_URL=postgresql://postgres:<password>@aws-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1&pool_timeout=20
-DIRECT_URL=postgresql://postgres:<password>@db.<project-ref>.supabase.co:5432/postgres
+DATABASE_URL=postgresql://postgres.<project-ref>:<url-encoded-password>@aws-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1&pool_timeout=20&sslmode=require
+DIRECT_URL=postgresql://postgres.<project-ref>:<url-encoded-password>@aws-<region>.pooler.supabase.com:5432/postgres?sslmode=require
 ```
 
 Use `DATABASE_URL` for the running API and `DIRECT_URL` for Prisma schema and migration operations.
+
+For droplets and other servers, prefer the Supabase pooler host for both values. Keep `DATABASE_URL` on port `6543` and use the same pooler host on port `5432` for `DIRECT_URL`.
+
+Make sure the database password is URL-encoded before placing it into either value. For example, `$` becomes `%24`, `@` becomes `%40`, and `#` becomes `%23`.
+
+If your production server is IPv4-only and you plan to use the direct database host instead of the pooler, make sure the Supabase project has IPv4 support enabled for that database path. In practice this may require purchasing and enabling the Supabase IPv4 add-on for the project before production rollout.
+
+If you do not have IPv4 enabled on the direct database endpoint yet, keep Prisma schema commands on the pooler host at port `5432` and keep runtime traffic on the pooler host at port `6543`.
 
 Apply the schema and SQL migrations before enabling traffic.
 
@@ -57,6 +65,10 @@ Typical sequence:
 npx prisma generate
 npx prisma db push
 ```
+
+Use `npx prisma db push` only for a new or disposable database where destructive schema changes are acceptable.
+
+If Supabase already contains real data, Prisma may stop and warn about dropped columns, dropped tables, or new constraints. In that case, do not force `db push` blindly. Review the diff first and apply the required SQL changes in a controlled order.
 
 If your rollout depends on the SQL files in `prisma/`, apply those as well in the correct order for your target environment.
 
@@ -293,7 +305,7 @@ FEATURE_MEDIA_STORAGE=supabase-storage
 FEATURE_RECORD_DELETION=archive
 
 DATABASE_URL=postgresql://postgres:<password>@aws-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1&pool_timeout=20
-DIRECT_URL=postgresql://postgres:<password>@db.<project-ref>.supabase.co:5432/postgres
+DIRECT_URL=postgresql://postgres.<project-ref>:<url-encoded-password>@aws-<region>.pooler.supabase.com:5432/postgres?sslmode=require
 
 SUPABASE_AUTH_ENABLED=true
 SUPABASE_JWT_ENABLED=true
