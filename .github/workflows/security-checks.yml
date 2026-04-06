@@ -77,6 +77,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Initialize CI database schema
+        env:
+          PGPASSWORD: postgres
+        run: psql -h localhost -U postgres -d xypes_test -f prisma/reset-prisma-schema.sql
+
+      - name: Seed CI database
+        env:
+          PGPASSWORD: postgres
+        run: psql -h localhost -U postgres -d xypes_test -f prisma/seed-data.sql
+
       - name: Build TypeScript
         run: npm run build
 
