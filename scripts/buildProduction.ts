@@ -1,6 +1,9 @@
 import { mkdirSync, writeFileSync } from 'fs';
 import { spawnSync } from 'child_process';
 import path from 'path';
+import dotenv from 'dotenv';
+
+dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: false, quiet: true });
 
 const AUTH_PROVIDER_OPTIONS = ['local', 'supabase'] as const;
 const TOKEN_MODE_OPTIONS = ['app-jwt', 'supabase-jwt'] as const;
