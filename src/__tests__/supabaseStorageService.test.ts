@@ -101,7 +101,9 @@ describe('Supabase storage media scan integration', () => {
       },
     });
 
-    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 503 } as Response) as typeof fetch;
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue({ ok: false, status: 503 } as Response) as typeof fetch;
 
     await expect(
       uploadIncidentMedia({

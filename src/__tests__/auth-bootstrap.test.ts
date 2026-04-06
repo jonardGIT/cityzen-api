@@ -31,6 +31,7 @@ describe('Auth bootstrap endpoints', () => {
 
     expect(res.status).toBe(201);
     expect(res.body).toHaveProperty('token');
+    expect(res.body).toHaveProperty('accessToken', res.body.token);
     expect(res.body).toHaveProperty('refreshToken');
     expect(res.body).toHaveProperty('sessionId');
     expect(res.body).toHaveProperty('expiresAt');
@@ -49,6 +50,7 @@ describe('Auth bootstrap endpoints', () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('token');
+    expect(res.body).toHaveProperty('accessToken', res.body.token);
     expect(res.body).toHaveProperty('refreshToken');
     expect(res.body).toHaveProperty('sessionId');
     expect(res.body).toHaveProperty('expiresAt');

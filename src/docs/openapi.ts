@@ -2112,6 +2112,11 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         type: 'object',
         properties: {
           token: { type: 'string' },
+          accessToken: {
+            type: 'string',
+            description:
+              'Backward-compatible alias of token for clients that still expect accessToken.',
+          },
           refreshToken: { type: 'string' },
           tokenType: { type: 'string', example: 'Bearer' },
           sessionId: { type: 'string', format: 'uuid' },
@@ -2126,6 +2131,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         },
         required: [
           'token',
+          'accessToken',
           'refreshToken',
           'tokenType',
           'sessionId',

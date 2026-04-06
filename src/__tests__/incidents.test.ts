@@ -887,7 +887,9 @@ describe('VIEWER incident scoping', () => {
     });
 
     const blocked = await request(app)
-      .get(`${BASE}/${otherIncidentRes.body.id}/media/${incidentRecord.mediaFiles[0]?.id as string}`)
+      .get(
+        `${BASE}/${otherIncidentRes.body.id}/media/${incidentRecord.mediaFiles[0]?.id as string}`,
+      )
       .set('Authorization', `Bearer ${viewerToken}`);
     expect(blocked.status).toBe(404);
   });

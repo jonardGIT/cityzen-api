@@ -118,6 +118,13 @@ Production requirement:
 - `SUPABASE_STORAGE_ACCESS_MODE` must be `signed`
 - `SUPABASE_STORAGE_SCAN_WEBHOOK_URL` must be configured and use HTTPS
 
+If you do not have `SUPABASE_STORAGE_SCAN_WEBHOOK_URL` yet, do not enable Supabase media storage in production. Use this fallback until the scan endpoint exists:
+
+```dotenv
+FEATURE_MEDIA_STORAGE=disabled
+SUPABASE_STORAGE_ENABLED=false
+```
+
 ## 5. Configure API feature flags
 
 For the full Supabase path, set:
@@ -159,6 +166,25 @@ Notes:
 - `API_KEYS` is separate from Supabase JWT. It powers the API key middleware.
 - `PASSWORD_RESET_DELIVERY_WEBHOOK_URL` is required in production and must use HTTPS.
 - `SECURITY_ALERT_WEBHOOK_URL` is optional, but if set it must use HTTPS.
+
+If you do not have all webhook integrations yet:
+
+- You may leave `SECURITY_ALERT_WEBHOOK_URL` unset.
+- You may not leave `PASSWORD_RESET_DELIVERY_WEBHOOK_URL` unset in production.
+- If password reset delivery is not ready yet, do not treat the deployment as production-ready.
+
+For a reduced production rollout without Supabase storage, use:
+
+```dotenv
+FEATURE_PROFILE_NAME=production-supabase-auth
+FEATURE_AUTH_PROVIDER=supabase
+FEATURE_TOKEN_MODE=supabase-jwt
+FEATURE_MFA_MODE=supabase-totp
+FEATURE_MEDIA_STORAGE=disabled
+FEATURE_RECORD_DELETION=archive
+
+SUPABASE_STORAGE_ENABLED=false
+```
 
 ## 7. Production `.env` template for full Supabase mode
 
@@ -267,3 +293,11 @@ Minimum dashboard checks:
 - `PASSWORD_RESET_DELIVERY_WEBHOOK_URL` missing or not HTTPS
 - dashboard sends bearer token but not `x-api-key`
 - production build is still locked to an older feature profile
+
+## 12. When integrations are not ready yet
+
+If you are still waiting on webhook integrations, use this decision rule:
+
+- No `SUPABASE_STORAGE_SCAN_WEBHOOK_URL` yet: disable Supabase storage in production.
+- No `SECURITY_ALERT_WEBHOOK_URL` yet: leave it unset and continue.
+- No `PASSWORD_RESET_DELIVERY_WEBHOOK_URL` yet: production startup will fail, so either delay production rollout or stand up a temporary HTTPS webhook receiver first.

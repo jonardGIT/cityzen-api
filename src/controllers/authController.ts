@@ -206,6 +206,7 @@ function buildSupabaseJwtResponse(
 ) {
   return {
     token: session.token,
+    accessToken: session.token,
     refreshToken: session.refreshToken,
     tokenType: session.tokenType,
     sessionId: session.sessionId,
@@ -409,6 +410,7 @@ export async function register(req: Request, res: Response): Promise<void> {
 
     res.status(201).json({
       token: session.token,
+      accessToken: session.token,
       refreshToken: session.refreshToken,
       tokenType: 'Bearer',
       sessionId: session.sessionId,
@@ -654,6 +656,7 @@ export async function login(req: Request, res: Response): Promise<void> {
   res.json(
     applyPrivilegedMfaEnrollmentFlags(role, user.mfaEnabled, {
       token: session.token,
+      accessToken: session.token,
       refreshToken: session.refreshToken,
       tokenType: 'Bearer',
       sessionId: session.sessionId,
@@ -1268,6 +1271,7 @@ export async function refresh(req: Request, res: Response): Promise<void> {
 
   res.json({
     token: session.token,
+    accessToken: session.token,
     refreshToken: session.refreshToken,
     tokenType: 'Bearer',
     sessionId: session.sessionId,

@@ -77,7 +77,10 @@ function getPrivilegedUserChangeAlertThreshold(): number {
 }
 
 function getPrivilegedUserChangeAlertWindowMs(): number {
-  return toPositiveInteger(process.env.SECURITY_ALERT_PRIVILEGED_USER_CHANGE_WINDOW_MS, 15 * 60_000);
+  return toPositiveInteger(
+    process.env.SECURITY_ALERT_PRIVILEGED_USER_CHANGE_WINDOW_MS,
+    15 * 60_000,
+  );
 }
 
 function getPasswordResetConfirmFailureAlertThreshold(): number {
