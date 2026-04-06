@@ -247,6 +247,24 @@ describe('Shared-store rate limiting', () => {
     expect(Number(rows[0]?.bucketCount ?? 0)).toBe(1);
   });
 
+  it('recreates the limiter table automatically when it is missing', async () => {
+    const { default: prisma } = await import('../lib/prisma.js');
+    await prisma.$executeRawUnsafe('DROP TABLE IF EXISTS rate_limit_buckets');
+
+    const { default: app, API_V1 } = await import('../app.js');
+    const response = await request(app).post(`${API_V1}/auth/login`).send({
+      email: 'admin@xypes.local',
+      password: 'WrongPassword!',
+    });
+
+    const rows = await prisma.$queryRawUnsafe<Array<{ bucketCount: number | bigint }>>(
+      'SELECT COUNT(*)::bigint AS "bucketCount" FROM rate_limit_buckets WHERE "bucketKey" LIKE \'auth-login:%\'',
+    );
+
+    expect(response.status).toBe(401);
+    expect(Number(rows[0]?.bucketCount ?? 0)).toBe(1);
+  });
+
   it('fails closed in production when the database-backed limiter is unavailable', async () => {
     jest.resetModules();
     process.env = { ...originalEnv };
