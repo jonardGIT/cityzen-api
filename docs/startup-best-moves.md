@@ -236,6 +236,77 @@ Do not prioritize these right now unless a paying customer or production inciden
 
 These are common startup traps for technical teams that already have a strong backend foundation.
 
+## Testable Now Vs Not Yet Fully Testable
+
+For a two-person startup, it is important to separate features that can be validated today from controls that are strategically correct but not yet fully testable because of budget or infrastructure limits.
+
+### Testable now with the current setup
+
+These are realistic to validate with the current repository, local environments, and low-cost tooling:
+
+- login, refresh rotation, logout, and session invalidation behavior
+- MFA setup and login challenge behavior in local or staging environments
+- password reset request and confirmation flows
+- audit log creation and role-based audit access
+- archive, restore, and active-only record behavior
+- citizen reporting and internal incident handling workflows
+- dashboard CRUD behavior against the current API contract
+- API rate limiting, alert thresholds, and fail-closed startup checks
+- backup and restore procedure for the database, if performed manually and documented
+- release checklist discipline, branch review discipline, and deploy verification steps
+
+These are the features and controls you should actively test now, because they improve product readiness without requiring major spend.
+
+### Not yet fully testable without more budget or managed tooling
+
+These are still valid target capabilities, but they are not fully testable in the way an auditor, enterprise customer, or mature operations team would expect unless you add more infrastructure:
+
+- managed secret rotation evidence through tools such as `AWS Secrets Manager`, `GCP Secret Manager`, `Azure Key Vault`, `HashiCorp Vault`, or `1Password Connect`
+- centralized long-retention security telemetry across alerts, audit events, deploy failures, and runtime issues
+- durable on-call routing and acknowledgement metrics for `high` and `critical` events
+- queue-backed reliability testing for asynchronous jobs such as delivery retries or media processing
+- full production-grade incident evidence retention and search across environments
+- automated proof that secrets were accessed only by approved identities over time
+- advanced disaster recovery testing across separate infrastructure boundaries
+
+The issue is not that these controls are unimportant.
+
+The issue is that without the supporting platform, you can only test partial behavior, not the full operational promise.
+
+### Recommended posture for now
+
+Until funding allows managed security and operations tooling, use this rule:
+
+- fully test application behavior that is already in your control
+- document operational controls that are only partially testable today
+- avoid claiming enterprise-grade evidence or rotation capability that the current tooling cannot prove
+
+For example:
+
+- you can test that the app reads secrets from environment variables correctly
+- you cannot honestly claim managed secret access review or audited secret rotation evidence without a real secret-management platform
+
+- you can test that audit events are generated and webhook alerts fire
+- you cannot honestly claim durable centralized security telemetry without a real sink and retention process
+
+This distinction matters because it keeps your roadmap honest.
+
+### Best low-cost bridge strategy
+
+If funding is limited, the best bridge is:
+
+1. test the application-layer feature locally or in staging
+2. write down what part is proven and what part is still operationally unproven
+3. choose one managed control at a time when revenue allows
+
+The first managed control to buy is usually one of these:
+
+1. secret management
+2. runtime error monitoring
+3. centralized alert and audit sink
+
+That order gives the highest risk reduction per dollar for the current product stage.
+
 ## Recommended 90-Day Plan
 
 ### Days 1 to 30
