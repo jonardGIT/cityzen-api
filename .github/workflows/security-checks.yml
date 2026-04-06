@@ -57,7 +57,6 @@ jobs:
       DIRECT_URL: postgresql://postgres:postgres@localhost:5432/xypes_test?schema=public
       JWT_SECRET: ci-jwt-secret-0123456789-abcdef-uvwxyz
       MFA_ENCRYPTION_KEY: ci-mfa-secret-0123456789-abcdef-uvwxyz
-      API_KEYS: ci-api-key-0123456789
       TRUST_PROXY: false
       FEATURE_AUTH_PROVIDER: local
       FEATURE_TOKEN_MODE: app-jwt

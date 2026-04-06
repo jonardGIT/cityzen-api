@@ -316,7 +316,28 @@ beforeAll(async () => {
     'UPDATE users SET "mfaEnabled" = false, "mfaSecretEncrypted" = NULL, "mfaEnabledAt" = NULL',
   );
   await prisma.$executeRawUnsafe(
-    "ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('SYSTEM_ADMIN', 'DEPARTMENT_MANAGER', 'SUPERVISOR', 'DISPATCHER', 'RESPONDER', 'CITIZEN_REPORTER', 'AUDITOR'))",
+    `DO $$
+     BEGIN
+       IF NOT EXISTS (
+         SELECT 1
+         FROM pg_constraint
+         WHERE conname = 'users_role_check'
+           AND conrelid = 'users'::regclass
+       ) THEN
+         ALTER TABLE users
+         ADD CONSTRAINT users_role_check CHECK (
+           role IN (
+             'SYSTEM_ADMIN',
+             'DEPARTMENT_MANAGER',
+             'SUPERVISOR',
+             'DISPATCHER',
+             'RESPONDER',
+             'CITIZEN_REPORTER',
+             'AUDITOR'
+           )
+         );
+       END IF;
+     END $$`,
   );
   await prisma.$executeRawUnsafe(
     "INSERT INTO statuses (name) SELECT 'Reported' WHERE NOT EXISTS (SELECT 1 FROM statuses WHERE name = 'Reported')",
