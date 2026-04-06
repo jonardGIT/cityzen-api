@@ -140,6 +140,93 @@ FEATURE_RECORD_DELETION=archive
 
 These feature flags are locked into the production build.
 
+### Where to put the feature flags
+
+The `FEATURE_*` values must exist in the environment at build time when you run `npm run build:production`.
+
+The production build script now auto-loads `.env` from the project root before it validates the feature flags.
+
+That means if you place the `FEATURE_*` values in `.env`, `npm run build:production` will read them automatically.
+
+Shell-exported values still win over `.env` values because the build uses `override: false`.
+
+Use one of these approaches:
+
+#### Option A. Export them in the shell before building
+
+```bash
+export NODE_ENV=production
+export FEATURE_PROFILE_NAME=production-supabase
+export FEATURE_AUTH_PROVIDER=supabase
+export FEATURE_TOKEN_MODE=supabase-jwt
+export FEATURE_MFA_MODE=supabase-totp
+export FEATURE_MEDIA_STORAGE=supabase-storage
+export FEATURE_RECORD_DELETION=archive
+
+npm run build:production
+```
+
+For the reduced no-storage rollout:
+
+```bash
+export NODE_ENV=production
+export FEATURE_PROFILE_NAME=production-supabase-auth
+export FEATURE_AUTH_PROVIDER=supabase
+export FEATURE_TOKEN_MODE=supabase-jwt
+export FEATURE_MFA_MODE=supabase-totp
+export FEATURE_MEDIA_STORAGE=disabled
+export FEATURE_RECORD_DELETION=archive
+
+npm run build:production
+```
+
+#### Option B. Put them in `.env` and build directly
+
+Example `.env` values:
+
+```dotenv
+NODE_ENV=production
+FEATURE_PROFILE_NAME=production-supabase-auth
+FEATURE_AUTH_PROVIDER=supabase
+FEATURE_TOKEN_MODE=supabase-jwt
+FEATURE_MFA_MODE=supabase-totp
+FEATURE_MEDIA_STORAGE=disabled
+FEATURE_RECORD_DELETION=archive
+```
+
+Then build directly:
+
+```bash
+npm run build:production
+```
+
+#### Option C. Use an inline one-line build command
+
+```bash
+NODE_ENV=production \
+FEATURE_PROFILE_NAME=production-supabase-auth \
+FEATURE_AUTH_PROVIDER=supabase \
+FEATURE_TOKEN_MODE=supabase-jwt \
+FEATURE_MFA_MODE=supabase-totp \
+FEATURE_MEDIA_STORAGE=disabled \
+FEATURE_RECORD_DELETION=archive \
+npm run build:production
+```
+
+#### How to verify before building
+
+Run this first:
+
+```bash
+echo "$FEATURE_AUTH_PROVIDER"
+echo "$FEATURE_TOKEN_MODE"
+echo "$FEATURE_MFA_MODE"
+echo "$FEATURE_MEDIA_STORAGE"
+echo "$FEATURE_RECORD_DELETION"
+```
+
+If any of those print nothing and they are also missing from `.env`, `npm run build:production` will fail.
+
 ## 6. Configure required non-Supabase API env
 
 Even with all Supabase-backed features enabled, the API still needs these operational settings:
@@ -247,6 +334,8 @@ Build the locked production profile:
 ```bash
 npm run build:production
 ```
+
+If you get an error like `FEATURE_AUTH_PROVIDER must be set`, it means the value was missing both from the shell environment and from the project `.env` file.
 
 Start the API:
 
