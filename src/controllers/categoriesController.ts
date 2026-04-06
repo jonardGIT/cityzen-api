@@ -8,6 +8,12 @@ import {
   getParamId,
 } from '../utils/request.js';
 import { categoriesListQueryConfig } from '../utils/listQueryConfig.js';
+import {
+  isArchiveEnabled,
+  withActiveRecords,
+  withArchivedRecords,
+  withArchiveScope,
+} from '../utils/archive.js';
 
 // Returns all categories from the database.
 export async function getCategories(req: Request, res: Response): Promise<void> {
@@ -18,21 +24,22 @@ export async function getCategories(req: Request, res: Response): Promise<void> 
   }
 
   if (pagination.enabled) {
+    const scopedWhere = withArchiveScope(listQuery.where as any, listQuery.archiveScope);
     const [categories, total] = await Promise.all([
       prisma.category.findMany({
-        where: listQuery.where as any,
+        where: scopedWhere as any,
         orderBy: listQuery.orderBy as any,
         skip: pagination.skip,
         take: pagination.take,
       }),
-      prisma.category.count({ where: listQuery.where as any }),
+      prisma.category.count({ where: scopedWhere as any }),
     ]);
     res.json(buildPaginatedResponse(categories, total, pagination));
     return;
   }
 
   const categories = await prisma.category.findMany({
-    where: listQuery.where as any,
+    where: withArchiveScope(listQuery.where as any, listQuery.archiveScope) as any,
     orderBy: listQuery.orderBy as any,
   });
   res.json(categories);
@@ -45,8 +52,8 @@ export async function getCategoryById(req: Request, res: Response): Promise<void
     return;
   }
 
-  const category = await prisma.category.findUnique({
-    where: { id },
+  const category = await prisma.category.findFirst({
+    where: withActiveRecords({ id }) as any,
   });
   if (!category) {
     res.status(404).json({ message: 'Category not found' });
@@ -83,7 +90,9 @@ export async function updateCategory(req: Request, res: Response): Promise<void>
   }
 
   const { name, subCategory } = req.body as { name?: string; subCategory?: string | null };
-  const existingCategory = await prisma.category.findUnique({ where: { id } });
+  const existingCategory = await prisma.category.findFirst({
+    where: withActiveRecords({ id }) as any,
+  });
 
   if (!existingCategory) {
     res.status(404).json({ message: 'Category not found' });
@@ -108,13 +117,50 @@ export async function deleteCategory(req: Request, res: Response): Promise<void>
     return;
   }
 
-  const existingCategory = await prisma.category.findUnique({ where: { id } });
+  const existingCategory = await prisma.category.findFirst({
+    where: withActiveRecords({ id }) as any,
+  });
 
   if (!existingCategory) {
     res.status(404).json({ message: 'Category not found' });
     return;
   }
 
-  await prisma.category.delete({ where: { id } });
+  const activeIncidentCount = await prisma.citizenIncident.count({
+    where: withActiveRecords({ categoryId: id }) as any,
+  });
+  if (activeIncidentCount > 0) {
+    res.status(409).json({ message: 'Conflict: category is still referenced by active incidents' });
+    return;
+  }
+
+  if (isArchiveEnabled()) {
+    await prisma.category.update({ where: { id }, data: { archivedAt: new Date() } });
+  } else {
+    await prisma.category.delete({ where: { id } });
+  }
   res.status(204).send();
+}
+
+export async function restoreCategory(req: Request, res: Response): Promise<void> {
+  const id = getParamId(req, res);
+  if (id === null) {
+    return;
+  }
+
+  if (!isArchiveEnabled()) {
+    res.status(409).json({ message: 'Archive mode is disabled; restore is unavailable' });
+    return;
+  }
+
+  const existingCategory = await prisma.category.findFirst({
+    where: withArchivedRecords({ id }) as any,
+  });
+  if (!existingCategory) {
+    res.status(404).json({ message: 'Archived category not found' });
+    return;
+  }
+
+  const category = await prisma.category.update({ where: { id }, data: { archivedAt: null } });
+  res.json(category);
 }

@@ -1,0 +1,64 @@
+name: CodeQL Analysis
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+  pull_request:
+    branches:
+      - develop
+      - main
+  schedule:
+    - cron: '17 3 * * 1'
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language:
+          - javascript-typescript
+    steps:
+      - name: Explain current CodeQL mode
+        run: |
+          if [ "${{ github.event.repository.private }}" = "false" ] || [ "${{ vars.ENABLE_GITHUB_CODE_SCANNING }}" = "true" ]; then
+            echo "CodeQL is enabled for this run."
+          else
+            echo "CodeQL is disabled for this private repository. Set ENABLE_GITHUB_CODE_SCANNING=true to turn it back on."
+          fi
+
+      - name: Checkout repository
+        if: github.event.repository.private == false || vars.ENABLE_GITHUB_CODE_SCANNING == 'true'
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        if: github.event.repository.private == false || vars.ENABLE_GITHUB_CODE_SCANNING == 'true'
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Set up Node.js
+        if: github.event.repository.private == false || vars.ENABLE_GITHUB_CODE_SCANNING == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        if: github.event.repository.private == false || vars.ENABLE_GITHUB_CODE_SCANNING == 'true'
+        run: npm ci
+
+      - name: Build project
+        if: github.event.repository.private == false || vars.ENABLE_GITHUB_CODE_SCANNING == 'true'
+        run: npm run build
+
+      - name: Analyze
+        if: github.event.repository.private == false || vars.ENABLE_GITHUB_CODE_SCANNING == 'true'
+        uses: github/codeql-action/analyze@v3

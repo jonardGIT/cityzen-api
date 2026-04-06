@@ -1,9 +1,14 @@
 import request from 'supertest';
+import prisma from '../lib/prisma.js';
 import app, { API_V1 } from '../app.js';
 import { getAdminToken, getTokenForRole } from './helpers/auth.js';
+import { isArchiveEnabled } from '../utils/archive.js';
+import { MFA_REQUIRED_ROLES } from '../types/auth.js';
 
 const CAPABILITIES = `${API_V1}/users/capabilities`;
 const USERS = `${API_V1}/users`;
+const ADMIN_MFA_COMPLIANCE = `${API_V1}/admin/users/mfa-compliance`;
+const archiveEnabled = isArchiveEnabled();
 
 let adminToken = '';
 let citizenReporterToken = '';
@@ -145,5 +150,120 @@ describe(`GET ${USERS}`, () => {
       const second = new Date(res.body.data[1].updatedAt).getTime();
       expect(first).toBeGreaterThanOrEqual(second);
     }
+  });
+});
+
+describe(`GET ${ADMIN_MFA_COMPLIANCE}`, () => {
+  it('should return an MFA compliance report for privileged users', async () => {
+    const res = await request(app)
+      .get(ADMIN_MFA_COMPLIANCE)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('summary');
+    expect(res.body).toHaveProperty('data');
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.summary).toHaveProperty('totalPrivilegedUsers');
+    expect(res.body.summary).toHaveProperty('compliantUsers');
+    expect(res.body.summary).toHaveProperty('nonCompliantUsers');
+
+    for (const user of res.body.data) {
+      expect(MFA_REQUIRED_ROLES).toContain(user.role);
+      expect(user).toHaveProperty('requiresMfa', true);
+      expect(typeof user.compliant).toBe('boolean');
+    }
+  });
+
+  it('should return 403 for non-admin roles', async () => {
+    const dispatcherToken = await getTokenForRole('dispatcher@xypes.local');
+    const res = await request(app)
+      .get(ADMIN_MFA_COMPLIANCE)
+      .set('Authorization', `Bearer ${dispatcherToken}`);
+
+    expect(res.status).toBe(403);
+  });
+});
+
+describe(`POST ${USERS}/:id/restore`, () => {
+  let departmentManagerToken = '';
+
+  beforeAll(async () => {
+    departmentManagerToken = await getTokenForRole('ops.lead@xypes.local');
+  });
+
+  async function createArchivedUser(role: string) {
+    const unique = Date.now();
+    const createRes = await request(app)
+      .post(USERS)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: `Restorable User ${unique}`,
+        email: `restorable.${unique}@xypes.local`,
+        password: 'Password123!',
+        role,
+      });
+
+    expect(createRes.status).toBe(201);
+    const archivedUserId = createRes.body.id as string;
+
+    const deleteRes = await request(app)
+      .delete(`${USERS}/${archivedUserId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(deleteRes.status).toBe(204);
+    return archivedUserId;
+  }
+
+  it('should restore an archived user and make it visible again', async () => {
+    const archivedUserId = await createArchivedUser('CITIZEN_REPORTER');
+
+    const restoreRes = await request(app)
+      .post(`${USERS}/${archivedUserId}/restore`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    if (!archiveEnabled) {
+      expect(restoreRes.status).toBe(404);
+      return;
+    }
+
+    expect(restoreRes.status).toBe(200);
+
+    expect(restoreRes.body).toHaveProperty('id', archivedUserId);
+
+    const fetchRes = await request(app)
+      .get(`${USERS}/${archivedUserId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(fetchRes.status).toBe(200);
+    expect(fetchRes.body).toHaveProperty('id', archivedUserId);
+  });
+
+  it('should enforce role hierarchy when restoring archived users', async () => {
+    const unique = Date.now();
+
+    const archivedPrivilegedUser = await prisma.user.create({
+      data: {
+        name: `Archived System Admin ${unique}`,
+        email: `archived.system.admin.${unique}@xypes.local`,
+        passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+        role: 'SYSTEM_ADMIN',
+        archivedAt: new Date(),
+        mfaEnabled: false,
+        mfaSecretEncrypted: null,
+        mfaEnabledAt: null,
+      },
+      select: { id: true },
+    });
+
+    const restoreRes = await request(app)
+      .post(`${USERS}/${archivedPrivilegedUser.id}/restore`)
+      .set('Authorization', `Bearer ${departmentManagerToken}`);
+
+    if (!archiveEnabled) {
+      expect(restoreRes.status).toBe(404);
+      return;
+    }
+
+    expect(restoreRes.status).toBe(403);
   });
 });

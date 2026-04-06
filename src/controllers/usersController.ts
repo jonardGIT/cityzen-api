@@ -6,12 +6,21 @@ import prisma from '../lib/prisma.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
 import { revokeAllUserSessions } from '../services/authSessionService.js';
 import {
-  ROLE_PROFILES,
-  canManageRole,
-  normalizeUserRoleInput,
-} from '../types/auth.js';
+  deleteSupabaseAuthUser,
+  isSupabaseAuthEnabled,
+  registerSupabaseAuthUser,
+  SupabaseAuthServiceError,
+  updateSupabaseAuthUser,
+} from '../services/supabaseAuthService.js';
+import { ROLE_PROFILES, canManageRole, normalizeUserRoleInput } from '../types/auth.js';
 import { buildPaginatedResponse, getListQuery, getPaginationQuery } from '../utils/request.js';
 import { usersListQueryConfig } from '../utils/listQueryConfig.js';
+import {
+  isArchiveEnabled,
+  withActiveRecords,
+  withArchivedRecords,
+  withArchiveScope,
+} from '../utils/archive.js';
 
 const userSelect = {
   id: true,
@@ -20,6 +29,11 @@ const userSelect = {
   name: true,
   email: true,
   role: true,
+} as const;
+
+const userSyncSelect = {
+  ...userSelect,
+  supabaseAuthUserId: true,
 } as const;
 
 // UUID v4 validation regex
@@ -43,12 +57,37 @@ function normalizeRole(role?: string) {
   return normalizeUserRoleInput(role);
 }
 
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
 function getStoredUserRole(role: string) {
   return normalizeUserRoleInput(role);
 }
 
 function isUniqueConstraintError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+}
+
+function handleSupabaseAuthRuntimeError(res: Response, error: unknown): boolean {
+  if (error instanceof SupabaseAuthServiceError) {
+    res.status(error.status ?? 503).json({ message: error.message });
+    return true;
+  }
+
+  if (
+    error instanceof Error &&
+    (error.message.includes('SUPABASE_URL must be configured') ||
+      error.message.includes('SUPABASE_ANON_KEY must be configured') ||
+      error.message.includes('SUPABASE_SERVICE_ROLE_KEY must be configured'))
+  ) {
+    res.status(503).json({
+      message: `Supabase Auth is not available: ${error.message}`,
+    });
+    return true;
+  }
+
+  return false;
 }
 
 // Returns capability metadata for the authenticated user role.
@@ -84,12 +123,14 @@ export async function getUsers(req: Request, res: Response): Promise<void> {
     const [users, total] = await Promise.all([
       prisma.user.findMany({
         select: userSelect,
-        where: listQuery.where as any,
+        where: withArchiveScope(listQuery.where as any, listQuery.archiveScope) as any,
         orderBy: listQuery.orderBy as any,
         skip: pagination.skip,
         take: pagination.take,
       }),
-      prisma.user.count({ where: listQuery.where as any }),
+      prisma.user.count({
+        where: withArchiveScope(listQuery.where as any, listQuery.archiveScope) as any,
+      }),
     ]);
     res.json(buildPaginatedResponse(users, total, pagination));
     return;
@@ -97,7 +138,7 @@ export async function getUsers(req: Request, res: Response): Promise<void> {
 
   const users = await prisma.user.findMany({
     select: userSelect,
-    where: listQuery.where as any,
+    where: withArchiveScope(listQuery.where as any, listQuery.archiveScope) as any,
     orderBy: listQuery.orderBy as any,
   });
   res.json(users);
@@ -107,8 +148,8 @@ export async function getUsers(req: Request, res: Response): Promise<void> {
 export async function getUserById(req: Request, res: Response): Promise<void> {
   const id = getUserId(req, res);
   if (id === null) return;
-  const user = await prisma.user.findUnique({
-    where: { id },
+  const user = await prisma.user.findFirst({
+    where: withActiveRecords({ id }) as any,
     select: userSelect,
   });
   if (!user) {
@@ -138,6 +179,8 @@ export async function createUser(req: Request, res: Response): Promise<void> {
     return;
   }
 
+  const normalizedEmail = normalizeEmail(email);
+
   const normalizedRole = normalizeRole(role ?? 'CITIZEN_REPORTER');
   if (!normalizedRole) {
     res.status(422).json({
@@ -154,20 +197,64 @@ export async function createUser(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const passwordHash = await bcrypt.hash(password, 10);
+  let passwordHash: string | null = null;
+  let supabaseAuthUserId: string | null = null;
+
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const supabaseUser = await registerSupabaseAuthUser({
+        email: normalizedEmail,
+        password,
+        name,
+        role: normalizedRole,
+      });
+      supabaseAuthUserId = supabaseUser.id;
+    } catch (error) {
+      if (handleSupabaseAuthRuntimeError(res, error)) {
+        return;
+      }
+
+      throw error;
+    }
+  } else {
+    passwordHash = await bcrypt.hash(password, 10);
+  }
 
   try {
+    const createData: Prisma.UserCreateInput = {
+      name,
+      email: normalizedEmail,
+      role: normalizedRole,
+    };
+
+    if (passwordHash !== null) {
+      createData.passwordHash = passwordHash;
+    }
+
+    if (supabaseAuthUserId !== null) {
+      createData.supabaseAuthUserId = supabaseAuthUserId;
+    }
+
     const newUser = await prisma.user.create({
-      data: {
-        name,
-        email,
-        passwordHash,
-        role: normalizedRole,
-      },
+      data: createData,
       select: userSelect,
     });
+
+    res.locals.auditMetadata = {
+      managedUserRole: normalizedRole,
+      privilegedTarget: ['SYSTEM_ADMIN', 'DEPARTMENT_MANAGER', 'SUPERVISOR', 'DISPATCHER'].includes(
+        normalizedRole,
+      ),
+      passwordChanged: password !== undefined,
+      authProvider: isSupabaseAuthEnabled() ? 'supabase' : 'local',
+    };
+
     res.status(201).json(newUser);
   } catch (error) {
+    if (supabaseAuthUserId) {
+      await deleteSupabaseAuthUser(supabaseAuthUserId).catch(() => undefined);
+    }
+
     if (isUniqueConstraintError(error)) {
       res.status(409).json({ message: 'A user with that email already exists' });
       return;
@@ -194,7 +281,10 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const existingUser = await prisma.user.findUnique({ where: { id }, select: userSelect });
+  const existingUser = await prisma.user.findFirst({
+    where: withActiveRecords({ id }) as any,
+    select: userSyncSelect,
+  });
   if (!existingUser) {
     res.status(404).json({ message: 'User not found' });
     return;
@@ -235,27 +325,49 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const data: {
-    name?: string;
-    email?: string;
-    passwordHash?: string;
-    role?: string;
-  } = {};
+  const data: Prisma.UserUpdateInput = {};
+  const normalizedEmail = email !== undefined ? normalizeEmail(email) : undefined;
 
   if (name !== undefined) {
     data.name = name;
   }
 
-  if (email !== undefined) {
-    data.email = email;
-  }
-
-  if (password !== undefined) {
-    data.passwordHash = await bcrypt.hash(password, 10);
+  if (normalizedEmail !== undefined) {
+    data.email = normalizedEmail;
   }
 
   if (normalizedRole) {
     data.role = normalizedRole;
+  }
+
+  if (isSupabaseAuthEnabled()) {
+    if (existingUser.supabaseAuthUserId) {
+      try {
+        await updateSupabaseAuthUser(existingUser.supabaseAuthUserId, {
+          email: normalizedEmail,
+          password,
+          name,
+          role: normalizedRole ?? undefined,
+        });
+      } catch (error) {
+        if (handleSupabaseAuthRuntimeError(res, error)) {
+          return;
+        }
+
+        throw error;
+      }
+    } else if (email !== undefined || password !== undefined) {
+      res.status(409).json({
+        message: 'This user is not linked to Supabase Auth and cannot update email or password yet',
+      });
+      return;
+    }
+
+    if (password !== undefined) {
+      data.passwordHash = { set: null };
+    }
+  } else if (password !== undefined) {
+    data.passwordHash = await bcrypt.hash(password, 10);
   }
 
   try {
@@ -264,6 +376,18 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
       data,
       select: userSelect,
     });
+
+    res.locals.auditMetadata = {
+      previousRole: existingUserRole,
+      managedUserRole: updatedUser.role,
+      privilegedTarget: ['SYSTEM_ADMIN', 'DEPARTMENT_MANAGER', 'SUPERVISOR', 'DISPATCHER'].includes(
+        updatedUser.role,
+      ),
+      roleChanged: normalizedRole !== null && normalizedRole !== existingUserRole,
+      emailChanged: normalizedEmail !== undefined && normalizedEmail !== existingUser.email,
+      passwordChanged: password !== undefined,
+      selfUpdate: isSelfUpdate,
+    };
 
     if (password !== undefined || normalizedRole !== null) {
       await revokeAllUserSessions(id);
@@ -291,7 +415,10 @@ export async function deleteUser(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const existingUser = await prisma.user.findUnique({ where: { id }, select: userSelect });
+  const existingUser = await prisma.user.findFirst({
+    where: withActiveRecords({ id }) as any,
+    select: userSyncSelect,
+  });
   if (!existingUser) {
     res.status(404).json({ message: 'User not found' });
     return;
@@ -315,6 +442,89 @@ export async function deleteUser(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  await prisma.user.delete({ where: { id } });
+  await revokeAllUserSessions(id);
+
+  res.locals.auditMetadata = {
+    previousRole: existingUserRole,
+    managedUserRole: existingUserRole,
+    privilegedTarget: ['SYSTEM_ADMIN', 'DEPARTMENT_MANAGER', 'SUPERVISOR', 'DISPATCHER'].includes(
+      existingUserRole,
+    ),
+    archiveModeDelete: isArchiveEnabled(),
+  };
+
+  if (isArchiveEnabled()) {
+    await prisma.user.update({ where: { id }, data: { archivedAt: new Date() } });
+  } else {
+    if (isSupabaseAuthEnabled() && existingUser.supabaseAuthUserId) {
+      try {
+        await deleteSupabaseAuthUser(existingUser.supabaseAuthUserId);
+      } catch (error) {
+        if (handleSupabaseAuthRuntimeError(res, error)) {
+          return;
+        }
+
+        throw error;
+      }
+    }
+
+    await prisma.user.delete({ where: { id } });
+  }
+
   res.status(204).send();
+}
+
+export async function restoreUser(req: Request, res: Response): Promise<void> {
+  const authUser = getAuthUser(req);
+  const id = getUserId(req, res);
+  if (id === null) return;
+
+  if (!authUser) {
+    res.status(401).json({ message: 'Unauthorized: missing authentication context' });
+    return;
+  }
+
+  if (!isArchiveEnabled()) {
+    res.status(409).json({ message: 'Archive mode is disabled; restore is unavailable' });
+    return;
+  }
+
+  const user = await prisma.user.findFirst({
+    where: withArchivedRecords({ id }) as any,
+    select: userSelect,
+  });
+  if (!user) {
+    res.status(404).json({ message: 'Archived user not found' });
+    return;
+  }
+
+  const existingUserRole = getStoredUserRole(user.role);
+  if (!existingUserRole) {
+    res.status(500).json({ message: 'Invalid stored user role' });
+    return;
+  }
+
+  if (!canManageRole(authUser.role, existingUserRole)) {
+    res.status(403).json({
+      message: 'Forbidden: you are not allowed to restore that user role',
+    });
+    return;
+  }
+
+  const restoredUser = await prisma.user.update({
+    where: { id },
+    data: { archivedAt: null },
+    select: userSelect,
+  });
+
+  res.locals.auditMetadata = {
+    previousRole: existingUserRole,
+    managedUserRole: existingUserRole,
+    privilegedTarget: ['SYSTEM_ADMIN', 'DEPARTMENT_MANAGER', 'SUPERVISOR', 'DISPATCHER'].includes(
+      existingUserRole,
+    ),
+    restoredFromArchive: true,
+  };
+
+  res.json(restoredUser);
 }

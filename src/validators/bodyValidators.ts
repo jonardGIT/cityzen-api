@@ -82,6 +82,72 @@ const incidentLocationFieldsValidator = [
   }),
 ];
 
+const updateIncidentLocationFieldsValidator = [
+  body('latitude')
+    .optional()
+    .isFloat({ min: -90, max: 90 })
+    .withMessage('latitude must be a valid latitude between -90 and 90'),
+  body('longitude')
+    .optional()
+    .isFloat({ min: -180, max: 180 })
+    .withMessage('longitude must be a valid longitude between -180 and 180'),
+  body('addressLine1')
+    .optional()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('addressLine1 must be a non-empty string'),
+  body('addressLine2')
+    .optional({ nullable: true })
+    .isString()
+    .withMessage('addressLine2 must be a string'),
+  body('barangay').optional({ nullable: true }).isString().withMessage('barangay must be a string'),
+  body('districtName')
+    .optional({ nullable: true })
+    .isString()
+    .withMessage('districtName must be a string'),
+  body('cityName')
+    .optional()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('cityName must be a non-empty string'),
+  body('provinceName')
+    .optional()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('provinceName must be a non-empty string'),
+  body('regionName')
+    .optional()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('regionName must be a non-empty string'),
+  body('postalCode')
+    .optional({ nullable: true })
+    .isString()
+    .withMessage('postalCode must be a string'),
+  body('landmark').optional({ nullable: true }).isString().withMessage('landmark must be a string'),
+  body().custom((value) => {
+    const hasSnapshot = hasIncidentLocationSnapshot(value);
+
+    if (!hasSnapshot) {
+      return true;
+    }
+
+    const missingSnapshotFields = INCIDENT_LOCATION_SNAPSHOT_FIELDS.filter(
+      (field) => value?.[field] === undefined || value?.[field] === null || value?.[field] === '',
+    );
+
+    if (missingSnapshotFields.length > 0) {
+      throw new Error(`incident location snapshot requires ${missingSnapshotFields.join(', ')}`);
+    }
+
+    return true;
+  }),
+];
+
 export const createCitizenValidator = [
   body('name').isString().trim().notEmpty().withMessage('name is required'),
   body('contactInfo').isString().trim().notEmpty().withMessage('contactInfo is required'),
@@ -330,6 +396,16 @@ export const updateLocationValidator = [
 export const createIncidentValidator = [
   body('description').isString().trim().notEmpty().withMessage('description is required'),
   body('mediaUrl').optional().isString().withMessage('mediaUrl must be a string'),
+  body('mediaUrls')
+    .optional()
+    .isArray({ min: 1 })
+    .withMessage('mediaUrls must be a non-empty array'),
+  body('mediaUrls.*')
+    .optional()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('mediaUrls entries must be non-empty strings'),
   body('dateReported').optional().isISO8601().withMessage('dateReported must be an ISO8601 date'),
   body('statusId')
     .isString()
@@ -357,6 +433,16 @@ export const createIncidentValidator = [
 export const createCitizenIncidentReportValidator = [
   body('description').isString().trim().notEmpty().withMessage('description is required'),
   body('mediaUrl').optional().isString().withMessage('mediaUrl must be a string'),
+  body('mediaUrls')
+    .optional()
+    .isArray({ min: 1 })
+    .withMessage('mediaUrls must be a non-empty array'),
+  body('mediaUrls.*')
+    .optional()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('mediaUrls entries must be non-empty strings'),
   body('dateReported').optional().isISO8601().withMessage('dateReported must be an ISO8601 date'),
   body('citizenId')
     .not()
@@ -376,11 +462,58 @@ export const createCitizenIncidentReportValidator = [
   ...incidentLocationFieldsValidator,
 ];
 
+export const uploadIncidentMediaValidator = [
+  body().custom((value) => {
+    const hasSingleFileFields =
+      typeof value?.fileName === 'string' &&
+      typeof value?.contentType === 'string' &&
+      typeof value?.dataBase64 === 'string';
+    const hasFilesArray = Array.isArray(value?.files) && value.files.length > 0;
+
+    if (!hasSingleFileFields && !hasFilesArray) {
+      throw new Error(
+        'either fileName/contentType/dataBase64 or a non-empty files array is required',
+      );
+    }
+
+    return true;
+  }),
+  body('fileName').optional().isString().trim().notEmpty().withMessage('fileName is required'),
+  body('contentType')
+    .optional()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('contentType is required'),
+  body('dataBase64').optional().isString().trim().notEmpty().withMessage('dataBase64 is required'),
+  body('files').optional().isArray({ min: 1 }).withMessage('files must be a non-empty array'),
+  body('files.*.fileName')
+    .optional()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('fileName is required'),
+  body('files.*.contentType')
+    .optional()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('contentType is required'),
+  body('files.*.dataBase64')
+    .optional()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('dataBase64 is required'),
+  body('incidentId').optional().isUUID().withMessage('incidentId must be a valid UUID'),
+];
+
 export const updateIncidentValidator = [
   body().custom((value) => {
     const hasUpdatableField = [
       'description',
       'mediaUrl',
+      'mediaUrls',
       'dateReported',
       'statusId',
       'citizenId',
@@ -400,6 +533,16 @@ export const updateIncidentValidator = [
     .notEmpty()
     .withMessage('description must be a non-empty string'),
   body('mediaUrl').optional().isString().withMessage('mediaUrl must be a string'),
+  body('mediaUrls')
+    .optional()
+    .isArray({ min: 1 })
+    .withMessage('mediaUrls must be a non-empty array'),
+  body('mediaUrls.*')
+    .optional()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('mediaUrls entries must be non-empty strings'),
   body('dateReported').optional().isISO8601().withMessage('dateReported must be an ISO8601 date'),
   body('statusId')
     .optional()
@@ -425,7 +568,7 @@ export const updateIncidentValidator = [
     .trim()
     .isUUID()
     .withMessage('severityId must be a valid UUID'),
-  ...incidentLocationFieldsValidator,
+  ...updateIncidentLocationFieldsValidator,
 ];
 
 export const createAssignmentValidator = [
@@ -497,7 +640,14 @@ export const createUserValidator = [
   body('role')
     .optional()
     .isString()
-    .custom((value) => USER_ROLES.includes(value.trim().toUpperCase().replace(/[\s-]+/g, '_')))
+    .custom((value) =>
+      USER_ROLES.includes(
+        value
+          .trim()
+          .toUpperCase()
+          .replace(/[\s-]+/g, '_'),
+      ),
+    )
     .withMessage(
       'role must be one of SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
     ),
@@ -531,7 +681,14 @@ export const updateUserValidator = [
   body('role')
     .optional()
     .isString()
-    .custom((value) => USER_ROLES.includes(value.trim().toUpperCase().replace(/[\s-]+/g, '_')))
+    .custom((value) =>
+      USER_ROLES.includes(
+        value
+          .trim()
+          .toUpperCase()
+          .replace(/[\s-]+/g, '_'),
+      ),
+    )
     .withMessage(
       'role must be one of SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
     ),

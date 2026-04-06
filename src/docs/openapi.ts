@@ -1,4 +1,32 @@
 import { OpenAPIV3 } from 'openapi-types';
+import { getFeatureSelection, type FeatureSelection } from '../featureSelection.js';
+
+const CONDITIONAL_MFA_PATHS = ['/auth/mfa/setup', '/auth/mfa/enable', '/auth/mfa/disable'] as const;
+const CONDITIONAL_SESSION_PATHS = ['/auth/sessions', '/auth/sessions/{id}'] as const;
+const CONDITIONAL_MEDIA_PATHS = ['/incidents/media/upload'] as const;
+const CONDITIONAL_RESTORE_PATHS = [
+  '/citizens/{id}/restore',
+  '/agencies/{id}/restore',
+  '/responders/{id}/restore',
+  '/statuses/{id}/restore',
+  '/categories/{id}/restore',
+  '/severities/{id}/restore',
+  '/incidents/{id}/restore',
+  '/assignments/{id}/restore',
+  '/users/{id}/restore',
+] as const;
+const HARD_DELETE_PATH_METADATA = {
+  '/citizens/{id}': { summary: 'Delete citizen', responseDescription: 'Citizen deleted.' },
+  '/agencies/{id}': { summary: 'Delete agency', responseDescription: 'Agency deleted.' },
+  '/responders/{id}': { summary: 'Delete responder', responseDescription: 'Responder deleted.' },
+  '/statuses/{id}': { summary: 'Delete status', responseDescription: 'Status deleted.' },
+  '/categories/{id}': { summary: 'Delete category', responseDescription: 'Category deleted.' },
+  '/severities/{id}': { summary: 'Delete severity', responseDescription: 'Severity deleted.' },
+  '/incidents/{id}': { summary: 'Delete incident', responseDescription: 'Incident deleted.' },
+  '/assignments/{id}': { summary: 'Delete assignment', responseDescription: 'Assignment deleted.' },
+  '/users/{id}': { summary: 'Delete user', responseDescription: 'User deleted.' },
+} as const;
+const ARCHIVE_QUERY_PARAMETER_NAMES = new Set(['includeArchived', 'archivedOnly']);
 
 const idParameter: OpenAPIV3.ParameterObject = {
   name: 'id',
@@ -51,6 +79,21 @@ const paginationParameters: OpenAPIV3.ParameterObject[] = [
     description:
       'JSON string for arbitrary column filters. Example: [{"field":"name","operator":"contains","value":"juan"}]. Operators: equals, contains, in, gt, gte, lt, lte, between.',
     schema: { type: 'string' },
+  },
+  {
+    name: 'includeArchived',
+    in: 'query',
+    required: false,
+    description: 'When true, returns both active and archived rows for archive-enabled resources.',
+    schema: { type: 'boolean', default: false },
+  },
+  {
+    name: 'archivedOnly',
+    in: 'query',
+    required: false,
+    description:
+      'When true, returns only archived rows for archive-enabled resources. Cannot be combined with includeArchived=true.',
+    schema: { type: 'boolean', default: false },
   },
   {
     name: 'createdFrom',
@@ -350,11 +393,29 @@ function resourcePath(
       },
       delete: {
         tags: [schemaName],
-        summary: `Delete ${schemaName.toLowerCase()}`,
+        summary: `Archive ${schemaName.toLowerCase()}`,
         security: writeSecurity,
         parameters: [idParameter],
         responses: {
-          '204': { description: `${schemaName} deleted.` },
+          '204': { description: `${schemaName} archived.` },
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '404': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Not found.'),
+          '409': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Conflict.'),
+        },
+      },
+    },
+    [pluralPath + '/{id}/restore']: {
+      post: {
+        tags: [schemaName],
+        summary: `Restore ${schemaName.toLowerCase()}`,
+        security: writeSecurity,
+        parameters: [idParameter],
+        responses: {
+          '200': jsonResponse(
+            { $ref: `#/components/schemas/${schemaName}` },
+            `${schemaName} restored.`,
+          ),
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
           '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
           '404': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Not found.'),
@@ -365,12 +426,103 @@ function resourcePath(
   };
 }
 
-export const openApiDocument: OpenAPIV3.Document = {
+function filterArchiveQueryParameters(
+  operation: OpenAPIV3.OperationObject | undefined,
+): OpenAPIV3.OperationObject | undefined {
+  if (!operation?.parameters) {
+    return operation;
+  }
+
+  return {
+    ...operation,
+    parameters: operation.parameters.filter((parameter) => {
+      if ('$ref' in parameter) {
+        return true;
+      }
+
+      return !ARCHIVE_QUERY_PARAMETER_NAMES.has(parameter.name);
+    }),
+  };
+}
+
+function createFeatureAwarePaths(
+  paths: OpenAPIV3.PathsObject,
+  selection: FeatureSelection,
+): OpenAPIV3.PathsObject {
+  const nextPaths: OpenAPIV3.PathsObject = Object.fromEntries(
+    Object.entries(paths).map(([path, pathItem]) => [path, { ...pathItem }]),
+  );
+
+  if (!selection.mediaStorage || selection.mediaStorage === 'disabled') {
+    for (const path of CONDITIONAL_MEDIA_PATHS) {
+      delete nextPaths[path];
+    }
+  }
+
+  if (selection.mfaMode === 'disabled') {
+    for (const path of CONDITIONAL_MFA_PATHS) {
+      delete nextPaths[path];
+    }
+  }
+
+  if (selection.tokenMode !== 'app-jwt') {
+    for (const path of CONDITIONAL_SESSION_PATHS) {
+      delete nextPaths[path];
+    }
+  }
+
+  if (selection.recordDeletion !== 'archive') {
+    for (const path of CONDITIONAL_RESTORE_PATHS) {
+      delete nextPaths[path];
+    }
+
+    for (const [path, pathItem] of Object.entries(nextPaths)) {
+      if (!pathItem) {
+        continue;
+      }
+
+      nextPaths[path] = {
+        ...pathItem,
+        get: filterArchiveQueryParameters(pathItem.get),
+      };
+    }
+
+    for (const [path, metadata] of Object.entries(HARD_DELETE_PATH_METADATA)) {
+      const pathItem = nextPaths[path];
+      if (!pathItem?.delete) {
+        continue;
+      }
+
+      pathItem.delete = {
+        ...pathItem.delete,
+        summary: metadata.summary,
+        responses: {
+          ...pathItem.delete.responses,
+          '204': { description: metadata.responseDescription },
+        },
+      };
+    }
+  }
+
+  return nextPaths;
+}
+
+export function createOpenApiDocument(
+  selection: FeatureSelection = getFeatureSelection(),
+): OpenAPIV3.Document {
+  return {
+    ...baseOpenApiDocument,
+    paths: createFeatureAwarePaths(baseOpenApiDocument.paths, selection),
+  };
+}
+
+const baseOpenApiDocument: OpenAPIV3.Document = {
   openapi: '3.0.3',
   info: {
     title: 'Xypes CIRS API',
     version: '1.0.0',
-    description: 'OpenAPI definition aligned to the current Express and Prisma implementation.',
+    description:
+      'OpenAPI definition aligned to the current Express and Prisma implementation, including optional Supabase Auth and MFA integration, Supabase Storage incident media uploads, persistent audit logging, and archive-by-default CRUD management with restore and archived-list browsing flows.',
   },
   servers: [{ url: '/api/v1', description: 'Versioned API base path' }],
   tags: [
@@ -532,6 +684,81 @@ export const openApiDocument: OpenAPIV3.Document = {
         },
       },
     },
+    '/incidents/media/upload': {
+      post: {
+        tags: ['Incident'],
+        summary: 'Upload incident media to Supabase Storage',
+        description:
+          'Accepts either one base64-encoded file or a `files` array and returns reusable media references for incident persistence. In `public` storage mode these are public URLs; in `signed` mode the response also includes short-lived access URLs for preview while the persisted values remain stable managed references. When a media scan webhook is configured, the upload completes only after the object is successfully submitted for downstream scanning.',
+        security: apiKeyAndBearerSecurity,
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/UploadIncidentMediaRequest' },
+            },
+          },
+        },
+        responses: {
+          '201': jsonResponse(
+            { $ref: '#/components/schemas/UploadIncidentMediaResponse' },
+            'Incident media uploaded.',
+          ),
+          '400': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Invalid upload payload.',
+          ),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '413': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Uploaded media exceeds the configured size limit.',
+          ),
+          '503': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Supabase Storage is disabled, misconfigured, or downstream media scanning is unavailable.',
+          ),
+        },
+      },
+    },
+    '/incidents/{id}/media/{mediaId}': {
+      get: {
+        tags: ['Incident'],
+        summary: 'Resolve an authorized access URL for stored incident media',
+        description:
+          'Returns a just-in-time access URL for a stored incident media file after applying the same incident-level authorization rules as GET /incidents/{id}. This supports backend-gated evidence retrieval without changing the persisted media reference.',
+        security: apiKeyAndBearerSecurity,
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+          },
+          {
+            name: 'mediaId',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+          },
+        ],
+        responses: {
+          '200': jsonResponse(
+            { $ref: '#/components/schemas/IncidentMediaAccessResponse' },
+            'Incident media access URL resolved.',
+          ),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '404': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Incident or incident media not found.',
+          ),
+          '422': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Missing linked citizen profile.',
+          ),
+        },
+      },
+    },
     '/incidents/report': {
       post: {
         tags: ['Incident'],
@@ -611,17 +838,40 @@ export const openApiDocument: OpenAPIV3.Document = {
       },
       delete: {
         tags: ['Incident'],
-        summary: 'Delete incident',
+        summary: 'Archive incident',
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
-          '204': { description: 'Incident deleted.' },
+          '204': { description: 'Incident archived.' },
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
           '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
           '404': jsonResponse(
             { $ref: '#/components/schemas/ErrorResponse' },
             'Incident not found.',
           ),
+        },
+      },
+    },
+    '/incidents/{id}/restore': {
+      post: {
+        tags: ['Incident'],
+        summary: 'Restore incident',
+        description:
+          'Restores an archived incident when archive mode is enabled. Incident restore requires the linked status, citizen, category, and severity to already be active. Archived assignments linked to the incident are also restored when their responders are active.',
+        security: apiKeyAndBearerSecurity,
+        parameters: [idParameter],
+        responses: {
+          '200': jsonResponse(
+            { $ref: '#/components/schemas/CitizenIncident' },
+            'Incident restored.',
+          ),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '404': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Archived incident not found.',
+          ),
+          '409': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Conflict.'),
         },
       },
     },
@@ -714,19 +964,39 @@ export const openApiDocument: OpenAPIV3.Document = {
       },
       delete: {
         tags: ['Assignment'],
-        summary: 'Delete assignment',
+        summary: 'Archive assignment',
         description:
           'Available to assignment-management roles only: SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, and DISPATCHER.',
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
-          '204': { description: 'Assignment deleted.' },
+          '204': { description: 'Assignment archived.' },
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
           '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
           '404': jsonResponse(
             { $ref: '#/components/schemas/ErrorResponse' },
             'Assignment not found.',
           ),
+        },
+      },
+    },
+    '/assignments/{id}/restore': {
+      post: {
+        tags: ['Assignment'],
+        summary: 'Restore assignment',
+        description:
+          'Available to assignment-management roles only: SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, and DISPATCHER. Restore requires both the linked incident and responder to already be active.',
+        security: apiKeyAndBearerSecurity,
+        parameters: [idParameter],
+        responses: {
+          '200': jsonResponse({ $ref: '#/components/schemas/Assignment' }, 'Assignment restored.'),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '404': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Archived assignment not found.',
+          ),
+          '409': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Conflict.'),
         },
       },
     },
@@ -774,7 +1044,7 @@ export const openApiDocument: OpenAPIV3.Document = {
         tags: ['User'],
         summary: 'Create user',
         description:
-          'Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER. The backend rejects creation of target roles outside the caller\'s manageable set.',
+          "Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER. The backend rejects creation of target roles outside the caller's manageable set.",
         security: apiKeyAndBearerSecurity,
         requestBody: {
           required: true,
@@ -839,16 +1109,36 @@ export const openApiDocument: OpenAPIV3.Document = {
       },
       delete: {
         tags: ['User'],
-        summary: 'Delete user',
+        summary: 'Archive user',
         description:
           'Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER. Only SYSTEM_ADMIN has global destructive user-management capability.',
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
-          '204': { description: 'User deleted.' },
+          '204': { description: 'User archived.' },
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
           '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
           '404': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'User not found.'),
+        },
+      },
+    },
+    '/users/{id}/restore': {
+      post: {
+        tags: ['User'],
+        summary: 'Restore user',
+        description:
+          'Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER when archive mode is enabled.',
+        security: apiKeyAndBearerSecurity,
+        parameters: [idParameter],
+        responses: {
+          '200': jsonResponse({ $ref: '#/components/schemas/UserSummary' }, 'User restored.'),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '404': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Archived user not found.',
+          ),
+          '409': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Conflict.'),
         },
       },
     },
@@ -911,7 +1201,7 @@ export const openApiDocument: OpenAPIV3.Document = {
         tags: ['Auth'],
         summary: 'Request a password reset token',
         description:
-          'Accepts an email address and creates a one-time password reset token when the account exists. The response stays generic to avoid revealing whether the email exists. In non-production environments, the reset token is returned for local testing.',
+          'Accepts an email address and creates a one-time password reset token when the account exists. The response stays generic to avoid revealing whether the email exists. In non-production environments, the reset token is returned for local testing. In production, raw reset tokens are never returned in the API response and delivery is delegated to the configured backend delivery provider. If production delivery is unavailable, the endpoint fails closed with 503. Privileged accounts require an admin-assisted recovery process instead of self-service reset.',
         security: [],
         requestBody: {
           required: true,
@@ -926,6 +1216,10 @@ export const openApiDocument: OpenAPIV3.Document = {
             { $ref: '#/components/schemas/PasswordResetRequestResponse' },
             'Password reset request accepted.',
           ),
+          '503': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Password reset delivery is unavailable.',
+          ),
           '422': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Validation error.'),
         },
       },
@@ -935,7 +1229,7 @@ export const openApiDocument: OpenAPIV3.Document = {
         tags: ['Auth'],
         summary: 'Reset a password with a one-time token',
         description:
-          'Accepts a valid one-time password reset token plus a new password, then revokes all existing sessions for the user.',
+          'Accepts a valid one-time password reset token plus a new password, then revokes all existing sessions for the user. In production, privileged accounts cannot complete this public self-service reset flow and must follow an admin-assisted recovery process.',
         security: [],
         requestBody: {
           required: true,
@@ -954,6 +1248,10 @@ export const openApiDocument: OpenAPIV3.Document = {
             { $ref: '#/components/schemas/ErrorResponse' },
             'Invalid or expired password reset token.',
           ),
+          '403': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Privileged account recovery requires an admin-assisted flow.',
+          ),
           '422': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Validation error.'),
         },
       },
@@ -963,8 +1261,16 @@ export const openApiDocument: OpenAPIV3.Document = {
         tags: ['Auth'],
         summary: 'Create or reset MFA setup for a privileged account',
         description:
-          'Creates a new TOTP seed for the authenticated privileged user and returns the shared secret plus otpauth URL for authenticator app enrollment.',
+          'Creates a new TOTP seed for the authenticated privileged user and returns the shared secret plus otpauth URL for authenticator app enrollment. When Supabase TOTP mode is enabled, include the current Supabase refresh token in the request body.',
         security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: false,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/MfaSetupRequest' },
+            },
+          },
+        },
         responses: {
           '200': jsonResponse(
             { $ref: '#/components/schemas/MfaSetupResponse' },
@@ -979,6 +1285,8 @@ export const openApiDocument: OpenAPIV3.Document = {
       post: {
         tags: ['Auth'],
         summary: 'Enable MFA for the authenticated privileged account',
+        description:
+          'Enables MFA with the supplied TOTP code. When Supabase TOTP mode is enabled, include the current Supabase refresh token in the request body and the response may include an upgraded Supabase session bundle.',
         security: [{ BearerAuth: [] }],
         requestBody: {
           required: true,
@@ -989,10 +1297,19 @@ export const openApiDocument: OpenAPIV3.Document = {
           },
         },
         responses: {
-          '200': jsonResponse(
-            { $ref: '#/components/schemas/MessageResponse' },
-            'MFA enabled. Current sessions were revoked.',
-          ),
+          '200': {
+            description: 'MFA enabled.',
+            content: {
+              'application/json': {
+                schema: {
+                  oneOf: [
+                    { $ref: '#/components/schemas/MessageResponse' },
+                    { $ref: '#/components/schemas/AuthResponse' },
+                  ],
+                },
+              },
+            },
+          },
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
           '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
           '409': jsonResponse(
@@ -1007,6 +1324,8 @@ export const openApiDocument: OpenAPIV3.Document = {
       post: {
         tags: ['Auth'],
         summary: 'Disable MFA for the authenticated privileged account',
+        description:
+          'Disables MFA with the supplied TOTP code. When Supabase TOTP mode is enabled, include the current Supabase refresh token in the request body.',
         security: [{ BearerAuth: [] }],
         requestBody: {
           required: true,
@@ -1127,6 +1446,40 @@ export const openApiDocument: OpenAPIV3.Document = {
         parameters: paginationParameters,
         responses: {
           '200': listResponse('UserSummary'),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+        },
+      },
+    },
+    '/admin/users/mfa-compliance': {
+      get: {
+        tags: ['Admin'],
+        summary: 'Review privileged MFA compliance',
+        description:
+          'Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER users. Returns privileged-account MFA enrollment status for operational compliance review.',
+        security: apiKeyAndBearerSecurity,
+        responses: {
+          '200': jsonResponse(
+            { $ref: '#/components/schemas/PrivilegedMfaComplianceReport' },
+            'Privileged MFA compliance report.',
+          ),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+        },
+      },
+    },
+    '/admin/users/access-review': {
+      get: {
+        tags: ['Admin'],
+        summary: 'Review privileged account access posture',
+        description:
+          'Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER users. Returns privileged-account access-review data including MFA status, active-session counts, last session activity, and stale-account flags for periodic access review procedures.',
+        security: apiKeyAndBearerSecurity,
+        responses: {
+          '200': jsonResponse(
+            { $ref: '#/components/schemas/PrivilegedAccessReviewReport' },
+            'Privileged access review report.',
+          ),
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
           '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
         },
@@ -1282,6 +1635,110 @@ export const openApiDocument: OpenAPIV3.Document = {
         },
         required: ['id', 'createdAt', 'updatedAt', 'name', 'email', 'role'],
       },
+      PrivilegedMfaComplianceUser: {
+        allOf: [
+          { $ref: '#/components/schemas/UserSummary' },
+          {
+            type: 'object',
+            properties: {
+              mfaEnabled: { type: 'boolean' },
+              mfaEnabledAt: { type: 'string', format: 'date-time', nullable: true },
+              requiresMfa: { type: 'boolean' },
+              compliant: { type: 'boolean' },
+            },
+            required: ['mfaEnabled', 'mfaEnabledAt', 'requiresMfa', 'compliant'],
+          },
+        ],
+      },
+      PrivilegedMfaComplianceReport: {
+        type: 'object',
+        properties: {
+          summary: {
+            type: 'object',
+            properties: {
+              totalPrivilegedUsers: { type: 'integer' },
+              compliantUsers: { type: 'integer' },
+              nonCompliantUsers: { type: 'integer' },
+            },
+            required: ['totalPrivilegedUsers', 'compliantUsers', 'nonCompliantUsers'],
+          },
+          data: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/PrivilegedMfaComplianceUser' },
+          },
+        },
+        required: ['summary', 'data'],
+      },
+      PrivilegedAccessReviewUser: {
+        allOf: [
+          { $ref: '#/components/schemas/UserSummary' },
+          {
+            type: 'object',
+            properties: {
+              mfaEnabled: { type: 'boolean' },
+              mfaEnabledAt: { type: 'string', format: 'date-time', nullable: true },
+              requiresMfa: { type: 'boolean' },
+              activeSessionCount: { type: 'integer' },
+              hasActiveSessions: { type: 'boolean' },
+              lastSessionUsedAt: { type: 'string', format: 'date-time', nullable: true },
+              latestSessionIpAddress: { type: 'string', nullable: true },
+              latestSessionUserAgent: { type: 'string', nullable: true },
+              latestSessionBrowserFamily: { type: 'string', nullable: true },
+              latestSessionOsFamily: { type: 'string', nullable: true },
+              latestSessionDeviceLabel: { type: 'string', nullable: true },
+              stale: { type: 'boolean' },
+              requiresReview: { type: 'boolean' },
+              reviewReasons: {
+                type: 'array',
+                items: { type: 'string' },
+              },
+            },
+            required: [
+              'mfaEnabled',
+              'mfaEnabledAt',
+              'requiresMfa',
+              'activeSessionCount',
+              'hasActiveSessions',
+              'lastSessionUsedAt',
+              'latestSessionIpAddress',
+              'latestSessionUserAgent',
+              'latestSessionBrowserFamily',
+              'latestSessionOsFamily',
+              'latestSessionDeviceLabel',
+              'stale',
+              'requiresReview',
+              'reviewReasons',
+            ],
+          },
+        ],
+      },
+      PrivilegedAccessReviewReport: {
+        type: 'object',
+        properties: {
+          summary: {
+            type: 'object',
+            properties: {
+              totalPrivilegedUsers: { type: 'integer' },
+              usersRequiringReview: { type: 'integer' },
+              staleUsers: { type: 'integer' },
+              usersWithoutMfa: { type: 'integer' },
+              staleAfterDays: { type: 'integer' },
+            },
+            required: [
+              'totalPrivilegedUsers',
+              'usersRequiringReview',
+              'staleUsers',
+              'usersWithoutMfa',
+              'staleAfterDays',
+            ],
+          },
+          data: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/PrivilegedAccessReviewUser' },
+          },
+        },
+        required: ['summary', 'data'],
+      },
       AuditLog: {
         type: 'object',
         description:
@@ -1353,6 +1810,13 @@ export const openApiDocument: OpenAPIV3.Document = {
           lastUsedAt: { type: 'string', format: 'date-time', nullable: true },
           userAgent: { type: 'string', nullable: true },
           ipAddress: { type: 'string', nullable: true },
+          browserFamily: { type: 'string', nullable: true },
+          osFamily: { type: 'string', nullable: true },
+          deviceLabel: { type: 'string', nullable: true },
+          status: {
+            type: 'string',
+            enum: ['active', 'expired', 'revoked'],
+          },
           isCurrent: { type: 'boolean' },
         },
         required: [
@@ -1366,6 +1830,10 @@ export const openApiDocument: OpenAPIV3.Document = {
           'lastUsedAt',
           'userAgent',
           'ipAddress',
+          'browserFamily',
+          'osFamily',
+          'deviceLabel',
+          'status',
           'isCurrent',
         ],
       },
@@ -1446,6 +1914,12 @@ export const openApiDocument: OpenAPIV3.Document = {
           updatedAt: { type: 'string', format: 'date-time' },
           description: { type: 'string' },
           mediaUrl: { type: 'string', nullable: true },
+          mediaUrls: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Ordered list of incident media access URLs. `mediaUrl` remains the first item for backward compatibility. When private signed storage mode is enabled, the API resolves persisted managed references into short-lived signed URLs in this response.',
+          },
           dateReported: { type: 'string', format: 'date-time' },
           latitude: { type: 'number', format: 'double', nullable: true },
           longitude: { type: 'number', format: 'double', nullable: true },
@@ -1541,10 +2015,21 @@ export const openApiDocument: OpenAPIV3.Document = {
           password: { type: 'string' },
           mfaCode: {
             type: 'string',
-            description: 'Required when the user has MFA enabled and belongs to a privileged role.',
+            description:
+              'Required when the user has MFA enabled and belongs to a privileged role. In Supabase TOTP mode this is verified against Supabase MFA factors.',
           },
         },
         required: ['email', 'password'],
+      },
+      MfaSetupRequest: {
+        type: 'object',
+        properties: {
+          refreshToken: {
+            type: 'string',
+            description:
+              'Required when Supabase TOTP mode is enabled so the backend can create a session-scoped MFA enrollment with Supabase.',
+          },
+        },
       },
       PasswordResetRequestRequest: {
         type: 'object',
@@ -1561,14 +2046,14 @@ export const openApiDocument: OpenAPIV3.Document = {
             type: 'string',
             nullable: true,
             description:
-              'Returned only in non-production environments for local development and testing.',
+              'Returned only when the backend is using api-response delivery mode in non-production environments for local testing.',
           },
           resetExpiresAt: {
             type: 'string',
             format: 'date-time',
             nullable: true,
             description:
-              'Returned only in non-production environments for local development and testing.',
+              'Returned only when resetToken is included for local testing in non-production environments.',
           },
         },
         required: ['message'],
@@ -1585,14 +2070,25 @@ export const openApiDocument: OpenAPIV3.Document = {
         type: 'object',
         properties: {
           code: { type: 'string' },
+          refreshToken: {
+            type: 'string',
+            description:
+              'Required when Supabase TOTP mode is enabled so the backend can create a session-scoped MFA challenge against Supabase.',
+          },
         },
         required: ['code'],
       },
       MfaSetupResponse: {
         type: 'object',
         properties: {
+          factorId: { type: 'string' },
           secret: { type: 'string' },
           otpauthUrl: { type: 'string' },
+          qrCode: {
+            type: 'string',
+            description:
+              'Inline SVG data URL returned by Supabase when Supabase TOTP mode is enabled.',
+          },
           issuer: { type: 'string' },
           accountName: { type: 'string', format: 'email' },
         },
@@ -1616,6 +2112,11 @@ export const openApiDocument: OpenAPIV3.Document = {
         type: 'object',
         properties: {
           token: { type: 'string' },
+          accessToken: {
+            type: 'string',
+            description:
+              'Backward-compatible alias of token for clients that still expect accessToken.',
+          },
           refreshToken: { type: 'string' },
           tokenType: { type: 'string', example: 'Bearer' },
           sessionId: { type: 'string', format: 'uuid' },
@@ -1630,6 +2131,7 @@ export const openApiDocument: OpenAPIV3.Document = {
         },
         required: [
           'token',
+          'accessToken',
           'refreshToken',
           'tokenType',
           'sessionId',
@@ -1743,7 +2245,17 @@ export const openApiDocument: OpenAPIV3.Document = {
         type: 'object',
         properties: {
           description: { type: 'string' },
-          mediaUrl: { type: 'string' },
+          mediaUrl: {
+            type: 'string',
+            description:
+              'Previously uploaded incident media reference. Use POST /incidents/media/upload to generate this value from a base64 payload.',
+          },
+          mediaUrls: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Ordered list of uploaded incident media references. When both `mediaUrl` and `mediaUrls` are sent, the legacy `mediaUrl` is prepended if it is not already present.',
+          },
           dateReported: { type: 'string', format: 'date-time' },
           latitude: { type: 'number', format: 'double' },
           longitude: { type: 'number', format: 'double' },
@@ -1768,7 +2280,17 @@ export const openApiDocument: OpenAPIV3.Document = {
         type: 'object',
         properties: {
           description: { type: 'string' },
-          mediaUrl: { type: 'string' },
+          mediaUrl: {
+            type: 'string',
+            description:
+              'Previously uploaded incident media reference. Use POST /incidents/media/upload to generate this value from a base64 payload.',
+          },
+          mediaUrls: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Ordered list of uploaded incident media references. When both `mediaUrl` and `mediaUrls` are sent, the legacy `mediaUrl` is prepended if it is not already present.',
+          },
           dateReported: { type: 'string', format: 'date-time' },
           latitude: { type: 'number', format: 'double' },
           longitude: { type: 'number', format: 'double' },
@@ -1792,7 +2314,17 @@ export const openApiDocument: OpenAPIV3.Document = {
         type: 'object',
         properties: {
           description: { type: 'string' },
-          mediaUrl: { type: 'string' },
+          mediaUrl: {
+            type: 'string',
+            description:
+              'Previously uploaded incident media reference. Use POST /incidents/media/upload to generate this value from a base64 payload.',
+          },
+          mediaUrls: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Ordered list of uploaded incident media references. When both `mediaUrl` and `mediaUrls` are sent, the legacy `mediaUrl` is prepended if it is not already present.',
+          },
           dateReported: { type: 'string', format: 'date-time' },
           latitude: { type: 'number', format: 'double' },
           longitude: { type: 'number', format: 'double' },
@@ -1812,6 +2344,106 @@ export const openApiDocument: OpenAPIV3.Document = {
         },
         description:
           'Incident updates may modify snapshot fields directly; there is no location lookup resource.',
+      },
+      UploadIncidentMediaRequest: {
+        type: 'object',
+        properties: {
+          fileName: { type: 'string' },
+          contentType: {
+            type: 'string',
+            description: 'MIME type of the uploaded file, for example image/jpeg.',
+          },
+          dataBase64: {
+            type: 'string',
+            description:
+              'Base64-encoded file contents. A full data URL is also accepted and will be normalized server-side.',
+          },
+          incidentId: {
+            type: 'string',
+            format: 'uuid',
+            nullable: true,
+            description:
+              'Optional incident identifier used only to organize the storage object path.',
+          },
+          files: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/UploadIncidentMediaItem' },
+            description:
+              'Optional multi-file upload payload. Use this when uploading several files for the same incident in one request.',
+          },
+        },
+        description:
+          'Provide either the single-file fields (`fileName`, `contentType`, `dataBase64`) or a `files` array.',
+      },
+      UploadIncidentMediaItem: {
+        type: 'object',
+        properties: {
+          fileName: { type: 'string' },
+          contentType: { type: 'string' },
+          dataBase64: { type: 'string' },
+        },
+        required: ['fileName', 'contentType', 'dataBase64'],
+      },
+      UploadIncidentMediaResponse: {
+        type: 'object',
+        properties: {
+          mediaUrls: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Reusable incident media references for persistence on incident records. In public mode these are public URLs; in signed mode these are stable managed references.',
+          },
+          accessUrls: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Immediate access URLs for uploaded media. In signed mode these are short-lived signed URLs and should not be persisted back to the database as the canonical reference.',
+          },
+          files: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                bucket: { type: 'string' },
+                objectPath: { type: 'string' },
+                mediaUrl: { type: 'string' },
+                accessUrl: { type: 'string' },
+                contentType: { type: 'string' },
+                fileName: { type: 'string' },
+                size: { type: 'integer' },
+              },
+              required: [
+                'bucket',
+                'objectPath',
+                'mediaUrl',
+                'accessUrl',
+                'contentType',
+                'fileName',
+                'size',
+              ],
+            },
+          },
+        },
+        required: ['mediaUrls', 'accessUrls', 'files'],
+      },
+      IncidentMediaAccessResponse: {
+        type: 'object',
+        properties: {
+          incidentId: { type: 'string', format: 'uuid' },
+          mediaId: { type: 'string', format: 'uuid' },
+          displayOrder: { type: 'integer' },
+          mediaUrl: {
+            type: 'string',
+            description:
+              'Canonical stored media reference. In signed mode this remains a stable managed reference rather than a transient signed URL.',
+          },
+          accessUrl: {
+            type: 'string',
+            description:
+              'Authorized access URL resolved at request time for the specific incident media file.',
+          },
+        },
+        required: ['incidentId', 'mediaId', 'displayOrder', 'mediaUrl', 'accessUrl'],
       },
       CreateAssignmentRequest: {
         type: 'object',
@@ -1940,3 +2572,5 @@ export const openApiDocument: OpenAPIV3.Document = {
     },
   },
 };
+
+export const openApiDocument = createOpenApiDocument();

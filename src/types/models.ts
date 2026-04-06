@@ -1,7 +1,9 @@
 export interface CitizenIncident {
   id: string;
+  archivedAt?: Date | null;
   description: string;
-  mediaUrl?: string;
+  mediaUrl?: string | null;
+  mediaUrls?: string[];
   dateReported: Date;
   latitude?: number;
   longitude?: number;
@@ -18,6 +20,13 @@ export interface CitizenIncident {
   citizenId: string;
   categoryId: string;
   severityId: string;
+}
+
+export interface IncidentMedia {
+  id: string;
+  incidentId: string;
+  mediaUrl: string;
+  displayOrder: number;
 }
 
 export interface AuditLog {
@@ -44,6 +53,7 @@ export interface AuditLog {
 
 export interface Citizen {
   id: string;
+  archivedAt?: Date | null;
   name: string;
   contactInfo: string;
   preferredChannel: string;
@@ -51,12 +61,14 @@ export interface Citizen {
 
 export interface Agency {
   id: string;
+  archivedAt?: Date | null;
   name: string;
   contactNumber?: string;
 }
 
 export interface Responder {
   id: string;
+  archivedAt?: Date | null;
   name: string;
   agencyId: string;
   agency?: Agency;
@@ -66,6 +78,7 @@ export interface Responder {
 
 export interface Assignment {
   id: string;
+  archivedAt?: Date | null;
   incidentId: string;
   responderId: string;
   assignedDate: Date;
@@ -77,17 +90,20 @@ export interface Assignment {
 
 export interface Status {
   id: string;
+  archivedAt?: Date | null;
   name: string;
 }
 
 export interface Category {
   id: string;
+  archivedAt?: Date | null;
   name: string;
   subCategory?: string;
 }
 
 export interface Severity {
   id: string;
+  archivedAt?: Date | null;
   level: string;
   definition?: string;
 }

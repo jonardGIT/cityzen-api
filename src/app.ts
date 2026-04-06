@@ -18,11 +18,13 @@ import auditLogsRouter from './routes/auditLogs.js';
 import authRouter from './routes/auth.js';
 import adminRouter from './routes/admin.js';
 import { openApiDocument } from './docs/openapi.js';
+import { getFeatureSelection } from './featureSelection.js';
 import { createApiKeyAuthMiddleware } from './middleware/apiKeyAuth.js';
 import { createRateLimitMiddleware } from './middleware/rateLimit.js';
 import { auditLogMiddleware } from './middleware/auditLog.js';
 import { notFoundHandler } from './middleware/notFound.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { validateStartupEnvironment } from './utils/startupEnv.js';
 
 function parseBooleanEnv(value: string | undefined, fallback: boolean): boolean {
   if (!value) {
@@ -50,9 +52,18 @@ function requireEnv(name: string): string {
   return value;
 }
 
+function requireJwtSecretForSelection(): void {
+  if (featureSelection.tokenMode !== 'app-jwt') {
+    return;
+  }
+
+  requireEnv('JWT_SECRET');
+}
+
 const app = express();
 export const API_V1 = process.env.API_BASE_PATH ?? '/api/v1';
 const isProduction = process.env.NODE_ENV === 'production';
+const featureSelection = getFeatureSelection();
 const apiKeyBypassPaths = ['/health', '/openapi.json', '/docs', '/auth'];
 const rateLimitBypassPaths = ['/health', '/openapi.json', '/docs'];
 const corsOriginConfig = process.env.CORS_ORIGIN ?? '*';
@@ -61,7 +72,8 @@ const allowedCorsOrigins = corsOriginConfig
   .map((origin) => origin.trim())
   .filter((origin) => origin.length > 0);
 
-requireEnv('JWT_SECRET');
+requireJwtSecretForSelection();
+validateStartupEnvironment({ env: process.env, selection: featureSelection });
 app.set('trust proxy', parseBooleanEnv(process.env.TRUST_PROXY, false));
 
 if (!isProduction) {
@@ -94,7 +106,7 @@ app.use(
 app.use(morgan(isProduction ? 'combined' : 'dev'));
 
 // Parse JSON request bodies for API handlers.
-app.use(express.json());
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT?.trim() || '12mb' }));
 // Persist audit records for configured auth and mutating API operations.
 app.use(API_V1, auditLogMiddleware);
 

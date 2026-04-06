@@ -1,5 +1,7 @@
 import { createHash, randomBytes } from 'crypto';
 import prisma from '../lib/prisma.js';
+import { MFA_REQUIRED_ROLES, normalizeUserRoleInput, type UserRole } from '../types/auth.js';
+import { isArchiveEnabled, withActiveRecords } from '../utils/archive.js';
 
 const DEFAULT_PASSWORD_RESET_TTL_MINUTES = 30;
 
@@ -25,18 +27,42 @@ function hashPasswordResetToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
-export async function requestPasswordReset(email: string): Promise<{
-  resetToken: string;
-  resetExpiresAt: string;
-} | null> {
+export async function requestPasswordReset(email: string): Promise<
+  | {
+      userId: string;
+      email: string;
+      role: UserRole;
+      resetTokenIssued: false;
+    }
+  | {
+      userId: string;
+      email: string;
+      role: UserRole;
+      resetTokenIssued: true;
+      resetToken: string;
+      resetExpiresAt: string;
+    }
+  | null
+> {
   const normalizedEmail = email.trim().toLowerCase();
-  const user = await prisma.user.findUnique({
-    where: { email: normalizedEmail },
-    select: { id: true },
+  const user = await prisma.user.findFirst({
+    where: withActiveRecords({ email: normalizedEmail }) as any,
+    select: { id: true, email: true, role: true },
   });
 
   if (!user) {
     return null;
+  }
+
+  const role = normalizeUserRoleInput(user.role) ?? 'CITIZEN_REPORTER';
+
+  if (isPrivilegedPasswordRecoveryBlocked(role)) {
+    return {
+      userId: user.id,
+      email: user.email,
+      role,
+      resetTokenIssued: false,
+    };
   }
 
   const resetToken = generatePasswordResetToken();
@@ -65,14 +91,38 @@ export async function requestPasswordReset(email: string): Promise<{
   });
 
   return {
+    userId: user.id,
+    email: user.email,
+    role,
+    resetTokenIssued: true,
     resetToken,
     resetExpiresAt: expiresAt.toISOString(),
   };
 }
 
+export function isPrivilegedPasswordRecoveryRole(role: UserRole): boolean {
+  return MFA_REQUIRED_ROLES.includes(role);
+}
+
+export function isPrivilegedPasswordRecoveryBlocked(role: UserRole): boolean {
+  return process.env.NODE_ENV === 'production' && isPrivilegedPasswordRecoveryRole(role);
+}
+
 export async function resetPasswordWithToken(input: {
   token: string;
-  passwordHash: string;
+  passwordHash: string | null;
+  beforeConsume?: (context: {
+    userId: string;
+    email: string;
+    role: UserRole;
+    supabaseAuthUserId: string | null;
+  }) => Promise<void>;
+  beforeCommit?: (context: {
+    userId: string;
+    email: string;
+    role: UserRole;
+    supabaseAuthUserId: string | null;
+  }) => Promise<void>;
 }): Promise<{ userId: string; email: string } | null> {
   const tokenHash = hashPasswordResetToken(input.token);
   const now = new Date();
@@ -89,13 +139,27 @@ export async function resetPasswordWithToken(input: {
           select: {
             id: true,
             email: true,
+            role: true,
+            supabaseAuthUserId: true,
+            archivedAt: true,
           },
         },
       },
     });
 
-    if (!resetToken) {
+    if (!resetToken || (isArchiveEnabled() && resetToken.user.archivedAt !== null)) {
       return null;
+    }
+
+    const role = normalizeUserRoleInput(resetToken.user.role) ?? 'CITIZEN_REPORTER';
+
+    if (input.beforeConsume) {
+      await input.beforeConsume({
+        userId: resetToken.user.id,
+        email: resetToken.user.email,
+        role,
+        supabaseAuthUserId: resetToken.user.supabaseAuthUserId,
+      });
     }
 
     const consumeResult = await tx.passwordResetToken.updateMany({
@@ -112,10 +176,19 @@ export async function resetPasswordWithToken(input: {
       return null;
     }
 
+    if (input.beforeCommit) {
+      await input.beforeCommit({
+        userId: resetToken.user.id,
+        email: resetToken.user.email,
+        role,
+        supabaseAuthUserId: resetToken.user.supabaseAuthUserId,
+      });
+    }
+
     await tx.user.update({
       where: { id: resetToken.userId },
       data: {
-        passwordHash: input.passwordHash,
+        passwordHash: input.passwordHash === null ? { set: null } : input.passwordHash,
       },
     });
 
@@ -134,8 +207,4 @@ export async function resetPasswordWithToken(input: {
       email: resetToken.user.email,
     };
   });
-}
-
-export function shouldExposePasswordResetToken(): boolean {
-  return process.env.NODE_ENV !== 'production';
 }

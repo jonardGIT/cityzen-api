@@ -5,9 +5,11 @@ import {
   getCitizenById,
   getCitizens,
   linkMyCitizenProfile,
+  restoreCitizen,
   updateCitizen,
 } from '../controllers/citizensController.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { isArchiveEnabled } from '../utils/archive.js';
 import { validateRequest } from '../middleware/validateRequest.js';
 import {
   createCitizenValidator,
@@ -46,5 +48,14 @@ router.patch(
   asyncHandler(updateCitizen),
 );
 router.delete('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(deleteCitizen));
+
+if (isArchiveEnabled()) {
+  router.post(
+    '/:id/restore',
+    requireJwtAuth,
+    requireRole(...ADMIN_ROLES),
+    asyncHandler(restoreCitizen),
+  );
+}
 
 export default router;

@@ -5,8 +5,10 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
+    "build:production": "tsx scripts/buildProduction.ts",
     "start": "node dist/server.js",
-    "dev": "dotenv -e .env.development -- nodemon --watch src --ext ts --exec \"tsx src/server.ts\"",
+    "dev": "dotenv -o -e .env.development -- nodemon --watch src --ext ts --exec \"tsx src/server.ts\"",
+    "supabase:backfill-seed": "dotenv -o -e .env.development -- tsx scripts/backfillSupabaseSeedUsers.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
@@ -18,11 +20,12 @@
   "dependencies": {
     "@prisma/client": "^5.8.0",
     "@sentry/node": "^10.47.0",
+    "@supabase/supabase-js": "^2.101.1",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
-    "express-validator": "^7.3.1",
+    "express-validator": "^7.3.2",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "morgan": "^1.10.1",

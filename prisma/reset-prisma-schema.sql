@@ -1,8 +1,13 @@
+-- Baseline reset script for the current API schema.
+-- Use this only for clean-room setup, disposable environments, or deliberate full resets.
+-- For existing databases that must retain data, prefer the additive `prisma/add-*.sql` scripts that match the features you are enabling.
+
 BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 DROP TABLE IF EXISTS assignments CASCADE;
+DROP TABLE IF EXISTS incident_media CASCADE;
 DROP TABLE IF EXISTS incidents CASCADE;
 DROP TABLE IF EXISTS responders CASCADE;
 DROP TABLE IF EXISTS agencies CASCADE;
@@ -12,6 +17,7 @@ DROP TABLE IF EXISTS categories CASCADE;
 DROP TABLE IF EXISTS severities CASCADE;
 DROP TABLE IF EXISTS password_reset_tokens CASCADE;
 DROP TABLE IF EXISTS auth_sessions CASCADE;
+DROP TABLE IF EXISTS rate_limit_buckets CASCADE;
 DROP TABLE IF EXISTS audit_logs CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS "User" CASCADE;
@@ -22,9 +28,11 @@ CREATE TABLE users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "createdAt" timestamptz NOT NULL DEFAULT NOW(),
   "updatedAt" timestamptz NOT NULL DEFAULT NOW(),
+  "archivedAt" timestamptz,
   name text NOT NULL,
   email text NOT NULL UNIQUE,
-  "passwordHash" text NOT NULL,
+  "passwordHash" text,
+  "supabaseAuthUserId" uuid,
   role text NOT NULL DEFAULT 'CITIZEN_REPORTER',
   "mfaEnabled" boolean NOT NULL DEFAULT false,
   "mfaSecretEncrypted" text,
@@ -67,10 +75,21 @@ CREATE TABLE password_reset_tokens (
   "usedAt" timestamptz
 );
 
+CREATE TABLE rate_limit_buckets (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  "createdAt" timestamptz NOT NULL DEFAULT NOW(),
+  "updatedAt" timestamptz NOT NULL DEFAULT NOW(),
+  "bucketKey" text NOT NULL UNIQUE,
+  count integer NOT NULL,
+  "windowStart" timestamptz NOT NULL,
+  "expiresAt" timestamptz NOT NULL
+);
+
 CREATE TABLE citizens (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "createdAt" timestamptz NOT NULL DEFAULT NOW(),
   "updatedAt" timestamptz NOT NULL DEFAULT NOW(),
+  "archivedAt" timestamptz,
   name text NOT NULL,
   "contactInfo" text NOT NULL,
   "preferredChannel" text NOT NULL
@@ -80,6 +99,7 @@ CREATE TABLE agencies (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "createdAt" timestamptz NOT NULL DEFAULT NOW(),
   "updatedAt" timestamptz NOT NULL DEFAULT NOW(),
+  "archivedAt" timestamptz,
   name text NOT NULL,
   "contactNumber" text
 );
@@ -88,6 +108,7 @@ CREATE TABLE responders (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "createdAt" timestamptz NOT NULL DEFAULT NOW(),
   "updatedAt" timestamptz NOT NULL DEFAULT NOW(),
+  "archivedAt" timestamptz,
   name text NOT NULL,
   "agencyId" uuid NOT NULL REFERENCES agencies(id),
   role text NOT NULL,
@@ -98,6 +119,7 @@ CREATE TABLE statuses (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "createdAt" timestamptz NOT NULL DEFAULT NOW(),
   "updatedAt" timestamptz NOT NULL DEFAULT NOW(),
+  "archivedAt" timestamptz,
   name text NOT NULL
 );
 
@@ -105,6 +127,7 @@ CREATE TABLE categories (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "createdAt" timestamptz NOT NULL DEFAULT NOW(),
   "updatedAt" timestamptz NOT NULL DEFAULT NOW(),
+  "archivedAt" timestamptz,
   name text NOT NULL,
   "subCategory" text
 );
@@ -113,6 +136,7 @@ CREATE TABLE severities (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "createdAt" timestamptz NOT NULL DEFAULT NOW(),
   "updatedAt" timestamptz NOT NULL DEFAULT NOW(),
+  "archivedAt" timestamptz,
   level text NOT NULL UNIQUE,
   definition text
 );
@@ -143,6 +167,7 @@ CREATE TABLE incidents (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "createdAt" timestamptz NOT NULL DEFAULT NOW(),
   "updatedAt" timestamptz NOT NULL DEFAULT NOW(),
+  "archivedAt" timestamptz,
   description text NOT NULL,
   "mediaUrl" text,
   "dateReported" timestamptz NOT NULL DEFAULT NOW(),
@@ -163,10 +188,20 @@ CREATE TABLE incidents (
   "severityId" uuid NOT NULL REFERENCES severities(id)
 );
 
+CREATE TABLE incident_media (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  "createdAt" timestamptz NOT NULL DEFAULT NOW(),
+  "updatedAt" timestamptz NOT NULL DEFAULT NOW(),
+  "incidentId" uuid NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
+  "mediaUrl" text NOT NULL,
+  "displayOrder" integer NOT NULL DEFAULT 0
+);
+
 CREATE TABLE assignments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "createdAt" timestamptz NOT NULL DEFAULT NOW(),
   "updatedAt" timestamptz NOT NULL DEFAULT NOW(),
+  "archivedAt" timestamptz,
   "incidentId" uuid NOT NULL REFERENCES incidents(id),
   "responderId" uuid NOT NULL REFERENCES responders(id),
   "assignedDate" timestamptz NOT NULL DEFAULT NOW(),
@@ -180,6 +215,8 @@ CREATE INDEX incidents_status_id_idx ON incidents ("statusId");
 CREATE INDEX incidents_citizen_id_idx ON incidents ("citizenId");
 CREATE INDEX incidents_category_id_idx ON incidents ("categoryId");
 CREATE INDEX incidents_severity_id_idx ON incidents ("severityId");
+CREATE INDEX incident_media_incident_id_idx ON incident_media ("incidentId");
+CREATE INDEX incident_media_incident_id_display_order_idx ON incident_media ("incidentId", "displayOrder");
 CREATE INDEX auth_sessions_user_id_idx ON auth_sessions ("userId");
 CREATE INDEX auth_sessions_expires_at_idx ON auth_sessions ("expiresAt");
 CREATE INDEX auth_sessions_refresh_expires_at_idx ON auth_sessions ("refreshExpiresAt");
@@ -187,6 +224,7 @@ CREATE INDEX auth_sessions_revoked_at_idx ON auth_sessions ("revokedAt");
 CREATE INDEX password_reset_tokens_user_id_idx ON password_reset_tokens ("userId");
 CREATE INDEX password_reset_tokens_expires_at_idx ON password_reset_tokens ("expiresAt");
 CREATE INDEX password_reset_tokens_used_at_idx ON password_reset_tokens ("usedAt");
+CREATE INDEX rate_limit_buckets_expires_at_idx ON rate_limit_buckets ("expiresAt");
 CREATE INDEX audit_logs_timestamp_idx ON audit_logs (timestamp);
 CREATE INDEX audit_logs_actor_email_idx ON audit_logs ("actorEmail");
 CREATE INDEX audit_logs_resource_idx ON audit_logs (resource);
@@ -198,7 +236,17 @@ CREATE INDEX responders_agency_id_idx ON responders ("agencyId");
 CREATE INDEX assignments_incident_id_idx ON assignments ("incidentId");
 CREATE INDEX assignments_responder_id_idx ON assignments ("responderId");
 CREATE INDEX users_email_idx ON users (email);
+CREATE UNIQUE INDEX users_supabase_auth_user_id_idx ON users ("supabaseAuthUserId");
 CREATE INDEX users_role_idx ON users (role);
+CREATE INDEX users_archived_at_idx ON users ("archivedAt");
+CREATE INDEX citizens_archived_at_idx ON citizens ("archivedAt");
+CREATE INDEX agencies_archived_at_idx ON agencies ("archivedAt");
+CREATE INDEX responders_archived_at_idx ON responders ("archivedAt");
+CREATE INDEX statuses_archived_at_idx ON statuses ("archivedAt");
+CREATE INDEX categories_archived_at_idx ON categories ("archivedAt");
+CREATE INDEX severities_archived_at_idx ON severities ("archivedAt");
+CREATE INDEX incidents_archived_at_idx ON incidents ("archivedAt");
+CREATE INDEX assignments_archived_at_idx ON assignments ("archivedAt");
 
 CREATE OR REPLACE FUNCTION set_updated_at()
 RETURNS TRIGGER AS $$
@@ -220,6 +268,11 @@ EXECUTE FUNCTION set_updated_at();
 
 CREATE TRIGGER set_password_reset_tokens_updated_at
 BEFORE UPDATE ON password_reset_tokens
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER set_rate_limit_buckets_updated_at
+BEFORE UPDATE ON rate_limit_buckets
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 
@@ -260,6 +313,11 @@ EXECUTE FUNCTION set_updated_at();
 
 CREATE TRIGGER set_incidents_updated_at
 BEFORE UPDATE ON incidents
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER set_incident_media_updated_at
+BEFORE UPDATE ON incident_media
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 

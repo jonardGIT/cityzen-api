@@ -141,6 +141,7 @@ export const INCIDENT_WRITE_ROLES: UserRole[] = [
   'DISPATCHER',
   'RESPONDER',
 ];
+export const MEDIA_UPLOAD_ROLES: UserRole[] = ['CITIZEN_REPORTER', ...INCIDENT_WRITE_ROLES];
 export const MFA_REQUIRED_ROLES: UserRole[] = [
   'SYSTEM_ADMIN',
   'DEPARTMENT_MANAGER',
@@ -155,7 +156,10 @@ export function normalizeUserRoleInput(value: string | null | undefined): UserRo
     return null;
   }
 
-  const normalized = value.trim().toUpperCase().replace(/[\s-]+/g, '_');
+  const normalized = value
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_');
   return ROLE_ALIASES[normalized] ?? null;
 }
 
@@ -185,4 +189,5 @@ export interface AuthUser {
   id: string;
   email: string;
   role: UserRole;
+  mfaEnabled: boolean;
 }

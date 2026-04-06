@@ -1,6 +1,14 @@
 import { Router } from 'express';
-import { createAgency, deleteAgency, getAgencyById, getAgencies, updateAgency } from '../controllers/agenciesController.js';
+import {
+  createAgency,
+  deleteAgency,
+  getAgencyById,
+  getAgencies,
+  restoreAgency,
+  updateAgency,
+} from '../controllers/agenciesController.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { isArchiveEnabled } from '../utils/archive.js';
 import { validateRequest } from '../middleware/validateRequest.js';
 import { createAgencyValidator, updateAgencyValidator } from '../validators/bodyValidators.js';
 import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
@@ -10,8 +18,31 @@ const router = Router();
 
 router.get('/', requireJwtAuth, requireRole(...DISPATCH_ROLES), asyncHandler(getAgencies));
 router.get('/:id', requireJwtAuth, requireRole(...DISPATCH_ROLES), asyncHandler(getAgencyById));
-router.post('/', requireJwtAuth, requireRole(...ADMIN_ROLES), createAgencyValidator, validateRequest, asyncHandler(createAgency));
-router.patch('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), updateAgencyValidator, validateRequest, asyncHandler(updateAgency));
+router.post(
+  '/',
+  requireJwtAuth,
+  requireRole(...ADMIN_ROLES),
+  createAgencyValidator,
+  validateRequest,
+  asyncHandler(createAgency),
+);
+router.patch(
+  '/:id',
+  requireJwtAuth,
+  requireRole(...ADMIN_ROLES),
+  updateAgencyValidator,
+  validateRequest,
+  asyncHandler(updateAgency),
+);
 router.delete('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(deleteAgency));
+
+if (isArchiveEnabled()) {
+  router.post(
+    '/:id/restore',
+    requireJwtAuth,
+    requireRole(...ADMIN_ROLES),
+    asyncHandler(restoreAgency),
+  );
+}
 
 export default router;

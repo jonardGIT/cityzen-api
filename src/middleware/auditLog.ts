@@ -65,6 +65,17 @@ function getAuditEvent(method: string, path: string): AuditEventDefinition | nul
     return { action: 'report', resource: 'incidents' };
   }
 
+  if (upperMethod === 'POST' && normalizedPath === '/incidents/media/upload') {
+    return { action: 'media_upload', resource: 'incidents' };
+  }
+
+  if (
+    upperMethod === 'GET' &&
+    /^\/incidents\/[A-Za-z0-9-]+\/media\/[A-Za-z0-9-]+$/.test(normalizedPath)
+  ) {
+    return { action: 'media_access', resource: 'incidents' };
+  }
+
   const [resourceSegment, idSegment, extraSegment] = normalizedPath.split('/').filter(Boolean);
   const auditedResources = new Set([
     'citizens',
@@ -86,6 +97,10 @@ function getAuditEvent(method: string, path: string): AuditEventDefinition | nul
     return { action: 'create', resource: resourceSegment };
   }
 
+  if (upperMethod === 'POST' && idSegment && extraSegment === 'restore') {
+    return { action: 'restore', resource: resourceSegment };
+  }
+
   if ((upperMethod === 'PATCH' || upperMethod === 'DELETE') && idSegment && !extraSegment) {
     return {
       action: upperMethod === 'PATCH' ? 'update' : 'delete',
@@ -98,6 +113,14 @@ function getAuditEvent(method: string, path: string): AuditEventDefinition | nul
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function getResponseAuditMetadata(res: Response): Prisma.InputJsonObject | null {
+  if (!isObject(res.locals.auditMetadata)) {
+    return null;
+  }
+
+  return res.locals.auditMetadata as Prisma.InputJsonObject;
 }
 
 function getTargetId(req: Request, responseBody: unknown): string | null {
@@ -170,6 +193,20 @@ function getMetadata(responseBody: unknown): Prisma.InputJsonObject | null {
   return Object.keys(metadata).length > 0 ? (metadata as Prisma.InputJsonObject) : null;
 }
 
+function mergeMetadata(
+  responseMetadata: Prisma.InputJsonObject | null,
+  localMetadata: Prisma.InputJsonObject | null,
+): Prisma.InputJsonObject | null {
+  if (!responseMetadata && !localMetadata) {
+    return null;
+  }
+
+  return {
+    ...(responseMetadata ?? {}),
+    ...(localMetadata ?? {}),
+  };
+}
+
 function buildSummary(
   event: AuditEventDefinition,
   outcome: 'success' | 'failure',
@@ -210,7 +247,7 @@ export function auditLogMiddleware(req: Request, res: Response, next: NextFuncti
     const outcome = res.statusCode >= 200 && res.statusCode < 400 ? 'success' : 'failure';
     const targetId = getTargetId(req, responseBody);
     const actor = getActorContext(req, responseBody);
-    const metadata = getMetadata(responseBody);
+    const metadata = mergeMetadata(getMetadata(responseBody), getResponseAuditMetadata(res));
 
     void createAuditLog({
       timestamp: new Date(),

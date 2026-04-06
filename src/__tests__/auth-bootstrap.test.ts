@@ -31,6 +31,7 @@ describe('Auth bootstrap endpoints', () => {
 
     expect(res.status).toBe(201);
     expect(res.body).toHaveProperty('token');
+    expect(res.body).toHaveProperty('accessToken', res.body.token);
     expect(res.body).toHaveProperty('refreshToken');
     expect(res.body).toHaveProperty('sessionId');
     expect(res.body).toHaveProperty('expiresAt');
@@ -49,6 +50,7 @@ describe('Auth bootstrap endpoints', () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('token');
+    expect(res.body).toHaveProperty('accessToken', res.body.token);
     expect(res.body).toHaveProperty('refreshToken');
     expect(res.body).toHaveProperty('sessionId');
     expect(res.body).toHaveProperty('expiresAt');
@@ -209,14 +211,23 @@ describe('Auth bootstrap endpoints', () => {
   });
 
   it('GET /auth/sessions should list active sessions and mark the current one', async () => {
-    const firstLogin = await request(app).post(`${API_V1}/auth/login`).send({
-      email: 'admin@xypes.local',
-      password: 'Password123!',
-    });
-    const secondLogin = await request(app).post(`${API_V1}/auth/login`).send({
-      email: 'admin@xypes.local',
-      password: 'Password123!',
-    });
+    const firstLogin = await request(app)
+      .post(`${API_V1}/auth/login`)
+      .set('User-Agent', 'curl/8.7.1')
+      .send({
+        email: 'admin@xypes.local',
+        password: 'Password123!',
+      });
+    const secondLogin = await request(app)
+      .post(`${API_V1}/auth/login`)
+      .set(
+        'User-Agent',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36',
+      )
+      .send({
+        email: 'admin@xypes.local',
+        password: 'Password123!',
+      });
 
     expect(firstLogin.status).toBe(200);
     expect(secondLogin.status).toBe(200);
@@ -228,12 +239,38 @@ describe('Auth bootstrap endpoints', () => {
     expect(sessions.status).toBe(200);
     expect(Array.isArray(sessions.body)).toBe(true);
     expect(
+      sessions.body.some(
+        (session: {
+          id: string;
+          status: string;
+          browserFamily: string | null;
+          deviceLabel: string | null;
+        }) =>
+          session.id === firstLogin.body.sessionId &&
+          session.status === 'active' &&
+          session.browserFamily === 'curl' &&
+          session.deviceLabel === 'curl',
+      ),
+    ).toBe(true);
+    expect(
       sessions.body.some((session: { id: string }) => session.id === firstLogin.body.sessionId),
     ).toBe(true);
     expect(
       sessions.body.some(
-        (session: { id: string; isCurrent: boolean }) =>
-          session.id === secondLogin.body.sessionId && session.isCurrent,
+        (session: {
+          id: string;
+          isCurrent: boolean;
+          browserFamily: string | null;
+          osFamily: string | null;
+          deviceLabel: string | null;
+          status: string;
+        }) =>
+          session.id === secondLogin.body.sessionId &&
+          session.isCurrent &&
+          session.browserFamily === 'Chrome' &&
+          session.osFamily === 'Linux' &&
+          session.deviceLabel === 'Chrome on Linux' &&
+          session.status === 'active',
       ),
     ).toBe(true);
   });
@@ -373,6 +410,160 @@ describe('Auth bootstrap endpoints', () => {
       'If an account with that email exists, a password reset token has been created.',
     );
     expect(resetRequest.body).not.toHaveProperty('resetToken');
+  });
+
+  it('POST /auth/password-reset/request should hide reset tokens in production mode', async () => {
+    const stamp = Date.now();
+    const email = `prod.recovery.${stamp}@postman.local`;
+    const register = await request(app)
+      .post(`${API_V1}/auth/register`)
+      .send({
+        name: `Prod Recovery User ${stamp}`,
+        email,
+        password: 'Password123!',
+      });
+
+    expect(register.status).toBe(201);
+
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalWebhookUrl = process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL;
+    const originalFetch = global.fetch;
+    process.env.NODE_ENV = 'production';
+    process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL = 'https://example.test/password-reset';
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, status: 202 }) as typeof fetch;
+
+    const resetRequest = await request(app)
+      .post(`${API_V1}/auth/password-reset/request`)
+      .send({ email });
+
+    process.env.NODE_ENV = originalNodeEnv;
+    process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL = originalWebhookUrl;
+    global.fetch = originalFetch;
+
+    expect(resetRequest.status).toBe(202);
+    expect(resetRequest.body).toHaveProperty(
+      'message',
+      'If an account with that email exists, a password reset token has been created.',
+    );
+    expect(resetRequest.body).not.toHaveProperty('resetToken');
+    expect(resetRequest.body).not.toHaveProperty('resetExpiresAt');
+  });
+
+  it('POST /auth/password-reset/request should fail closed in production when delivery is unconfigured', async () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalWebhookUrl = process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL;
+    process.env.NODE_ENV = 'production';
+    delete process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL;
+
+    const resetRequest = await request(app)
+      .post(`${API_V1}/auth/password-reset/request`)
+      .send({ email: 'missing.user@postman.local' });
+
+    process.env.NODE_ENV = originalNodeEnv;
+    process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL = originalWebhookUrl;
+
+    expect(resetRequest.status).toBe(503);
+    expect(resetRequest.body).toHaveProperty(
+      'message',
+      'Password reset delivery is not available: PASSWORD_RESET_DELIVERY_WEBHOOK_URL must be configured in production',
+    );
+  });
+
+  it('blocks public privileged-account password reset in production', async () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalWebhookUrl = process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL;
+    process.env.NODE_ENV = 'production';
+    process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL = 'https://example.test/password-reset';
+
+    const resetRequest = await request(app)
+      .post(`${API_V1}/auth/password-reset/request`)
+      .send({ email: 'admin@xypes.local' });
+
+    expect(resetRequest.status).toBe(202);
+    expect(resetRequest.body).not.toHaveProperty('resetToken');
+
+    const { default: prisma } = await import('../lib/prisma.js');
+    const tokens = await prisma.passwordResetToken.findMany({
+      where: {
+        user: { email: 'admin@xypes.local' },
+        usedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+    });
+
+    process.env.NODE_ENV = originalNodeEnv;
+    process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL = originalWebhookUrl;
+
+    expect(tokens).toHaveLength(0);
+  });
+
+  it('rejects reused password reset tokens', async () => {
+    const stamp = Date.now();
+    const email = `reuse.recovery.${stamp}@postman.local`;
+    const register = await request(app)
+      .post(`${API_V1}/auth/register`)
+      .send({
+        name: `Reuse Recovery User ${stamp}`,
+        email,
+        password: 'Password123!',
+      });
+
+    expect(register.status).toBe(201);
+
+    const resetRequest = await request(app)
+      .post(`${API_V1}/auth/password-reset/request`)
+      .send({ email });
+
+    expect(resetRequest.status).toBe(202);
+    expect(resetRequest.body).toHaveProperty('resetToken');
+
+    const firstConfirm = await request(app).post(`${API_V1}/auth/password-reset/confirm`).send({
+      token: resetRequest.body.resetToken,
+      password: 'Password456!@#',
+    });
+    const secondConfirm = await request(app).post(`${API_V1}/auth/password-reset/confirm`).send({
+      token: resetRequest.body.resetToken,
+      password: 'Password789!@#',
+    });
+
+    expect(firstConfirm.status).toBe(200);
+    expect(secondConfirm.status).toBe(401);
+    expect(secondConfirm.body).toHaveProperty('message', 'Invalid or expired password reset token');
+  });
+
+  it('rejects expired password reset tokens', async () => {
+    const stamp = Date.now();
+    const email = `expired.recovery.${stamp}@postman.local`;
+    const register = await request(app)
+      .post(`${API_V1}/auth/register`)
+      .send({
+        name: `Expired Recovery User ${stamp}`,
+        email,
+        password: 'Password123!',
+      });
+
+    expect(register.status).toBe(201);
+
+    const { default: prisma } = await import('../lib/prisma.js');
+    const resetRequest = await request(app)
+      .post(`${API_V1}/auth/password-reset/request`)
+      .send({ email });
+
+    expect(resetRequest.status).toBe(202);
+    expect(resetRequest.body).toHaveProperty('resetToken');
+
+    await prisma.passwordResetToken.updateMany({
+      where: { user: { email } },
+      data: { expiresAt: new Date(Date.now() - 60_000) },
+    });
+
+    const confirm = await request(app).post(`${API_V1}/auth/password-reset/confirm`).send({
+      token: resetRequest.body.resetToken,
+      password: 'Password456!@#',
+    });
+
+    expect(confirm.status).toBe(401);
+    expect(confirm.body).toHaveProperty('message', 'Invalid or expired password reset token');
   });
 
   it('POST /auth/logout should revoke the current session', async () => {

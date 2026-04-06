@@ -6,10 +6,68 @@
     "tokenPrefix": "Bearer",
     "bootstrap": {
       "loginPath": "/auth/login",
+      "refreshPath": "/auth/refresh",
       "registerPath": "/auth/register",
       "mePath": "/auth/me",
+      "logoutPath": "/auth/logout",
+      "capabilitiesPath": "/users/capabilities",
       "citizenLinkPath": "/citizens/link-me",
       "incidentReportPath": "/incidents/report"
+    },
+    "optionalEndpoints": {
+      "sessions": {
+        "method": "GET",
+        "path": "/auth/sessions",
+        "authRequired": true,
+        "featureGate": {
+          "feature": "tokenMode",
+          "requires": "app-jwt"
+        },
+        "notes": "Available only when tokenMode is app-jwt. Feature-aware OpenAPI output omits session inventory endpoints for other token modes."
+      },
+      "revokeSession": {
+        "method": "DELETE",
+        "path": "/auth/sessions/{id}",
+        "authRequired": true,
+        "featureGate": {
+          "feature": "tokenMode",
+          "requires": "app-jwt"
+        },
+        "notes": "Available only when tokenMode is app-jwt."
+      },
+      "mfaSetup": {
+        "method": "POST",
+        "path": "/auth/mfa/setup",
+        "authRequired": true,
+        "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"],
+        "featureGate": {
+          "feature": "mfaMode",
+          "requiresAnyOf": ["local-totp", "supabase-totp"]
+        },
+        "notes": "Available only when MFA is enabled in the selected feature profile."
+      },
+      "mfaEnable": {
+        "method": "POST",
+        "path": "/auth/mfa/enable",
+        "authRequired": true,
+        "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"],
+        "featureGate": {
+          "feature": "mfaMode",
+          "requiresAnyOf": ["local-totp", "supabase-totp"]
+        },
+        "notes": "Available only when MFA is enabled in the selected feature profile."
+      },
+      "mfaDisable": {
+        "method": "POST",
+        "path": "/auth/mfa/disable",
+        "authRequired": true,
+        "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"],
+        "featureGate": {
+          "feature": "mfaMode",
+          "requiresAnyOf": ["local-totp", "supabase-totp"]
+        },
+        "notes": "Available only when MFA is enabled in the selected feature profile."
+      }
     }
   },
   "resources": [
@@ -18,27 +76,52 @@
       "label": "Citizens",
       "primaryKey": "id",
       "routes": {
-        "list": { "method": "GET", "path": "/citizens", "authRequired": false },
-        "get": { "method": "GET", "path": "/citizens/{id}", "authRequired": false },
-        "create": { "method": "POST", "path": "/citizens", "authRequired": false },
+        "list": {
+          "method": "GET",
+          "path": "/citizens",
+          "authRequired": true,
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+        },
+        "get": {
+          "method": "GET",
+          "path": "/citizens/{id}",
+          "authRequired": true,
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+        },
+        "create": {
+          "method": "POST",
+          "path": "/citizens",
+          "authRequired": true,
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+        },
         "linkMe": {
           "method": "POST",
           "path": "/citizens/link-me",
           "authRequired": true,
-          "allowedRoles": ["VIEWER"],
-          "notes": "Creates or updates the authenticated viewer's linked citizen profile."
+          "allowedRoles": ["CITIZEN_REPORTER"],
+          "notes": "Creates or updates the authenticated citizen reporter's linked citizen profile. contactInfo is inferred from the authenticated email."
         },
         "update": {
           "method": "PATCH",
           "path": "/citizens/{id}",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         },
         "delete": {
           "method": "DELETE",
           "path": "/citizens/{id}",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+        },
+        "restore": {
+          "method": "POST",
+          "path": "/citizens/{id}/restore",
+          "authRequired": true,
+          "featureGate": {
+            "feature": "recordDeletion",
+            "requires": "archive"
+          },
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         }
       }
     },
@@ -47,25 +130,45 @@
       "label": "Agencies",
       "primaryKey": "id",
       "routes": {
-        "list": { "method": "GET", "path": "/agencies", "authRequired": false },
-        "get": { "method": "GET", "path": "/agencies/{id}", "authRequired": false },
+        "list": {
+          "method": "GET",
+          "path": "/agencies",
+          "authRequired": true,
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"]
+        },
+        "get": {
+          "method": "GET",
+          "path": "/agencies/{id}",
+          "authRequired": true,
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"]
+        },
         "create": {
           "method": "POST",
           "path": "/agencies",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         },
         "update": {
           "method": "PATCH",
           "path": "/agencies/{id}",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         },
         "delete": {
           "method": "DELETE",
           "path": "/agencies/{id}",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+        },
+        "restore": {
+          "method": "POST",
+          "path": "/agencies/{id}/restore",
+          "authRequired": true,
+          "featureGate": {
+            "feature": "recordDeletion",
+            "requires": "archive"
+          },
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         }
       }
     },
@@ -74,25 +177,45 @@
       "label": "Responders",
       "primaryKey": "id",
       "routes": {
-        "list": { "method": "GET", "path": "/responders", "authRequired": false },
-        "get": { "method": "GET", "path": "/responders/{id}", "authRequired": false },
+        "list": {
+          "method": "GET",
+          "path": "/responders",
+          "authRequired": true,
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"]
+        },
+        "get": {
+          "method": "GET",
+          "path": "/responders/{id}",
+          "authRequired": true,
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"]
+        },
         "create": {
           "method": "POST",
           "path": "/responders",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         },
         "update": {
           "method": "PATCH",
           "path": "/responders/{id}",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         },
         "delete": {
           "method": "DELETE",
           "path": "/responders/{id}",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+        },
+        "restore": {
+          "method": "POST",
+          "path": "/responders/{id}/restore",
+          "authRequired": true,
+          "featureGate": {
+            "feature": "recordDeletion",
+            "requires": "archive"
+          },
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         }
       }
     },
@@ -101,25 +224,61 @@
       "label": "Statuses",
       "primaryKey": "id",
       "routes": {
-        "list": { "method": "GET", "path": "/statuses", "authRequired": false },
-        "get": { "method": "GET", "path": "/statuses/{id}", "authRequired": false },
+        "list": {
+          "method": "GET",
+          "path": "/statuses",
+          "authRequired": true,
+          "allowedRoles": [
+            "SYSTEM_ADMIN",
+            "DEPARTMENT_MANAGER",
+            "SUPERVISOR",
+            "DISPATCHER",
+            "RESPONDER",
+            "CITIZEN_REPORTER",
+            "AUDITOR"
+          ]
+        },
+        "get": {
+          "method": "GET",
+          "path": "/statuses/{id}",
+          "authRequired": true,
+          "allowedRoles": [
+            "SYSTEM_ADMIN",
+            "DEPARTMENT_MANAGER",
+            "SUPERVISOR",
+            "DISPATCHER",
+            "RESPONDER",
+            "CITIZEN_REPORTER",
+            "AUDITOR"
+          ]
+        },
         "create": {
           "method": "POST",
           "path": "/statuses",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         },
         "update": {
           "method": "PATCH",
           "path": "/statuses/{id}",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         },
         "delete": {
           "method": "DELETE",
           "path": "/statuses/{id}",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+        },
+        "restore": {
+          "method": "POST",
+          "path": "/statuses/{id}/restore",
+          "authRequired": true,
+          "featureGate": {
+            "feature": "recordDeletion",
+            "requires": "archive"
+          },
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         }
       }
     },
@@ -128,25 +287,61 @@
       "label": "Categories",
       "primaryKey": "id",
       "routes": {
-        "list": { "method": "GET", "path": "/categories", "authRequired": false },
-        "get": { "method": "GET", "path": "/categories/{id}", "authRequired": false },
+        "list": {
+          "method": "GET",
+          "path": "/categories",
+          "authRequired": true,
+          "allowedRoles": [
+            "SYSTEM_ADMIN",
+            "DEPARTMENT_MANAGER",
+            "SUPERVISOR",
+            "DISPATCHER",
+            "RESPONDER",
+            "CITIZEN_REPORTER",
+            "AUDITOR"
+          ]
+        },
+        "get": {
+          "method": "GET",
+          "path": "/categories/{id}",
+          "authRequired": true,
+          "allowedRoles": [
+            "SYSTEM_ADMIN",
+            "DEPARTMENT_MANAGER",
+            "SUPERVISOR",
+            "DISPATCHER",
+            "RESPONDER",
+            "CITIZEN_REPORTER",
+            "AUDITOR"
+          ]
+        },
         "create": {
           "method": "POST",
           "path": "/categories",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         },
         "update": {
           "method": "PATCH",
           "path": "/categories/{id}",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         },
         "delete": {
           "method": "DELETE",
           "path": "/categories/{id}",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+        },
+        "restore": {
+          "method": "POST",
+          "path": "/categories/{id}/restore",
+          "authRequired": true,
+          "featureGate": {
+            "feature": "recordDeletion",
+            "requires": "archive"
+          },
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         }
       }
     },
@@ -155,52 +350,61 @@
       "label": "Severities",
       "primaryKey": "id",
       "routes": {
-        "list": { "method": "GET", "path": "/severities", "authRequired": false },
-        "get": { "method": "GET", "path": "/severities/{id}", "authRequired": false },
+        "list": {
+          "method": "GET",
+          "path": "/severities",
+          "authRequired": true,
+          "allowedRoles": [
+            "SYSTEM_ADMIN",
+            "DEPARTMENT_MANAGER",
+            "SUPERVISOR",
+            "DISPATCHER",
+            "RESPONDER",
+            "CITIZEN_REPORTER",
+            "AUDITOR"
+          ]
+        },
+        "get": {
+          "method": "GET",
+          "path": "/severities/{id}",
+          "authRequired": true,
+          "allowedRoles": [
+            "SYSTEM_ADMIN",
+            "DEPARTMENT_MANAGER",
+            "SUPERVISOR",
+            "DISPATCHER",
+            "RESPONDER",
+            "CITIZEN_REPORTER",
+            "AUDITOR"
+          ]
+        },
         "create": {
           "method": "POST",
           "path": "/severities",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         },
         "update": {
           "method": "PATCH",
           "path": "/severities/{id}",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         },
         "delete": {
           "method": "DELETE",
           "path": "/severities/{id}",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
-        }
-      }
-    },
-    {
-      "name": "locations",
-      "label": "Locations",
-      "primaryKey": "id",
-      "routes": {
-        "list": { "method": "GET", "path": "/locations", "authRequired": false },
-        "get": { "method": "GET", "path": "/locations/{id}", "authRequired": false },
-        "create": {
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+        },
+        "restore": {
           "method": "POST",
-          "path": "/locations",
+          "path": "/severities/{id}/restore",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
-        },
-        "update": {
-          "method": "PATCH",
-          "path": "/locations/{id}",
-          "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
-        },
-        "delete": {
-          "method": "DELETE",
-          "path": "/locations/{id}",
-          "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+          "featureGate": {
+            "feature": "recordDeletion",
+            "requires": "archive"
+          },
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         }
       }
     },
@@ -213,40 +417,123 @@
           "method": "GET",
           "path": "/incidents",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN", "DISPATCHER", "RESPONDER", "VIEWER"],
-          "notes": "VIEWER users only receive their own incidents."
+          "allowedRoles": [
+            "SYSTEM_ADMIN",
+            "DEPARTMENT_MANAGER",
+            "SUPERVISOR",
+            "DISPATCHER",
+            "RESPONDER",
+            "CITIZEN_REPORTER",
+            "AUDITOR"
+          ],
+          "notes": "The backend applies role-aware scoping. Citizen reporters only receive their own incidents."
         },
         "get": {
           "method": "GET",
           "path": "/incidents/{id}",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN", "DISPATCHER", "RESPONDER", "VIEWER"],
-          "notes": "VIEWER users can only access their own incident IDs."
+          "allowedRoles": [
+            "SYSTEM_ADMIN",
+            "DEPARTMENT_MANAGER",
+            "SUPERVISOR",
+            "DISPATCHER",
+            "RESPONDER",
+            "CITIZEN_REPORTER",
+            "AUDITOR"
+          ],
+          "notes": "The backend enforces per-role incident visibility. Citizen reporters can only access their own incident IDs."
         },
         "create": {
           "method": "POST",
           "path": "/incidents",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN", "DISPATCHER", "RESPONDER"]
+          "allowedRoles": [
+            "SYSTEM_ADMIN",
+            "DEPARTMENT_MANAGER",
+            "SUPERVISOR",
+            "DISPATCHER",
+            "RESPONDER"
+          ]
         },
         "report": {
           "method": "POST",
           "path": "/incidents/report",
           "authRequired": true,
-          "allowedRoles": ["VIEWER"],
-          "notes": "Citizen self-report endpoint. citizenId is inferred from authenticated user email."
+          "allowedRoles": ["CITIZEN_REPORTER"],
+          "notes": "Citizen self-report endpoint. citizenId is inferred from the authenticated user context."
         },
         "update": {
           "method": "PATCH",
           "path": "/incidents/{id}",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN", "DISPATCHER", "RESPONDER"]
+          "allowedRoles": [
+            "SYSTEM_ADMIN",
+            "DEPARTMENT_MANAGER",
+            "SUPERVISOR",
+            "DISPATCHER",
+            "RESPONDER"
+          ]
         },
         "delete": {
           "method": "DELETE",
           "path": "/incidents/{id}",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN", "DISPATCHER", "RESPONDER"]
+          "allowedRoles": [
+            "SYSTEM_ADMIN",
+            "DEPARTMENT_MANAGER",
+            "SUPERVISOR",
+            "DISPATCHER",
+            "RESPONDER"
+          ]
+        },
+        "restore": {
+          "method": "POST",
+          "path": "/incidents/{id}/restore",
+          "authRequired": true,
+          "featureGate": {
+            "feature": "recordDeletion",
+            "requires": "archive"
+          },
+          "allowedRoles": [
+            "SYSTEM_ADMIN",
+            "DEPARTMENT_MANAGER",
+            "SUPERVISOR",
+            "DISPATCHER",
+            "RESPONDER"
+          ]
+        },
+        "mediaAccess": {
+          "method": "GET",
+          "path": "/incidents/{id}/media/{mediaId}",
+          "authRequired": true,
+          "allowedRoles": [
+            "SYSTEM_ADMIN",
+            "DEPARTMENT_MANAGER",
+            "SUPERVISOR",
+            "DISPATCHER",
+            "RESPONDER",
+            "CITIZEN_REPORTER",
+            "AUDITOR"
+          ],
+          "notes": "Authenticated media access endpoint. The backend enforces incident-level authorization before resolving an access URL."
+        },
+        "mediaUpload": {
+          "method": "POST",
+          "path": "/incidents/media/upload",
+          "authRequired": true,
+          "featureGate": {
+            "feature": "mediaStorage",
+            "requires": "supabase-storage"
+          },
+          "allowedRoles": [
+            "SYSTEM_ADMIN",
+            "DEPARTMENT_MANAGER",
+            "SUPERVISOR",
+            "DISPATCHER",
+            "RESPONDER",
+            "CITIZEN_REPORTER"
+          ],
+          "notes": "Available only when the selected feature profile enables incident media uploads. Feature-aware OpenAPI output omits this operation when mediaStorage is disabled."
         }
       }
     },
@@ -255,25 +542,45 @@
       "label": "Assignments",
       "primaryKey": "id",
       "routes": {
-        "list": { "method": "GET", "path": "/assignments", "authRequired": false },
-        "get": { "method": "GET", "path": "/assignments/{id}", "authRequired": false },
+        "list": {
+          "method": "GET",
+          "path": "/assignments",
+          "authRequired": true,
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"]
+        },
+        "get": {
+          "method": "GET",
+          "path": "/assignments/{id}",
+          "authRequired": true,
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"]
+        },
         "create": {
           "method": "POST",
           "path": "/assignments",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN", "DISPATCHER"]
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"]
         },
         "update": {
           "method": "PATCH",
           "path": "/assignments/{id}",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN", "DISPATCHER"]
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"]
         },
         "delete": {
           "method": "DELETE",
           "path": "/assignments/{id}",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN", "DISPATCHER"]
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"]
+        },
+        "restore": {
+          "method": "POST",
+          "path": "/assignments/{id}/restore",
+          "authRequired": true,
+          "featureGate": {
+            "feature": "recordDeletion",
+            "requires": "archive"
+          },
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER", "SUPERVISOR", "DISPATCHER"]
         }
       }
     },
@@ -282,36 +589,59 @@
       "label": "Users",
       "primaryKey": "id",
       "routes": {
+        "capabilities": {
+          "method": "GET",
+          "path": "/users/capabilities",
+          "authRequired": true,
+          "allowedRoles": [
+            "SYSTEM_ADMIN",
+            "DEPARTMENT_MANAGER",
+            "SUPERVISOR",
+            "DISPATCHER",
+            "RESPONDER",
+            "CITIZEN_REPORTER",
+            "AUDITOR"
+          ]
+        },
         "list": {
           "method": "GET",
           "path": "/users",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         },
         "get": {
           "method": "GET",
           "path": "/users/{id}",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         },
         "create": {
           "method": "POST",
           "path": "/users",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         },
         "update": {
           "method": "PATCH",
           "path": "/users/{id}",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN"],
-          "notes": "Self-update is allowed by backend logic for non-role fields."
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         },
         "delete": {
           "method": "DELETE",
           "path": "/users/{id}",
           "authRequired": true,
-          "allowedRoles": ["SUPER_ADMIN", "ADMIN"]
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
+        },
+        "restore": {
+          "method": "POST",
+          "path": "/users/{id}/restore",
+          "authRequired": true,
+          "featureGate": {
+            "feature": "recordDeletion",
+            "requires": "archive"
+          },
+          "allowedRoles": ["SYSTEM_ADMIN", "DEPARTMENT_MANAGER"]
         }
       }
     }

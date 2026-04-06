@@ -10,6 +10,12 @@ import {
 import { citizensListQueryConfig } from '../utils/listQueryConfig.js';
 import type { Citizen } from '../types/models.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
+import {
+  isArchiveEnabled,
+  withActiveRecords,
+  withArchivedRecords,
+  withArchiveScope,
+} from '../utils/archive.js';
 
 // Returns all citizens from the database.
 export async function getCitizens(req: Request, res: Response): Promise<void> {
@@ -20,21 +26,22 @@ export async function getCitizens(req: Request, res: Response): Promise<void> {
   }
 
   if (pagination.enabled) {
+    const scopedWhere = withArchiveScope(listQuery.where as any, listQuery.archiveScope);
     const [citizens, total] = await Promise.all([
       prisma.citizen.findMany({
-        where: listQuery.where as any,
+        where: scopedWhere as any,
         orderBy: listQuery.orderBy as any,
         skip: pagination.skip,
         take: pagination.take,
       }),
-      prisma.citizen.count({ where: listQuery.where as any }),
+      prisma.citizen.count({ where: scopedWhere as any }),
     ]);
     res.json(buildPaginatedResponse(citizens, total, pagination));
     return;
   }
 
   const citizens = await prisma.citizen.findMany({
-    where: listQuery.where as any,
+    where: withArchiveScope(listQuery.where as any, listQuery.archiveScope) as any,
     orderBy: listQuery.orderBy as any,
   });
   res.json(citizens);
@@ -47,8 +54,8 @@ export async function getCitizenById(req: Request, res: Response): Promise<void>
     return;
   }
 
-  const citizen = await prisma.citizen.findUnique({
-    where: { id },
+  const citizen = await prisma.citizen.findFirst({
+    where: withActiveRecords({ id }) as any,
   });
 
   if (!citizen) {
@@ -94,7 +101,7 @@ export async function linkMyCitizenProfile(req: Request, res: Response): Promise
   }
 
   const existingCitizen = await prisma.citizen.findFirst({
-    where: { contactInfo: authUser.email },
+    where: withActiveRecords({ contactInfo: authUser.email }) as any,
   });
 
   if (!existingCitizen) {
@@ -137,7 +144,9 @@ export async function updateCitizen(req: Request, res: Response): Promise<void> 
   }
 
   const { name, contactInfo, preferredChannel } = req.body as Partial<Citizen>;
-  const existingCitizen = await prisma.citizen.findUnique({ where: { id } });
+  const existingCitizen = await prisma.citizen.findFirst({
+    where: withActiveRecords({ id }) as any,
+  });
 
   if (!existingCitizen) {
     res.status(404).json({ message: 'Citizen not found' });
@@ -163,13 +172,50 @@ export async function deleteCitizen(req: Request, res: Response): Promise<void> 
     return;
   }
 
-  const existingCitizen = await prisma.citizen.findUnique({ where: { id } });
+  const existingCitizen = await prisma.citizen.findFirst({
+    where: withActiveRecords({ id }) as any,
+  });
 
   if (!existingCitizen) {
     res.status(404).json({ message: 'Citizen not found' });
     return;
   }
 
-  await prisma.citizen.delete({ where: { id } });
+  const activeIncidentCount = await prisma.citizenIncident.count({
+    where: withActiveRecords({ citizenId: id }) as any,
+  });
+  if (activeIncidentCount > 0) {
+    res.status(409).json({ message: 'Conflict: citizen still has active incidents' });
+    return;
+  }
+
+  if (isArchiveEnabled()) {
+    await prisma.citizen.update({ where: { id }, data: { archivedAt: new Date() } });
+  } else {
+    await prisma.citizen.delete({ where: { id } });
+  }
   res.status(204).send();
+}
+
+export async function restoreCitizen(req: Request, res: Response): Promise<void> {
+  const id = getParamId(req, res);
+  if (id === null) {
+    return;
+  }
+
+  if (!isArchiveEnabled()) {
+    res.status(409).json({ message: 'Archive mode is disabled; restore is unavailable' });
+    return;
+  }
+
+  const existingCitizen = await prisma.citizen.findFirst({
+    where: withArchivedRecords({ id }) as any,
+  });
+  if (!existingCitizen) {
+    res.status(404).json({ message: 'Archived citizen not found' });
+    return;
+  }
+
+  const citizen = await prisma.citizen.update({ where: { id }, data: { archivedAt: null } });
+  res.json(citizen);
 }

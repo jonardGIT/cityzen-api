@@ -1,10 +1,12 @@
 import request from 'supertest';
 import app, { API_V1 } from '../app.js';
 import { getAdminToken, getTokenForRole } from './helpers/auth.js';
+import { isArchiveEnabled } from '../utils/archive.js';
 
 const BASE = `${API_V1}/agencies`;
 let adminToken = '';
 let dispatcherToken = '';
+const archiveEnabled = isArchiveEnabled();
 
 beforeAll(async () => {
   adminToken = await getAdminToken();
@@ -220,5 +222,107 @@ describe(`DELETE ${BASE}/:id`, () => {
   it('should return 401 without auth token', async () => {
     const res = await request(app).delete(`${BASE}/${deleteId}`);
     expect(res.status).toBe(401);
+  });
+});
+
+describe(`POST ${BASE}/:id/restore`, () => {
+  let archivedId: string;
+
+  beforeAll(async () => {
+    const createRes = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: `RestoreAgency-${Date.now()}` });
+
+    archivedId = createRes.body.id;
+
+    const deleteRes = await request(app)
+      .delete(`${BASE}/${archivedId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(deleteRes.status).toBe(204);
+  });
+
+  it('should restore an archived agency and return 200', async () => {
+    const res = await request(app)
+      .post(`${BASE}/${archivedId}/restore`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    if (!archiveEnabled) {
+      expect(res.status).toBe(404);
+      return;
+    }
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('id', archivedId);
+
+    const fetchRes = await request(app)
+      .get(`${BASE}/${archivedId}`)
+      .set('Authorization', `Bearer ${dispatcherToken}`);
+
+    expect(fetchRes.status).toBe(200);
+  });
+});
+
+describe(`GET ${BASE} (archive scope)`, () => {
+  let activeId = '';
+  let archivedId = '';
+
+  beforeAll(async () => {
+    const activeRes = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: `ArchiveScopeActive-${Date.now()}` });
+    expect(activeRes.status).toBe(201);
+    activeId = activeRes.body.id;
+
+    const archivedRes = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: `ArchiveScopeArchived-${Date.now()}` });
+    expect(archivedRes.status).toBe(201);
+    archivedId = archivedRes.body.id;
+
+    const deleteRes = await request(app)
+      .delete(`${BASE}/${archivedId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(deleteRes.status).toBe(204);
+  });
+
+  it('should include archived rows when includeArchived=true', async () => {
+    const res = await request(app)
+      .get(`${BASE}?includeArchived=true`)
+      .set('Authorization', `Bearer ${dispatcherToken}`);
+
+    const agencyIds = res.body.map((agency: { id: string }) => agency.id);
+
+    expect(res.status).toBe(200);
+
+    if (!archiveEnabled) {
+      expect(agencyIds).toContain(activeId);
+      expect(agencyIds).not.toContain(archivedId);
+      return;
+    }
+
+    expect(agencyIds).toEqual(expect.arrayContaining([activeId, archivedId]));
+  });
+
+  it('should return only archived rows when archivedOnly=true', async () => {
+    const res = await request(app)
+      .get(`${BASE}?archivedOnly=true`)
+      .set('Authorization', `Bearer ${dispatcherToken}`);
+
+    const agencyIds = res.body.map((agency: { id: string }) => agency.id);
+
+    expect(res.status).toBe(200);
+
+    if (!archiveEnabled) {
+      expect(agencyIds).toContain(activeId);
+      expect(agencyIds).not.toContain(archivedId);
+      return;
+    }
+
+    expect(agencyIds).toContain(archivedId);
+    expect(agencyIds).not.toContain(activeId);
   });
 });

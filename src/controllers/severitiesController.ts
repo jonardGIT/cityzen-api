@@ -8,6 +8,12 @@ import {
   getParamId,
 } from '../utils/request.js';
 import { severitiesListQueryConfig } from '../utils/listQueryConfig.js';
+import {
+  isArchiveEnabled,
+  withActiveRecords,
+  withArchivedRecords,
+  withArchiveScope,
+} from '../utils/archive.js';
 
 // Returns all severities from the database.
 export async function getSeverities(req: Request, res: Response): Promise<void> {
@@ -18,21 +24,22 @@ export async function getSeverities(req: Request, res: Response): Promise<void> 
   }
 
   if (pagination.enabled) {
+    const scopedWhere = withArchiveScope(listQuery.where as any, listQuery.archiveScope);
     const [severities, total] = await Promise.all([
       prisma.severity.findMany({
-        where: listQuery.where as any,
+        where: scopedWhere as any,
         orderBy: listQuery.orderBy as any,
         skip: pagination.skip,
         take: pagination.take,
       }),
-      prisma.severity.count({ where: listQuery.where as any }),
+      prisma.severity.count({ where: scopedWhere as any }),
     ]);
     res.json(buildPaginatedResponse(severities, total, pagination));
     return;
   }
 
   const severities = await prisma.severity.findMany({
-    where: listQuery.where as any,
+    where: withArchiveScope(listQuery.where as any, listQuery.archiveScope) as any,
     orderBy: listQuery.orderBy as any,
   });
   res.json(severities);
@@ -45,8 +52,8 @@ export async function getSeverityById(req: Request, res: Response): Promise<void
     return;
   }
 
-  const severity = await prisma.severity.findUnique({
-    where: { id },
+  const severity = await prisma.severity.findFirst({
+    where: withActiveRecords({ id }) as any,
   });
   if (!severity) {
     res.status(404).json({ message: 'Severity not found' });
@@ -83,7 +90,9 @@ export async function updateSeverity(req: Request, res: Response): Promise<void>
   }
 
   const { level, definition } = req.body as { level?: string; definition?: string | null };
-  const existingSeverity = await prisma.severity.findUnique({ where: { id } });
+  const existingSeverity = await prisma.severity.findFirst({
+    where: withActiveRecords({ id }) as any,
+  });
 
   if (!existingSeverity) {
     res.status(404).json({ message: 'Severity not found' });
@@ -108,13 +117,50 @@ export async function deleteSeverity(req: Request, res: Response): Promise<void>
     return;
   }
 
-  const existingSeverity = await prisma.severity.findUnique({ where: { id } });
+  const existingSeverity = await prisma.severity.findFirst({
+    where: withActiveRecords({ id }) as any,
+  });
 
   if (!existingSeverity) {
     res.status(404).json({ message: 'Severity not found' });
     return;
   }
 
-  await prisma.severity.delete({ where: { id } });
+  const activeIncidentCount = await prisma.citizenIncident.count({
+    where: withActiveRecords({ severityId: id }) as any,
+  });
+  if (activeIncidentCount > 0) {
+    res.status(409).json({ message: 'Conflict: severity is still referenced by active incidents' });
+    return;
+  }
+
+  if (isArchiveEnabled()) {
+    await prisma.severity.update({ where: { id }, data: { archivedAt: new Date() } });
+  } else {
+    await prisma.severity.delete({ where: { id } });
+  }
   res.status(204).send();
+}
+
+export async function restoreSeverity(req: Request, res: Response): Promise<void> {
+  const id = getParamId(req, res);
+  if (id === null) {
+    return;
+  }
+
+  if (!isArchiveEnabled()) {
+    res.status(409).json({ message: 'Archive mode is disabled; restore is unavailable' });
+    return;
+  }
+
+  const existingSeverity = await prisma.severity.findFirst({
+    where: withArchivedRecords({ id }) as any,
+  });
+  if (!existingSeverity) {
+    res.status(404).json({ message: 'Archived severity not found' });
+    return;
+  }
+
+  const severity = await prisma.severity.update({ where: { id }, data: { archivedAt: null } });
+  res.json(severity);
 }

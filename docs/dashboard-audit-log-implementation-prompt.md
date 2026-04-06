@@ -1,7 +1,9 @@
 Build a production-ready audit log module for the Xypes CIRS dashboard using the backend contract in this repository.
 
+Use `docs/dashboard-current-feature-prompt.md` as the governing prompt when role-model, auth, or OpenAPI/config reconciliation questions arise.
+
 Goal:
-Implement an admin-only dashboard experience that reads durable server-side audit logs from the API and replaces any browser-local audit history approach.
+Implement a `SYSTEM_ADMIN`- and `AUDITOR`-only dashboard experience that reads durable server-side audit logs from the API and replaces any browser-local audit history approach.
 
 Primary backend contract:
 
@@ -14,8 +16,8 @@ Security requirements:
 - Requests must include:
   - Authorization: Bearer <jwt>
   - x-api-key when the deployment uses API key protection
-- Only SUPER_ADMIN and ADMIN users should be able to access the audit log UI and trigger audit log requests.
-- DISPATCHER, RESPONDER, and VIEWER must be blocked in both navigation and route-level guards.
+- Only `SYSTEM_ADMIN` and `AUDITOR` users should be able to access the audit log UI and trigger audit log requests.
+- `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`, `RESPONDER`, and `CITIZEN_REPORTER` must be blocked in both navigation and route-level guards.
 - On 401, clear auth state and redirect to login.
 - On 403, show a forbidden state and do not retry automatically.
 
@@ -68,7 +70,7 @@ Functional requirements:
 1. Access model
 
 - Add an Audit Logs section to the admin dashboard navigation.
-- Only render it for SUPER_ADMIN and ADMIN.
+- Only render it for `SYSTEM_ADMIN` and `AUDITOR`.
 - Add route protection so direct URL access is also blocked for lower roles.
 
 2. Audit log list page
@@ -197,9 +199,9 @@ Functional requirements:
 
 10. Acceptance criteria
 
-- Admin users can list audit logs from the API.
-- Admin users can open a single audit log detail view.
-- Non-admin roles cannot see or access the audit log section.
+- `SYSTEM_ADMIN` and `AUDITOR` users can list audit logs from the API.
+- `SYSTEM_ADMIN` and `AUDITOR` users can open a single audit log detail view.
+- `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`, `RESPONDER`, and `CITIZEN_REPORTER` cannot see or access the audit log section.
 - Pagination, sorting, search, and filters all work against the backend list-query contract.
 - 401, 403, 404, and 422 are handled consistently.
 - No audit history relies on localStorage.

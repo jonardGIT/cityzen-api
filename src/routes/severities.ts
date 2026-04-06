@@ -4,9 +4,11 @@ import {
   deleteSeverity,
   getSeverityById,
   getSeverities,
+  restoreSeverity,
   updateSeverity,
 } from '../controllers/severitiesController.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { isArchiveEnabled } from '../utils/archive.js';
 import { validateRequest } from '../middleware/validateRequest.js';
 import { createSeverityValidator, updateSeverityValidator } from '../validators/bodyValidators.js';
 import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
@@ -22,7 +24,7 @@ router.post(
   requireRole(...ADMIN_ROLES),
   createSeverityValidator,
   validateRequest,
-  asyncHandler(createSeverity)
+  asyncHandler(createSeverity),
 );
 router.patch(
   '/:id',
@@ -30,8 +32,17 @@ router.patch(
   requireRole(...ADMIN_ROLES),
   updateSeverityValidator,
   validateRequest,
-  asyncHandler(updateSeverity)
+  asyncHandler(updateSeverity),
 );
 router.delete('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(deleteSeverity));
+
+if (isArchiveEnabled()) {
+  router.post(
+    '/:id/restore',
+    requireJwtAuth,
+    requireRole(...ADMIN_ROLES),
+    asyncHandler(restoreSeverity),
+  );
+}
 
 export default router;

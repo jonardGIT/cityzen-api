@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import prisma from '../lib/prisma.js';
+import { publishSecurityAlerts } from './securityAlertService.js';
 
 export interface CreateAuditLogInput {
   timestamp?: Date;
@@ -40,5 +41,9 @@ export async function createAuditLog(input: CreateAuditLogInput): Promise<void> 
       requestId: input.requestId ?? null,
       metadata: input.metadata ?? undefined,
     },
+  });
+
+  await publishSecurityAlerts(input).catch((error: unknown) => {
+    console.error('Failed to publish security alert', error);
   });
 }
