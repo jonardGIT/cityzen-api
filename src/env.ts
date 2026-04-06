@@ -12,4 +12,8 @@ function resolveEnvFile(): string {
   return '.env.development';
 }
 
-dotenv.config({ path: resolveEnvFile(), override: true });
+function shouldOverrideExistingEnv(): boolean {
+  return process.env.NODE_ENV !== 'test';
+}
+
+dotenv.config({ path: resolveEnvFile(), override: shouldOverrideExistingEnv() });
