@@ -154,7 +154,11 @@ export function validateStartupEnvironment({ env, selection }: StartupValidation
   }
 
   validateProductionMfaMode(selection);
-  validateRequiredSecret(env, 'JWT_SECRET', MIN_SECRET_LENGTH);
+
+  if (selection.tokenMode === 'app-jwt') {
+    validateRequiredSecret(env, 'JWT_SECRET', MIN_SECRET_LENGTH);
+  }
+
   validateApiKeys(env);
 
   if (selection.mfaMode === 'local-totp') {

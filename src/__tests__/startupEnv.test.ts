@@ -62,6 +62,24 @@ describe('startup environment validation', () => {
     ).toThrow('JWT_SECRET must be at least 32 characters in production');
   });
 
+  it('does not require JWT_SECRET in production when Supabase JWT mode is selected', () => {
+    expect(() =>
+      validateStartupEnvironment({
+        env: {
+          NODE_ENV: 'production',
+          API_KEYS: 'prod-api-key-0123456789',
+          SUPABASE_SERVICE_ROLE_KEY: 'prod-service-role-key-0123456789-abcdef-uvwxyz',
+          PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'https://security.example.gov/password-reset',
+        },
+        selection: createSelection({
+          authProvider: 'supabase',
+          tokenMode: 'supabase-jwt',
+          mfaMode: 'supabase-totp',
+        }),
+      }),
+    ).not.toThrow();
+  });
+
   it('rejects development API keys in production', () => {
     expect(() =>
       validateStartupEnvironment({

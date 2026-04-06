@@ -52,6 +52,14 @@ function requireEnv(name: string): string {
   return value;
 }
 
+function requireJwtSecretForSelection(): void {
+  if (featureSelection.tokenMode !== 'app-jwt') {
+    return;
+  }
+
+  requireEnv('JWT_SECRET');
+}
+
 const app = express();
 export const API_V1 = process.env.API_BASE_PATH ?? '/api/v1';
 const isProduction = process.env.NODE_ENV === 'production';
@@ -64,7 +72,7 @@ const allowedCorsOrigins = corsOriginConfig
   .map((origin) => origin.trim())
   .filter((origin) => origin.length > 0);
 
-requireEnv('JWT_SECRET');
+requireJwtSecretForSelection();
 validateStartupEnvironment({ env: process.env, selection: featureSelection });
 app.set('trust proxy', parseBooleanEnv(process.env.TRUST_PROXY, false));
 
