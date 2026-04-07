@@ -21,12 +21,12 @@ After the project is created, go to **Project Settings > API** (left sidebar > S
 
 You need these values:
 
-| Value | Where to Find | Env Variable |
-|-------|--------------|-------------|
-| Project URL | Settings > API > Project URL | `SUPABASE_URL` |
-| Anon (public) key | Settings > API > Project API keys > `anon` `public` | `SUPABASE_ANON_KEY` |
-| Service role key | Settings > API > Project API keys > `service_role` `secret` | `SUPABASE_SERVICE_ROLE_KEY` |
-| Project ref | The subdomain in your project URL (e.g. `abcdefghijklmnop` from `https://abcdefghijklmnop.supabase.co`) | Used in `DATABASE_URL` |
+| Value             | Where to Find                                                                                           | Env Variable                |
+| ----------------- | ------------------------------------------------------------------------------------------------------- | --------------------------- |
+| Project URL       | Settings > API > Project URL                                                                            | `SUPABASE_URL`              |
+| Anon (public) key | Settings > API > Project API keys > `anon` `public`                                                     | `SUPABASE_ANON_KEY`         |
+| Service role key  | Settings > API > Project API keys > `service_role` `secret`                                             | `SUPABASE_SERVICE_ROLE_KEY` |
+| Project ref       | The subdomain in your project URL (e.g. `abcdefghijklmnop` from `https://abcdefghijklmnop.supabase.co`) | Used in `DATABASE_URL`      |
 
 **Security warning:** The `service_role` key has full admin access to your project. Never expose it in frontend code or public repositories.
 
@@ -61,14 +61,14 @@ DIRECT_URL=postgresql://postgres:[password]@db.[project-ref].supabase.co:5432/po
 If your database password contains special characters, URL-encode them:
 
 | Character | Encoded |
-|-----------|---------|
-| `$` | `%24` |
-| `@` | `%40` |
-| `#` | `%23` |
-| `!` | `%21` |
-| `&` | `%26` |
-| `=` | `%3D` |
-| space | `%20` |
+| --------- | ------- |
+| `$`       | `%24`   |
+| `@`       | `%40`   |
+| `#`       | `%23`   |
+| `!`       | `%21`   |
+| `&`       | `%26`   |
+| `=`       | `%3D`   |
+| space     | `%20`   |
 
 Example: password `My$ecret#1` becomes `My%24ecret%231` in the connection string.
 
@@ -113,6 +113,7 @@ For production, configure custom SMTP under **Authentication > Settings > SMTP S
 3. Save and test by creating a user that requires email confirmation.
 
 **Recommended SMTP providers:**
+
 - SendGrid (free tier: 100 emails/day)
 - Amazon SES (very cheap, reliable)
 - Mailgun
@@ -137,11 +138,13 @@ SUPABASE_PASSWORD_RESET_REDIRECT_URL=https://your-dashboard.com/reset-password
 Also configure the redirect URL in Supabase: **Authentication > URL Configuration > Redirect URLs**.
 
 Add your dashboard URL:
+
 ```
 https://your-dashboard.com/reset-password
 ```
 
 For development:
+
 ```
 http://localhost:5173/reset-password
 http://localhost:3001/reset-password
@@ -164,6 +167,7 @@ This enables the Supabase-side TOTP factor management. The API handles enrollmen
 - `POST /auth/login` with `mfaCode` — upgrades the session to aal2
 
 Users can use any authenticator app:
+
 - Google Authenticator
 - Microsoft Authenticator
 - Authy
@@ -299,10 +303,12 @@ curl -X POST http://localhost:3000/api/v1/auth/register \
 ```
 
 **With `SUPABASE_AUTH_AUTO_CONFIRM_EMAIL=true`** (development):
+
 - Returns a token immediately
 - User can sign in right away
 
 **With `SUPABASE_AUTH_AUTO_CONFIRM_EMAIL=false`** (production):
+
 - Returns `{"message":"Registration succeeded. Confirm your email before signing in.","emailConfirmationRequired":true}`
 - User must click the confirmation link in their email
 - You can manually confirm in Supabase dashboard: Authentication > Users > click user > Confirm email
@@ -340,17 +346,18 @@ Go to **Authentication > Users** to:
 
 Be aware of these limits on the free tier:
 
-| Resource | Free Tier Limit |
-|----------|----------------|
-| Database size | 500 MB |
-| Storage | 1 GB |
-| Bandwidth | 2 GB |
-| Edge functions | 500K invocations |
-| Auth emails | ~3/hour (built-in SMTP) |
-| Realtime connections | 200 concurrent |
-| API requests | No hard limit |
+| Resource             | Free Tier Limit         |
+| -------------------- | ----------------------- |
+| Database size        | 500 MB                  |
+| Storage              | 1 GB                    |
+| Bandwidth            | 2 GB                    |
+| Edge functions       | 500K invocations        |
+| Auth emails          | ~3/hour (built-in SMTP) |
+| Realtime connections | 200 concurrent          |
+| API requests         | No hard limit           |
 
 For production, upgrade to at least the Pro plan ($25/month) for:
+
 - 8 GB database
 - 100 GB storage
 - Custom SMTP (unlimited emails)

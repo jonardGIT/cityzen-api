@@ -343,12 +343,12 @@ Invalid combinations fail the build. Example: `FEATURE_TOKEN_MODE=supabase-jwt` 
 
 ### Quick profile reference
 
-| Profile | Auth | Tokens | MFA | Use case |
-|---------|------|--------|-----|----------|
-| `development-local` | `local` | `app-jwt` | `local-totp` | Day-to-day development |
-| `development-supabase` | `supabase` | `supabase-jwt` | `supabase-totp` | Testing Supabase integration |
+| Profile                    | Auth       | Tokens         | MFA             | Use case                         |
+| -------------------------- | ---------- | -------------- | --------------- | -------------------------------- |
+| `development-local`        | `local`    | `app-jwt`      | `local-totp`    | Day-to-day development           |
+| `development-supabase`     | `supabase` | `supabase-jwt` | `supabase-totp` | Testing Supabase integration     |
 | `production-supabase-auth` | `supabase` | `supabase-jwt` | `supabase-totp` | Production without media storage |
-| `production-supabase-full` | `supabase` | `supabase-jwt` | `supabase-totp` | Production with media storage |
+| `production-supabase-full` | `supabase` | `supabase-jwt` | `supabase-totp` | Production with media storage    |
 
 See [docs/feature-profiles-guide.md](docs/feature-profiles-guide.md) for detailed profile documentation including switching profiles and troubleshooting.
 
