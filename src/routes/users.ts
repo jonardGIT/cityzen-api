@@ -39,7 +39,12 @@ router.patch(
 router.delete('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(deleteUser));
 
 if (isArchiveEnabled()) {
-  router.post('/:id/restore', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(restoreUser));
+  router.post(
+    '/:id/restore',
+    requireJwtAuth,
+    requireRole(...ADMIN_ROLES),
+    asyncHandler(restoreUser),
+  );
 }
 
 export default router;

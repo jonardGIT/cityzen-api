@@ -341,6 +341,23 @@ npm run build:production
 
 Invalid combinations fail the build. Example: `FEATURE_TOKEN_MODE=supabase-jwt` is rejected unless `FEATURE_AUTH_PROVIDER=supabase` is also selected.
 
+### Quick profile reference
+
+| Profile | Auth | Tokens | MFA | Use case |
+|---------|------|--------|-----|----------|
+| `development-local` | `local` | `app-jwt` | `local-totp` | Day-to-day development |
+| `development-supabase` | `supabase` | `supabase-jwt` | `supabase-totp` | Testing Supabase integration |
+| `production-supabase-auth` | `supabase` | `supabase-jwt` | `supabase-totp` | Production without media storage |
+| `production-supabase-full` | `supabase` | `supabase-jwt` | `supabase-totp` | Production with media storage |
+
+See [docs/feature-profiles-guide.md](docs/feature-profiles-guide.md) for detailed profile documentation including switching profiles and troubleshooting.
+
+### Supabase setup
+
+For creating and configuring a Supabase project from scratch (dashboard setup, email auth, MFA, SMTP, storage buckets), see [docs/supabase-project-setup.md](docs/supabase-project-setup.md).
+
+For the complete production deployment checklist with all Supabase features, see [docs/supabase-all-setup.md](docs/supabase-all-setup.md).
+
 ## Available Scripts
 
 - `npm run dev`: start development server with nodemon + tsx

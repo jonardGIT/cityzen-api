@@ -96,8 +96,16 @@ const mfaDisableRateLimit = createEnvRateLimitMiddleware({
 
 router.post('/register', asyncHandler(register));
 router.post('/login', loginRateLimit, asyncHandler(login));
-router.post('/password-reset/request', passwordResetRequestRateLimit, asyncHandler(requestPasswordReset));
-router.post('/password-reset/confirm', passwordResetConfirmRateLimit, asyncHandler(confirmPasswordReset));
+router.post(
+  '/password-reset/request',
+  passwordResetRequestRateLimit,
+  asyncHandler(requestPasswordReset),
+);
+router.post(
+  '/password-reset/confirm',
+  passwordResetConfirmRateLimit,
+  asyncHandler(confirmPasswordReset),
+);
 router.post('/refresh', refreshRateLimit, asyncHandler(refresh));
 router.get('/me', requireJwtAuth, asyncHandler(me));
 
