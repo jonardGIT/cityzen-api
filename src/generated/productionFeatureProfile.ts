@@ -2,13 +2,13 @@ import type { LockedProductionFeatureProfile } from '../featureSelection.js';
 
 export const productionFeatureProfile: LockedProductionFeatureProfile = {
   locked: true,
-  profileName: "deploy-gate",
-  builtAt: "2026-04-04T19:36:22.437Z",
+  profileName: "production-supabase-auth",
+  builtAt: "2026-04-07T03:22:42.959Z",
   selection: {
-  "authProvider": "local",
-  "tokenMode": "app-jwt",
-  "mfaMode": "local-totp",
-  "mediaStorage": "supabase-storage",
+  "authProvider": "supabase",
+  "tokenMode": "supabase-jwt",
+  "mfaMode": "supabase-totp",
+  "mediaStorage": "disabled",
   "recordDeletion": "archive"
 },
 };

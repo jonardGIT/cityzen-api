@@ -77,6 +77,15 @@ async function ensureDatabaseRateLimitSchema(): Promise<void> {
         'CREATE TABLE IF NOT EXISTS rate_limit_buckets (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), "createdAt" timestamptz NOT NULL DEFAULT NOW(), "updatedAt" timestamptz NOT NULL DEFAULT NOW(), "bucketKey" text NOT NULL UNIQUE, count integer NOT NULL, "windowStart" timestamptz NOT NULL, "expiresAt" timestamptz NOT NULL)',
       );
       await prisma.$executeRawUnsafe(
+        'ALTER TABLE rate_limit_buckets ALTER COLUMN id SET DEFAULT gen_random_uuid()',
+      );
+      await prisma.$executeRawUnsafe(
+        'ALTER TABLE rate_limit_buckets ALTER COLUMN "createdAt" SET DEFAULT NOW()',
+      );
+      await prisma.$executeRawUnsafe(
+        'ALTER TABLE rate_limit_buckets ALTER COLUMN "updatedAt" SET DEFAULT NOW()',
+      );
+      await prisma.$executeRawUnsafe(
         'CREATE INDEX IF NOT EXISTS rate_limit_buckets_expires_at_idx ON rate_limit_buckets ("expiresAt")',
       );
       hasEnsuredDatabaseLimiterSchema = true;

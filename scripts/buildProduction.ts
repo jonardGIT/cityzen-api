@@ -1,9 +1,46 @@
-import { mkdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { spawnSync } from 'child_process';
+import { createRequire } from 'module';
 import path from 'path';
 import dotenv from 'dotenv';
 
-dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: false, quiet: true });
+function applyMissingEnv(values: Record<string, string | undefined> | undefined): void {
+  if (!values) {
+    return;
+  }
+
+  for (const [key, value] of Object.entries(values)) {
+    if (process.env[key] === undefined && value !== undefined) {
+      process.env[key] = value;
+    }
+  }
+}
+
+function loadPm2Environment(): boolean {
+  const ecosystemPath = path.resolve(process.cwd(), 'ecosystem.config.cjs');
+
+  if (!existsSync(ecosystemPath)) {
+    return false;
+  }
+
+  const require = createRequire(import.meta.url);
+  const ecosystem = require(ecosystemPath);
+  const appName = process.env.PM2_APP_NAME?.trim() || 'xypes-cirs-api';
+  const apps = Array.isArray(ecosystem?.apps) ? ecosystem.apps : [];
+  const app = apps.find((entry: { name?: string }) => entry?.name === appName) ?? apps[0];
+
+  if (!app) {
+    throw new Error(`No PM2 app configuration found in ecosystem.config.cjs`);
+  }
+
+  applyMissingEnv(app.env);
+  applyMissingEnv(app.env_production);
+  return true;
+}
+
+if (!loadPm2Environment()) {
+  dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: false, quiet: true });
+}
 
 const AUTH_PROVIDER_OPTIONS = ['local', 'supabase'] as const;
 const TOKEN_MODE_OPTIONS = ['app-jwt', 'supabase-jwt'] as const;

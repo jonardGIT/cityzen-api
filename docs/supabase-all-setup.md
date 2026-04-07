@@ -156,11 +156,14 @@ These feature flags are locked into the production build.
 
 The `FEATURE_*` values must exist in the environment at build time when you run `npm run build:production`.
 
-The production build script now auto-loads `.env` from the project root before it validates the feature flags.
+The production build script now auto-loads `ecosystem.config.cjs` first when it exists, and falls back to `.env` when it does not.
 
-That means if you place the `FEATURE_*` values in `.env`, `npm run build:production` will read them automatically.
+That means either of these works:
 
-Shell-exported values still win over `.env` values because the build uses `override: false`.
+- place the `FEATURE_*` values in PM2 `env_production` inside `ecosystem.config.cjs`
+- place the `FEATURE_*` values in `.env`
+
+Shell-exported values still win over either file because the build only fills missing env values.
 
 Use one of these approaches:
 
@@ -212,7 +215,36 @@ Then build directly:
 npm run build:production
 ```
 
-#### Option C. Use an inline one-line build command
+#### Option C. Put them in PM2 `ecosystem.config.cjs`
+
+Example:
+
+```js
+module.exports = {
+  apps: [
+    {
+      name: 'xypes-cirs-api',
+      env_production: {
+        NODE_ENV: 'production',
+        FEATURE_PROFILE_NAME: 'production-supabase-auth',
+        FEATURE_AUTH_PROVIDER: 'supabase',
+        FEATURE_TOKEN_MODE: 'supabase-jwt',
+        FEATURE_MFA_MODE: 'supabase-totp',
+        FEATURE_MEDIA_STORAGE: 'disabled',
+        FEATURE_RECORD_DELETION: 'archive',
+      },
+    },
+  ],
+};
+```
+
+Then build directly:
+
+```bash
+npm run build:production
+```
+
+#### Option D. Use an inline one-line build command
 
 ```bash
 NODE_ENV=production \
@@ -237,7 +269,7 @@ echo "$FEATURE_MEDIA_STORAGE"
 echo "$FEATURE_RECORD_DELETION"
 ```
 
-If any of those print nothing and they are also missing from `.env`, `npm run build:production` will fail.
+If any of those print nothing and they are also missing from both `ecosystem.config.cjs` and `.env`, `npm run build:production` will fail.
 
 ## 6. Configure required non-Supabase API env
 
@@ -347,7 +379,7 @@ Build the locked production profile:
 npm run build:production
 ```
 
-If you get an error like `FEATURE_AUTH_PROVIDER must be set`, it means the value was missing both from the shell environment and from the project `.env` file.
+If you get an error like `FEATURE_AUTH_PROVIDER must be set`, it means the value was missing from the shell environment, from `ecosystem.config.cjs`, and from the project `.env` file.
 
 Start the API:
 
@@ -369,6 +401,24 @@ The deploy workflow is set up to:
 - restart PM2 with `pm2 startOrRestart ecosystem.config.cjs --env production`
 
 Keep `ecosystem.config.cjs` out of git because it contains live secrets. Only commit the example file.
+
+### Bootstrap the first admin safely
+
+Do not run `prisma/seed-data.sql` on a production or production-like database. That seed truncates core tables and loads demo records.
+
+Instead, create the first admin with the bootstrap script:
+
+```bash
+NODE_ENV=production \
+ENV_FILE=.env \
+npm run bootstrap:admin -- \
+  --name="System Admin" \
+  --email="admin@example.com" \
+  --password="replace-with-a-strong-password" \
+  --role=SYSTEM_ADMIN
+```
+
+If `FEATURE_AUTH_PROVIDER=supabase`, the script creates the Supabase Auth user and the local `users` row together. If the local row already exists, it promotes or updates that row without truncating any data.
 
 ## 9. Dashboard setup
 
