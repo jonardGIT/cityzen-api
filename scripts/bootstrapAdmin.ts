@@ -98,6 +98,25 @@ Notes:
 `);
 }
 
+async function ensureBootstrapUserSchema(): Promise<void> {
+  await prisma.$executeRawUnsafe('ALTER TABLE users ALTER COLUMN "passwordHash" DROP NOT NULL');
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE users ADD COLUMN IF NOT EXISTS "supabaseAuthUserId" uuid',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE UNIQUE INDEX IF NOT EXISTS users_supabase_auth_user_id_idx ON users ("supabaseAuthUserId") WHERE "supabaseAuthUserId" IS NOT NULL',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE users ADD COLUMN IF NOT EXISTS "mfaEnabled" boolean NOT NULL DEFAULT false',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE users ADD COLUMN IF NOT EXISTS "mfaSecretEncrypted" text',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE users ADD COLUMN IF NOT EXISTS "mfaEnabledAt" timestamptz',
+  );
+}
+
 async function ensureSupabaseIdentity(input: {
   email: string;
   password: string;
@@ -168,6 +187,8 @@ async function main(): Promise<void> {
 
   const email = normalizeEmail(options.email);
   const name = options.name.trim();
+
+  await ensureBootstrapUserSchema();
 
   const existingUser = await prisma.user.findUnique({
     where: { email },
