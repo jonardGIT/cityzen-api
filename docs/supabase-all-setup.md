@@ -74,6 +74,8 @@ If your rollout depends on the SQL files in `prisma/`, apply those as well in th
 
 ## 3. Configure Supabase Auth
 
+For step-by-step Supabase dashboard setup (creating the project, finding keys, enabling email auth, MFA, SMTP, email templates), see [supabase-project-setup.md](supabase-project-setup.md).
+
 In Supabase Auth settings, configure:
 
 - email sign-in enabled
@@ -138,6 +140,8 @@ SUPABASE_STORAGE_ENABLED=false
 ```
 
 ## 5. Configure API feature flags
+
+For an overview of all available profiles and how to switch between them, see [feature-profiles-guide.md](feature-profiles-guide.md).
 
 For the full Supabase path, set:
 

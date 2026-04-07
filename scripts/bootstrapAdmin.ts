@@ -2,7 +2,6 @@ import { randomUUID } from 'crypto';
 import bcrypt from 'bcryptjs';
 
 import '../src/env.js';
-import prisma from '../src/lib/prisma.js';
 import {
   authenticateSupabaseUser,
   deleteSupabaseAuthUser,
@@ -11,6 +10,12 @@ import {
   SupabaseAuthServiceError,
 } from '../src/services/supabaseAuthService.js';
 import { normalizeUserRoleInput, type UserRole } from '../src/types/auth.js';
+
+if (process.env.DIRECT_URL?.trim()) {
+  process.env.DATABASE_URL = process.env.DIRECT_URL;
+}
+
+const { default: prisma } = await import('../src/lib/prisma.js');
 
 type CliOptions = {
   name: string | null;
@@ -148,10 +153,7 @@ async function ensureSupabaseIdentity(input: {
       createdSupabaseUser: true,
     };
   } catch (error) {
-    if (
-      error instanceof SupabaseAuthServiceError &&
-      error.code === 'EMAIL_CONFLICT'
-    ) {
+    if (error instanceof SupabaseAuthServiceError && error.code === 'EMAIL_CONFLICT') {
       const existingUser = await authenticateSupabaseUser({
         email: input.email,
         password: input.password,

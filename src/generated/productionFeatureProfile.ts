@@ -3,7 +3,7 @@ import type { LockedProductionFeatureProfile } from '../featureSelection.js';
 export const productionFeatureProfile: LockedProductionFeatureProfile = {
   locked: true,
   profileName: "production-supabase-auth",
-  builtAt: "2026-04-07T03:22:42.959Z",
+  builtAt: "2026-04-07T12:45:04.931Z",
   selection: {
   "authProvider": "supabase",
   "tokenMode": "supabase-jwt",
