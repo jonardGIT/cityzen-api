@@ -12,6 +12,10 @@ CREATE TABLE IF NOT EXISTS rate_limit_buckets (
   "expiresAt" timestamptz NOT NULL
 );
 
+ALTER TABLE rate_limit_buckets ALTER COLUMN id SET DEFAULT gen_random_uuid();
+ALTER TABLE rate_limit_buckets ALTER COLUMN "createdAt" SET DEFAULT NOW();
+ALTER TABLE rate_limit_buckets ALTER COLUMN "updatedAt" SET DEFAULT NOW();
+
 CREATE INDEX IF NOT EXISTS rate_limit_buckets_expires_at_idx ON rate_limit_buckets ("expiresAt");
 
 CREATE OR REPLACE FUNCTION set_updated_at()

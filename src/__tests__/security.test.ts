@@ -265,6 +265,47 @@ describe('Shared-store rate limiting', () => {
     expect(Number(rows[0]?.bucketCount ?? 0)).toBe(1);
   });
 
+  it('repairs a legacy limiter table that is missing insert defaults', async () => {
+    const { default: prisma } = await import('../lib/prisma.js');
+    await prisma.$executeRawUnsafe('DROP TABLE IF EXISTS rate_limit_buckets');
+    await prisma.$executeRawUnsafe(
+      'CREATE TABLE rate_limit_buckets (id uuid NOT NULL, "createdAt" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" timestamp NOT NULL, "bucketKey" text NOT NULL UNIQUE, count integer NOT NULL, "windowStart" timestamp NOT NULL, "expiresAt" timestamp NOT NULL, PRIMARY KEY (id))',
+    );
+
+    const { default: app, API_V1 } = await import('../app.js');
+    const response = await request(app).post(`${API_V1}/auth/login`).send({
+      email: 'admin@xypes.local',
+      password: 'WrongPassword!',
+    });
+
+    const rows = await prisma.$queryRawUnsafe<
+      Array<{
+        idDefault: string | null;
+        updatedAtDefault: string | null;
+        bucketCount: number | bigint;
+      }>
+    >(
+      `SELECT (SELECT column_default
+         FROM information_schema.columns
+         WHERE table_schema = 'public'
+           AND table_name = 'rate_limit_buckets'
+           AND column_name = 'id') AS "idDefault",
+        (SELECT column_default
+         FROM information_schema.columns
+         WHERE table_schema = 'public'
+           AND table_name = 'rate_limit_buckets'
+           AND column_name = 'updatedAt') AS "updatedAtDefault",
+        (SELECT COUNT(*)::bigint
+         FROM rate_limit_buckets
+         WHERE "bucketKey" LIKE 'auth-login:%') AS "bucketCount"`,
+    );
+
+    expect(response.status).toBe(401);
+    expect(rows[0]?.idDefault).toContain('gen_random_uuid()');
+    expect(rows[0]?.updatedAtDefault).toContain('now()');
+    expect(Number(rows[0]?.bucketCount ?? 0)).toBe(1);
+  });
+
   it('fails closed in production when the database-backed limiter is unavailable', async () => {
     jest.resetModules();
     process.env = { ...originalEnv };
