@@ -88,8 +88,25 @@ jobs:
           script: |
             set -e
             cd /var/www/xypes-cirs-api
-            test -f .env
+            test -f ecosystem.config.cjs
             git pull --ff-only origin main
             npm ci
-            NODE_ENV=production npm run build:production
-            pm2 restart xypes-cirs-api --update-env
+            node <<'NODE'
+            const { spawnSync } = require('node:child_process');
+            const ecosystem = require('./ecosystem.config.cjs');
+            const app = ecosystem.apps.find((entry) => entry.name === 'xypes-cirs-api');
+
+            if (!app) {
+              throw new Error('xypes-cirs-api app config not found in ecosystem.config.cjs');
+            }
+
+            const env = { ...process.env, ...(app.env || {}), ...(app.env_production || {}) };
+            const result = spawnSync('npm', ['run', 'build:production'], {
+              cwd: process.cwd(),
+              env,
+              stdio: 'inherit',
+            });
+
+            process.exit(result.status ?? 1);
+            NODE
+            pm2 startOrRestart ecosystem.config.cjs --env production

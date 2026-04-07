@@ -357,6 +357,19 @@ npm start
 
 The production build writes the locked feature profile into `src/generated/productionFeatureProfile.ts`.
 
+### PM2 deployment without `.env`
+
+If you prefer PM2-managed environment variables on the droplet instead of a `.env` file, copy `ecosystem.config.example.cjs` to `ecosystem.config.cjs` on the server and fill in the real production values there.
+
+The deploy workflow is set up to:
+
+- require `ecosystem.config.cjs` on the droplet
+- load build-time `FEATURE_*` values from that PM2 config
+- run `npm run build:production`
+- restart PM2 with `pm2 startOrRestart ecosystem.config.cjs --env production`
+
+Keep `ecosystem.config.cjs` out of git because it contains live secrets. Only commit the example file.
+
 ## 9. Dashboard setup
 
 If the dashboard talks to this API, make sure it is configured with:

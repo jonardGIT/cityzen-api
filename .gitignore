@@ -17,6 +17,7 @@ logs/
 .env.production
 .env.local
 .env.*.local
+ecosystem.config.cjs
 
 # OS files
 .DS_Store
