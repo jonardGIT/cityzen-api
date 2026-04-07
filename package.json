@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc",
     "build:production": "tsx scripts/buildProduction.ts",
+    "bootstrap:admin": "tsx scripts/bootstrapAdmin.ts",
     "start": "node dist/server.js",
     "dev": "dotenv -o -e .env.development -- nodemon --watch src --ext ts --exec \"tsx src/server.ts\"",
     "supabase:backfill-seed": "dotenv -o -e .env.development -- tsx scripts/backfillSupabaseSeedUsers.ts",

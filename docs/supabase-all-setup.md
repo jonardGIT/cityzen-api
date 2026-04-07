@@ -402,6 +402,24 @@ The deploy workflow is set up to:
 
 Keep `ecosystem.config.cjs` out of git because it contains live secrets. Only commit the example file.
 
+### Bootstrap the first admin safely
+
+Do not run `prisma/seed-data.sql` on a production or production-like database. That seed truncates core tables and loads demo records.
+
+Instead, create the first admin with the bootstrap script:
+
+```bash
+NODE_ENV=production \
+ENV_FILE=.env \
+npm run bootstrap:admin -- \
+  --name="System Admin" \
+  --email="admin@example.com" \
+  --password="replace-with-a-strong-password" \
+  --role=SYSTEM_ADMIN
+```
+
+If `FEATURE_AUTH_PROVIDER=supabase`, the script creates the Supabase Auth user and the local `users` row together. If the local row already exists, it promotes or updates that row without truncating any data.
+
 ## 9. Dashboard setup
 
 If the dashboard talks to this API, make sure it is configured with:
