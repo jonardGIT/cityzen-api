@@ -13,19 +13,20 @@ import { ADMIN_ROLES } from '../types/auth.js';
 import { isArchiveEnabled } from '../utils/archive.js';
 import { validateRequest } from '../middleware/validateRequest.js';
 import { createUserValidator, updateUserValidator } from '../validators/bodyValidators.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
 
 const router = Router();
 
-router.get('/capabilities', requireJwtAuth, getUserCapabilities);
-router.get('/', requireJwtAuth, requireRole(...ADMIN_ROLES), getUsers);
-router.get('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), getUserById);
+router.get('/capabilities', requireJwtAuth, asyncHandler(getUserCapabilities));
+router.get('/', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(getUsers));
+router.get('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(getUserById));
 router.post(
   '/',
   requireJwtAuth,
   requireRole(...ADMIN_ROLES),
   createUserValidator,
   validateRequest,
-  createUser,
+  asyncHandler(createUser),
 );
 router.patch(
   '/:id',
@@ -33,12 +34,12 @@ router.patch(
   requireRole(...ADMIN_ROLES),
   updateUserValidator,
   validateRequest,
-  updateUser,
+  asyncHandler(updateUser),
 );
-router.delete('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), deleteUser);
+router.delete('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(deleteUser));
 
 if (isArchiveEnabled()) {
-  router.post('/:id/restore', requireJwtAuth, requireRole(...ADMIN_ROLES), restoreUser);
+  router.post('/:id/restore', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(restoreUser));
 }
 
 export default router;

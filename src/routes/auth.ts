@@ -18,6 +18,7 @@ import { createEnvRateLimitMiddleware } from '../middleware/rateLimit.js';
 import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
 import { MFA_REQUIRED_ROLES } from '../types/auth.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
 
 const router = Router();
 
@@ -93,19 +94,19 @@ const mfaDisableRateLimit = createEnvRateLimitMiddleware({
   keyGenerator: buildAuthenticatedUserScopedKey,
 });
 
-router.post('/register', register);
-router.post('/login', loginRateLimit, login);
-router.post('/password-reset/request', passwordResetRequestRateLimit, requestPasswordReset);
-router.post('/password-reset/confirm', passwordResetConfirmRateLimit, confirmPasswordReset);
-router.post('/refresh', refreshRateLimit, refresh);
-router.get('/me', requireJwtAuth, me);
+router.post('/register', asyncHandler(register));
+router.post('/login', loginRateLimit, asyncHandler(login));
+router.post('/password-reset/request', passwordResetRequestRateLimit, asyncHandler(requestPasswordReset));
+router.post('/password-reset/confirm', passwordResetConfirmRateLimit, asyncHandler(confirmPasswordReset));
+router.post('/refresh', refreshRateLimit, asyncHandler(refresh));
+router.get('/me', requireJwtAuth, asyncHandler(me));
 
 if (isSessionInventoryFeatureEnabled()) {
-  router.get('/sessions', requireJwtAuth, listSessions);
-  router.delete('/sessions/:id', requireJwtAuth, revokeSession);
+  router.get('/sessions', requireJwtAuth, asyncHandler(listSessions));
+  router.delete('/sessions/:id', requireJwtAuth, asyncHandler(revokeSession));
 }
 
-router.post('/logout', requireJwtAuth, logout);
+router.post('/logout', requireJwtAuth, asyncHandler(logout));
 
 if (isAnyMfaFeatureEnabled()) {
   router.post(
@@ -113,21 +114,21 @@ if (isAnyMfaFeatureEnabled()) {
     requireJwtAuth,
     requireRole(...MFA_REQUIRED_ROLES),
     mfaSetupRateLimit,
-    setupMfa,
+    asyncHandler(setupMfa),
   );
   router.post(
     '/mfa/enable',
     requireJwtAuth,
     requireRole(...MFA_REQUIRED_ROLES),
     mfaEnableRateLimit,
-    enableMfa,
+    asyncHandler(enableMfa),
   );
   router.post(
     '/mfa/disable',
     requireJwtAuth,
     requireRole(...MFA_REQUIRED_ROLES),
     mfaDisableRateLimit,
-    disableMfa,
+    asyncHandler(disableMfa),
   );
 }
 

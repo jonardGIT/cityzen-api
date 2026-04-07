@@ -6,6 +6,7 @@ import {
   getPrivilegedMfaComplianceReport,
 } from '../controllers/adminController.js';
 import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
 
 const router = Router();
 
@@ -13,28 +14,28 @@ router.get(
   '/users/mfa-compliance',
   requireJwtAuth,
   requireRole('SYSTEM_ADMIN', 'DEPARTMENT_MANAGER'),
-  getPrivilegedMfaComplianceReport,
+  asyncHandler(getPrivilegedMfaComplianceReport),
 );
 
 router.get(
   '/users/access-review',
   requireJwtAuth,
   requireRole('SYSTEM_ADMIN', 'DEPARTMENT_MANAGER'),
-  getPrivilegedAccessReviewReport,
+  asyncHandler(getPrivilegedAccessReviewReport),
 );
 
 router.get(
   '/security/data-governance',
   requireJwtAuth,
   requireRole('SYSTEM_ADMIN', 'DEPARTMENT_MANAGER', 'AUDITOR'),
-  getDataGovernanceSummary,
+  asyncHandler(getDataGovernanceSummary),
 );
 
 router.get(
   '/users',
   requireJwtAuth,
   requireRole('SYSTEM_ADMIN', 'DEPARTMENT_MANAGER'),
-  getAllUsersForAdmin,
+  asyncHandler(getAllUsersForAdmin),
 );
 
 export default router;

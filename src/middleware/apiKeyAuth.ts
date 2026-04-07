@@ -29,7 +29,9 @@ function shouldBypassPath(path: string, bypassPaths: readonly string[]): boolean
 
   return bypassPaths.some((candidate) => {
     const normalizedCandidate = normalizePath(candidate);
-    return normalizedPath === normalizedCandidate || normalizedPath.startsWith(`${normalizedCandidate}/`);
+    return (
+      normalizedPath === normalizedCandidate || normalizedPath.startsWith(`${normalizedCandidate}/`)
+    );
   });
 }
 
