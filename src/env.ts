@@ -7,6 +7,10 @@ function resolveEnvFile(): string {
     return explicitEnvFile;
   }
 
+  if (process.env.JEST_WORKER_ID) {
+    return '.env.test';
+  }
+
   if (process.env.NODE_ENV === 'production') {
     return '.env';
   }
@@ -22,4 +26,8 @@ function shouldOverrideExistingEnv(): boolean {
   return false;
 }
 
-dotenv.config({ path: resolveEnvFile(), override: shouldOverrideExistingEnv() });
+dotenv.config({
+  path: resolveEnvFile(),
+  override: shouldOverrideExistingEnv(),
+  quiet: Boolean(process.env.JEST_WORKER_ID),
+});

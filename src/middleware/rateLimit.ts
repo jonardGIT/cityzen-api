@@ -185,6 +185,10 @@ async function maybePruneExpiredDatabaseBuckets(): Promise<void> {
 class MemoryRateLimitStore implements RateLimitStore {
   private readonly clients = new Map<string, ClientWindow>();
 
+  clear(): void {
+    this.clients.clear();
+  }
+
   async increment(key: string, options: RateLimitStoreOptions): Promise<RateLimitDecision> {
     const bucketKey = getBucketKey(options.scope, key);
     const now = Date.now();
@@ -300,6 +304,15 @@ class DatabaseRateLimitStore implements RateLimitStore {
 
 const sharedMemoryRateLimitStore = new MemoryRateLimitStore();
 const sharedDatabaseRateLimitStore = new DatabaseRateLimitStore(sharedMemoryRateLimitStore);
+
+export function resetRateLimitStateForTests(): void {
+  sharedMemoryRateLimitStore.clear();
+  lastDatabaseBucketCleanupAt = 0;
+  hasLoggedDatabaseLimiterFallback = false;
+  hasLoggedDatabaseLimiterFailure = false;
+  hasEnsuredDatabaseLimiterSchema = false;
+  databaseLimiterSchemaInitPromise = null;
+}
 
 function createRateLimitStore(): RateLimitStore {
   return getRateLimitStoreMode() === 'database'

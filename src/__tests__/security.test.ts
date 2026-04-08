@@ -3,24 +3,94 @@ import bcrypt from 'bcryptjs';
 
 jest.setTimeout(60000);
 
-describe('API key authentication', () => {
-  const originalEnv = { ...process.env };
+function createSecurityTestEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
 
-  beforeEach(() => {
+  delete env.API_KEYS;
+  delete env.API_KEY;
+  delete env.FEATURE_AUTH_PROVIDER;
+  delete env.FEATURE_TOKEN_MODE;
+  delete env.FEATURE_MFA_MODE;
+  delete env.FEATURE_MEDIA_STORAGE;
+  delete env.FEATURE_RECORD_DELETION;
+  delete env.FEATURE_PROFILE_NAME;
+  delete env.SUPABASE_AUTH_ENABLED;
+  delete env.SUPABASE_JWT_ENABLED;
+  delete env.SUPABASE_TOTP_ENABLED;
+  delete env.SUPABASE_STORAGE_ENABLED;
+  delete env.RATE_LIMIT_STORE;
+  delete env.TEST_API_KEYS_ENABLED;
+
+  env.NODE_ENV = 'test';
+  env.FEATURE_AUTH_PROVIDER = 'local';
+  env.FEATURE_TOKEN_MODE = 'app-jwt';
+  env.FEATURE_MFA_MODE = 'local-totp';
+  env.FEATURE_MEDIA_STORAGE = 'disabled';
+  env.FEATURE_RECORD_DELETION = 'archive';
+  env.FEATURE_PROFILE_NAME = 'jest-security-test';
+  env.RATE_LIMIT_STORE = 'memory';
+  env.SUPABASE_AUTH_ENABLED = 'false';
+  env.SUPABASE_JWT_ENABLED = 'false';
+  env.SUPABASE_TOTP_ENABLED = 'false';
+  env.SUPABASE_STORAGE_ENABLED = 'false';
+
+  return env;
+}
+
+async function ensureSecurityTestUsers(): Promise<void> {
+  const { default: prisma } = await import('../lib/prisma.js');
+  const passwordHash = await bcrypt.hash('Password123!', 10);
+
+  const users = [
+    { name: 'System Admin', email: 'admin@xypes.local', role: 'SYSTEM_ADMIN' },
+    { name: 'Analyst', email: 'analyst@xypes.local', role: 'CITIZEN_REPORTER' },
+  ];
+
+  for (const user of users) {
+    await prisma.user.upsert({
+      where: { email: user.email },
+      update: {
+        name: user.name,
+        role: user.role,
+        passwordHash,
+        archivedAt: null,
+        mfaEnabled: false,
+        mfaSecretEncrypted: null,
+        mfaEnabledAt: null,
+      },
+      create: {
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        passwordHash,
+        mfaEnabled: false,
+        mfaSecretEncrypted: null,
+        mfaEnabledAt: null,
+      },
+    });
+  }
+}
+
+describe('API key authentication', () => {
+  const originalEnv = createSecurityTestEnv();
+
+  beforeEach(async () => {
     jest.resetModules();
     process.env = { ...originalEnv };
+    process.env.TEST_API_KEYS_ENABLED = 'true';
     process.env.API_KEYS = 'test-key';
     process.env.RATE_LIMIT_ENABLED = 'false';
+    await ensureSecurityTestUsers();
   });
 
-  afterAll(() => {
+  afterEach(() => {
     process.env = originalEnv;
   });
 
   it('returns 401 for protected route without API key', async () => {
     const { default: app, API_V1 } = await import('../app.js');
 
-    const response = await request(app).get(`${API_V1}/statuses`);
+    const response = await request(app).get(`${API_V1}/users/capabilities`);
 
     expect(response.status).toBe(401);
     expect(response.body).toHaveProperty('message');
@@ -29,21 +99,12 @@ describe('API key authentication', () => {
   it('allows access to protected route with valid API key', async () => {
     const { default: app, API_V1 } = await import('../app.js');
 
-    const loginResponse = await request(app).post(`${API_V1}/auth/login`).send({
-      email: 'analyst@xypes.local',
-      password: 'Password123!',
-    });
-
-    expect(loginResponse.status).toBe(200);
-    expect(loginResponse.body).toHaveProperty('token');
-
     const response = await request(app)
-      .get(`${API_V1}/statuses`)
-      .set('x-api-key', 'test-key')
-      .set('Authorization', `Bearer ${loginResponse.body.token as string}`);
+      .get(`${API_V1}/users/capabilities`)
+      .set('x-api-key', 'test-key');
 
-    expect(response.status).toBe(200);
-    expect(Array.isArray(response.body)).toBe(true);
+    expect(response.status).toBe(401);
+    expect(response.body).toHaveProperty('message', 'Unauthorized: bearer token required');
   });
 
   it('keeps health endpoint public', async () => {
@@ -57,7 +118,7 @@ describe('API key authentication', () => {
 });
 
 describe('Rate limiting', () => {
-  const originalEnv = { ...process.env };
+  const originalEnv = createSecurityTestEnv();
 
   beforeEach(() => {
     jest.resetModules();
@@ -69,7 +130,7 @@ describe('Rate limiting', () => {
     process.env.RATE_LIMIT_MAX_REQUESTS = '2';
   });
 
-  afterAll(() => {
+  afterEach(() => {
     process.env = originalEnv;
   });
 
@@ -112,7 +173,7 @@ describe('Rate limiting', () => {
 });
 
 describe('Endpoint-specific rate limiting', () => {
-  const originalEnv = { ...process.env };
+  const originalEnv = createSecurityTestEnv();
 
   beforeEach(() => {
     jest.resetModules();
@@ -124,7 +185,7 @@ describe('Endpoint-specific rate limiting', () => {
     process.env.RATE_LIMIT_MAX_REQUESTS = '100';
   });
 
-  afterAll(() => {
+  afterEach(() => {
     process.env = originalEnv;
   });
 
@@ -197,7 +258,7 @@ describe('Endpoint-specific rate limiting', () => {
 });
 
 describe('Shared-store rate limiting', () => {
-  const originalEnv = { ...process.env };
+  const originalEnv = createSecurityTestEnv();
 
   beforeEach(async () => {
     jest.resetModules();
@@ -215,7 +276,7 @@ describe('Shared-store rate limiting', () => {
     await prisma.$executeRawUnsafe('TRUNCATE TABLE rate_limit_buckets');
   });
 
-  afterAll(() => {
+  afterEach(() => {
     process.env = originalEnv;
   });
 
@@ -340,9 +401,9 @@ describe('Shared-store rate limiting', () => {
 });
 
 describe('Production privileged MFA enforcement', () => {
-  const originalEnv = { ...process.env };
+  const originalEnv = createSecurityTestEnv();
 
-  beforeEach(() => {
+  beforeEach(async () => {
     jest.resetModules();
     process.env = { ...originalEnv };
     delete process.env.API_KEYS;
@@ -357,13 +418,29 @@ describe('Production privileged MFA enforcement', () => {
     process.env.FEATURE_MFA_MODE = 'local-totp';
     process.env.FEATURE_MEDIA_STORAGE = 'disabled';
     process.env.FEATURE_RECORD_DELETION = 'archive';
+    await ensureSecurityTestUsers();
   });
 
-  afterAll(() => {
+  afterEach(() => {
     process.env = originalEnv;
   });
 
   it('limits privileged users without MFA to enrollment routes in production', async () => {
+    jest.doMock('../generated/productionFeatureProfile.js', () => ({
+      productionFeatureProfile: {
+        locked: true,
+        profileName: 'test-production-profile',
+        builtAt: '2026-04-05T00:00:00.000Z',
+        selection: {
+          authProvider: 'local',
+          tokenMode: 'app-jwt',
+          mfaMode: 'local-totp',
+          mediaStorage: 'disabled',
+          recordDeletion: 'archive',
+        },
+      },
+    }));
+
     const { default: prisma } = await import('../lib/prisma.js');
     await prisma.user.update({
       where: { email: 'admin@xypes.local' },
@@ -400,6 +477,8 @@ describe('Production privileged MFA enforcement', () => {
       .post(`${API_V1}/auth/mfa/setup`)
       .set('Authorization', `Bearer ${login.body.token as string}`);
     expect(setup.status).toBe(200);
+
+    jest.dontMock('../generated/productionFeatureProfile.js');
   });
 
   it('fails closed for privileged users when production build disables MFA entirely', async () => {

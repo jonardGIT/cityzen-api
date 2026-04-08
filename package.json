@@ -14,10 +14,10 @@
     "test:db:down": "sh ./scripts/runTestDbCompose.sh down -v",
     "test:db:reset": "sh ./scripts/runTestDbCompose.sh exec -T postgres psql -U postgres -d xypes_test -f /workspace/prisma/reset-prisma-schema.sql",
     "test:db:seed": "sh ./scripts/runTestDbCompose.sh exec -T postgres psql -U postgres -d xypes_test -f /workspace/prisma/seed-data.sql",
-    "test:local": "npm run test:db:up && npm run test:db:reset && npm run test:db:seed && npm run test",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:local": "npm run test:db:up && npm run test:db:reset && npm run test:db:seed && npm test",
+    "test": "node ./scripts/runJestWithTestDb.js",
+    "test:watch": "node ./scripts/runJestWithTestDb.js --watch",
+    "test:coverage": "node ./scripts/runJestWithTestDb.js --coverage"
   },
   "keywords": [],
   "author": "",
@@ -48,6 +48,7 @@
     "@types/supertest": "^7.2.0",
     "@types/swagger-ui-express": "^4.1.8",
     "dotenv-cli": "^11.0.0",
+    "embedded-postgres": "^18.3.0-beta.16",
     "jest": "^30.3.0",
     "openapi-types": "^12.1.3",
     "prisma": "^5.8.0",

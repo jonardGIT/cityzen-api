@@ -670,6 +670,10 @@ This starts PostgreSQL 16 on `localhost:5432` with the same defaults used by `.e
 - username: `postgres`
 - password: `postgres`
 
+When `npm test` runs locally, it now tries to connect to the `.env.test` database first and, if that target is the bundled local test database and it is not reachable yet, it starts the bundled container automatically before invoking Jest.
+
+By default the bundled local container is exposed on `localhost:55432` so it does not conflict with an existing PostgreSQL instance on `5432`. CI still injects its own database on `5432` through environment variables, so the automated workflows are unchanged.
+
 When you are done:
 
 ```bash
@@ -680,7 +684,7 @@ Notes:
 
 - This is the recommended setup for local development and Jest runs.
 - Do not point local tests at the droplet or production database.
-- If you already run another PostgreSQL server on port `5432`, stop it first or change the mapped port in `docker-compose.testdb.yml` and update `.env.test` to match.
+- If you want a different local port, set `TEST_DB_PORT=<port>` before `npm run test:db:up` and update `.env.test` or your shell overrides to match.
 - The npm scripts support both `docker compose` and the older `docker-compose` binary.
 - `npm run test:local` brings the container up, resets the test schema, seeds it, and then runs Jest.
 

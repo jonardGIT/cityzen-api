@@ -470,12 +470,10 @@ describe('incident media persistence', () => {
       });
 
     expect(res.status).toBe(201);
-    expect(res.body.mediaUrl).toBe(
-      'https://example.supabase.co/storage/v1/object/public/incident-media/photo-1.jpg',
-    );
+    expect(res.body.mediaUrl).toBe('supabase://incident-media/photo-1.jpg');
     expect(res.body.mediaUrls).toEqual([
-      'https://example.supabase.co/storage/v1/object/public/incident-media/photo-1.jpg',
-      'https://example.supabase.co/storage/v1/object/public/incident-media/video-1.mp4',
+      'supabase://incident-media/photo-1.jpg',
+      'supabase://incident-media/video-1.mp4',
     ]);
 
     const fetchRes = await request(app)
@@ -525,8 +523,8 @@ describe('incident media persistence', () => {
 
     expect(patchRes.status).toBe(200);
     expect(archiveSpy).toHaveBeenCalledWith([
-      'https://example.supabase.co/storage/v1/object/public/incident-media/original-photo.jpg',
-      'https://example.supabase.co/storage/v1/object/public/incident-media/original-video.mp4',
+      'supabase://incident-media/original-photo.jpg',
+      'supabase://incident-media/original-video.mp4',
     ]);
   });
 

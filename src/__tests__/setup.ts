@@ -1,9 +1,27 @@
 import bcrypt from 'bcryptjs';
+import { resetFeatureSelectionCache } from '../featureSelection.js';
+import { resetRateLimitStateForTests } from '../middleware/rateLimit.js';
 
 jest.setTimeout(60000);
 jest.retryTimes(3, { logErrorsBeforeRetry: true });
 
+function clearAmbientFeatureFlags(): void {
+  delete process.env.API_KEYS;
+  delete process.env.API_KEY;
+  delete process.env.FEATURE_AUTH_PROVIDER;
+  delete process.env.FEATURE_TOKEN_MODE;
+  delete process.env.FEATURE_MFA_MODE;
+  delete process.env.FEATURE_MEDIA_STORAGE;
+  delete process.env.FEATURE_RECORD_DELETION;
+  delete process.env.FEATURE_PROFILE_NAME;
+  delete process.env.SUPABASE_AUTH_ENABLED;
+  delete process.env.SUPABASE_JWT_ENABLED;
+  delete process.env.SUPABASE_TOTP_ENABLED;
+  delete process.env.SUPABASE_STORAGE_ENABLED;
+}
+
 process.env.MFA_ENCRYPTION_KEY = process.env.MFA_ENCRYPTION_KEY ?? 'test-only-mfa-encryption-key';
+clearAmbientFeatureFlags();
 
 const TEST_PASSWORD = 'Password123!';
 
@@ -392,6 +410,20 @@ beforeAll(async () => {
     "INSERT INTO statuses (name) SELECT 'In Progress' WHERE NOT EXISTS (SELECT 1 FROM statuses WHERE name = 'In Progress')",
   );
 
+  await seedTestUsers();
+});
+
+beforeEach(async () => {
+  clearAmbientFeatureFlags();
+  resetFeatureSelectionCache();
+  resetRateLimitStateForTests();
+
+  const { default: prisma } = await import('../lib/prisma.js');
+  await prisma.$executeRawUnsafe('CREATE EXTENSION IF NOT EXISTS pgcrypto');
+  await prisma.$executeRawUnsafe(
+    'CREATE TABLE IF NOT EXISTS rate_limit_buckets (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), "createdAt" timestamptz NOT NULL DEFAULT NOW(), "updatedAt" timestamptz NOT NULL DEFAULT NOW(), "bucketKey" text NOT NULL UNIQUE, count integer NOT NULL, "windowStart" timestamptz NOT NULL, "expiresAt" timestamptz NOT NULL)',
+  );
+  await prisma.$executeRawUnsafe('TRUNCATE TABLE rate_limit_buckets');
   await seedTestUsers();
 });
 
