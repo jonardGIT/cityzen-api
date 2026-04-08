@@ -1,7 +1,50 @@
+import bcrypt from 'bcryptjs';
+
 jest.setTimeout(60000);
 jest.retryTimes(3, { logErrorsBeforeRetry: true });
 
 process.env.MFA_ENCRYPTION_KEY = process.env.MFA_ENCRYPTION_KEY ?? 'test-only-mfa-encryption-key';
+
+const TEST_PASSWORD = 'Password123!';
+
+async function seedTestUsers(): Promise<void> {
+  const { default: prisma } = await import('../lib/prisma.js');
+  const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
+
+  const users = [
+    { name: 'System Admin', email: 'admin@xypes.local', role: 'SYSTEM_ADMIN' },
+    { name: 'Ops Lead', email: 'ops.lead@xypes.local', role: 'DEPARTMENT_MANAGER' },
+    { name: 'Dispatcher', email: 'dispatcher@xypes.local', role: 'DISPATCHER' },
+    { name: 'Supervisor', email: 'supervisor@xypes.local', role: 'SUPERVISOR' },
+    { name: 'Responder', email: 'responder@xypes.local', role: 'RESPONDER' },
+    { name: 'Analyst', email: 'analyst@xypes.local', role: 'CITIZEN_REPORTER' },
+    { name: 'Auditor', email: 'auditor@xypes.local', role: 'AUDITOR' },
+  ];
+
+  for (const user of users) {
+    await prisma.user.upsert({
+      where: { email: user.email },
+      update: {
+        name: user.name,
+        role: user.role,
+        passwordHash,
+        archivedAt: null,
+        mfaEnabled: false,
+        mfaSecretEncrypted: null,
+        mfaEnabledAt: null,
+      },
+      create: {
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        passwordHash,
+        mfaEnabled: false,
+        mfaSecretEncrypted: null,
+        mfaEnabledAt: null,
+      },
+    });
+  }
+}
 
 beforeAll(async () => {
   const { default: prisma } = await import('../lib/prisma.js');
@@ -348,6 +391,8 @@ beforeAll(async () => {
   await prisma.$executeRawUnsafe(
     "INSERT INTO statuses (name) SELECT 'In Progress' WHERE NOT EXISTS (SELECT 1 FROM statuses WHERE name = 'In Progress')",
   );
+
+  await seedTestUsers();
 });
 
 afterAll(async () => {
