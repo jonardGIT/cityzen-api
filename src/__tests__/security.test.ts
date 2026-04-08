@@ -383,6 +383,7 @@ describe('Shared-store rate limiting', () => {
     const querySpy = jest
       .spyOn(prisma, '$queryRawUnsafe')
       .mockRejectedValueOnce(new Error('relation "rate_limit_buckets" does not exist'));
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
 
     const { default: app, API_V1 } = await import('../app.js');
     const response = await request(app).post(`${API_V1}/auth/login`).send({
@@ -391,6 +392,7 @@ describe('Shared-store rate limiting', () => {
     });
 
     querySpy.mockRestore();
+    consoleErrorSpy.mockRestore();
 
     expect(response.status).toBe(503);
     expect(response.body).toEqual({
