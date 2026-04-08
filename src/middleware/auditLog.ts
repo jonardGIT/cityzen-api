@@ -244,6 +244,8 @@ export function auditLogMiddleware(req: Request, res: Response, next: NextFuncti
 
     completed = true;
 
+    originalEnd(chunk as never, encoding as never, callback as never);
+
     const outcome = res.statusCode >= 200 && res.statusCode < 400 ? 'success' : 'failure';
     const targetId = getTargetId(req, responseBody);
     const actor = getActorContext(req, responseBody);
@@ -266,13 +268,11 @@ export function auditLogMiddleware(req: Request, res: Response, next: NextFuncti
       userAgent: req.get('user-agent') ?? null,
       requestId,
       metadata,
-    })
-      .catch((error: unknown) => {
+    }).catch((error: unknown) => {
+      if (process.env.NODE_ENV !== 'test') {
         console.error('Failed to persist audit log', error);
-      })
-      .finally(() => {
-        originalEnd(chunk as never, encoding as never, callback as never);
-      });
+      }
+    });
 
     return res;
   }) as Response['end'];

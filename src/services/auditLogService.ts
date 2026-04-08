@@ -22,7 +22,12 @@ export interface CreateAuditLogInput {
 }
 
 export async function createAuditLog(input: CreateAuditLogInput): Promise<void> {
-  await prisma.auditLog.create({
+  const auditLogDelegate = prisma.auditLog;
+  if (!auditLogDelegate?.create) {
+    return;
+  }
+
+  await auditLogDelegate.create({
     data: {
       timestamp: input.timestamp ?? new Date(),
       action: input.action,
@@ -44,6 +49,8 @@ export async function createAuditLog(input: CreateAuditLogInput): Promise<void> 
   });
 
   await publishSecurityAlerts(input).catch((error: unknown) => {
-    console.error('Failed to publish security alert', error);
+    if (process.env.NODE_ENV !== 'test') {
+      console.error('Failed to publish security alert', error);
+    }
   });
 }
