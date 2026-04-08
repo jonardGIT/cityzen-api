@@ -443,11 +443,25 @@ describe(`POST ${BASE}/media/upload`, () => {
 });
 
 describe('incident media persistence', () => {
+  const originalStorageAccessMode = process.env.SUPABASE_STORAGE_ACCESS_MODE;
+
   afterEach(() => {
+    if (originalStorageAccessMode === undefined) {
+      delete process.env.SUPABASE_STORAGE_ACCESS_MODE;
+    } else {
+      process.env.SUPABASE_STORAGE_ACCESS_MODE = originalStorageAccessMode;
+    }
+
     jest.restoreAllMocks();
   });
 
   it('should create an incident with multiple mediaUrls and preserve order', async () => {
+    process.env.SUPABASE_STORAGE_ACCESS_MODE = 'public';
+
+    const mediaUrls = [
+      'https://example.supabase.co/storage/v1/object/public/incident-media/photo-1.jpg',
+      'https://example.supabase.co/storage/v1/object/public/incident-media/video-1.mp4',
+    ];
     const statusId = await getStatusId();
     const citizenId = await createCitizen();
     const categoryId = await createCategory();
@@ -458,10 +472,7 @@ describe('incident media persistence', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
         description: 'Incident with multiple files',
-        mediaUrls: [
-          'https://example.supabase.co/storage/v1/object/public/incident-media/photo-1.jpg',
-          'https://example.supabase.co/storage/v1/object/public/incident-media/video-1.mp4',
-        ],
+        mediaUrls,
         statusId,
         citizenId,
         categoryId,
@@ -470,11 +481,8 @@ describe('incident media persistence', () => {
       });
 
     expect(res.status).toBe(201);
-    expect(res.body.mediaUrl).toBe('supabase://incident-media/photo-1.jpg');
-    expect(res.body.mediaUrls).toEqual([
-      'supabase://incident-media/photo-1.jpg',
-      'supabase://incident-media/video-1.mp4',
-    ]);
+    expect(res.body.mediaUrl).toBe(mediaUrls[0]);
+    expect(res.body.mediaUrls).toEqual(mediaUrls);
 
     const fetchRes = await request(app)
       .get(`${BASE}/${res.body.id}`)
@@ -485,9 +493,15 @@ describe('incident media persistence', () => {
   });
 
   it('should archive removed media when an incident media list is replaced', async () => {
+    process.env.SUPABASE_STORAGE_ACCESS_MODE = 'public';
+
     const archiveSpy = jest
       .spyOn(supabaseStorageService, 'archiveIncidentMediaUrls')
       .mockResolvedValue([]);
+    const originalMediaUrls = [
+      'https://example.supabase.co/storage/v1/object/public/incident-media/original-photo.jpg',
+      'https://example.supabase.co/storage/v1/object/public/incident-media/original-video.mp4',
+    ];
 
     const statusId = await getStatusId();
     const citizenId = await createCitizen();
@@ -499,10 +513,7 @@ describe('incident media persistence', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
         description: 'Incident media replacement target',
-        mediaUrls: [
-          'https://example.supabase.co/storage/v1/object/public/incident-media/original-photo.jpg',
-          'https://example.supabase.co/storage/v1/object/public/incident-media/original-video.mp4',
-        ],
+        mediaUrls: originalMediaUrls,
         statusId,
         citizenId,
         categoryId,
@@ -522,13 +533,12 @@ describe('incident media persistence', () => {
       });
 
     expect(patchRes.status).toBe(200);
-    expect(archiveSpy).toHaveBeenCalledWith([
-      'supabase://incident-media/original-photo.jpg',
-      'supabase://incident-media/original-video.mp4',
-    ]);
+    expect(archiveSpy).toHaveBeenCalledWith(originalMediaUrls);
   });
 
   it('should store managed references while returning resolved access URLs', async () => {
+    process.env.SUPABASE_STORAGE_ACCESS_MODE = 'signed';
+
     const archiveSpy = jest
       .spyOn(supabaseStorageService, 'archiveIncidentMediaUrls')
       .mockResolvedValue([]);
