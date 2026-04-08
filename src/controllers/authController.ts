@@ -82,7 +82,8 @@ function getSupabaseSessionTokensFromRequest(req: Request): {
   refreshToken: string;
 } | null {
   const accessToken = (req as AuthenticatedRequest).authAccessToken;
-  const { refreshToken } = req.body as { refreshToken?: string };
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const { refreshToken } = body as { refreshToken?: string };
 
   if (!accessToken || !refreshToken) {
     return null;
