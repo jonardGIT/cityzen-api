@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: xypes-cirs-test-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: xypes_test
+    ports:
+      - '5432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d xypes_test']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - xypes-cirs-test-db-data:/var/lib/postgresql/data
+      - ./:/workspace:ro
+
+volumes:
+  xypes-cirs-test-db-data:

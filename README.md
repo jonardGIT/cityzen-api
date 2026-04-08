@@ -655,6 +655,33 @@ npm test
 
 Coverage includes route behavior, validation, security middleware, and health/docs endpoints.
 
+For a local test database that matches CI, use the bundled Postgres container workflow:
+
+```bash
+npm run test:db:up
+npm run test:db:reset
+npm run test:db:seed
+npm test
+```
+
+This starts PostgreSQL 16 on `localhost:5432` with the same defaults used by `.env.test` and CI:
+
+- database: `xypes_test`
+- username: `postgres`
+- password: `postgres`
+
+When you are done:
+
+```bash
+npm run test:db:down
+```
+
+Notes:
+
+- This is the recommended setup for local development and Jest runs.
+- Do not point local tests at the droplet or production database.
+- If you already run another PostgreSQL server on port `5432`, stop it first or change the mapped port in `docker-compose.testdb.yml` and update `.env.test` to match.
+
 If `.env.test` points to a local placeholder database, provide a reachable `DATABASE_URL` and `JWT_SECRET` at command time, for example:
 
 ```bash
