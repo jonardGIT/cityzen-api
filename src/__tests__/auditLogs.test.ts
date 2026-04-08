@@ -2,9 +2,42 @@ import request from 'supertest';
 import bcrypt from 'bcryptjs';
 import app, { API_V1 } from '../app.js';
 import prisma from '../lib/prisma.js';
+import { resetFeatureSelectionCache } from '../featureSelection.js';
 import { getAdminToken, getTokenForRole } from './helpers/auth.js';
 
 const BASE = `${API_V1}/audit-logs`;
+const AUDIT_WAIT_ATTEMPTS = 40;
+const AUDIT_WAIT_INTERVAL_MS = 25;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function matchesSubset(
+  value: Record<string, unknown>,
+  expected: Partial<Record<string, unknown>>,
+): boolean {
+  return Object.entries(expected).every(([key, expectedValue]) => value[key] === expectedValue);
+}
+
+function mockSecurityAlertFetch() {
+  return jest.spyOn(global, 'fetch').mockResolvedValue({ ok: true, status: 202 } as Response);
+}
+
+async function waitForFetchCallCount(
+  fetchMock: jest.SpyInstance<Promise<Response>, Parameters<typeof fetch>>,
+  expectedCallCount: number,
+) {
+  for (let attempt = 0; attempt < AUDIT_WAIT_ATTEMPTS; attempt += 1) {
+    if (fetchMock.mock.calls.length === expectedCallCount) {
+      return;
+    }
+
+    await sleep(AUDIT_WAIT_INTERVAL_MS);
+  }
+
+  expect(fetchMock).toHaveBeenCalledTimes(expectedCallCount);
+}
 
 function buildIncidentLocationSnapshot() {
   return {
@@ -38,15 +71,40 @@ async function createSeverity(adminToken: string) {
   return response.body.id as string;
 }
 
-async function getLatestAuditLog(token: string) {
-  const response = await request(app)
-    .get(`${BASE}?page=1&pageSize=1&sortBy=timestamp&sortOrder=desc`)
-    .set('Authorization', `Bearer ${token}`);
+async function getLatestAuditLog(token: string, expected: Partial<Record<string, unknown>> = {}) {
+  let latestLog: Record<string, unknown> | null = null;
+  let latestStatus: number | null = null;
 
-  expect(response.status).toBe(200);
-  expect(Array.isArray(response.body.data)).toBe(true);
-  expect(response.body.data.length).toBeGreaterThan(0);
-  return response.body.data[0] as Record<string, unknown>;
+  for (let attempt = 0; attempt < AUDIT_WAIT_ATTEMPTS; attempt += 1) {
+    const response = await request(app)
+      .get(`${BASE}?page=1&pageSize=1&sortBy=timestamp&sortOrder=desc`)
+      .set('Authorization', `Bearer ${token}`);
+
+    latestStatus = response.status;
+
+    if (
+      response.status === 200 &&
+      Array.isArray(response.body.data) &&
+      response.body.data.length > 0
+    ) {
+      latestLog = response.body.data[0] as Record<string, unknown>;
+
+      if (matchesSubset(latestLog, expected)) {
+        return latestLog;
+      }
+    }
+
+    await sleep(AUDIT_WAIT_INTERVAL_MS);
+  }
+
+  expect(latestStatus).toBe(200);
+  expect(latestLog).not.toBeNull();
+  if (latestLog) {
+    expect(latestLog).toMatchObject(expected);
+    return latestLog;
+  }
+
+  throw new Error('Expected an audit log entry to be persisted');
 }
 
 async function getAuditLogsByFilters(
@@ -173,9 +231,31 @@ describe(`GET ${BASE}`, () => {
 
 describe('Audit log persistence', () => {
   let adminToken = '';
+  let auditorToken = '';
 
   beforeAll(async () => {
-    adminToken = await getAdminToken();
+    await prisma.user.upsert({
+      where: { email: 'auditor@xypes.local' },
+      update: {
+        name: 'Auditor',
+        passwordHash: await bcrypt.hash('Password123!', 10),
+        role: 'AUDITOR',
+        mfaEnabled: false,
+        mfaSecretEncrypted: null,
+        mfaEnabledAt: null,
+      },
+      create: {
+        name: 'Auditor',
+        email: 'auditor@xypes.local',
+        passwordHash: await bcrypt.hash('Password123!', 10),
+        role: 'AUDITOR',
+      },
+    });
+
+    [adminToken, auditorToken] = await Promise.all([
+      getAdminToken(),
+      getTokenForRole('auditor@xypes.local'),
+    ]);
   });
 
   afterEach(() => {
@@ -200,6 +280,8 @@ describe('Audit log persistence', () => {
     delete process.env.SECURITY_ALERT_MEDIA_ACCESS_WINDOW_MS;
     delete process.env.SECURITY_ALERT_MFA_SETUP_THRESHOLD;
     delete process.env.SECURITY_ALERT_MFA_SETUP_WINDOW_MS;
+    delete process.env.SUPABASE_STORAGE_ACCESS_MODE;
+    resetFeatureSelectionCache();
     jest.restoreAllMocks();
   });
 
@@ -240,10 +322,7 @@ describe('Audit log persistence', () => {
 
   it('forwards a security alert when a privileged user account is created', async () => {
     process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
-
-    const originalFetch = global.fetch;
-    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
-    global.fetch = fetchMock as unknown as typeof fetch;
+    const fetchMock = mockSecurityAlertFetch();
 
     const createRes = await request(app)
       .post(`${API_V1}/users`)
@@ -255,9 +334,8 @@ describe('Audit log persistence', () => {
         role: 'DISPATCHER',
       });
 
-    global.fetch = originalFetch;
-
     expect(createRes.status).toBe(201);
+    await waitForFetchCallCount(fetchMock, 1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')) as Record<
       string,
@@ -279,7 +357,13 @@ describe('Audit log persistence', () => {
 
     expect(loginRes.status).toBe(401);
 
-    const latest = await getLatestAuditLog(adminToken);
+    const latest = await getLatestAuditLog(auditorToken, {
+      action: 'login',
+      resource: 'auth',
+      outcome: 'failure',
+      actorEmail,
+      statusCode: 401,
+    });
     expect(latest).toMatchObject({
       action: 'login',
       resource: 'auth',
@@ -296,10 +380,7 @@ describe('Audit log persistence', () => {
     process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
     process.env.SECURITY_ALERT_LOGIN_FAILURE_THRESHOLD = '3';
     process.env.SECURITY_ALERT_LOGIN_FAILURE_WINDOW_MS = '600000';
-
-    const originalFetch = global.fetch;
-    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
-    global.fetch = fetchMock as unknown as typeof fetch;
+    const fetchMock = mockSecurityAlertFetch();
 
     const actorEmail = `threshold.${Date.now()}@xypes.local`;
 
@@ -316,8 +397,7 @@ describe('Audit log persistence', () => {
       password: 'WrongPassword123!',
     });
 
-    global.fetch = originalFetch;
-
+    await waitForFetchCallCount(fetchMock, 1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')) as Record<
       string,
@@ -339,17 +419,13 @@ describe('Audit log persistence', () => {
     process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
     process.env.SECURITY_ALERT_REFRESH_FAILURE_THRESHOLD = '3';
     process.env.SECURITY_ALERT_REFRESH_FAILURE_WINDOW_MS = '600000';
-
-    const originalFetch = global.fetch;
-    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
-    global.fetch = fetchMock as unknown as typeof fetch;
+    const fetchMock = mockSecurityAlertFetch();
 
     await request(app).post(`${API_V1}/auth/refresh`).send({ refreshToken: 'invalid-token-one' });
     await request(app).post(`${API_V1}/auth/refresh`).send({ refreshToken: 'invalid-token-two' });
     await request(app).post(`${API_V1}/auth/refresh`).send({ refreshToken: 'invalid-token-three' });
 
-    global.fetch = originalFetch;
-
+    await waitForFetchCallCount(fetchMock, 1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')) as Record<
       string,
@@ -386,7 +462,13 @@ describe('Audit log persistence', () => {
 
     expect(resetRes.status).toBe(202);
 
-    const latest = await getLatestAuditLog(adminToken);
+    const latest = await getLatestAuditLog(auditorToken, {
+      action: 'password_reset_request',
+      resource: 'auth',
+      outcome: 'success',
+      actorEmail: email,
+      statusCode: 202,
+    });
     expect(latest).toMatchObject({
       action: 'password_reset_request',
       resource: 'auth',
@@ -403,14 +485,13 @@ describe('Audit log persistence', () => {
 
   it('records privileged password reset requests as blocked in production', async () => {
     process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
-    const originalFetch = global.fetch;
-    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
-    global.fetch = fetchMock as unknown as typeof fetch;
+    const fetchMock = mockSecurityAlertFetch();
 
     const originalNodeEnv = process.env.NODE_ENV;
     const originalWebhookUrl = process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL;
     process.env.NODE_ENV = 'production';
     process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL = 'https://example.test/password-reset';
+    resetFeatureSelectionCache();
 
     const resetRes = await request(app)
       .post(`${API_V1}/auth/password-reset/request`)
@@ -418,11 +499,17 @@ describe('Audit log persistence', () => {
 
     process.env.NODE_ENV = originalNodeEnv;
     process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL = originalWebhookUrl;
-    global.fetch = originalFetch;
+    resetFeatureSelectionCache();
 
     expect(resetRes.status).toBe(202);
 
-    const latest = await getLatestAuditLog(adminToken);
+    const latest = await getLatestAuditLog(auditorToken, {
+      action: 'password_reset_request',
+      resource: 'auth',
+      outcome: 'success',
+      actorEmail: 'admin@xypes.local',
+      statusCode: 202,
+    });
     expect(latest).toMatchObject({
       action: 'password_reset_request',
       resource: 'auth',
@@ -435,6 +522,7 @@ describe('Audit log persistence', () => {
     expect(metadata?.privilegedRecoveryBlocked).toBe(true);
     expect(metadata?.deliveryMode).toBe('blocked');
 
+    await waitForFetchCallCount(fetchMock, 1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')) as Record<
       string,
@@ -468,14 +556,13 @@ describe('Audit log persistence', () => {
       },
     });
 
-    const originalFetch = global.fetch;
-    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
-    global.fetch = fetchMock as unknown as typeof fetch;
+    const fetchMock = mockSecurityAlertFetch();
 
     const originalNodeEnv = process.env.NODE_ENV;
     const originalWebhookUrl = process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL;
     process.env.NODE_ENV = 'production';
     process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL = 'https://example.test/password-reset';
+    resetFeatureSelectionCache();
 
     await request(app).post(`${API_V1}/auth/password-reset/request`).send({ email });
     await request(app).post(`${API_V1}/auth/password-reset/request`).send({ email });
@@ -483,8 +570,9 @@ describe('Audit log persistence', () => {
 
     process.env.NODE_ENV = originalNodeEnv;
     process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL = originalWebhookUrl;
-    global.fetch = originalFetch;
+    resetFeatureSelectionCache();
 
+    await waitForFetchCallCount(fetchMock, 4);
     expect(fetchMock).toHaveBeenCalledTimes(4);
 
     const payload = JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body ?? '{}')) as Record<
@@ -505,15 +593,13 @@ describe('Audit log persistence', () => {
 
   it('alerts when password reset delivery is unavailable in production', async () => {
     process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
-
-    const originalFetch = global.fetch;
-    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
-    global.fetch = fetchMock as unknown as typeof fetch;
+    const fetchMock = mockSecurityAlertFetch();
 
     const originalNodeEnv = process.env.NODE_ENV;
     const originalWebhookUrl = process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL;
     process.env.NODE_ENV = 'production';
     delete process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL;
+    resetFeatureSelectionCache();
 
     const resetRes = await request(app)
       .post(`${API_V1}/auth/password-reset/request`)
@@ -521,11 +607,17 @@ describe('Audit log persistence', () => {
 
     process.env.NODE_ENV = originalNodeEnv;
     process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL = originalWebhookUrl;
-    global.fetch = originalFetch;
+    resetFeatureSelectionCache();
 
     expect(resetRes.status).toBe(503);
 
-    const latest = await getLatestAuditLog(adminToken);
+    const latest = await getLatestAuditLog(auditorToken, {
+      action: 'password_reset_request',
+      resource: 'auth',
+      outcome: 'failure',
+      actorEmail: 'missing.user@postman.local',
+      statusCode: 503,
+    });
     expect(latest).toMatchObject({
       action: 'password_reset_request',
       resource: 'auth',
@@ -538,6 +630,7 @@ describe('Audit log persistence', () => {
     expect(metadata?.deliveryMode).toBe('unconfigured');
     expect(metadata?.deliveryFailure).toBe(true);
 
+    await waitForFetchCallCount(fetchMock, 1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')) as Record<
       string,
@@ -554,10 +647,7 @@ describe('Audit log persistence', () => {
     process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
     process.env.SECURITY_ALERT_PASSWORD_RESET_CONFIRM_FAILURE_THRESHOLD = '3';
     process.env.SECURITY_ALERT_PASSWORD_RESET_CONFIRM_FAILURE_WINDOW_MS = '600000';
-
-    const originalFetch = global.fetch;
-    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
-    global.fetch = fetchMock as unknown as typeof fetch;
+    const fetchMock = mockSecurityAlertFetch();
 
     const firstAttempt = await request(app)
       .post(`${API_V1}/auth/password-reset/confirm`)
@@ -569,11 +659,10 @@ describe('Audit log persistence', () => {
       .post(`${API_V1}/auth/password-reset/confirm`)
       .send({ token: 'invalid-reset-token-three', password: 'Password456!@#' });
 
-    global.fetch = originalFetch;
-
     expect(firstAttempt.status).toBe(401);
     expect(secondAttempt.status).toBe(401);
     expect(thirdAttempt.status).toBe(401);
+    await waitForFetchCallCount(fetchMock, 1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')) as Record<
@@ -594,10 +683,7 @@ describe('Audit log persistence', () => {
   it('forwards critical alerts for privileged role changes and archives', async () => {
     process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
     process.env.SECURITY_ALERT_PRIVILEGED_USER_CHANGE_THRESHOLD = '99';
-
-    const originalFetch = global.fetch;
-    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
-    global.fetch = fetchMock as unknown as typeof fetch;
+    const fetchMock = mockSecurityAlertFetch();
 
     const createRes = await request(app)
       .post(`${API_V1}/users`)
@@ -622,9 +708,8 @@ describe('Audit log persistence', () => {
       .delete(`${API_V1}/users/${createRes.body.id}`)
       .set('Authorization', `Bearer ${adminToken}`);
 
-    global.fetch = originalFetch;
-
     expect(deleteRes.status).toBe(204);
+    await waitForFetchCallCount(fetchMock, 2);
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
     const updatePayload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')) as Record<
@@ -668,19 +753,22 @@ describe('Audit log persistence', () => {
       },
     });
 
-    const originalFetch = global.fetch;
-    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
-    global.fetch = fetchMock as unknown as typeof fetch;
+    const fetchMock = mockSecurityAlertFetch();
 
     const restoreRes = await request(app)
       .post(`${API_V1}/users/${archivedUser.id}/restore`)
       .set('Authorization', `Bearer ${adminToken}`);
 
-    global.fetch = originalFetch;
-
     expect(restoreRes.status).toBe(200);
 
-    const latest = await getLatestAuditLog(adminToken);
+    const latest = await getLatestAuditLog(auditorToken, {
+      action: 'restore',
+      resource: 'users',
+      outcome: 'success',
+      actorEmail: 'admin@xypes.local',
+      targetId: archivedUser.id,
+      statusCode: 200,
+    });
     expect(latest).toMatchObject({
       action: 'restore',
       resource: 'users',
@@ -694,6 +782,7 @@ describe('Audit log persistence', () => {
     expect(metadata?.managedUserRole).toBe('DISPATCHER');
     expect(metadata?.restoredFromArchive).toBe(true);
 
+    await waitForFetchCallCount(fetchMock, 1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')) as Record<
       string,
@@ -733,9 +822,7 @@ describe('Audit log persistence', () => {
 
     expect(login.status).toBe(200);
 
-    const originalFetch = global.fetch;
-    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
-    global.fetch = fetchMock as unknown as typeof fetch;
+    const fetchMock = mockSecurityAlertFetch();
 
     const firstCreate = await request(app)
       .post(`${API_V1}/users`)
@@ -765,11 +852,10 @@ describe('Audit log persistence', () => {
         role: 'SUPERVISOR',
       });
 
-    global.fetch = originalFetch;
-
     expect(firstCreate.status).toBe(201);
     expect(secondCreate.status).toBe(201);
     expect(thirdCreate.status).toBe(201);
+    await waitForFetchCallCount(fetchMock, 4);
     expect(fetchMock).toHaveBeenCalledTimes(4);
 
     const payload = JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body ?? '{}')) as Record<
@@ -792,10 +878,7 @@ describe('Audit log persistence', () => {
     process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
     process.env.SECURITY_ALERT_SESSION_CHURN_THRESHOLD = '3';
     process.env.SECURITY_ALERT_SESSION_CHURN_WINDOW_MS = '600000';
-
-    const originalFetch = global.fetch;
-    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
-    global.fetch = fetchMock as unknown as typeof fetch;
+    const fetchMock = mockSecurityAlertFetch();
 
     const firstLogin = await request(app).post(`${API_V1}/auth/login`).send({
       email: 'admin@xypes.local',
@@ -831,11 +914,10 @@ describe('Audit log persistence', () => {
       .delete(`${API_V1}/auth/sessions/${thirdLogin.body.sessionId as string}`)
       .set('Authorization', `Bearer ${actorToken}`);
 
-    global.fetch = originalFetch;
-
     expect(revokeFirst.status).toBe(204);
     expect(revokeSecond.status).toBe(204);
     expect(revokeThird.status).toBe(204);
+    await waitForFetchCallCount(fetchMock, 1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')) as Record<
@@ -862,7 +944,12 @@ describe('Audit log persistence', () => {
 
     expect([400, 404]).toContain(uploadAttempt.status);
 
-    const latest = await getLatestAuditLog(adminToken);
+    const latest = await getLatestAuditLog(auditorToken, {
+      action: 'media_upload',
+      resource: 'incidents',
+      outcome: 'failure',
+      statusCode: uploadAttempt.status,
+    });
     expect(latest).toMatchObject({
       action: 'media_upload',
       resource: 'incidents',
@@ -944,10 +1031,7 @@ describe('Audit log persistence', () => {
     process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
     process.env.SECURITY_ALERT_MEDIA_UPLOAD_THRESHOLD = '3';
     process.env.SECURITY_ALERT_MEDIA_UPLOAD_WINDOW_MS = '600000';
-
-    const originalFetch = global.fetch;
-    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
-    global.fetch = fetchMock as unknown as typeof fetch;
+    const fetchMock = mockSecurityAlertFetch();
 
     const firstAttempt = await request(app)
       .post(`${API_V1}/incidents/media/upload`)
@@ -962,11 +1046,10 @@ describe('Audit log persistence', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ fileName: 'missing-content-type.jpg' });
 
-    global.fetch = originalFetch;
-
     expect([400, 404]).toContain(firstAttempt.status);
     expect([400, 404]).toContain(secondAttempt.status);
     expect([400, 404]).toContain(thirdAttempt.status);
+    await waitForFetchCallCount(fetchMock, 1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')) as Record<
@@ -988,10 +1071,8 @@ describe('Audit log persistence', () => {
     process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
     process.env.SECURITY_ALERT_MEDIA_ACCESS_THRESHOLD = '3';
     process.env.SECURITY_ALERT_MEDIA_ACCESS_WINDOW_MS = '600000';
-
-    const originalFetch = global.fetch;
-    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
-    global.fetch = fetchMock as unknown as typeof fetch;
+    const fetchMock = mockSecurityAlertFetch();
+    process.env.SUPABASE_STORAGE_ACCESS_MODE = 'public';
 
     const statusesRes = await request(app)
       .get(`${API_V1}/statuses`)
@@ -1046,11 +1127,10 @@ describe('Audit log persistence', () => {
       .get(`${API_V1}/incidents/${incidentRes.body.id}/media/${mediaId}`)
       .set('Authorization', `Bearer ${adminToken}`);
 
-    global.fetch = originalFetch;
-
     expect(firstAccess.status).toBe(200);
     expect(secondAccess.status).toBe(200);
     expect(thirdAccess.status).toBe(200);
+    await waitForFetchCallCount(fetchMock, 1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')) as Record<
@@ -1091,9 +1171,7 @@ describe('Audit log persistence', () => {
 
     expect(login.status).toBe(200);
 
-    const originalFetch = global.fetch;
-    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 202 } as Response);
-    global.fetch = fetchMock as unknown as typeof fetch;
+    const fetchMock = mockSecurityAlertFetch();
 
     const firstSetup = await request(app)
       .post(`${API_V1}/auth/mfa/setup`)
@@ -1105,11 +1183,10 @@ describe('Audit log persistence', () => {
       .post(`${API_V1}/auth/mfa/setup`)
       .set('Authorization', `Bearer ${login.body.token as string}`);
 
-    global.fetch = originalFetch;
-
     expect(firstSetup.status).toBe(200);
     expect(secondSetup.status).toBe(200);
     expect(thirdSetup.status).toBe(200);
+    await waitForFetchCallCount(fetchMock, 1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')) as Record<

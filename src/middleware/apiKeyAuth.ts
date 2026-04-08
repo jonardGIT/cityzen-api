@@ -4,6 +4,10 @@ const API_KEY_HEADER = 'x-api-key';
 
 // Builds the accepted API key set from list and single-key env vars.
 function getConfiguredApiKeys(): Set<string> {
+  if (process.env.JEST_WORKER_ID && process.env.TEST_API_KEYS_ENABLED !== 'true') {
+    return new Set();
+  }
+
   const fromList = (process.env.API_KEYS ?? '')
     .split(',')
     .map((key) => key.trim())
@@ -45,16 +49,15 @@ function getRequestApiKey(req: Request): string | undefined {
 export function createApiKeyAuthMiddleware(
   bypassPaths: readonly string[] = ['/health', '/openapi.json', '/docs'],
 ): RequestHandler {
-  const validKeys = getConfiguredApiKeys();
-
-  if (validKeys.size === 0) {
-    return (_req, _res, next) => {
-      next();
-    };
-  }
-
   return (req, res, next) => {
     if (shouldBypassPath(req.path, bypassPaths)) {
+      next();
+      return;
+    }
+
+    const validKeys = getConfiguredApiKeys();
+
+    if (validKeys.size === 0) {
       next();
       return;
     }

@@ -40,7 +40,9 @@ coverage/
 
 # Unrelated/testing/dev files and folders
 src/__tests__/
-scripts/
+scripts/*
+!scripts/runJestWithTestDb.js
+!scripts/runTestDbCompose.sh
 postman/
 prisma/
 docs/
