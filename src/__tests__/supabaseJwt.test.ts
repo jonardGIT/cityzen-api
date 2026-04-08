@@ -367,6 +367,29 @@ describe('Supabase JWT mode', () => {
     });
   });
 
+  it('returns 422 for Supabase TOTP setup when refresh token is missing from the request body', async () => {
+    mockIsSupabaseTotpEnabled.mockReturnValue(true);
+    mockVerifySupabaseAccessToken.mockResolvedValue({
+      id: SUPABASE_USER_ID,
+      email: ADMIN_EMAIL,
+      sessionId: SUPABASE_SESSION_ID,
+      accessTokenIssuedAt: Math.floor(Date.now() / 1000),
+      currentAuthenticatorLevel: 'aal1',
+      nextAuthenticatorLevel: 'aal1',
+      currentAuthenticationMethods: ['password'],
+    });
+
+    const response = await request(app)
+      .post(`${API_V1}/auth/mfa/setup`)
+      .set('Authorization', 'Bearer supabase-access-token');
+
+    expect(response.status).toBe(422);
+    expect(response.body).toHaveProperty(
+      'message',
+      'refreshToken is required when Supabase TOTP mode is enabled',
+    );
+  });
+
   it('enables Supabase TOTP and returns the promoted session bundle', async () => {
     mockIsSupabaseTotpEnabled.mockReturnValue(true);
     mockVerifySupabaseAccessToken.mockResolvedValue({

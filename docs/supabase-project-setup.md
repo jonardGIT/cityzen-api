@@ -284,6 +284,13 @@ npm run bootstrap:admin -- \
 
 If Supabase auth is enabled, this also creates the Supabase Auth user.
 
+Important:
+
+- The bootstrap script creates the Supabase Auth account through the Admin API.
+- It does not send the "Confirm signup" email automatically.
+- If `SUPABASE_AUTH_AUTO_CONFIRM_EMAIL=false`, the user will stay unconfirmed until you either confirm them manually in Supabase Dashboard, or use a separate invite or confirmation-email flow.
+- If you want the user to receive Supabase's confirmation email automatically, create the account through the normal registration flow instead of `npm run bootstrap:admin`.
+
 ## 12. Verify the Setup
 
 ### Health check
@@ -422,6 +429,8 @@ MFA_ENCRYPTION_KEY=<strong-random-secret>
 - Free tier is limited to ~3 emails/hour
 - Configure custom SMTP for production (see step 4)
 - Check **Authentication > Logs** in Supabase dashboard for delivery errors
+- `npm run bootstrap:admin` does not send a signup confirmation email; it only creates the user account
+- When `SUPABASE_AUTH_AUTO_CONFIRM_EMAIL=false`, bootstrap-created users must be confirmed manually or created through a separate invite or registration flow
 
 ### User exists in Supabase but can't log in via API
 
