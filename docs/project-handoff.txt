@@ -77,8 +77,8 @@ Public routes:
 - POST /api/v1/auth/register
 - POST /api/v1/auth/login
 - POST /api/v1/auth/refresh
-- POST /api/v1/auth/forgot-password
-- POST /api/v1/auth/reset-password
+- POST /api/v1/auth/password-reset/request
+- POST /api/v1/auth/password-reset/confirm
 - GET /api/v1/health
 - GET /api/v1/openapi.json
 - GET /api/v1/docs
@@ -105,6 +105,11 @@ MFA/TOTP rules for the dashboard:
 - /auth/mfa/setup returns TOTP bootstrap data including factorId, secret, otpauthUrl, and qrCode.
 - /auth/mfa/enable may return an upgraded auth session bundle after successful verification.
 - The dashboard must be prepared for a privileged user to authenticate successfully but still be blocked from protected resources until the MFA challenge upgrades the session to aal2.
+
+Important integration boundaries:
+- Dashboard pages for Supabase redirect handling such as `/auth/callback`, `/auth/confirm-email`, `/auth/error`, or a Supabase recovery page are frontend concerns and do not imply matching backend API routes.
+- The current backend does not expose a Supabase auth webhook receiver or webhook-event log API for dashboard consumption unless such routes appear in active OpenAPI.
+- Existing backend webhook integrations are outbound only: password reset delivery, security alert forwarding, and optional media scan submission.
 
 API key note:
 - Non-auth protected routes may still require x-api-key depending on deployment config.

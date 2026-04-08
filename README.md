@@ -681,6 +681,8 @@ Notes:
 - This is the recommended setup for local development and Jest runs.
 - Do not point local tests at the droplet or production database.
 - If you already run another PostgreSQL server on port `5432`, stop it first or change the mapped port in `docker-compose.testdb.yml` and update `.env.test` to match.
+- The npm scripts support both `docker compose` and the older `docker-compose` binary.
+- `npm run test:local` brings the container up, resets the test schema, seeds it, and then runs Jest.
 
 If `.env.test` points to a local placeholder database, provide a reachable `DATABASE_URL` and `JWT_SECRET` at command time, for example:
 
