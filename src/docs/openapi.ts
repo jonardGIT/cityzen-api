@@ -1485,23 +1485,6 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         },
       },
     },
-    '/admin/security/data-governance': {
-      get: {
-        tags: ['Admin'],
-        summary: 'Data governance and retention summary',
-        description:
-          'Returns the data governance report including retention policies, data classifications, operational controls, encryption posture, and legal hold status. Available to SYSTEM_ADMIN, DEPARTMENT_MANAGER, and AUDITOR roles.',
-        security: apiKeyAndBearerSecurity,
-        responses: {
-          '200': jsonResponse(
-            { $ref: '#/components/schemas/DataGovernanceReport' },
-            'Data governance report.',
-          ),
-          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
-          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
-        },
-      },
-    },
     '/audit-logs': {
       get: {
         tags: ['AuditLog'],
@@ -1755,90 +1738,6 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
           },
         },
         required: ['summary', 'data'],
-      },
-      DataGovernanceReport: {
-        type: 'object',
-        description: 'Data governance, retention, classification, and legal hold report.',
-        properties: {
-          summary: {
-            type: 'object',
-            properties: {
-              legalHoldEnabled: { type: 'boolean' },
-              mediaStorageMode: { type: 'string' },
-              tlsRequired: { type: 'boolean' },
-              retentionPolicyCount: { type: 'integer' },
-            },
-            required: [
-              'legalHoldEnabled',
-              'mediaStorageMode',
-              'tlsRequired',
-              'retentionPolicyCount',
-            ],
-          },
-          classifications: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                domain: { type: 'string' },
-                classification: { type: 'string' },
-                handling: { type: 'string' },
-              },
-              required: ['domain', 'classification', 'handling'],
-            },
-          },
-          retentionPolicies: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                domain: { type: 'string' },
-                retentionDays: { type: 'integer' },
-                purgeAuthority: { type: 'string' },
-                legalHoldSupported: { type: 'boolean' },
-              },
-              required: ['domain', 'retentionDays', 'purgeAuthority', 'legalHoldSupported'],
-            },
-          },
-          operationalControls: {
-            type: 'object',
-            properties: {
-              monitoringRunbookDocumented: { type: 'boolean' },
-              administrationControlsDocumented: { type: 'boolean' },
-              accessGovernanceDocumented: { type: 'boolean' },
-              sessionGovernanceDocumented: { type: 'boolean' },
-              privilegedAccessReviewEndpoint: { type: 'string' },
-              privilegedMfaComplianceEndpoint: { type: 'string' },
-              sessionInventoryMode: { type: 'string' },
-              quarterlyReviewRequired: { type: 'boolean' },
-            },
-          },
-          encryption: {
-            type: 'object',
-            properties: {
-              transport: { type: 'string' },
-              databaseAtRest: { type: 'string' },
-              mediaStorage: { type: 'string' },
-            },
-          },
-          legalHold: {
-            type: 'object',
-            properties: {
-              enabled: { type: 'boolean' },
-              contact: { type: 'string', nullable: true },
-              procedure: { type: 'string' },
-            },
-            required: ['enabled', 'procedure'],
-          },
-        },
-        required: [
-          'summary',
-          'classifications',
-          'retentionPolicies',
-          'operationalControls',
-          'encryption',
-          'legalHold',
-        ],
       },
       AuditLog: {
         type: 'object',

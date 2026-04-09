@@ -11,15 +11,12 @@ yarn-error.log*
 *.log
 logs/
 
-# ──────────────────────────────────────────────────────
-#  Secrets & environment files
-#  NEVER commit files that contain passwords, tokens,
-#  database connection strings, or API keys.
-# ──────────────────────────────────────────────────────
+# Environment variables
 .env
-.env.*
-!.env.example
-!.env.test
+.env.development
+.env.production
+.env.local
+.env.*.local
 ecosystem.config.cjs
 
 # OS files
@@ -41,33 +38,12 @@ Thumbs.db
 coverage/
 .nyc_output/
 
-# ──────────────────────────────────────────────────────
-#  Sensitive documentation
-#  Internal security assessments, team handoff notes,
-#  architecture prompts, and operational runbooks must
-#  not be published to any public or shared repository.
-# ──────────────────────────────────────────────────────
-docs/security-gap-assessment.md
-docs/security-operations-runbook.md
-docs/security-operations-uplift-plan.md
-docs/security-access-governance.md
-docs/security-administration-controls.md
-docs/security-session-governance.md
-docs/data-protection-governance.md
-docs/project-handoff.txt
-docs/startup-best-moves.md
-docs/clone-api-auth-jwt-audit-rls-handoff-prompt.md
-docs/backend-password-reset-delivery-implementation-prompt.md
-docs/incident-location-migration-prompt.md
-SECURITY-RELEASE-GATES.md
-
-# ──────────────────────────────────────────────────────
-#  Dev-only / local tooling
-# ──────────────────────────────────────────────────────
+# Unrelated/testing/dev files and folders
+src/__tests__/
+scripts/*
+!scripts/runJestWithTestDb.js
+!scripts/runTestDbCompose.sh
 postman/
+prisma/
+docs/
 .vscode/
-
-# Legacy / dead scaffolding kept out of source control
-prisma/elgu-admin-reset-schema.sql
-prisma/elgu-admin-seed-data.sql
-prisma/elgu-admin.schema.prisma
