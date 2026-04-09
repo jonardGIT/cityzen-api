@@ -271,6 +271,7 @@ describe(`GET ${BASE} ?include=`, () => {
     expect(res.status).toBe(400);
     expect(res.body.message).toContain('Invalid include');
     expect(res.body.message).toContain('nonexistent');
+    expect(res.body.message).toContain('Allowed top-level relations');
   });
 
   it('should work on list endpoint with ?include=', async () => {

@@ -28,13 +28,26 @@ export interface RestoreGuard {
   message: string;
 }
 
+export interface PrismaInclude {
+  [key: string]: true | Record<string, unknown>;
+}
+
+export interface AllowedIncludeConfig {
+  fragment?: Record<string, unknown>;
+  children?: AllowedIncludes;
+}
+
+export interface AllowedIncludes {
+  [key: string]: true | AllowedIncludeConfig;
+}
+
 export interface ContentTypeConfig {
   modelName: string;
   displayName: string;
   listQueryConfig: ListQueryConfig;
   fields: FieldConfig[];
-  include?: Record<string, boolean>;
-  allowedIncludes?: string[];
+  include?: PrismaInclude;
+  allowedIncludes?: AllowedIncludes;
   foreignKeys?: ForeignKeyValidation[];
   deleteGuards?: DeleteGuard[];
   restoreGuards?: RestoreGuard[];

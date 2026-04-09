@@ -76,6 +76,80 @@ describe(`GET ${BASE}/:id`, () => {
       .set('Authorization', `Bearer ${dispatcherToken}`);
     expect(res.status).toBe(404);
   });
+
+  it('should support nested includes via ?include=responders.agency', async () => {
+    const responderRes = await request(app)
+      .post(`${API_V1}/responders`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: `NestedResponder-${Date.now()}`,
+        agencyId: createdId,
+        role: 'Medic',
+        contactInfo: `nested-${Date.now()}@gov.com`,
+      });
+
+    expect(responderRes.status).toBe(201);
+
+    const res = await request(app)
+      .get(`${BASE}/${createdId}?include=responders.agency`)
+      .set('Authorization', `Bearer ${dispatcherToken}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.responders)).toBe(true);
+    expect(res.body.responders.length).toBeGreaterThan(0);
+    expect(res.body.responders[0]).toHaveProperty('agency.id', createdId);
+  });
+
+  it('should reject invalid nested includes', async () => {
+    const res = await request(app)
+      .get(`${BASE}/${createdId}?include=responders.invalidRelation`)
+      .set('Authorization', `Bearer ${dispatcherToken}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContain('Invalid include');
+    expect(res.body.message).toContain('responders.invalidRelation');
+  });
+
+  it('should exclude archived responders from included child collections', async () => {
+    const activeResponderRes = await request(app)
+      .post(`${API_V1}/responders`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: `VisibleResponder-${Date.now()}`,
+        agencyId: createdId,
+        role: 'Medic',
+        contactInfo: `visible-${Date.now()}@gov.com`,
+      });
+
+    expect(activeResponderRes.status).toBe(201);
+
+    const archivedResponderRes = await request(app)
+      .post(`${API_V1}/responders`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: `ArchivedResponder-${Date.now()}`,
+        agencyId: createdId,
+        role: 'Medic',
+        contactInfo: `archived-${Date.now()}@gov.com`,
+      });
+
+    expect(archivedResponderRes.status).toBe(201);
+
+    const deleteRes = await request(app)
+      .delete(`${API_V1}/responders/${archivedResponderRes.body.id}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(deleteRes.status).toBe(204);
+
+    const res = await request(app)
+      .get(`${BASE}/${createdId}?include=responders`)
+      .set('Authorization', `Bearer ${dispatcherToken}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.responders)).toBe(true);
+    expect(res.body.responders.some((responder: { id: string }) => responder.id === activeResponderRes.body.id)).toBe(true);
+    expect(res.body.responders.some((responder: { id: string }) => responder.id === archivedResponderRes.body.id)).toBe(false);
+  });
 });
 
 describe(`POST ${BASE}`, () => {

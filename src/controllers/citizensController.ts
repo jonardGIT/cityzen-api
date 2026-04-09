@@ -17,7 +17,17 @@ const config: ContentTypeConfig = {
     { name: 'contactInfo', requiredOnCreate: true },
     { name: 'preferredChannel', requiredOnCreate: true },
   ],
-  allowedIncludes: ['incidents'],
+  allowedIncludes: {
+    incidents: {
+      fragment: { where: withActiveRecords() },
+      children: {
+        status: true,
+        category: true,
+        severity: true,
+        mediaFiles: true,
+      },
+    },
+  },
   deleteGuards: [
     {
       model: 'citizenIncident',

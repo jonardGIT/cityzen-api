@@ -2,6 +2,7 @@ import { createCrudController } from '../engine/crudControllerFactory.js';
 import { createBodyValidators } from '../engine/validatorFactory.js';
 import { respondersListQueryConfig } from '../utils/listQueryConfig.js';
 import type { ContentTypeConfig } from '../engine/types.js';
+import { withActiveRecords } from '../utils/archive.js';
 
 const config: ContentTypeConfig = {
   modelName: 'responder',
@@ -14,7 +15,12 @@ const config: ContentTypeConfig = {
     { name: 'contactInfo', requiredOnCreate: true },
   ],
   include: { agency: true },
-  allowedIncludes: ['agency', 'assignments'],
+  allowedIncludes: {
+    agency: true,
+    assignments: {
+      fragment: { where: withActiveRecords() },
+    },
+  },
   foreignKeys: [
     {
       field: 'agencyId',

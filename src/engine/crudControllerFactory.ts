@@ -12,7 +12,14 @@ import {
   withArchivedRecords,
   withArchiveScope,
 } from '../utils/archive.js';
-import type { ContentTypeConfig, CrudHandlers, FieldConfig } from './types.js';
+import type {
+  AllowedIncludeConfig,
+  AllowedIncludes,
+  ContentTypeConfig,
+  CrudHandlers,
+  FieldConfig,
+  PrismaInclude,
+} from './types.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -57,21 +64,106 @@ function extractFieldData(
   return data;
 }
 
+function listAllowedIncludes(whitelist: AllowedIncludes): string {
+  return Object.keys(whitelist).sort().join(', ');
+}
+
+function isAllowedIncludeConfig(value: true | AllowedIncludeConfig): value is AllowedIncludeConfig {
+  return value !== true;
+}
+
+function createIncludeEntry(config: true | AllowedIncludeConfig): true | Record<string, unknown> {
+  if (!isAllowedIncludeConfig(config)) {
+    return true;
+  }
+
+  return config.fragment ? { ...config.fragment } : {};
+}
+
+function buildIncludeFromPaths(
+  requestedPaths: string[],
+  whitelist: AllowedIncludes,
+): { include: PrismaInclude; invalid: string[] } {
+  const include: PrismaInclude = {};
+  const invalid: string[] = [];
+
+  for (const path of requestedPaths) {
+    const segments = path
+      .split('.')
+      .map((segment) => segment.trim())
+      .filter(Boolean);
+
+    if (segments.length === 0) {
+      continue;
+    }
+
+    let currentWhitelist: AllowedIncludes = whitelist;
+    let currentInclude: PrismaInclude = include;
+    let failed = false;
+
+    for (let index = 0; index < segments.length; index += 1) {
+      const segment = segments[index];
+      const pathSoFar = segments.slice(0, index + 1).join('.');
+      const allowed = currentWhitelist[segment];
+
+      if (!allowed) {
+        invalid.push(pathSoFar);
+        failed = true;
+        break;
+      }
+
+      const isLeaf = index === segments.length - 1;
+      if (isLeaf) {
+        const existing = currentInclude[segment];
+        if (!existing) {
+          currentInclude[segment] = createIncludeEntry(allowed);
+        }
+        continue;
+      }
+
+      if (!isAllowedIncludeConfig(allowed) || !allowed.children) {
+        invalid.push(pathSoFar);
+        failed = true;
+        break;
+      }
+
+      const existing = currentInclude[segment];
+      if (!existing || existing === true) {
+        const entry = createIncludeEntry(allowed);
+        currentInclude[segment] = entry === true ? { include: {} } : { ...entry, include: {} };
+      } else if (!('include' in existing)) {
+        currentInclude[segment] = { ...existing, include: {} };
+      }
+
+      const nestedEntry = currentInclude[segment] as Record<string, unknown>;
+      if (!nestedEntry.include || typeof nestedEntry.include !== 'object') {
+        nestedEntry.include = {};
+      }
+
+      currentInclude = nestedEntry.include as PrismaInclude;
+      currentWhitelist = allowed.children;
+    }
+
+    if (failed) {
+      continue;
+    }
+  }
+
+  return { include, invalid };
+}
+
 export function createCrudController(config: ContentTypeConfig): CrudHandlers {
   const model = getModel(config.modelName);
   const defaultInclude = config.include ? { include: config.include } : {};
 
-  function resolveInclude(
-    req: Request,
-    res: Response,
-  ): { include?: Record<string, boolean> } | null {
+  function resolveInclude(req: Request, res: Response): { include?: PrismaInclude } | null {
     const param = req.query.include;
 
     if (!param || typeof param !== 'string') {
       return defaultInclude;
     }
 
-    if (!config.allowedIncludes?.length) {
+    if (!config.allowedIncludes) {
       return defaultInclude;
     }
 
@@ -84,18 +176,14 @@ export function createCrudController(config: ContentTypeConfig): CrudHandlers {
       return defaultInclude;
     }
 
-    const invalid = requested.filter((r) => !config.allowedIncludes!.includes(r));
+    const { include, invalid } = buildIncludeFromPaths(requested, config.allowedIncludes);
     if (invalid.length > 0) {
       res.status(400).json({
-        message: `Invalid include: ${invalid.join(', ')}. Allowed: ${config.allowedIncludes!.join(', ')}`,
+        message: `Invalid include: ${invalid.join(', ')}. Allowed top-level relations: ${listAllowedIncludes(config.allowedIncludes)}`,
       });
       return null;
     }
 
-    const include: Record<string, boolean> = {};
-    for (const r of requested) {
-      include[r] = true;
-    }
     return { include };
   }
 
