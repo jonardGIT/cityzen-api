@@ -147,8 +147,16 @@ describe(`GET ${BASE}/:id`, () => {
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.responders)).toBe(true);
-    expect(res.body.responders.some((responder: { id: string }) => responder.id === activeResponderRes.body.id)).toBe(true);
-    expect(res.body.responders.some((responder: { id: string }) => responder.id === archivedResponderRes.body.id)).toBe(false);
+    expect(
+      res.body.responders.some(
+        (responder: { id: string }) => responder.id === activeResponderRes.body.id,
+      ),
+    ).toBe(true);
+    expect(
+      res.body.responders.some(
+        (responder: { id: string }) => responder.id === archivedResponderRes.body.id,
+      ),
+    ).toBe(false);
   });
 });
 
