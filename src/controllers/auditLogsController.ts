@@ -18,12 +18,12 @@ export async function getAuditLogs(req: Request, res: Response): Promise<void> {
   if (pagination.enabled) {
     const [auditLogs, total] = await Promise.all([
       prisma.auditLog.findMany({
-        where: listQuery.where as any,
-        orderBy: listQuery.orderBy as any,
+        where: listQuery.where,
+        orderBy: listQuery.orderBy,
         skip: pagination.skip,
         take: pagination.take,
       }),
-      prisma.auditLog.count({ where: listQuery.where as any }),
+      prisma.auditLog.count({ where: listQuery.where }),
     ]);
 
     res.json(buildPaginatedResponse(auditLogs, total, pagination));
@@ -31,8 +31,8 @@ export async function getAuditLogs(req: Request, res: Response): Promise<void> {
   }
 
   const auditLogs = await prisma.auditLog.findMany({
-    where: listQuery.where as any,
-    orderBy: listQuery.orderBy as any,
+    where: listQuery.where,
+    orderBy: listQuery.orderBy,
   });
 
   res.json(auditLogs);

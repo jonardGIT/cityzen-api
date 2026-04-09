@@ -1,48 +1,25 @@
-import { Router } from 'express';
+import { createCrudRouter } from '../engine/routeFactory.js';
 import {
-  createSeverity,
-  deleteSeverity,
-  getSeverityById,
   getSeverities,
-  restoreSeverity,
+  getSeverityById,
+  createSeverity,
   updateSeverity,
+  deleteSeverity,
+  restoreSeverity,
+  validators,
 } from '../controllers/severitiesController.js';
-import { asyncHandler } from '../utils/asyncHandler.js';
-import { isArchiveEnabled } from '../utils/archive.js';
-import { validateRequest } from '../middleware/validateRequest.js';
-import { createSeverityValidator, updateSeverityValidator } from '../validators/bodyValidators.js';
-import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
 import { ADMIN_ROLES } from '../types/auth.js';
 
-const router = Router();
-
-router.get('/', requireJwtAuth, asyncHandler(getSeverities));
-router.get('/:id', requireJwtAuth, asyncHandler(getSeverityById));
-router.post(
-  '/',
-  requireJwtAuth,
-  requireRole(...ADMIN_ROLES),
-  createSeverityValidator,
-  validateRequest,
-  asyncHandler(createSeverity),
-);
-router.patch(
-  '/:id',
-  requireJwtAuth,
-  requireRole(...ADMIN_ROLES),
-  updateSeverityValidator,
-  validateRequest,
-  asyncHandler(updateSeverity),
-);
-router.delete('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(deleteSeverity));
-
-if (isArchiveEnabled()) {
-  router.post(
-    '/:id/restore',
-    requireJwtAuth,
-    requireRole(...ADMIN_ROLES),
-    asyncHandler(restoreSeverity),
-  );
-}
-
-export default router;
+export default createCrudRouter({
+  handlers: {
+    getAll: getSeverities,
+    getById: getSeverityById,
+    create: createSeverity,
+    update: updateSeverity,
+    remove: deleteSeverity,
+    restore: restoreSeverity,
+  },
+  writeRoles: [...ADMIN_ROLES],
+  createValidator: validators.create,
+  updateValidator: validators.update,
+});

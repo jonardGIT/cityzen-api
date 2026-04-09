@@ -123,13 +123,13 @@ export async function getUsers(req: Request, res: Response): Promise<void> {
     const [users, total] = await Promise.all([
       prisma.user.findMany({
         select: userSelect,
-        where: withArchiveScope(listQuery.where as any, listQuery.archiveScope) as any,
-        orderBy: listQuery.orderBy as any,
+        where: withArchiveScope(listQuery.where, listQuery.archiveScope),
+        orderBy: listQuery.orderBy,
         skip: pagination.skip,
         take: pagination.take,
       }),
       prisma.user.count({
-        where: withArchiveScope(listQuery.where as any, listQuery.archiveScope) as any,
+        where: withArchiveScope(listQuery.where, listQuery.archiveScope),
       }),
     ]);
     res.json(buildPaginatedResponse(users, total, pagination));
@@ -138,8 +138,8 @@ export async function getUsers(req: Request, res: Response): Promise<void> {
 
   const users = await prisma.user.findMany({
     select: userSelect,
-    where: withArchiveScope(listQuery.where as any, listQuery.archiveScope) as any,
-    orderBy: listQuery.orderBy as any,
+    where: withArchiveScope(listQuery.where, listQuery.archiveScope),
+    orderBy: listQuery.orderBy,
   });
   res.json(users);
 }
@@ -149,7 +149,7 @@ export async function getUserById(req: Request, res: Response): Promise<void> {
   const id = getUserId(req, res);
   if (id === null) return;
   const user = await prisma.user.findFirst({
-    where: withActiveRecords({ id }) as any,
+    where: withActiveRecords({ id }),
     select: userSelect,
   });
   if (!user) {
@@ -282,7 +282,7 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
   }
 
   const existingUser = await prisma.user.findFirst({
-    where: withActiveRecords({ id }) as any,
+    where: withActiveRecords({ id }),
     select: userSyncSelect,
   });
   if (!existingUser) {
@@ -416,7 +416,7 @@ export async function deleteUser(req: Request, res: Response): Promise<void> {
   }
 
   const existingUser = await prisma.user.findFirst({
-    where: withActiveRecords({ id }) as any,
+    where: withActiveRecords({ id }),
     select: userSyncSelect,
   });
   if (!existingUser) {
@@ -490,7 +490,7 @@ export async function restoreUser(req: Request, res: Response): Promise<void> {
   }
 
   const user = await prisma.user.findFirst({
-    where: withArchivedRecords({ id }) as any,
+    where: withArchivedRecords({ id }),
     select: userSelect,
   });
   if (!user) {

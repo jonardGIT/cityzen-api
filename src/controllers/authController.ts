@@ -245,7 +245,7 @@ async function getLocalAuthUserForSupabaseIdentity(supabaseUserId: string, email
   const user = await prisma.user.findFirst({
     where: withActiveRecords({
       OR: [{ supabaseAuthUserId: supabaseUserId }, { email: normalizedEmail }],
-    }) as any,
+    }),
     select: {
       ...getAuthUserSelect(),
       supabaseAuthUserId: true,
@@ -449,7 +449,7 @@ export async function login(req: Request, res: Response): Promise<void> {
   const normalizedEmail = normalizeEmail(email);
 
   const user = await prisma.user.findFirst({
-    where: withActiveRecords({ email: normalizedEmail }) as any,
+    where: withActiveRecords({ email: normalizedEmail }),
   });
   if (!user) {
     res.status(401).json({ message: 'Invalid email or password' });
@@ -839,7 +839,7 @@ export async function setupMfa(req: Request, res: Response): Promise<void> {
     }
 
     const user = await prisma.user.findFirst({
-      where: withActiveRecords({ id: authUser.id }) as any,
+      where: withActiveRecords({ id: authUser.id }),
       select: {
         id: true,
         email: true,
@@ -957,7 +957,7 @@ export async function enableMfa(req: Request, res: Response): Promise<void> {
     }
 
     const user = await prisma.user.findFirst({
-      where: withActiveRecords({ id: authUser.id }) as any,
+      where: withActiveRecords({ id: authUser.id }),
       select: {
         id: true,
         email: true,
@@ -1025,7 +1025,7 @@ export async function enableMfa(req: Request, res: Response): Promise<void> {
   }
 
   const user = await prisma.user.findFirst({
-    where: withActiveRecords({ id: authUser.id }) as any,
+    where: withActiveRecords({ id: authUser.id }),
     select: {
       id: true,
       mfaSecretEncrypted: true,
@@ -1091,7 +1091,7 @@ export async function disableMfa(req: Request, res: Response): Promise<void> {
     }
 
     const user = await prisma.user.findFirst({
-      where: withActiveRecords({ id: authUser.id }) as any,
+      where: withActiveRecords({ id: authUser.id }),
       select: {
         id: true,
         supabaseAuthUserId: true,
@@ -1145,7 +1145,7 @@ export async function disableMfa(req: Request, res: Response): Promise<void> {
   }
 
   const user = await prisma.user.findFirst({
-    where: withActiveRecords({ id: authUser.id }) as any,
+    where: withActiveRecords({ id: authUser.id }),
     select: {
       id: true,
       mfaEnabled: true,
@@ -1197,7 +1197,7 @@ export async function me(req: Request, res: Response): Promise<void> {
   }
 
   const user = await prisma.user.findFirst({
-    where: withActiveRecords({ id: String(authUser.id) }) as any,
+    where: withActiveRecords({ id: String(authUser.id) }),
     select: getAuthUserSelect(),
   });
 

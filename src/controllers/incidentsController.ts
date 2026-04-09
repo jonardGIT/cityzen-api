@@ -59,7 +59,7 @@ function buildIncidentLocationSnapshot(input: Partial<CitizenIncident>) {
 
 async function getLinkedCitizenIdByAuthEmail(email: string): Promise<string | null> {
   const citizen = await prisma.citizen.findFirst({
-    where: withActiveRecords({ contactInfo: email }) as any,
+    where: withActiveRecords({ contactInfo: email }),
     select: { id: true },
   });
   return citizen?.id ?? null;
@@ -194,7 +194,7 @@ async function getAuthorizedIncidentWithMedia(
   }
 
   const incident = await prisma.citizenIncident.findFirst({
-    where: withActiveRecords({ id: incidentId }) as any,
+    where: withActiveRecords({ id: incidentId }),
     include: {
       mediaFiles: {
         orderBy: { displayOrder: 'asc' },
@@ -313,22 +313,22 @@ export async function getIncidents(req: Request, res: Response): Promise<void> {
     };
   }
 
-  const scopedWhere = withArchiveScope(where as any, listQuery.archiveScope);
+  const scopedWhere = withArchiveScope(where, listQuery.archiveScope);
 
   if (pagination.enabled) {
     const [paginatedIncidents, total] = await Promise.all([
       prisma.citizenIncident.findMany({
-        where: scopedWhere as any,
+        where: scopedWhere,
         include: {
           mediaFiles: {
             orderBy: { displayOrder: 'asc' },
           },
         },
-        orderBy: listQuery.orderBy as any,
+        orderBy: listQuery.orderBy,
         skip: pagination.skip,
         take: pagination.take,
       }),
-      prisma.citizenIncident.count({ where: scopedWhere as any }),
+      prisma.citizenIncident.count({ where: scopedWhere }),
     ]);
     res.json(
       buildPaginatedResponse(
@@ -341,13 +341,13 @@ export async function getIncidents(req: Request, res: Response): Promise<void> {
   }
 
   incidents = await prisma.citizenIncident.findMany({
-    where: scopedWhere as any,
+    where: scopedWhere,
     include: {
       mediaFiles: {
         orderBy: { displayOrder: 'asc' },
       },
     },
-    orderBy: listQuery.orderBy as any,
+    orderBy: listQuery.orderBy,
   });
 
   res.json(await serializeIncidentCollection(incidents));
@@ -444,22 +444,22 @@ export async function createIncident(req: Request, res: Response): Promise<void>
     return;
   }
   try {
-    if (!(await prisma.status.findFirst({ where: withActiveRecords({ id: statusId }) as any }))) {
+    if (!(await prisma.status.findFirst({ where: withActiveRecords({ id: statusId }) }))) {
       res.status(400).json({ message: 'statusId does not reference a valid Status' });
       return;
     }
-    if (!(await prisma.citizen.findFirst({ where: withActiveRecords({ id: citizenId }) as any }))) {
+    if (!(await prisma.citizen.findFirst({ where: withActiveRecords({ id: citizenId }) }))) {
       res.status(400).json({ message: 'citizenId does not reference a valid Citizen' });
       return;
     }
     if (
-      !(await prisma.category.findFirst({ where: withActiveRecords({ id: categoryId }) as any }))
+      !(await prisma.category.findFirst({ where: withActiveRecords({ id: categoryId }) }))
     ) {
       res.status(400).json({ message: 'categoryId does not reference a valid Category' });
       return;
     }
     if (
-      !(await prisma.severity.findFirst({ where: withActiveRecords({ id: severityId }) as any }))
+      !(await prisma.severity.findFirst({ where: withActiveRecords({ id: severityId }) }))
     ) {
       res.status(400).json({ message: 'severityId does not reference a valid Severity' });
       return;
@@ -548,7 +548,7 @@ export async function createCitizenIncidentReport(req: Request, res: Response): 
       return;
     }
     const reportedStatus = await prisma.status.findFirst({
-      where: withActiveRecords({ name: 'Reported' }) as any,
+      where: withActiveRecords({ name: 'Reported' }),
     });
     if (!reportedStatus) {
       res
@@ -558,13 +558,13 @@ export async function createCitizenIncidentReport(req: Request, res: Response): 
     }
     const statusId = reportedStatus.id;
     if (
-      !(await prisma.category.findFirst({ where: withActiveRecords({ id: categoryId }) as any }))
+      !(await prisma.category.findFirst({ where: withActiveRecords({ id: categoryId }) }))
     ) {
       res.status(400).json({ message: 'categoryId does not reference a valid Category' });
       return;
     }
     if (
-      !(await prisma.severity.findFirst({ where: withActiveRecords({ id: severityId }) as any }))
+      !(await prisma.severity.findFirst({ where: withActiveRecords({ id: severityId }) }))
     ) {
       res.status(400).json({ message: 'severityId does not reference a valid Severity' });
       return;
@@ -645,7 +645,7 @@ export async function updateIncident(req: Request, res: Response): Promise<void>
   const normalizedMediaUrls = normalizeMediaUrls({ mediaUrl, mediaUrls });
 
   const existingIncident = await prisma.citizenIncident.findFirst({
-    where: withActiveRecords({ id }) as any,
+    where: withActiveRecords({ id }),
     include: {
       mediaFiles: {
         orderBy: { displayOrder: 'asc' },
@@ -661,28 +661,28 @@ export async function updateIncident(req: Request, res: Response): Promise<void>
 
   if (
     statusId !== undefined &&
-    !(await prisma.status.findFirst({ where: withActiveRecords({ id: statusId }) as any }))
+    !(await prisma.status.findFirst({ where: withActiveRecords({ id: statusId }) }))
   ) {
     res.status(400).json({ message: 'statusId does not reference a valid Status' });
     return;
   }
   if (
     citizenId !== undefined &&
-    !(await prisma.citizen.findFirst({ where: withActiveRecords({ id: citizenId }) as any }))
+    !(await prisma.citizen.findFirst({ where: withActiveRecords({ id: citizenId }) }))
   ) {
     res.status(400).json({ message: 'citizenId does not reference a valid Citizen' });
     return;
   }
   if (
     categoryId !== undefined &&
-    !(await prisma.category.findFirst({ where: withActiveRecords({ id: categoryId }) as any }))
+    !(await prisma.category.findFirst({ where: withActiveRecords({ id: categoryId }) }))
   ) {
     res.status(400).json({ message: 'categoryId does not reference a valid Category' });
     return;
   }
   if (
     severityId !== undefined &&
-    !(await prisma.severity.findFirst({ where: withActiveRecords({ id: severityId }) as any }))
+    !(await prisma.severity.findFirst({ where: withActiveRecords({ id: severityId }) }))
   ) {
     res.status(400).json({ message: 'severityId does not reference a valid Severity' });
     return;
@@ -746,7 +746,7 @@ export async function deleteIncident(req: Request, res: Response): Promise<void>
   }
 
   const existingIncident = await prisma.citizenIncident.findFirst({
-    where: withActiveRecords({ id }) as any,
+    where: withActiveRecords({ id }),
     include: {
       mediaFiles: {
         orderBy: { displayOrder: 'asc' },
@@ -761,7 +761,7 @@ export async function deleteIncident(req: Request, res: Response): Promise<void>
   if (isArchiveEnabled()) {
     await prisma.$transaction(async (transaction) => {
       await transaction.assignment.updateMany({
-        where: withActiveRecords({ incidentId: id }) as any,
+        where: withActiveRecords({ incidentId: id }),
         data: { archivedAt: new Date() },
       });
 
@@ -791,7 +791,7 @@ export async function restoreIncident(req: Request, res: Response): Promise<void
   }
 
   const existingIncident = await prisma.citizenIncident.findFirst({
-    where: withArchivedRecords({ id }) as any,
+    where: withArchivedRecords({ id }),
     include: {
       mediaFiles: {
         orderBy: { displayOrder: 'asc' },
@@ -804,15 +804,15 @@ export async function restoreIncident(req: Request, res: Response): Promise<void
   }
 
   const [status, citizen, category, severity] = await Promise.all([
-    prisma.status.findFirst({ where: withActiveRecords({ id: existingIncident.statusId }) as any }),
+    prisma.status.findFirst({ where: withActiveRecords({ id: existingIncident.statusId }) }),
     prisma.citizen.findFirst({
-      where: withActiveRecords({ id: existingIncident.citizenId }) as any,
+      where: withActiveRecords({ id: existingIncident.citizenId }),
     }),
     prisma.category.findFirst({
-      where: withActiveRecords({ id: existingIncident.categoryId }) as any,
+      where: withActiveRecords({ id: existingIncident.categoryId }),
     }),
     prisma.severity.findFirst({
-      where: withActiveRecords({ id: existingIncident.severityId }) as any,
+      where: withActiveRecords({ id: existingIncident.severityId }),
     }),
   ]);
 

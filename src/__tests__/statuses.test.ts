@@ -162,3 +162,16 @@ describe(`DELETE ${BASE}/:id`, () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe(`GET ${BASE} ?include= (no allowedIncludes configured)`, () => {
+  it('should ignore ?include= and return normally when no allowedIncludes configured', async () => {
+    const res = await request(app)
+      .get(`${BASE}?include=incidents`)
+      .set('Authorization', `Bearer ${viewerToken}`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    if (res.body.length > 0) {
+      expect(res.body[0]).not.toHaveProperty('incidents');
+    }
+  });
+});

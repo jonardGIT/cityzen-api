@@ -228,3 +228,60 @@ describe(`DELETE ${BASE}/:id`, () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe(`GET ${BASE} ?include=`, () => {
+  let responderId = '';
+
+  beforeAll(async () => {
+    responderId = await createResponder();
+  });
+
+  it('should include agency by default (no ?include= param)', async () => {
+    const res = await request(app)
+      .get(`${BASE}/${responderId}`)
+      .set('Authorization', `Bearer ${dispatcherToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('agency');
+    expect(res.body.agency).toHaveProperty('id', validAgencyId);
+  });
+
+  it('should include only requested relations via ?include=', async () => {
+    const res = await request(app)
+      .get(`${BASE}/${responderId}?include=assignments`)
+      .set('Authorization', `Bearer ${dispatcherToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('assignments');
+    expect(Array.isArray(res.body.assignments)).toBe(true);
+    expect(res.body).not.toHaveProperty('agency');
+  });
+
+  it('should support multiple includes via comma-separated list', async () => {
+    const res = await request(app)
+      .get(`${BASE}/${responderId}?include=agency,assignments`)
+      .set('Authorization', `Bearer ${dispatcherToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('agency');
+    expect(res.body).toHaveProperty('assignments');
+  });
+
+  it('should return 400 for invalid include relation', async () => {
+    const res = await request(app)
+      .get(`${BASE}/${responderId}?include=nonexistent`)
+      .set('Authorization', `Bearer ${dispatcherToken}`);
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContain('Invalid include');
+    expect(res.body.message).toContain('nonexistent');
+    expect(res.body.message).toContain('Allowed top-level relations');
+  });
+
+  it('should work on list endpoint with ?include=', async () => {
+    const res = await request(app)
+      .get(`${BASE}?include=agency`)
+      .set('Authorization', `Bearer ${dispatcherToken}`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    if (res.body.length > 0) {
+      expect(res.body[0]).toHaveProperty('agency');
+    }
+  });
+});
