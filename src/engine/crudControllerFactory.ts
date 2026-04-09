@@ -59,9 +59,50 @@ function extractFieldData(
 
 export function createCrudController(config: ContentTypeConfig): CrudHandlers {
   const model = getModel(config.modelName);
-  const includeOption = config.include ? { include: config.include } : {};
+  const defaultInclude = config.include ? { include: config.include } : {};
+
+  function resolveInclude(
+    req: Request,
+    res: Response,
+  ): { include?: Record<string, boolean> } | null {
+    const param = req.query.include;
+
+    if (!param || typeof param !== 'string') {
+      return defaultInclude;
+    }
+
+    if (!config.allowedIncludes?.length) {
+      return defaultInclude;
+    }
+
+    const requested = param
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    if (requested.length === 0) {
+      return defaultInclude;
+    }
+
+    const invalid = requested.filter((r) => !config.allowedIncludes!.includes(r));
+    if (invalid.length > 0) {
+      res.status(400).json({
+        message: `Invalid include: ${invalid.join(', ')}. Allowed: ${config.allowedIncludes!.join(', ')}`,
+      });
+      return null;
+    }
+
+    const include: Record<string, boolean> = {};
+    for (const r of requested) {
+      include[r] = true;
+    }
+    return { include };
+  }
 
   async function getAll(req: Request, res: Response): Promise<void> {
+    const includeOption = resolveInclude(req, res);
+    if (includeOption === null) return;
+
     const pagination = getPaginationQuery(req);
     const listQuery = getListQuery(req, res, config.listQueryConfig);
     if (!listQuery) return;
@@ -92,6 +133,9 @@ export function createCrudController(config: ContentTypeConfig): CrudHandlers {
   }
 
   async function getById(req: Request, res: Response): Promise<void> {
+    const includeOption = resolveInclude(req, res);
+    if (includeOption === null) return;
+
     const id = getValidatedParamId(req, res, config.displayName);
     if (id === null) return;
 
@@ -146,7 +190,7 @@ export function createCrudController(config: ContentTypeConfig): CrudHandlers {
     const data = extractFieldData(body, config.fields);
     const record = await model.create({
       data,
-      ...includeOption,
+      ...defaultInclude,
     });
     res.status(201).json(record);
   }
@@ -185,7 +229,7 @@ export function createCrudController(config: ContentTypeConfig): CrudHandlers {
     const record = await model.update({
       where: { id },
       data,
-      ...includeOption,
+      ...defaultInclude,
     });
     res.json(record);
   }
@@ -234,7 +278,7 @@ export function createCrudController(config: ContentTypeConfig): CrudHandlers {
 
     const existing = await model.findFirst({
       where: withArchivedRecords({ id }),
-      ...includeOption,
+      ...defaultInclude,
     });
 
     if (!existing) {
@@ -258,7 +302,7 @@ export function createCrudController(config: ContentTypeConfig): CrudHandlers {
     const record = await model.update({
       where: { id },
       data: { archivedAt: null },
-      ...includeOption,
+      ...defaultInclude,
     });
     res.json(record);
   }

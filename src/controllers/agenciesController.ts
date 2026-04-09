@@ -11,6 +11,7 @@ const config: ContentTypeConfig = {
     { name: 'name', requiredOnCreate: true, requiredOnUpdate: true },
     { name: 'contactNumber', nullable: true, trim: true, maxLength: 20 },
   ],
+  allowedIncludes: ['responders'],
   deleteGuards: [
     {
       model: 'responder',

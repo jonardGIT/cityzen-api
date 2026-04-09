@@ -14,6 +14,7 @@ const config: ContentTypeConfig = {
     { name: 'contactInfo', requiredOnCreate: true },
   ],
   include: { agency: true },
+  allowedIncludes: ['agency', 'assignments'],
   foreignKeys: [
     {
       field: 'agencyId',

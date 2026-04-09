@@ -34,6 +34,7 @@ export interface ContentTypeConfig {
   listQueryConfig: ListQueryConfig;
   fields: FieldConfig[];
   include?: Record<string, boolean>;
+  allowedIncludes?: string[];
   foreignKeys?: ForeignKeyValidation[];
   deleteGuards?: DeleteGuard[];
   restoreGuards?: RestoreGuard[];

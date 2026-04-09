@@ -10,7 +10,11 @@ function formatFieldList(names: string[]): string {
 
 function buildCreateChain(field: FieldConfig): ValidationChain {
   if (field.requiredOnCreate) {
-    let chain = body(field.name).isString().trim().notEmpty().withMessage(`${field.name} is required`);
+    let chain = body(field.name)
+      .isString()
+      .trim()
+      .notEmpty()
+      .withMessage(`${field.name} is required`);
     if (field.maxLength) {
       chain = chain
         .isLength({ max: field.maxLength })
