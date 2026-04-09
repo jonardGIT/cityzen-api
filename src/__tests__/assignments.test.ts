@@ -1,24 +1,21 @@
 import request from 'supertest';
 import app, { API_V1 } from '../app.js';
 import { getAdminToken, getTokenForRole } from './helpers/auth.js';
+import {
+  buildIncidentLocationSnapshot,
+  createCitizen,
+  createCategory,
+  createSeverity,
+  createAgency,
+  createResponder,
+  getStatusId,
+} from './helpers/factories.js';
 
 jest.setTimeout(120000);
 
 const BASE = `${API_V1}/assignments`;
 let adminToken = '';
 let dispatcherToken = '';
-
-function buildIncidentLocationSnapshot() {
-  return {
-    latitude: 14.5995,
-    longitude: 120.9842,
-    addressLine1: '123 Rizal Ave',
-    cityName: 'Manila',
-    provinceName: 'Metro Manila',
-    regionName: 'NCR',
-    barangay: 'Barangay 123',
-  };
-}
 
 beforeAll(async () => {
   adminToken = await getAdminToken();
@@ -52,35 +49,10 @@ describe(`GET ${BASE}/:id`, () => {
   let createdId: string;
 
   beforeAll(async () => {
-    // Create all required referenced entities
-    // Incident
-    const statusRes = await request(app)
-      .post(`${API_V1}/statuses`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: `TestStatus-${Date.now()}` });
-    const statusId = statusRes.body.id;
-
-    const citizenRes = await request(app)
-      .post(`${API_V1}/citizens`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({
-        name: `TestCitizen-${Date.now()}`,
-        contactInfo: `test${Date.now()}@mail.com`,
-        preferredChannel: 'app',
-      });
-    const citizenId = citizenRes.body.id;
-
-    const categoryRes = await request(app)
-      .post(`${API_V1}/categories`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: `TestCategory-${Date.now()}` });
-    const categoryId = categoryRes.body.id;
-
-    const severityRes = await request(app)
-      .post(`${API_V1}/severities`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ level: `TestLevel-${Date.now()}` });
-    const severityId = severityRes.body.id;
+    const statusId = await getStatusId(adminToken);
+    const citizenId = await createCitizen(adminToken);
+    const categoryId = await createCategory(adminToken);
+    const severityId = await createSeverity(adminToken);
 
     const incidentRes = await request(app)
       .post(`${API_V1}/incidents`)
@@ -95,23 +67,8 @@ describe(`GET ${BASE}/:id`, () => {
       });
     incidentId = incidentRes.body.id;
 
-    // Responder
-    const agencyRes = await request(app)
-      .post(`${API_V1}/agencies`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: `TestAgency-${Date.now()}` });
-    const agencyId = agencyRes.body.id;
-
-    const responderRes = await request(app)
-      .post(`${API_V1}/responders`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({
-        name: `TestResponder-${Date.now()}`,
-        agencyId,
-        role: 'TestRole',
-        contactInfo: `test${Date.now()}@mail.com`,
-      });
-    responderId = responderRes.body.id;
+    const agencyId = await createAgency(adminToken);
+    responderId = await createResponder(adminToken, agencyId);
 
     // Assignment
     const assignmentRes = await request(app)

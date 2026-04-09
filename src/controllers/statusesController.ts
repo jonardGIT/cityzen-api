@@ -1,4 +1,5 @@
 import { createCrudController } from '../engine/crudControllerFactory.js';
+import { createBodyValidators } from '../engine/validatorFactory.js';
 import { statusesListQueryConfig } from '../utils/listQueryConfig.js';
 import type { ContentTypeConfig } from '../engine/types.js';
 
@@ -6,7 +7,7 @@ const config: ContentTypeConfig = {
   modelName: 'status',
   displayName: 'Status',
   listQueryConfig: statusesListQueryConfig,
-  fields: [{ name: 'name', requiredOnCreate: true }],
+  fields: [{ name: 'name', requiredOnCreate: true, requiredOnUpdate: true }],
   deleteGuards: [
     {
       model: 'citizenIncident',
@@ -17,6 +18,7 @@ const config: ContentTypeConfig = {
 };
 
 const handlers = createCrudController(config);
+export const validators = createBodyValidators(config.fields);
 
 export const getStatuses = handlers.getAll;
 export const getStatusById = handlers.getById;

@@ -6,8 +6,8 @@ import {
   updateAgency,
   deleteAgency,
   restoreAgency,
+  validators,
 } from '../controllers/agenciesController.js';
-import { createAgencyValidator, updateAgencyValidator } from '../validators/bodyValidators.js';
 import { ADMIN_ROLES, DISPATCH_ROLES } from '../types/auth.js';
 
 export default createCrudRouter({
@@ -21,6 +21,6 @@ export default createCrudRouter({
   },
   readRoles: [...DISPATCH_ROLES],
   writeRoles: [...ADMIN_ROLES],
-  createValidator: createAgencyValidator,
-  updateValidator: updateAgencyValidator,
+  createValidator: validators.create,
+  updateValidator: validators.update,
 });

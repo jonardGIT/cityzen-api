@@ -1,4 +1,5 @@
 import { createCrudController } from '../engine/crudControllerFactory.js';
+import { createBodyValidators } from '../engine/validatorFactory.js';
 import { agenciesListQueryConfig } from '../utils/listQueryConfig.js';
 import type { ContentTypeConfig } from '../engine/types.js';
 
@@ -7,8 +8,8 @@ const config: ContentTypeConfig = {
   displayName: 'Agency',
   listQueryConfig: agenciesListQueryConfig,
   fields: [
-    { name: 'name', requiredOnCreate: true },
-    { name: 'contactNumber', nullable: true, trim: true },
+    { name: 'name', requiredOnCreate: true, requiredOnUpdate: true },
+    { name: 'contactNumber', nullable: true, trim: true, maxLength: 20 },
   ],
   deleteGuards: [
     {
@@ -20,6 +21,7 @@ const config: ContentTypeConfig = {
 };
 
 const handlers = createCrudController(config);
+export const validators = createBodyValidators(config.fields);
 
 export const getAgencies = handlers.getAll;
 export const getAgencyById = handlers.getById;

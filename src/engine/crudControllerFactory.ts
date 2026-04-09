@@ -66,10 +66,7 @@ export function createCrudController(config: ContentTypeConfig): CrudHandlers {
     const listQuery = getListQuery(req, res, config.listQueryConfig);
     if (!listQuery) return;
 
-    const scopedWhere = withArchiveScope(
-      listQuery.where as Record<string, unknown>,
-      listQuery.archiveScope,
-    );
+    const scopedWhere = withArchiveScope(listQuery.where, listQuery.archiveScope);
 
     if (pagination.enabled) {
       const [records, total] = await Promise.all([

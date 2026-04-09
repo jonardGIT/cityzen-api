@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
 import { createCrudController } from '../engine/crudControllerFactory.js';
+import { createBodyValidators } from '../engine/validatorFactory.js';
 import { citizensListQueryConfig } from '../utils/listQueryConfig.js';
 import type { ContentTypeConfig } from '../engine/types.js';
 import type { Citizen } from '../types/models.js';
@@ -26,6 +27,7 @@ const config: ContentTypeConfig = {
 };
 
 const handlers = createCrudController(config);
+export const validators = createBodyValidators(config.fields);
 
 export const getCitizens = handlers.getAll;
 export const getCitizenById = handlers.getById;
@@ -48,7 +50,7 @@ export async function linkMyCitizenProfile(req: Request, res: Response): Promise
   }
 
   const existingCitizen = await prisma.citizen.findFirst({
-    where: withActiveRecords({ contactInfo: authUser.email }) as any,
+    where: withActiveRecords({ contactInfo: authUser.email }),
   });
 
   if (!existingCitizen) {

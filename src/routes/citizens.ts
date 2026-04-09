@@ -7,14 +7,11 @@ import {
   updateCitizen,
   deleteCitizen,
   restoreCitizen,
+  validators,
 } from '../controllers/citizensController.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { validateRequest } from '../middleware/validateRequest.js';
-import {
-  createCitizenValidator,
-  linkMyCitizenProfileValidator,
-  updateCitizenValidator,
-} from '../validators/bodyValidators.js';
+import { linkMyCitizenProfileValidator } from '../validators/bodyValidators.js';
 import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
 import { ADMIN_ROLES } from '../types/auth.js';
 
@@ -29,8 +26,8 @@ const router = createCrudRouter({
   },
   readRoles: [...ADMIN_ROLES],
   writeRoles: [...ADMIN_ROLES],
-  createValidator: createCitizenValidator,
-  updateValidator: updateCitizenValidator,
+  createValidator: validators.create,
+  updateValidator: validators.update,
 });
 
 router.post(

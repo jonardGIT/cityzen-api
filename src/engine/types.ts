@@ -4,8 +4,10 @@ import type { ListQueryConfig } from '../utils/request.js';
 export interface FieldConfig {
   name: string;
   requiredOnCreate?: boolean;
+  requiredOnUpdate?: boolean;
   nullable?: boolean;
   trim?: boolean;
+  maxLength?: number;
 }
 
 export interface ForeignKeyValidation {

@@ -6,8 +6,8 @@ import {
   updateStatus,
   deleteStatus,
   restoreStatus,
+  validators,
 } from '../controllers/statusesController.js';
-import { createStatusValidator, updateStatusValidator } from '../validators/bodyValidators.js';
 import { ADMIN_ROLES } from '../types/auth.js';
 
 export default createCrudRouter({
@@ -20,6 +20,6 @@ export default createCrudRouter({
     restore: restoreStatus,
   },
   writeRoles: [...ADMIN_ROLES],
-  createValidator: createStatusValidator,
-  updateValidator: updateStatusValidator,
+  createValidator: validators.create,
+  updateValidator: validators.update,
 });

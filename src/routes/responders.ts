@@ -6,11 +6,8 @@ import {
   updateResponder,
   deleteResponder,
   restoreResponder,
+  validators,
 } from '../controllers/respondersController.js';
-import {
-  createResponderValidator,
-  updateResponderValidator,
-} from '../validators/bodyValidators.js';
 import { ADMIN_ROLES, DISPATCH_ROLES } from '../types/auth.js';
 
 export default createCrudRouter({
@@ -24,6 +21,6 @@ export default createCrudRouter({
   },
   readRoles: [...DISPATCH_ROLES],
   writeRoles: [...ADMIN_ROLES],
-  createValidator: createResponderValidator,
-  updateValidator: updateResponderValidator,
+  createValidator: validators.create,
+  updateValidator: validators.update,
 });

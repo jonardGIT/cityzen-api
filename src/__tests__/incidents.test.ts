@@ -2,6 +2,13 @@ import request from 'supertest';
 import app, { API_V1 } from '../app.js';
 import prisma from '../lib/prisma.js';
 import { getAdminToken } from './helpers/auth.js';
+import {
+  buildIncidentLocationSnapshot,
+  createCitizen as createCitizenFactory,
+  createCategory as createCategoryFactory,
+  createSeverity as createSeverityFactory,
+  getStatusId as getStatusIdFactory,
+} from './helpers/factories.js';
 import * as supabaseStorageService from '../services/supabaseStorageService.js';
 import { isArchiveEnabled } from '../utils/archive.js';
 
@@ -12,68 +19,10 @@ let adminToken = '';
 const incidentMediaUploadEnabled = supabaseStorageService.isSupabaseStorageEnabled();
 const archiveEnabled = isArchiveEnabled();
 
-function buildIncidentLocationSnapshot() {
-  return {
-    latitude: 14.5995,
-    longitude: 120.9842,
-    addressLine1: '123 Rizal Ave',
-    cityName: 'Manila',
-    provinceName: 'Metro Manila',
-    regionName: 'NCR',
-    barangay: 'Barangay 123',
-  };
-}
-
-async function createCitizen() {
-  const nonce = `${Date.now()}-${Math.random()}`;
-  const res = await request(app)
-    .post(`${API_V1}/citizens`)
-    .set('Authorization', `Bearer ${adminToken}`)
-    .send({
-      name: `Citizen-${nonce}`,
-      contactInfo: `citizen-${nonce}@mail.com`,
-      preferredChannel: 'app',
-    });
-
-  expect(res.status).toBe(201);
-  return res.body.id as string;
-}
-
-async function createCategory() {
-  const res = await request(app)
-    .post(`${API_V1}/categories`)
-    .set('Authorization', `Bearer ${adminToken}`)
-    .send({ name: `Category-${Date.now()}-${Math.random()}` });
-
-  expect(res.status).toBe(201);
-  return res.body.id as string;
-}
-
-async function createSeverity() {
-  const res = await request(app)
-    .post(`${API_V1}/severities`)
-    .set('Authorization', `Bearer ${adminToken}`)
-    .send({ level: `Severity-${Date.now()}-${Math.random()}` });
-
-  expect(res.status).toBe(201);
-  return res.body.id as string;
-}
-
-async function getStatusId(name?: string) {
-  const res = await request(app)
-    .get(`${API_V1}/statuses`)
-    .set('Authorization', `Bearer ${adminToken}`);
-
-  expect(res.status).toBe(200);
-
-  if (!name) {
-    return res.body[0].id as string;
-  }
-
-  const match = res.body.find((status: { name: string }) => status.name === name);
-  expect(match).toBeTruthy();
-  return match.id as string;
-}
+const createCitizen = () => createCitizenFactory(adminToken);
+const createCategory = () => createCategoryFactory(adminToken);
+const createSeverity = () => createSeverityFactory(adminToken);
+const getStatusId = (name?: string) => getStatusIdFactory(adminToken, name);
 
 beforeAll(async () => {
   adminToken = await getAdminToken();

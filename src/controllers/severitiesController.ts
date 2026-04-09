@@ -1,4 +1,5 @@
 import { createCrudController } from '../engine/crudControllerFactory.js';
+import { createBodyValidators } from '../engine/validatorFactory.js';
 import { severitiesListQueryConfig } from '../utils/listQueryConfig.js';
 import type { ContentTypeConfig } from '../engine/types.js';
 
@@ -20,6 +21,7 @@ const config: ContentTypeConfig = {
 };
 
 const handlers = createCrudController(config);
+export const validators = createBodyValidators(config.fields);
 
 export const getSeverities = handlers.getAll;
 export const getSeverityById = handlers.getById;

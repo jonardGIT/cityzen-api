@@ -4,7 +4,13 @@ export function isArchiveEnabled(): boolean {
   return isArchiveFeatureEnabled();
 }
 
-export function withActiveRecords(where?: Record<string, unknown>): Record<string, unknown> {
+// Archive scope utilities return a Prisma-compatible where clause.
+// Uses `any` return type so callers don't need `as any` at every call site,
+// since Prisma generates distinct WhereInput types per model.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PrismaWhere = any;
+
+export function withActiveRecords(where?: Record<string, unknown>): PrismaWhere {
   if (!isArchiveEnabled()) {
     return where ?? {};
   }
@@ -18,7 +24,7 @@ export function withActiveRecords(where?: Record<string, unknown>): Record<strin
   };
 }
 
-export function withArchivedRecords(where?: Record<string, unknown>): Record<string, unknown> {
+export function withArchivedRecords(where?: Record<string, unknown>): PrismaWhere {
   if (!isArchiveEnabled()) {
     return where ?? {};
   }
@@ -35,7 +41,7 @@ export function withArchivedRecords(where?: Record<string, unknown>): Record<str
 export function withArchiveScope(
   where: Record<string, unknown> | undefined,
   archiveScope: 'active' | 'all' | 'archived',
-): Record<string, unknown> {
+): PrismaWhere {
   if (archiveScope === 'all') {
     return where ?? {};
   }

@@ -39,13 +39,13 @@ export async function getAllUsersForAdmin(req: Request, res: Response): Promise<
     const [users, total] = await Promise.all([
       prisma.user.findMany({
         select,
-        where: withArchiveScope(listQuery.where as any, listQuery.archiveScope) as any,
-        orderBy: listQuery.orderBy as any,
+        where: withArchiveScope(listQuery.where, listQuery.archiveScope),
+        orderBy: listQuery.orderBy,
         skip: pagination.skip,
         take: pagination.take,
       }),
       prisma.user.count({
-        where: withArchiveScope(listQuery.where as any, listQuery.archiveScope) as any,
+        where: withArchiveScope(listQuery.where, listQuery.archiveScope),
       }),
     ]);
     res.json(buildPaginatedResponse(users, total, pagination));
@@ -54,8 +54,8 @@ export async function getAllUsersForAdmin(req: Request, res: Response): Promise<
 
   const users = await prisma.user.findMany({
     select,
-    where: withArchiveScope(listQuery.where as any, listQuery.archiveScope) as any,
-    orderBy: listQuery.orderBy as any,
+    where: withArchiveScope(listQuery.where, listQuery.archiveScope),
+    orderBy: listQuery.orderBy,
   });
 
   res.json(users);
@@ -74,7 +74,7 @@ export async function getPrivilegedMfaComplianceReport(
         },
       },
       'active',
-    ) as any,
+    ),
     select: {
       id: true,
       createdAt: true,
@@ -120,7 +120,7 @@ export async function getPrivilegedAccessReviewReport(_req: Request, res: Respon
         },
       },
       'active',
-    ) as any,
+    ),
     select: {
       id: true,
       createdAt: true,

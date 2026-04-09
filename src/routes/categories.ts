@@ -6,8 +6,8 @@ import {
   updateCategory,
   deleteCategory,
   restoreCategory,
+  validators,
 } from '../controllers/categoriesController.js';
-import { createCategoryValidator, updateCategoryValidator } from '../validators/bodyValidators.js';
 import { ADMIN_ROLES } from '../types/auth.js';
 
 export default createCrudRouter({
@@ -20,6 +20,6 @@ export default createCrudRouter({
     restore: restoreCategory,
   },
   writeRoles: [...ADMIN_ROLES],
-  createValidator: createCategoryValidator,
-  updateValidator: updateCategoryValidator,
+  createValidator: validators.create,
+  updateValidator: validators.update,
 });

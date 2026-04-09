@@ -6,8 +6,8 @@ import {
   updateSeverity,
   deleteSeverity,
   restoreSeverity,
+  validators,
 } from '../controllers/severitiesController.js';
-import { createSeverityValidator, updateSeverityValidator } from '../validators/bodyValidators.js';
 import { ADMIN_ROLES } from '../types/auth.js';
 
 export default createCrudRouter({
@@ -20,6 +20,6 @@ export default createCrudRouter({
     restore: restoreSeverity,
   },
   writeRoles: [...ADMIN_ROLES],
-  createValidator: createSeverityValidator,
-  updateValidator: updateSeverityValidator,
+  createValidator: validators.create,
+  updateValidator: validators.update,
 });
