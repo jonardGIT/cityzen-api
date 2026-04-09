@@ -20,11 +20,7 @@ function getModel(modelName: string) {
   return (prisma as Record<string, any>)[modelName];
 }
 
-function getValidatedParamId(
-  req: Request,
-  res: Response,
-  displayName: string,
-): string | null {
+function getValidatedParamId(req: Request, res: Response, displayName: string): string | null {
   const id = getParamId(req, res);
   if (id === null) return null;
 
@@ -245,9 +241,7 @@ export function createCrudController(config: ContentTypeConfig): CrudHandlers {
     });
 
     if (!existing) {
-      res
-        .status(404)
-        .json({ message: `Archived ${config.displayName.toLowerCase()} not found` });
+      res.status(404).json({ message: `Archived ${config.displayName.toLowerCase()} not found` });
       return;
     }
 

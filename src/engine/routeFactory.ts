@@ -22,10 +22,7 @@ export function createCrudRouter(config: RouteConfig): Router {
     ? [requireJwtAuth, requireRole(...config.readRoles)]
     : [requireJwtAuth];
 
-  const writeMiddleware: RequestHandler[] = [
-    requireJwtAuth,
-    requireRole(...config.writeRoles),
-  ];
+  const writeMiddleware: RequestHandler[] = [requireJwtAuth, requireRole(...config.writeRoles)];
 
   router.get('/', ...readMiddleware, asyncHandler(handlers.getAll));
   router.get('/:id', ...readMiddleware, asyncHandler(handlers.getById));
