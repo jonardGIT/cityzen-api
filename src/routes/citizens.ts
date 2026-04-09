@@ -1,15 +1,14 @@
-import { Router } from 'express';
+import { createCrudRouter } from '../engine/routeFactory.js';
 import {
-  createCitizen,
-  deleteCitizen,
-  getCitizenById,
   getCitizens,
+  getCitizenById,
+  createCitizen,
   linkMyCitizenProfile,
-  restoreCitizen,
   updateCitizen,
+  deleteCitizen,
+  restoreCitizen,
 } from '../controllers/citizensController.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
-import { isArchiveEnabled } from '../utils/archive.js';
 import { validateRequest } from '../middleware/validateRequest.js';
 import {
   createCitizenValidator,
@@ -19,43 +18,28 @@ import {
 import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
 import { ADMIN_ROLES } from '../types/auth.js';
 
-const router = Router();
+const router = createCrudRouter({
+  handlers: {
+    getAll: getCitizens,
+    getById: getCitizenById,
+    create: createCitizen,
+    update: updateCitizen,
+    remove: deleteCitizen,
+    restore: restoreCitizen,
+  },
+  readRoles: [...ADMIN_ROLES],
+  writeRoles: [...ADMIN_ROLES],
+  createValidator: createCitizenValidator,
+  updateValidator: updateCitizenValidator,
+});
 
-router.get('/', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(getCitizens));
-router.get('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(getCitizenById));
-router.post(
-  '/',
-  requireJwtAuth,
-  requireRole(...ADMIN_ROLES),
-  createCitizenValidator,
-  validateRequest,
-  asyncHandler(createCitizen),
-);
 router.post(
   '/link-me',
   requireJwtAuth,
   requireRole('CITIZEN_REPORTER'),
-  linkMyCitizenProfileValidator,
+  ...linkMyCitizenProfileValidator,
   validateRequest,
   asyncHandler(linkMyCitizenProfile),
 );
-router.patch(
-  '/:id',
-  requireJwtAuth,
-  requireRole(...ADMIN_ROLES),
-  updateCitizenValidator,
-  validateRequest,
-  asyncHandler(updateCitizen),
-);
-router.delete('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(deleteCitizen));
-
-if (isArchiveEnabled()) {
-  router.post(
-    '/:id/restore',
-    requireJwtAuth,
-    requireRole(...ADMIN_ROLES),
-    asyncHandler(restoreCitizen),
-  );
-}
 
 export default router;

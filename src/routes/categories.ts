@@ -1,48 +1,25 @@
-import { Router } from 'express';
+import { createCrudRouter } from '../engine/routeFactory.js';
 import {
-  createCategory,
-  deleteCategory,
   getCategories,
   getCategoryById,
-  restoreCategory,
+  createCategory,
   updateCategory,
+  deleteCategory,
+  restoreCategory,
 } from '../controllers/categoriesController.js';
-import { asyncHandler } from '../utils/asyncHandler.js';
-import { isArchiveEnabled } from '../utils/archive.js';
-import { validateRequest } from '../middleware/validateRequest.js';
 import { createCategoryValidator, updateCategoryValidator } from '../validators/bodyValidators.js';
-import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
 import { ADMIN_ROLES } from '../types/auth.js';
 
-const router = Router();
-
-router.get('/', requireJwtAuth, asyncHandler(getCategories));
-router.get('/:id', requireJwtAuth, asyncHandler(getCategoryById));
-router.post(
-  '/',
-  requireJwtAuth,
-  requireRole(...ADMIN_ROLES),
-  createCategoryValidator,
-  validateRequest,
-  asyncHandler(createCategory),
-);
-router.patch(
-  '/:id',
-  requireJwtAuth,
-  requireRole(...ADMIN_ROLES),
-  updateCategoryValidator,
-  validateRequest,
-  asyncHandler(updateCategory),
-);
-router.delete('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(deleteCategory));
-
-if (isArchiveEnabled()) {
-  router.post(
-    '/:id/restore',
-    requireJwtAuth,
-    requireRole(...ADMIN_ROLES),
-    asyncHandler(restoreCategory),
-  );
-}
-
-export default router;
+export default createCrudRouter({
+  handlers: {
+    getAll: getCategories,
+    getById: getCategoryById,
+    create: createCategory,
+    update: updateCategory,
+    remove: deleteCategory,
+    restore: restoreCategory,
+  },
+  writeRoles: [...ADMIN_ROLES],
+  createValidator: createCategoryValidator,
+  updateValidator: updateCategoryValidator,
+});
