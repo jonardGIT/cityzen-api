@@ -7,6 +7,21 @@ type StartupValidationOptions = {
 
 const MIN_SECRET_LENGTH = 32;
 const MIN_API_KEY_LENGTH = 16;
+const PUBLIC_CASE_LOOKUP_RATE_LIMIT_WINDOW_MS_BOUNDS = {
+  min: 60_000,
+  max: 3_600_000,
+  recommended: 600_000,
+} as const;
+const PUBLIC_CASE_LOOKUP_RATE_LIMIT_MAX_REQUESTS_BOUNDS = {
+  min: 1,
+  max: 30,
+  recommended: 20,
+} as const;
+const INCIDENT_CASE_TOKEN_TTL_DAYS_BOUNDS = {
+  min: 1,
+  max: 30,
+  recommended: 30,
+} as const;
 const WEAK_SECRET_VALUES = new Set([
   'change-me',
   'changeme',
@@ -30,6 +45,10 @@ const WEAK_SECRET_VALUES = new Set([
 
 function isTrue(value: string | undefined): boolean {
   return value?.trim().toLowerCase() === 'true';
+}
+
+function isFalse(value: string | undefined): boolean {
+  return value?.trim().toLowerCase() === 'false';
 }
 
 function shouldSkipStrictValidation(env: NodeJS.ProcessEnv): boolean {
@@ -115,6 +134,52 @@ function validateRequiredHttpsUrl(env: NodeJS.ProcessEnv, name: string): void {
   validateOptionalHttpsUrl(env, name);
 }
 
+function validateRequiredProductionInteger(
+  env: NodeJS.ProcessEnv,
+  name: string,
+  bounds: { min: number; max: number; recommended: number },
+): void {
+  const value = env[name]?.trim();
+  if (!value) {
+    throw new Error(
+      `${name} must be explicitly configured in production; use ${bounds.recommended} for the current partner-rollout baseline`,
+    );
+  }
+
+  if (!/^\d+$/.test(value)) {
+    throw new Error(`${name} must be a positive integer in production`);
+  }
+
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < bounds.min || parsed > bounds.max) {
+    throw new Error(`${name} must be between ${bounds.min} and ${bounds.max} in production`);
+  }
+}
+
+function validateIncidentTrustProductionEnv(env: NodeJS.ProcessEnv): void {
+  if (isFalse(env.PUBLIC_CASE_LOOKUP_RATE_LIMIT_ENABLED)) {
+    throw new Error(
+      'PUBLIC_CASE_LOOKUP_RATE_LIMIT_ENABLED must remain enabled in production for the public case lookup trust-layer endpoint',
+    );
+  }
+
+  validateRequiredProductionInteger(
+    env,
+    'PUBLIC_CASE_LOOKUP_RATE_LIMIT_WINDOW_MS',
+    PUBLIC_CASE_LOOKUP_RATE_LIMIT_WINDOW_MS_BOUNDS,
+  );
+  validateRequiredProductionInteger(
+    env,
+    'PUBLIC_CASE_LOOKUP_RATE_LIMIT_MAX_REQUESTS',
+    PUBLIC_CASE_LOOKUP_RATE_LIMIT_MAX_REQUESTS_BOUNDS,
+  );
+  validateRequiredProductionInteger(
+    env,
+    'INCIDENT_CASE_TOKEN_TTL_DAYS',
+    INCIDENT_CASE_TOKEN_TTL_DAYS_BOUNDS,
+  );
+}
+
 function validateSupabaseStorageAccessMode(
   env: NodeJS.ProcessEnv,
   selection: FeatureSelection,
@@ -153,6 +218,7 @@ export function validateStartupEnvironment({ env, selection }: StartupValidation
     return;
   }
 
+  validateIncidentTrustProductionEnv(env);
   validateProductionMfaMode(selection);
 
   if (selection.tokenMode === 'app-jwt') {

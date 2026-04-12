@@ -10,6 +10,13 @@ const INCIDENT_LOCATION_SNAPSHOT_FIELDS = [
   'regionName',
 ] as const;
 
+const INCIDENT_LOCALITY_ID_FIELDS = [
+  'regionId',
+  'provinceId',
+  'cityMunicipalityId',
+  'barangayId',
+] as const;
+
 function hasIncidentLocationSnapshot(value: Record<string, unknown> | undefined): boolean {
   return INCIDENT_LOCATION_SNAPSHOT_FIELDS.some((field) => value?.[field] !== undefined);
 }
@@ -81,6 +88,21 @@ const incidentLocationFieldsValidator = [
     return true;
   }),
 ];
+
+const incidentCanonicalLocalityIdFieldsValidator = INCIDENT_LOCALITY_ID_FIELDS.map((field) =>
+  body(field).optional({ nullable: true }).isUUID().withMessage(`${field} must be a valid UUID`),
+);
+
+const forbiddenIncidentCanonicalLocalityIdFieldsValidator = INCIDENT_LOCALITY_ID_FIELDS.map(
+  (field) =>
+    body(field).custom((_, { req }) => {
+      if (Object.prototype.hasOwnProperty.call(req.body ?? {}, field)) {
+        throw new Error(`${field} is derived from the incident location snapshot`);
+      }
+
+      return true;
+    }),
+);
 
 const updateIncidentLocationFieldsValidator = [
   body('latitude')
@@ -253,6 +275,7 @@ export const createIncidentValidator = [
     .trim()
     .notEmpty()
     .withMessage('severityId is required and must be a string'),
+  ...incidentCanonicalLocalityIdFieldsValidator,
   ...incidentLocationFieldsValidator,
 ];
 
@@ -285,6 +308,7 @@ export const createCitizenIncidentReportValidator = [
     .trim()
     .notEmpty()
     .withMessage('severityId is required and must be a string'),
+  ...forbiddenIncidentCanonicalLocalityIdFieldsValidator,
   ...incidentLocationFieldsValidator,
 ];
 
@@ -345,7 +369,9 @@ export const updateIncidentValidator = [
       'citizenId',
       'categoryId',
       'severityId',
+      'barangay',
       ...INCIDENT_LOCATION_SNAPSHOT_FIELDS,
+      ...INCIDENT_LOCALITY_ID_FIELDS,
     ].some((field) => value?.[field] !== undefined);
     if (!hasUpdatableField) {
       throw new Error('at least one updatable incident field is required');
@@ -394,6 +420,7 @@ export const updateIncidentValidator = [
     .trim()
     .isUUID()
     .withMessage('severityId must be a valid UUID'),
+  ...incidentCanonicalLocalityIdFieldsValidator,
   ...updateIncidentLocationFieldsValidator,
 ];
 

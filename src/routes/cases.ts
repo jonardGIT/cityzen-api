@@ -8,6 +8,7 @@ import { caseTokenParamValidator } from '../validators/incidentTrustValidators.j
 const router = Router();
 
 const publicCaseLookupRateLimit = createEnvRateLimitMiddleware({
+  enabledEnvVar: 'PUBLIC_CASE_LOOKUP_RATE_LIMIT_ENABLED',
   scope: 'public-case-lookup',
   windowMsEnvVar: 'PUBLIC_CASE_LOOKUP_RATE_LIMIT_WINDOW_MS',
   maxRequestsEnvVar: 'PUBLIC_CASE_LOOKUP_RATE_LIMIT_MAX_REQUESTS',

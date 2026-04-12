@@ -17,6 +17,10 @@ import {
   hashCaseToken,
   issueIncidentTrustArtifacts,
 } from '../services/incidentTrustService.js';
+import {
+  IncidentLocalityResolutionError,
+  resolveIncidentLocalityIds,
+} from '../services/incidentLocalityResolutionService.js';
 import type {
   IncidentTimelineEntry,
   IncidentTrustInfo,
@@ -125,9 +129,7 @@ type LinkedCitizenResolution =
   | { status: 'missing' }
   | { status: 'ambiguous' };
 
-type TimelineAccessResult =
-  | { allowed: true; audience: 'owner' | 'internal' }
-  | { allowed: false };
+type TimelineAccessResult = { allowed: true; audience: 'owner' | 'internal' } | { allowed: false };
 
 type IncidentReadScope =
   | { kind: 'owner'; citizenId: string; audience: 'owner' }
@@ -145,6 +147,30 @@ type TimelineIncidentRecord = {
   publicReference: string | null;
   cityMunicipalityId: string | null;
 };
+
+type IncidentWritePayload = Partial<CitizenIncident> & { mediaUrls?: string[] };
+
+type IncidentLocalityInput = {
+  barangay?: string | null;
+  cityName?: string | null;
+  provinceName?: string | null;
+  regionName?: string | null;
+  barangayId?: string | null;
+  cityMunicipalityId?: string | null;
+  provinceId?: string | null;
+  regionId?: string | null;
+};
+
+const INCIDENT_LOCALITY_WRITE_FIELDS = [
+  'barangay',
+  'cityName',
+  'provinceName',
+  'regionName',
+  'barangayId',
+  'cityMunicipalityId',
+  'provinceId',
+  'regionId',
+] as const;
 
 type IncidentScopeRecord = Pick<TimelineIncidentRecord, 'id' | 'citizenId' | 'cityMunicipalityId'>;
 
@@ -166,6 +192,19 @@ function buildIncidentLocationSnapshot(input: Partial<CitizenIncident>) {
   };
 }
 
+function buildIncidentLocalityResolutionInput(input: IncidentLocalityInput) {
+  return {
+    barangay: input.barangay,
+    cityName: input.cityName,
+    provinceName: input.provinceName,
+    regionName: input.regionName,
+    barangayId: input.barangayId,
+    cityMunicipalityId: input.cityMunicipalityId,
+    provinceId: input.provinceId,
+    regionId: input.regionId,
+  };
+}
+
 async function resolveLinkedCitizenByAuthEmail(email: string): Promise<LinkedCitizenResolution> {
   const citizens = await prisma.citizen.findMany({
     where: withActiveRecords({ contactInfo: email }),
@@ -184,14 +223,18 @@ async function resolveLinkedCitizenByAuthEmail(email: string): Promise<LinkedCit
   return { status: 'linked', citizenId: citizens[0].id };
 }
 
-function handleLinkedCitizenResolution(res: Response, resolution: LinkedCitizenResolution): string | null {
+function handleLinkedCitizenResolution(
+  res: Response,
+  resolution: LinkedCitizenResolution,
+): string | null {
   if (resolution.status === 'linked') {
     return resolution.citizenId;
   }
 
   if (resolution.status === 'ambiguous') {
     res.status(409).json({
-      message: 'Multiple active citizen profiles are linked to this account email. Contact support.',
+      message:
+        'Multiple active citizen profiles are linked to this account email. Contact support.',
     });
     return null;
   }
@@ -398,9 +441,7 @@ async function resolveCityScopedIncidentReadScope(
   };
 }
 
-async function resolveAssignedResponderId(
-  authUserEmail: string,
-): Promise<string | null> {
+async function resolveAssignedResponderId(authUserEmail: string): Promise<string | null> {
   const responders = await prisma.responder.findMany({
     where: withActiveRecords({ contactInfo: authUserEmail }),
     select: { id: true },
@@ -496,7 +537,8 @@ async function canReadIncidentWithScope(
 
   if (scope.kind === 'city') {
     return Boolean(
-      incident.cityMunicipalityId && scope.cityMunicipalityIds.includes(incident.cityMunicipalityId),
+      incident.cityMunicipalityId &&
+      scope.cityMunicipalityIds.includes(incident.cityMunicipalityId),
     );
   }
 
@@ -769,12 +811,15 @@ export async function getIncidentTimeline(req: Request, res: Response): Promise<
         ? timeline.map((entry: PublicIncidentStatusHistoryRecord) =>
             serializePublicTimelineEntry(entry),
           )
-        : timeline.map((entry: IncidentStatusHistoryRecord) => serializeInternalTimelineEntry(entry)),
+        : timeline.map((entry: IncidentStatusHistoryRecord) =>
+            serializeInternalTimelineEntry(entry),
+          ),
   });
 }
 
 export async function getPublicCaseByToken(req: Request, res: Response): Promise<void> {
-  const caseTokenParam = typeof req.params.caseToken === 'string' ? req.params.caseToken.trim() : '';
+  const caseTokenParam =
+    typeof req.params.caseToken === 'string' ? req.params.caseToken.trim() : '';
   if (!caseTokenParam) {
     res.status(400).json({ message: 'caseToken is required' });
     return;
@@ -915,7 +960,11 @@ export async function createIncident(req: Request, res: Response): Promise<void>
     citizenId,
     categoryId,
     severityId,
-  } = req.body as Partial<CitizenIncident> & { mediaUrls?: string[] };
+    regionId,
+    provinceId,
+    cityMunicipalityId,
+    barangayId,
+  } = req.body as IncidentWritePayload;
 
   const normalizedMediaUrls = normalizeMediaUrls({ mediaUrl, mediaUrls });
 
@@ -934,18 +983,26 @@ export async function createIncident(req: Request, res: Response): Promise<void>
       res.status(400).json({ message: 'citizenId does not reference a valid Citizen' });
       return;
     }
-    if (
-      !(await prisma.category.findFirst({ where: withActiveRecords({ id: categoryId }) }))
-    ) {
+    if (!(await prisma.category.findFirst({ where: withActiveRecords({ id: categoryId }) }))) {
       res.status(400).json({ message: 'categoryId does not reference a valid Category' });
       return;
     }
-    if (
-      !(await prisma.severity.findFirst({ where: withActiveRecords({ id: severityId }) }))
-    ) {
+    if (!(await prisma.severity.findFirst({ where: withActiveRecords({ id: severityId }) }))) {
       res.status(400).json({ message: 'severityId does not reference a valid Severity' });
       return;
     }
+
+    const resolvedLocalityIds = await resolveIncidentLocalityIds({
+      barangay,
+      cityName,
+      provinceName,
+      regionName,
+      regionId,
+      provinceId,
+      cityMunicipalityId,
+      barangayId,
+    });
+
     const incident = await prisma.$transaction(async (transaction) => {
       const trustTransaction = transaction as TrustLayerTransactionClient;
 
@@ -967,6 +1024,7 @@ export async function createIncident(req: Request, res: Response): Promise<void>
             postalCode,
             landmark,
           }),
+          ...resolvedLocalityIds,
           statusId,
           citizenId,
           categoryId,
@@ -990,6 +1048,11 @@ export async function createIncident(req: Request, res: Response): Promise<void>
     });
     res.status(201).json(await serializeIncident(incident));
   } catch (err) {
+    if (err instanceof IncidentLocalityResolutionError) {
+      res.status(400).json({ message: err.message });
+      return;
+    }
+
     res
       .status(400)
       .json({ message: 'Invalid input or foreign key reference', error: (err as Error)?.message });
@@ -1022,7 +1085,7 @@ export async function createCitizenIncidentReport(req: Request, res: Response): 
     landmark,
     categoryId,
     severityId,
-  } = req.body as Partial<CitizenIncident> & { mediaUrls?: string[] };
+  } = req.body as IncidentWritePayload;
 
   const normalizedMediaUrls = normalizeMediaUrls({ mediaUrl, mediaUrls });
 
@@ -1049,18 +1112,24 @@ export async function createCitizenIncidentReport(req: Request, res: Response): 
     }
     const statusId = reportedStatus.id;
     const trustArtifacts = issueIncidentTrustArtifacts(reportedStatus.name);
-    if (
-      !(await prisma.category.findFirst({ where: withActiveRecords({ id: categoryId }) }))
-    ) {
+    if (!(await prisma.category.findFirst({ where: withActiveRecords({ id: categoryId }) }))) {
       res.status(400).json({ message: 'categoryId does not reference a valid Category' });
       return;
     }
-    if (
-      !(await prisma.severity.findFirst({ where: withActiveRecords({ id: severityId }) }))
-    ) {
+    if (!(await prisma.severity.findFirst({ where: withActiveRecords({ id: severityId }) }))) {
       res.status(400).json({ message: 'severityId does not reference a valid Severity' });
       return;
     }
+
+    const resolvedLocalityIds = await resolveIncidentLocalityIds(
+      buildIncidentLocalityResolutionInput({
+        barangay,
+        cityName,
+        provinceName,
+        regionName,
+      }),
+    );
+
     const incident = await prisma.$transaction(async (transaction) => {
       const trustTransaction = transaction as TrustLayerTransactionClient;
 
@@ -1083,6 +1152,7 @@ export async function createCitizenIncidentReport(req: Request, res: Response): 
             postalCode,
             landmark,
           }),
+          ...resolvedLocalityIds,
           statusId,
           citizenId,
           categoryId,
@@ -1123,6 +1193,11 @@ export async function createCitizenIncidentReport(req: Request, res: Response): 
       }),
     );
   } catch (err) {
+    if (err instanceof IncidentLocalityResolutionError) {
+      res.status(400).json({ message: err.message });
+      return;
+    }
+
     res.status(400).json({
       message: 'Invalid input or foreign key reference',
       errors: [
@@ -1163,7 +1238,11 @@ export async function updateIncident(req: Request, res: Response): Promise<void>
     citizenId,
     categoryId,
     severityId,
-  } = req.body as Partial<CitizenIncident> & { mediaUrls?: string[] };
+    regionId,
+    provinceId,
+    cityMunicipalityId,
+    barangayId,
+  } = req.body as IncidentWritePayload;
 
   const normalizedMediaUrls = normalizeMediaUrls({ mediaUrl, mediaUrls });
 
@@ -1211,7 +1290,46 @@ export async function updateIncident(req: Request, res: Response): Promise<void>
     return;
   }
 
-  const shouldAppendStatusHistory = statusId !== undefined && statusId !== existingIncident.statusId;
+  const shouldAppendStatusHistory =
+    statusId !== undefined && statusId !== existingIncident.statusId;
+  const hasExplicitBarangayUpdate = Object.prototype.hasOwnProperty.call(req.body, 'barangay');
+
+  const shouldResolveLocality = INCIDENT_LOCALITY_WRITE_FIELDS.some(
+    (field) => (req.body as Record<string, unknown>)[field] !== undefined,
+  );
+
+  let resolvedLocalityIds:
+    | {
+        regionId: string | null;
+        provinceId: string | null;
+        cityMunicipalityId: string | null;
+        barangayId: string | null;
+      }
+    | undefined;
+
+  if (shouldResolveLocality) {
+    try {
+      resolvedLocalityIds = await resolveIncidentLocalityIds(
+        buildIncidentLocalityResolutionInput({
+          barangay: hasExplicitBarangayUpdate ? barangay : existingIncident.barangay,
+          cityName: cityName ?? existingIncident.cityName,
+          provinceName: provinceName ?? existingIncident.provinceName,
+          regionName: regionName ?? existingIncident.regionName,
+          barangayId,
+          cityMunicipalityId,
+          provinceId,
+          regionId,
+        }),
+      );
+    } catch (err) {
+      if (err instanceof IncidentLocalityResolutionError) {
+        res.status(400).json({ message: err.message });
+        return;
+      }
+
+      throw err;
+    }
+  }
 
   const incident = await prisma.$transaction(async (transaction) => {
     if (normalizedMediaUrls !== undefined) {
@@ -1237,6 +1355,7 @@ export async function updateIncident(req: Request, res: Response): Promise<void>
           postalCode,
           landmark,
         }),
+        ...(resolvedLocalityIds ?? {}),
         statusId,
         citizenId,
         categoryId,

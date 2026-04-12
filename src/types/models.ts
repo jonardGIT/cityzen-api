@@ -16,6 +16,10 @@ export interface CitizenIncident {
   regionName?: string;
   postalCode?: string;
   landmark?: string;
+  regionId?: string | null;
+  provinceId?: string | null;
+  cityMunicipalityId?: string | null;
+  barangayId?: string | null;
   statusId: string;
   citizenId: string;
   categoryId: string;

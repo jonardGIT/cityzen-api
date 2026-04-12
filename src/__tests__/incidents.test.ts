@@ -33,11 +33,13 @@ async function registerAndLinkCitizenReporter(uniqueLabel: string): Promise<{
   const unique = `${uniqueLabel}-${Date.now()}-${Math.random()}`;
   const email = `${unique}@postman.local`;
 
-  const registerRes = await request(app).post(`${API_V1}/auth/register`).send({
-    name: `Citizen Reporter ${unique}`,
-    email,
-    password: 'Password123!',
-  });
+  const registerRes = await request(app)
+    .post(`${API_V1}/auth/register`)
+    .send({
+      name: `Citizen Reporter ${unique}`,
+      email,
+      password: 'Password123!',
+    });
   expect(registerRes.status).toBe(201);
 
   const token = registerRes.body.token as string;
@@ -173,7 +175,6 @@ async function ensureScopedUserToken(input: {
 async function createTrustScopedIncident(input: {
   label: string;
   reporterToken: string;
-  cityMunicipalityId: string;
 }): Promise<{ incidentId: string; mediaId: string }> {
   const categoryId = await createCategory();
   const severityId = await createSeverity();
@@ -191,11 +192,6 @@ async function createTrustScopedIncident(input: {
   expect(reportRes.status).toBe(201);
 
   const incidentId = reportRes.body.id as string;
-
-  await prisma.citizenIncident.update({
-    where: { id: incidentId },
-    data: { cityMunicipalityId: input.cityMunicipalityId },
-  });
 
   const media = await prisma.incidentMedia.create({
     data: {
@@ -424,6 +420,101 @@ describe(`POST ${BASE}/report trust metadata`, () => {
     expect(res.body).toHaveProperty('trust.publicStatusMessage');
     expect(res.body.trust.caseLookupPath).toBe(`/api/v1/cases/${res.body.trust.caseToken}`);
   });
+
+  it('should persist canonical locality ids for Tuguegarao snapshot writes', async () => {
+    const { region, province, city } = await ensureTuguegaraoCityScope();
+    const reporter = await registerAndLinkCitizenReporter('trust-report-locality');
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const res = await request(app)
+      .post(`${BASE}/report`)
+      .set('Authorization', `Bearer ${reporter.token}`)
+      .send({
+        description: 'Trust-layer canonical locality incident',
+        categoryId,
+        severityId,
+        ...buildTuguegaraoLocationSnapshot(),
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({
+      regionId: region.id,
+      provinceId: province.id,
+      cityMunicipalityId: city.id,
+    });
+
+    const storedIncident = await prisma.citizenIncident.findUnique({
+      where: { id: res.body.id as string },
+      select: {
+        regionId: true,
+        provinceId: true,
+        cityMunicipalityId: true,
+      },
+    });
+
+    expect(storedIncident).toMatchObject({
+      regionId: region.id,
+      provinceId: province.id,
+      cityMunicipalityId: city.id,
+    });
+  });
+
+  it('should clear canonical barangayId when an admin patch explicitly clears the barangay snapshot', async () => {
+    const statusId = await getStatusId();
+    const citizenId = await createCitizen();
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const createRes = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        description: 'Admin locality clear regression',
+        statusId,
+        citizenId,
+        categoryId,
+        severityId,
+        ...buildTuguegaraoLocationSnapshot(),
+      });
+
+    expect(createRes.status).toBe(201);
+    expect(createRes.body.barangay).toBe('Centro 10');
+    expect(createRes.body.barangayId).toEqual(expect.any(String));
+
+    const patchRes = await request(app)
+      .patch(`${BASE}/${createRes.body.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ barangay: null });
+
+    expect(patchRes.status).toBe(200);
+    expect(patchRes.body).toMatchObject({
+      barangay: null,
+      barangayId: null,
+      cityName: 'Tuguegarao City',
+      provinceName: 'Cagayan',
+      regionName: 'Cagayan Valley',
+    });
+
+    const storedIncident = await prisma.citizenIncident.findUnique({
+      where: { id: createRes.body.id as string },
+      select: {
+        barangay: true,
+        barangayId: true,
+        cityMunicipalityId: true,
+        provinceId: true,
+        regionId: true,
+      },
+    });
+
+    expect(storedIncident).toMatchObject({
+      barangay: null,
+      barangayId: null,
+      cityMunicipalityId: createRes.body.cityMunicipalityId,
+      provinceId: createRes.body.provinceId,
+      regionId: createRes.body.regionId,
+    });
+  });
 });
 
 describe('public case lookup trust layer', () => {
@@ -523,15 +614,10 @@ describe(`GET ${BASE}/:id/timeline`, () => {
         categoryId,
         severityId,
         ...buildTuguegaraoLocationSnapshot(),
-        cityMunicipalityId: tuguegaraoCityId,
       });
 
     expect(reportRes.status).toBe(201);
-
-    await prisma.citizenIncident.update({
-      where: { id: reportRes.body.id as string },
-      data: { cityMunicipalityId: tuguegaraoCityId },
-    });
+    expect(reportRes.body.cityMunicipalityId).toBe(tuguegaraoCityId);
 
     const ownerTimelineRes = await request(app)
       .get(`${BASE}/${reportRes.body.id}/timeline`)
@@ -578,7 +664,6 @@ describe(`GET ${BASE}/:id/timeline`, () => {
         categoryId,
         severityId,
         ...buildTuguegaraoLocationSnapshot(),
-        cityMunicipalityId: tuguegaraoCityId,
       });
 
     expect(reportRes.status).toBe(201);
@@ -613,7 +698,6 @@ describe(`GET ${BASE}/:id/timeline`, () => {
         categoryId,
         severityId,
         ...buildTuguegaraoLocationSnapshot(),
-        cityMunicipalityId: tuguegaraoCityId,
       });
 
     expect(reportRes.status).toBe(201);
@@ -649,15 +733,10 @@ describe(`GET ${BASE}/:id/timeline`, () => {
         categoryId,
         severityId,
         ...buildTuguegaraoLocationSnapshot(),
-        cityMunicipalityId: tuguegaraoCityId,
       });
 
     expect(reportRes.status).toBe(201);
-
-    await prisma.citizenIncident.update({
-      where: { id: reportRes.body.id as string },
-      data: { cityMunicipalityId: tuguegaraoCityId },
-    });
+    expect(reportRes.body.cityMunicipalityId).toBe(tuguegaraoCityId);
 
     const newStatusRes = await request(app)
       .post(`${API_V1}/statuses`)
@@ -690,7 +769,10 @@ describe(`GET ${BASE}/:id/timeline`, () => {
 
     expect(internalTimelineRes.status).toBe(200);
     expect(internalTimelineRes.body.timeline[1]).toHaveProperty('fromStatus.name', 'Reported');
-    expect(internalTimelineRes.body.timeline[1]).toHaveProperty('toStatus.id', newStatusRes.body.id);
+    expect(internalTimelineRes.body.timeline[1]).toHaveProperty(
+      'toStatus.id',
+      newStatusRes.body.id,
+    );
     expect(internalTimelineRes.body.timeline[1]).toHaveProperty(
       'changedByUser.email',
       'dispatcher@xypes.local',
@@ -819,7 +901,6 @@ describe('Phase 1 trust-layer incident reads', () => {
     const incident = await createTrustScopedIncident({
       label: 'phase1-out-of-city',
       reporterToken: owner.token,
-      cityMunicipalityId: tuguegaraoCityId,
     });
 
     const listRes = await request(app)
@@ -844,7 +925,6 @@ describe('Phase 1 trust-layer incident reads', () => {
     const incident = await createTrustScopedIncident({
       label: 'phase1-responder-blocked',
       reporterToken: owner.token,
-      cityMunicipalityId: tuguegaraoCityId,
     });
 
     const listRes = await request(app).get(BASE).set('Authorization', `Bearer ${responderToken}`);
@@ -873,7 +953,6 @@ describe('Phase 1 trust-layer incident reads', () => {
     const incident = await createTrustScopedIncident({
       label: 'phase1-responder-allowed',
       reporterToken: owner.token,
-      cityMunicipalityId: tuguegaraoCityId,
     });
 
     await assignResponderToIncident({
@@ -912,7 +991,6 @@ describe('Phase 1 trust-layer incident reads', () => {
     const incident = await createTrustScopedIncident({
       label: 'phase1-unsupported-role',
       reporterToken: owner.token,
-      cityMunicipalityId: tuguegaraoCityId,
     });
 
     const listRes = await request(app).get(BASE).set('Authorization', `Bearer ${auditorToken}`);
@@ -1648,6 +1726,47 @@ describe('VIEWER incident scoping', () => {
 
     expect(res.status).toBe(400);
     expect(res.body).toHaveProperty('errors');
+  });
+
+  it('POST /incidents/report rejects client-provided canonical locality ids', async () => {
+    const { region, province, city } = await ensureTuguegaraoCityScope();
+    const barangayRecord = await prisma.barangay.upsert({
+      where: { code: 'PH-021517-010' },
+      update: {
+        name: 'Centro 10',
+        cityMunicipalityId: city.id,
+        archivedAt: null,
+      },
+      create: {
+        code: 'PH-021517-010',
+        name: 'Centro 10',
+        cityMunicipalityId: city.id,
+      },
+    });
+
+    const res = await request(app)
+      .post(`${API_V1}/incidents/report`)
+      .set('Authorization', `Bearer ${viewerToken}`)
+      .send({
+        description: 'Should fail because canonical locality ids are forbidden',
+        categoryId: viewerCategoryId,
+        severityId: viewerSeverityId,
+        ...buildIncidentLocationSnapshot(),
+        regionId: region.id,
+        provinceId: province.id,
+        cityMunicipalityId: city.id,
+        barangayId: barangayRecord.id,
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ field: 'regionId' }),
+        expect.objectContaining({ field: 'provinceId' }),
+        expect.objectContaining({ field: 'cityMunicipalityId' }),
+        expect.objectContaining({ field: 'barangayId' }),
+      ]),
+    );
   });
 
   it('POST /incidents/report accepts coordinate snapshot payload', async () => {

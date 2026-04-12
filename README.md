@@ -121,6 +121,10 @@ RATE_LIMIT_ENABLED=true
 RATE_LIMIT_STORE=memory
 RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX_REQUESTS=100
+PUBLIC_CASE_LOOKUP_RATE_LIMIT_ENABLED=true
+PUBLIC_CASE_LOOKUP_RATE_LIMIT_WINDOW_MS=600000
+PUBLIC_CASE_LOOKUP_RATE_LIMIT_MAX_REQUESTS=20
+INCIDENT_CASE_TOKEN_TTL_DAYS=30
 JWT_SECRET=replace-with-a-long-random-secret
 MFA_ENCRYPTION_KEY=replace-with-a-separate-long-random-secret
 SUPABASE_AUTH_ENABLED=false
@@ -184,6 +188,9 @@ Important variables:
 - `API_KEYS`: comma-separated allowed API keys.
 - `API_KEY`: optional single-key fallback if `API_KEYS` is not set.
 - `RATE_LIMIT_ENABLED`, `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX_REQUESTS`: request throttling controls.
+- `PUBLIC_CASE_LOOKUP_RATE_LIMIT_ENABLED`: public case-lookup limiter switch for the trust-layer endpoint. Keep this enabled for any deployment that exposes `/api/v1/cases/:caseToken`. In production, startup now fails closed if this is explicitly set to `false`.
+- `PUBLIC_CASE_LOOKUP_RATE_LIMIT_WINDOW_MS`, `PUBLIC_CASE_LOOKUP_RATE_LIMIT_MAX_REQUESTS`: public case-lookup throttle for trust-layer reads. In production, set these explicitly to the current partner-rollout baseline of `600000` ms and `20` requests. Startup rejects values outside `60000` to `3600000` ms and `1` to `30` requests.
+- `INCIDENT_CASE_TOKEN_TTL_DAYS`: public case-token lifetime. In production, set this explicitly to the current partner-rollout baseline of `30` days. Startup rejects values outside `1` to `30` days.
 - `RATE_LIMIT_STORE`: optional rate-limit backend. Use `database` for shared counters across multiple API instances. Defaults to `database` in production and `memory` elsewhere. In production, the API now fails closed with `503` responses if the shared limiter store is unavailable.
 - `AUTH_LOGIN_RATE_LIMIT_WINDOW_MS`, `AUTH_LOGIN_RATE_LIMIT_MAX_REQUESTS`: optional tighter login throttle. Defaults to 60 seconds and 5 attempts per client-plus-email.
 - `AUTH_REFRESH_RATE_LIMIT_WINDOW_MS`, `AUTH_REFRESH_RATE_LIMIT_MAX_REQUESTS`: optional tighter refresh throttle. Defaults to 60 seconds and 10 attempts per client.

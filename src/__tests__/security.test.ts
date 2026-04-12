@@ -257,6 +257,106 @@ describe('Endpoint-specific rate limiting', () => {
   });
 });
 
+describe('Public case lookup rate limiting', () => {
+  const originalEnv = createSecurityTestEnv();
+
+  beforeEach(async () => {
+    jest.resetModules();
+    process.env = { ...originalEnv };
+    delete process.env.API_KEYS;
+    delete process.env.API_KEY;
+    delete process.env.PUBLIC_CASE_LOOKUP_RATE_LIMIT_ENABLED;
+    process.env.RATE_LIMIT_ENABLED = 'false';
+    process.env.PUBLIC_CASE_LOOKUP_RATE_LIMIT_WINDOW_MS = '60000';
+    process.env.PUBLIC_CASE_LOOKUP_RATE_LIMIT_MAX_REQUESTS = '1';
+    await ensureSecurityTestUsers();
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it('keeps public case lookup limited when the global limiter is disabled', async () => {
+    const { default: app, API_V1 } = await import('../app.js');
+
+    const adminLogin = await request(app).post(`${API_V1}/auth/login`).send({
+      email: 'admin@xypes.local',
+      password: 'Password123!',
+    });
+
+    expect(adminLogin.status).toBe(200);
+
+    const adminToken = adminLogin.body.token as string;
+
+    const categoryResponse = await request(app)
+      .post(`${API_V1}/categories`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: `Rate Limit Category ${Date.now()}` });
+
+    expect(categoryResponse.status).toBe(201);
+
+    const severityResponse = await request(app)
+      .post(`${API_V1}/severities`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ level: `rate-limit-severity-${Date.now()}` });
+
+    expect(severityResponse.status).toBe(201);
+
+    const uniqueSuffix = `${Date.now()}-${Math.random()}`;
+    const reporterEmail = `public-case-${uniqueSuffix}@xypes.local`;
+
+    const registerResponse = await request(app)
+      .post(`${API_V1}/auth/register`)
+      .send({
+        name: `Public Case Reporter ${uniqueSuffix}`,
+        email: reporterEmail,
+        password: 'Password123!',
+      });
+
+    expect(registerResponse.status).toBe(201);
+
+    const reporterToken = registerResponse.body.token as string;
+
+    const linkResponse = await request(app)
+      .post(`${API_V1}/citizens/link-me`)
+      .set('Authorization', `Bearer ${reporterToken}`)
+      .send({
+        name: `Public Case Citizen ${uniqueSuffix}`,
+        preferredChannel: 'app',
+      });
+
+    expect([200, 201]).toContain(linkResponse.status);
+
+    const reportResponse = await request(app)
+      .post(`${API_V1}/incidents/report`)
+      .set('Authorization', `Bearer ${reporterToken}`)
+      .send({
+        description: 'Public case lookup limiter regression check',
+        categoryId: categoryResponse.body.id as string,
+        severityId: severityResponse.body.id as string,
+        latitude: 17.6132,
+        longitude: 121.7269,
+        addressLine1: '1 Enrile Avenue',
+        cityName: 'Tuguegarao City',
+        provinceName: 'Cagayan',
+        regionName: 'Cagayan Valley',
+        barangay: 'Centro 10',
+      });
+
+    expect(reportResponse.status).toBe(201);
+
+    const caseLookupPath = `${API_V1}/cases/${reportResponse.body.trust.caseToken as string}`;
+    const firstLookup = await request(app).get(caseLookupPath);
+    const secondLookup = await request(app).get(caseLookupPath);
+
+    expect(firstLookup.status).toBe(200);
+    expect(secondLookup.status).toBe(429);
+    expect(secondLookup.headers['retry-after']).toBeDefined();
+    expect(secondLookup.headers['x-ratelimit-limit']).toBe('1');
+    expect(secondLookup.headers['x-ratelimit-remaining']).toBe('0');
+  });
+});
+
 describe('Shared-store rate limiting', () => {
   const originalEnv = createSecurityTestEnv();
 
