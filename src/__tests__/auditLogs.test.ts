@@ -165,7 +165,7 @@ describe(`GET ${BASE}`, () => {
     ]);
   });
 
-  it('allows SYSTEM_ADMIN to read audit logs', async () => {
+  it('allows NATIONAL_ADMIN to read audit logs', async () => {
     const response = await request(app)
       .get(`${BASE}?page=1&pageSize=5`)
       .set('Authorization', `Bearer ${systemAdminToken}`);
@@ -183,7 +183,7 @@ describe(`GET ${BASE}`, () => {
     expect(Array.isArray(response.body.data)).toBe(true);
   });
 
-  it('returns 403 for DEPARTMENT_MANAGER', async () => {
+  it('returns 403 for CITY_ADMIN', async () => {
     const response = await request(app)
       .get(`${BASE}?page=1&pageSize=5`)
       .set('Authorization', `Bearer ${departmentManagerToken}`);
@@ -199,7 +199,7 @@ describe(`GET ${BASE}`, () => {
     expect(response.status).toBe(403);
   });
 
-  it('returns 403 for SUPERVISOR', async () => {
+  it('returns 403 for PROVINCIAL_ADMIN', async () => {
     const response = await request(app)
       .get(`${BASE}?page=1&pageSize=5`)
       .set('Authorization', `Bearer ${supervisorToken}`);
@@ -549,7 +549,7 @@ describe('Audit log persistence', () => {
         name: `Privileged Reset ${unique}`,
         email,
         passwordHash: await bcrypt.hash('Password123!', 10),
-        role: 'DEPARTMENT_MANAGER',
+        role: 'CITY_ADMIN',
         mfaEnabled: false,
         mfaSecretEncrypted: null,
         mfaEnabledAt: null,
@@ -808,7 +808,7 @@ describe('Audit log persistence', () => {
         name: `Burst Manager ${unique}`,
         email: actorEmail,
         passwordHash: await bcrypt.hash('Password123!', 10),
-        role: 'DEPARTMENT_MANAGER',
+        role: 'CITY_ADMIN',
         mfaEnabled: false,
         mfaSecretEncrypted: null,
         mfaEnabledAt: null,
@@ -846,10 +846,10 @@ describe('Audit log persistence', () => {
       .post(`${API_V1}/users`)
       .set('Authorization', `Bearer ${login.body.token as string}`)
       .send({
-        name: `Burst Supervisor ${unique}`,
-        email: `burst.supervisor.${unique}@postman.local`,
+        name: `Burst Responder ${unique}`,
+        email: `burst.responder.${unique}@postman.local`,
         password: 'Password1234!@#',
-        role: 'SUPERVISOR',
+        role: 'RESPONDER',
       });
 
     expect(firstCreate.status).toBe(201);

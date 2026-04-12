@@ -39,9 +39,10 @@ CREATE TABLE users (
   "mfaEnabledAt" timestamptz,
   CONSTRAINT users_role_check CHECK (
     role IN (
-      'SYSTEM_ADMIN',
-      'DEPARTMENT_MANAGER',
-      'SUPERVISOR',
+      'NATIONAL_ADMIN',
+      'REGIONAL_DIRECTOR',
+      'PROVINCIAL_ADMIN',
+      'CITY_ADMIN',
       'DISPATCHER',
       'RESPONDER',
       'CITIZEN_REPORTER',

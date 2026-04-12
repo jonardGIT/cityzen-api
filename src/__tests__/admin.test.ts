@@ -37,7 +37,7 @@ describe('admin access review', () => {
     delete process.env.ADMIN_ACCESS_REVIEW_STALE_DAYS;
   });
 
-  it(`allows SYSTEM_ADMIN to read ${API_V1}/admin/users/access-review`, async () => {
+  it(`allows NATIONAL_ADMIN to read ${API_V1}/admin/users/access-review`, async () => {
     process.env.ADMIN_ACCESS_REVIEW_STALE_DAYS = '30';
 
     const adminLogin = await request(app)
@@ -82,7 +82,7 @@ describe('admin access review', () => {
       (user: { email: string }) => user.email === 'admin@xypes.local',
     );
     expect(adminUser).toMatchObject({
-      role: 'SYSTEM_ADMIN',
+      role: 'NATIONAL_ADMIN',
       hasActiveSessions: true,
       activeSessionCount: expect.any(Number),
       latestSessionUserAgent: expect.any(String),
@@ -98,7 +98,7 @@ describe('admin access review', () => {
     });
   });
 
-  it('allows DEPARTMENT_MANAGER to read the privileged access review report', async () => {
+  it('allows CITY_ADMIN to read the privileged access review report', async () => {
     const response = await request(app)
       .get(`${API_V1}/admin/users/access-review`)
       .set('Authorization', `Bearer ${managerToken}`);

@@ -15,6 +15,12 @@ import incidentsRouter from './routes/incidents.js';
 import assignmentsRouter from './routes/assignments.js';
 import usersRouter from './routes/users.js';
 import auditLogsRouter from './routes/auditLogs.js';
+import regionsRouter from './routes/regions.js';
+import provincesRouter from './routes/provinces.js';
+import citiesMunicipalitiesRouter from './routes/citiesMunicipalities.js';
+import barangaysRouter from './routes/barangays.js';
+import incidentEscalationsRouter from './routes/incidentEscalations.js';
+import mutualAidRequestsRouter from './routes/mutualAidRequests.js';
 import authRouter from './routes/auth.js';
 import adminRouter from './routes/admin.js';
 import { openApiDocument } from './docs/openapi.js';
@@ -148,6 +154,14 @@ app.use(`${API_V1}/assignments`, assignmentsRouter);
 app.use(`${API_V1}/users`, usersRouter);
 // Mount audit log read routes.
 app.use(`${API_V1}/audit-logs`, auditLogsRouter);
+// Mount geographic hierarchy routes.
+app.use(`${API_V1}/regions`, regionsRouter);
+app.use(`${API_V1}/provinces`, provincesRouter);
+app.use(`${API_V1}/cities-municipalities`, citiesMunicipalitiesRouter);
+app.use(`${API_V1}/barangays`, barangaysRouter);
+// Mount cross-jurisdiction routes.
+app.use(`${API_V1}/incident-escalations`, incidentEscalationsRouter);
+app.use(`${API_V1}/mutual-aid-requests`, mutualAidRequestsRouter);
 // Mount auth endpoints (JWT login/me).
 app.use(`${API_V1}/auth`, authRouter);
 // Mount admin endpoints (JWT + role-protected).

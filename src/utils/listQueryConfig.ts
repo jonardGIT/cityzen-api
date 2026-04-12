@@ -188,3 +188,85 @@ export const auditLogsListQueryConfig: ListQueryConfig = {
     updatedAt: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
   },
 };
+
+export const regionsListQueryConfig: ListQueryConfig = {
+  resource: 'regions',
+  defaultSortBy: 'name',
+  fields: {
+    id: { type: 'uuid', sortable: true, filterOperators: [...uuidOps] },
+    code: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
+    name: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
+    createdAt: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
+    updatedAt: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
+  },
+};
+
+export const provincesListQueryConfig: ListQueryConfig = {
+  resource: 'provinces',
+  defaultSortBy: 'name',
+  fields: {
+    id: { type: 'uuid', sortable: true, filterOperators: [...uuidOps] },
+    code: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
+    name: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
+    regionId: { type: 'uuid', sortable: true, filterOperators: [...uuidOps] },
+    createdAt: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
+    updatedAt: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
+  },
+};
+
+export const citiesMunicipalitiesListQueryConfig: ListQueryConfig = {
+  resource: 'cities-municipalities',
+  defaultSortBy: 'name',
+  fields: {
+    id: { type: 'uuid', sortable: true, filterOperators: [...uuidOps] },
+    code: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
+    name: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
+    type: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
+    provinceId: { type: 'uuid', sortable: true, filterOperators: [...uuidOps] },
+    createdAt: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
+    updatedAt: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
+  },
+};
+
+export const barangaysListQueryConfig: ListQueryConfig = {
+  resource: 'barangays',
+  defaultSortBy: 'name',
+  fields: {
+    id: { type: 'uuid', sortable: true, filterOperators: [...uuidOps] },
+    code: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
+    name: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
+    cityMunicipalityId: { type: 'uuid', sortable: true, filterOperators: [...uuidOps] },
+    createdAt: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
+    updatedAt: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
+  },
+};
+
+export const incidentEscalationsListQueryConfig: ListQueryConfig = {
+  resource: 'incident-escalations',
+  defaultSortBy: 'createdAt',
+  fields: {
+    id: { type: 'uuid', sortable: true, filterOperators: [...uuidOps] },
+    incidentId: { type: 'uuid', sortable: true, filterOperators: [...uuidOps] },
+    escalatedById: { type: 'uuid', sortable: true, filterOperators: [...uuidOps] },
+    fromLevel: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
+    toLevel: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
+    status: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
+    createdAt: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
+    updatedAt: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
+  },
+};
+
+export const mutualAidRequestsListQueryConfig: ListQueryConfig = {
+  resource: 'mutual-aid-requests',
+  defaultSortBy: 'createdAt',
+  fields: {
+    id: { type: 'uuid', sortable: true, filterOperators: [...uuidOps] },
+    incidentId: { type: 'uuid', sortable: true, filterOperators: [...uuidOps] },
+    requestingJurisdictionId: { type: 'uuid', sortable: true, filterOperators: [...uuidOps] },
+    targetJurisdictionId: { type: 'uuid', sortable: true, filterOperators: [...uuidOps] },
+    requestedById: { type: 'uuid', sortable: true, filterOperators: [...uuidOps] },
+    status: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
+    createdAt: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
+    updatedAt: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
+  },
+};

@@ -475,7 +475,7 @@ export const createUserValidator = [
       ),
     )
     .withMessage(
-      'role must be one of SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
+      'role must be one of NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, CITY_ADMIN, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
     ),
 ];
 
@@ -516,6 +516,6 @@ export const updateUserValidator = [
       ),
     )
     .withMessage(
-      'role must be one of SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
+      'role must be one of NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, CITY_ADMIN, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
     ),
 ];

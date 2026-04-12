@@ -79,37 +79,37 @@ export function getDataGovernanceReport(
     {
       domain: 'auth-sessions',
       retentionDays: getPositiveInteger(env.DATA_RETENTION_AUTH_SESSIONS_DAYS, 30),
-      purgeAuthority: 'SYSTEM_ADMIN',
+      purgeAuthority: 'NATIONAL_ADMIN',
       legalHoldSupported: true,
     },
     {
       domain: 'password-reset-tokens',
       retentionDays: getPositiveInteger(env.DATA_RETENTION_PASSWORD_RESET_DAYS, 7),
-      purgeAuthority: 'SYSTEM_ADMIN',
+      purgeAuthority: 'NATIONAL_ADMIN',
       legalHoldSupported: true,
     },
     {
       domain: 'audit-logs',
       retentionDays: getPositiveInteger(env.DATA_RETENTION_AUDIT_LOG_DAYS, 365),
-      purgeAuthority: 'SYSTEM_ADMIN',
+      purgeAuthority: 'NATIONAL_ADMIN',
       legalHoldSupported: true,
     },
     {
       domain: 'incident-media',
       retentionDays: getPositiveInteger(env.DATA_RETENTION_INCIDENT_MEDIA_DAYS, 365),
-      purgeAuthority: 'SYSTEM_ADMIN',
+      purgeAuthority: 'NATIONAL_ADMIN',
       legalHoldSupported: true,
     },
     {
       domain: 'incident-records',
       retentionDays: getPositiveInteger(env.DATA_RETENTION_INCIDENT_RECORDS_DAYS, 1825),
-      purgeAuthority: 'SYSTEM_ADMIN',
+      purgeAuthority: 'NATIONAL_ADMIN',
       legalHoldSupported: true,
     },
     {
       domain: 'citizen-records',
       retentionDays: getPositiveInteger(env.DATA_RETENTION_CITIZEN_RECORDS_DAYS, 1825),
-      purgeAuthority: 'SYSTEM_ADMIN',
+      purgeAuthority: 'NATIONAL_ADMIN',
       legalHoldSupported: true,
     },
   ];

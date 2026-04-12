@@ -134,7 +134,7 @@ describe('Supabase JWT mode', () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({
-      role: 'SYSTEM_ADMIN',
+      role: 'NATIONAL_ADMIN',
       label: 'System Admin',
       canUpdateUser: true,
       canDeleteUser: true,

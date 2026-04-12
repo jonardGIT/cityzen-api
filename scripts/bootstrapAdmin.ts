@@ -47,7 +47,7 @@ function parseArgs(argv: string[]): CliOptions {
   let name = process.env.BOOTSTRAP_ADMIN_NAME?.trim() || null;
   let email = process.env.BOOTSTRAP_ADMIN_EMAIL?.trim() || null;
   let password = process.env.BOOTSTRAP_ADMIN_PASSWORD?.trim() || null;
-  let role = normalizeUserRoleInput(process.env.BOOTSTRAP_ADMIN_ROLE) ?? 'SYSTEM_ADMIN';
+  let role = normalizeUserRoleInput(process.env.BOOTSTRAP_ADMIN_ROLE) ?? 'NATIONAL_ADMIN';
   let help = false;
 
   for (const arg of argv) {

@@ -49,13 +49,13 @@ describe(`GET ${CAPABILITIES}`, () => {
     );
   });
 
-  it('should return 200 with capability metadata for SYSTEM_ADMIN', async () => {
+  it('should return 200 with capability metadata for NATIONAL_ADMIN', async () => {
     const res = await request(app).get(CAPABILITIES).set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
-      role: 'SYSTEM_ADMIN',
-      label: 'System Admin',
-      scope: 'global',
+      role: 'NATIONAL_ADMIN',
+      label: 'National Admin',
+      scope: 'national',
       canUpdateUser: true,
       canDeleteUser: true,
     });
@@ -243,10 +243,10 @@ describe(`POST ${USERS}/:id/restore`, () => {
 
     const archivedPrivilegedUser = await prisma.user.create({
       data: {
-        name: `Archived System Admin ${unique}`,
+        name: `Archived National Admin ${unique}`,
         email: `archived.system.admin.${unique}@xypes.local`,
         passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
-        role: 'SYSTEM_ADMIN',
+        role: 'NATIONAL_ADMIN',
         archivedAt: new Date(),
         mfaEnabled: false,
         mfaSecretEncrypted: null,

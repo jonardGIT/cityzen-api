@@ -11,6 +11,13 @@ const config: ContentTypeConfig = {
   fields: [
     { name: 'name', requiredOnCreate: true, requiredOnUpdate: true },
     { name: 'contactNumber', nullable: true, trim: true, maxLength: 20 },
+    { name: 'jurisdictionType', nullable: true },
+    { name: 'jurisdictionId', nullable: true },
+    { name: 'agencyType', nullable: true },
+    { name: 'regionId', nullable: true },
+    { name: 'provinceId', nullable: true },
+    { name: 'cityMunicipalityId', nullable: true },
+    { name: 'barangayId', nullable: true },
   ],
   allowedIncludes: {
     responders: {
@@ -19,7 +26,33 @@ const config: ContentTypeConfig = {
         agency: true,
       },
     },
+    regionRef: true,
+    provinceRef: true,
+    cityMunicipalityRef: true,
+    barangayRef: true,
   },
+  foreignKeys: [
+    {
+      field: 'regionId',
+      targetModel: 'region',
+      message: 'regionId does not reference a valid Region',
+    },
+    {
+      field: 'provinceId',
+      targetModel: 'province',
+      message: 'provinceId does not reference a valid Province',
+    },
+    {
+      field: 'cityMunicipalityId',
+      targetModel: 'cityMunicipality',
+      message: 'cityMunicipalityId does not reference a valid City/Municipality',
+    },
+    {
+      field: 'barangayId',
+      targetModel: 'barangay',
+      message: 'barangayId does not reference a valid Barangay',
+    },
+  ],
   deleteGuards: [
     {
       model: 'responder',

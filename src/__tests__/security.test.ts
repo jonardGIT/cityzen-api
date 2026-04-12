@@ -42,7 +42,7 @@ async function ensureSecurityTestUsers(): Promise<void> {
   const passwordHash = await bcrypt.hash('Password123!', 10);
 
   const users = [
-    { name: 'System Admin', email: 'admin@xypes.local', role: 'SYSTEM_ADMIN' },
+    { name: 'System Admin', email: 'admin@xypes.local', role: 'NATIONAL_ADMIN' },
     { name: 'Analyst', email: 'analyst@xypes.local', role: 'CITIZEN_REPORTER' },
   ];
 

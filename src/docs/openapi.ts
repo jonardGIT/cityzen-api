@@ -148,7 +148,7 @@ const auditLogExample: OpenAPIV3.ExampleObject = {
     outcome: 'success',
     actorUserId: '70000000-0000-0000-0000-000000000001',
     actorEmail: 'admin@xypes.local',
-    actorRole: 'SYSTEM_ADMIN',
+    actorRole: 'NATIONAL_ADMIN',
     resource: 'citizens',
     method: 'POST',
     path: '/citizens',
@@ -179,38 +179,42 @@ const paginatedAuditLogListExample: OpenAPIV3.ExampleObject = {
 };
 
 const systemAdminCapabilitiesExample: OpenAPIV3.ExampleObject = {
-  summary: 'System admin capabilities',
+  summary: 'National admin capabilities',
   value: {
-    role: 'SYSTEM_ADMIN',
-    label: 'System Admin',
+    role: 'NATIONAL_ADMIN',
+    label: 'National Admin',
     permissions: [
       'user:manage:global',
       'role:manage:global',
       'settings:manage:global',
-      'incident:delete:global',
+      'incident:manage:global',
       'audit:read:global',
       'audit:export:global',
+      'geo:manage:global',
+      'escalation:manage:global',
     ],
-    scope: 'global',
+    scope: 'national',
     canUpdateUser: true,
     canDeleteUser: true,
   },
 };
 
 const departmentManagerCapabilitiesExample: OpenAPIV3.ExampleObject = {
-  summary: 'Department manager capabilities',
+  summary: 'City/Municipal admin capabilities',
   value: {
-    role: 'DEPARTMENT_MANAGER',
-    label: 'Department Manager',
+    role: 'CITY_ADMIN',
+    label: 'City/Municipal Admin',
     permissions: [
-      'user:create:department',
-      'user:read:department',
-      'user:update:department',
-      'user:reset_password:department',
-      'reference:manage:department',
-      'incident:read:department',
+      'user:create:city',
+      'user:read:city',
+      'user:update:city',
+      'user:reset_password:city',
+      'reference:manage:city',
+      'incident:read:city',
+      'agency:manage:city',
+      'escalation:create:city',
     ],
-    scope: 'department',
+    scope: 'city',
     canUpdateUser: true,
     canDeleteUser: false,
   },
@@ -1599,11 +1603,12 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
       UserRole: {
         type: 'string',
         description:
-          'Application authorization role. Legacy stored values such as SUPER_ADMIN, ADMIN, and VIEWER are normalized at runtime to the current role set.',
+          'Application authorization role. Legacy stored values such as SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR are normalized at runtime to the current role set.',
         enum: [
-          'SYSTEM_ADMIN',
-          'DEPARTMENT_MANAGER',
-          'SUPERVISOR',
+          'NATIONAL_ADMIN',
+          'REGIONAL_DIRECTOR',
+          'PROVINCIAL_ADMIN',
+          'CITY_ADMIN',
           'DISPATCHER',
           'RESPONDER',
           'CITIZEN_REPORTER',

@@ -185,7 +185,7 @@ export async function createUser(req: Request, res: Response): Promise<void> {
   if (!normalizedRole) {
     res.status(422).json({
       message:
-        'role must be one of SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
+        'role must be one of NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, CITY_ADMIN, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
     });
     return;
   }
@@ -242,9 +242,13 @@ export async function createUser(req: Request, res: Response): Promise<void> {
 
     res.locals.auditMetadata = {
       managedUserRole: normalizedRole,
-      privilegedTarget: ['SYSTEM_ADMIN', 'DEPARTMENT_MANAGER', 'SUPERVISOR', 'DISPATCHER'].includes(
-        normalizedRole,
-      ),
+      privilegedTarget: [
+        'NATIONAL_ADMIN',
+        'REGIONAL_DIRECTOR',
+        'PROVINCIAL_ADMIN',
+        'CITY_ADMIN',
+        'DISPATCHER',
+      ].includes(normalizedRole),
       passwordChanged: password !== undefined,
       authProvider: isSupabaseAuthEnabled() ? 'supabase' : 'local',
     };
@@ -308,7 +312,7 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
   if (role !== undefined && !normalizedRole) {
     res.status(422).json({
       message:
-        'role must be one of SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
+        'role must be one of NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, CITY_ADMIN, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
     });
     return;
   }
@@ -380,9 +384,13 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
     res.locals.auditMetadata = {
       previousRole: existingUserRole,
       managedUserRole: updatedUser.role,
-      privilegedTarget: ['SYSTEM_ADMIN', 'DEPARTMENT_MANAGER', 'SUPERVISOR', 'DISPATCHER'].includes(
-        updatedUser.role,
-      ),
+      privilegedTarget: [
+        'NATIONAL_ADMIN',
+        'REGIONAL_DIRECTOR',
+        'PROVINCIAL_ADMIN',
+        'CITY_ADMIN',
+        'DISPATCHER',
+      ].includes(updatedUser.role),
       roleChanged: normalizedRole !== null && normalizedRole !== existingUserRole,
       emailChanged: normalizedEmail !== undefined && normalizedEmail !== existingUser.email,
       passwordChanged: password !== undefined,
@@ -447,9 +455,13 @@ export async function deleteUser(req: Request, res: Response): Promise<void> {
   res.locals.auditMetadata = {
     previousRole: existingUserRole,
     managedUserRole: existingUserRole,
-    privilegedTarget: ['SYSTEM_ADMIN', 'DEPARTMENT_MANAGER', 'SUPERVISOR', 'DISPATCHER'].includes(
-      existingUserRole,
-    ),
+    privilegedTarget: [
+      'NATIONAL_ADMIN',
+      'REGIONAL_DIRECTOR',
+      'PROVINCIAL_ADMIN',
+      'CITY_ADMIN',
+      'DISPATCHER',
+    ].includes(existingUserRole),
     archiveModeDelete: isArchiveEnabled(),
   };
 
@@ -520,9 +532,13 @@ export async function restoreUser(req: Request, res: Response): Promise<void> {
   res.locals.auditMetadata = {
     previousRole: existingUserRole,
     managedUserRole: existingUserRole,
-    privilegedTarget: ['SYSTEM_ADMIN', 'DEPARTMENT_MANAGER', 'SUPERVISOR', 'DISPATCHER'].includes(
-      existingUserRole,
-    ),
+    privilegedTarget: [
+      'NATIONAL_ADMIN',
+      'REGIONAL_DIRECTOR',
+      'PROVINCIAL_ADMIN',
+      'CITY_ADMIN',
+      'DISPATCHER',
+    ].includes(existingUserRole),
     restoredFromArchive: true,
   };
 
