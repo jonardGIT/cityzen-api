@@ -212,7 +212,9 @@ function buildIncidentLocalityResolutionInput(input: IncidentLocalityInput) {
 
 function assertIncidentCityMunicipalityResolved(input: {
   cityMunicipalityId: string | null;
-}): void {
+}): asserts input is {
+  cityMunicipalityId: string;
+} {
   if (!input.cityMunicipalityId) {
     throw new IncidentLocalityResolutionError(
       'Incident locality must resolve to an active city or municipality',
@@ -585,6 +587,72 @@ async function canReadIncidentWithScope(
   });
 
   return Boolean(assignment);
+}
+
+function denyIncidentWrite(res: Response, message: string): void {
+  res.status(403).json({ message });
+}
+
+async function authorizeIncidentCreate(
+  authUser: NonNullable<AuthenticatedRequest['authUser']>,
+  res: Response,
+  cityMunicipalityId: string,
+): Promise<boolean> {
+  if (authUser.role === 'RESPONDER') {
+    denyIncidentWrite(res, 'Forbidden: responders cannot create incidents through this route');
+    return false;
+  }
+
+  const scopeResult = await resolveIncidentReadScope(authUser, res, {
+    allowNationalAdmin: true,
+  });
+
+  if (scopeResult.status !== 'scoped') {
+    if (scopeResult.status === 'denied') {
+      denyIncidentWrite(res, 'Forbidden: incident creation is outside your allowed scope');
+    }
+
+    return false;
+  }
+
+  if (scopeResult.scope.kind === 'global') {
+    return true;
+  }
+
+  if (
+    scopeResult.scope.kind === 'city' &&
+    scopeResult.scope.cityMunicipalityIds.includes(cityMunicipalityId)
+  ) {
+    return true;
+  }
+
+  denyIncidentWrite(res, 'Forbidden: incident creation is outside your allowed scope');
+  return false;
+}
+
+async function authorizeIncidentMutation(
+  authUser: NonNullable<AuthenticatedRequest['authUser']>,
+  res: Response,
+  incident: IncidentScopeRecord,
+): Promise<boolean> {
+  const scopeResult = await resolveIncidentReadScope(authUser, res, {
+    allowNationalAdmin: true,
+  });
+
+  if (scopeResult.status !== 'scoped') {
+    if (scopeResult.status === 'denied') {
+      denyIncidentWrite(res, 'Forbidden: incident mutation is outside your allowed scope');
+    }
+
+    return false;
+  }
+
+  if (await canReadIncidentWithScope(scopeResult.scope, incident)) {
+    return true;
+  }
+
+  denyIncidentWrite(res, 'Forbidden: incident mutation is outside your allowed scope');
+  return false;
 }
 
 async function getTimelineAccess(
@@ -977,7 +1045,13 @@ export async function getIncidentMediaAccess(req: Request, res: Response): Promi
 
 // Creates a new incident. Validates all FK references before persisting to the database.
 export async function createIncident(req: Request, res: Response): Promise<void> {
-  const actorUserId = (req as AuthenticatedRequest).authUser?.id ?? null;
+  const { authUser } = req as AuthenticatedRequest;
+  if (!authUser) {
+    res.status(401).json({ message: 'Unauthorized: missing authentication context' });
+    return;
+  }
+
+  const actorUserId = authUser.id;
   const {
     description,
     mediaUrl,
@@ -1041,6 +1115,10 @@ export async function createIncident(req: Request, res: Response): Promise<void>
       barangayId,
     });
     assertIncidentCityMunicipalityResolved(resolvedLocalityIds);
+
+    if (!(await authorizeIncidentCreate(authUser, res, resolvedLocalityIds.cityMunicipalityId))) {
+      return;
+    }
 
     const incident = await prisma.$transaction(async (transaction) => {
       const trustTransaction = transaction as TrustLayerTransactionClient;
@@ -1252,7 +1330,13 @@ export async function createCitizenIncidentReport(req: Request, res: Response): 
 
 // Updates an existing incident and validates any provided foreign keys.
 export async function updateIncident(req: Request, res: Response): Promise<void> {
-  const actorUserId = (req as AuthenticatedRequest).authUser?.id ?? null;
+  const { authUser } = req as AuthenticatedRequest;
+  if (!authUser) {
+    res.status(401).json({ message: 'Unauthorized: missing authentication context' });
+    return;
+  }
+
+  const actorUserId = authUser.id;
   const id = getParamId(req, res) as string | null;
   if (id === null) {
     return;
@@ -1296,6 +1380,10 @@ export async function updateIncident(req: Request, res: Response): Promise<void>
   });
   if (!existingIncident) {
     res.status(404).json({ message: 'CitizenIncident not found' });
+    return;
+  }
+
+  if (!(await authorizeIncidentMutation(authUser, res, existingIncident))) {
     return;
   }
 
@@ -1461,6 +1549,12 @@ export async function updateIncident(req: Request, res: Response): Promise<void>
 
 // Deletes an existing incident.
 export async function deleteIncident(req: Request, res: Response): Promise<void> {
+  const { authUser } = req as AuthenticatedRequest;
+  if (!authUser) {
+    res.status(401).json({ message: 'Unauthorized: missing authentication context' });
+    return;
+  }
+
   const id = getParamId(req, res) as string | null;
   if (id === null) {
     return;
@@ -1476,6 +1570,10 @@ export async function deleteIncident(req: Request, res: Response): Promise<void>
   });
   if (!existingIncident) {
     res.status(404).json({ message: 'CitizenIncident not found' });
+    return;
+  }
+
+  if (!(await authorizeIncidentMutation(authUser, res, existingIncident))) {
     return;
   }
 
@@ -1501,6 +1599,12 @@ export async function deleteIncident(req: Request, res: Response): Promise<void>
 }
 
 export async function restoreIncident(req: Request, res: Response): Promise<void> {
+  const { authUser } = req as AuthenticatedRequest;
+  if (!authUser) {
+    res.status(401).json({ message: 'Unauthorized: missing authentication context' });
+    return;
+  }
+
   const id = getParamId(req, res) as string | null;
   if (id === null) {
     return;
@@ -1521,6 +1625,10 @@ export async function restoreIncident(req: Request, res: Response): Promise<void
   });
   if (!existingIncident) {
     res.status(404).json({ message: 'Archived CitizenIncident not found' });
+    return;
+  }
+
+  if (!(await authorizeIncidentMutation(authUser, res, existingIncident))) {
     return;
   }
 

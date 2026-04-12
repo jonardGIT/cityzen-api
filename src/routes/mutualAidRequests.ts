@@ -14,7 +14,6 @@ import {
 import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
 import { validateRequest } from '../middleware/validateRequest.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
-import { isArchiveEnabled } from '../utils/archive.js';
 
 const router = Router();
 
@@ -100,15 +99,12 @@ router.delete(
   validateRequest,
   asyncHandler(deleteMutualAidRequest),
 );
-
-if (isArchiveEnabled()) {
-  router.post(
-    '/:id/restore',
-    ...readMiddleware,
-    ...idValidators,
-    validateRequest,
-    asyncHandler(restoreMutualAidRequest),
-  );
-}
+router.post(
+  '/:id/restore',
+  ...readMiddleware,
+  ...idValidators,
+  validateRequest,
+  asyncHandler(restoreMutualAidRequest),
+);
 
 export default router;

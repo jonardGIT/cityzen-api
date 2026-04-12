@@ -1125,6 +1125,117 @@ describe('Phase 1 trust-layer incident reads', () => {
   });
 });
 
+describe('Phase 1 trust-layer incident writes', () => {
+  let tuguegaraoCityId = '';
+  let outOfCityDispatcherToken = '';
+  let responderToken = '';
+
+  beforeAll(async () => {
+    const cityScope = await ensureTuguegaraoCityScope();
+    tuguegaraoCityId = cityScope.city.id;
+    responderToken = await getTokenForRole('responder@xypes.local');
+
+    const partnerCity = await ensurePartnerCityScope();
+    outOfCityDispatcherToken = await ensureScopedUserToken({
+      email: 'write.scope.dispatcher@xypes.local',
+      name: 'Write Scope Out-of-City Dispatcher',
+      role: 'DISPATCHER',
+      jurisdictionType: 'city',
+      jurisdictionId: partnerCity.id,
+    });
+  });
+
+  it('should deny an out-of-city dispatcher when creating an incident in Tuguegarao city', async () => {
+    const statusId = await getStatusId();
+    const citizenId = await createCitizen();
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const res = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${outOfCityDispatcherToken}`)
+      .send({
+        description: 'Out-of-city dispatcher create denial',
+        statusId,
+        citizenId,
+        categoryId,
+        severityId,
+        ...buildTuguegaraoLocationSnapshot(),
+      });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({
+      message: 'Forbidden: incident creation is outside your allowed scope',
+    });
+  });
+
+  it('should deny responders from creating incidents through the internal route', async () => {
+    const statusId = await getStatusId();
+    const citizenId = await createCitizen();
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const res = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${responderToken}`)
+      .send({
+        description: 'Responder internal create denial',
+        statusId,
+        citizenId,
+        categoryId,
+        severityId,
+        ...buildTuguegaraoLocationSnapshot(),
+      });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({
+      message: 'Forbidden: responders cannot create incidents through this route',
+    });
+  });
+
+  it('should deny an unassigned responder when patching an incident outside assignment scope', async () => {
+    const owner = await registerAndLinkCitizenReporter('write-scope-unassigned-responder');
+    const incident = await createTrustScopedIncident({
+      label: 'write-scope-unassigned-responder',
+      reporterToken: owner.token,
+    });
+
+    const res = await request(app)
+      .patch(`${BASE}/${incident.incidentId}`)
+      .set('Authorization', `Bearer ${responderToken}`)
+      .send({ description: 'Responder should not patch this incident' });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({
+      message: 'Forbidden: incident mutation is outside your allowed scope',
+    });
+  });
+
+  it('should allow an assigned responder to patch an incident within assignment scope', async () => {
+    const owner = await registerAndLinkCitizenReporter('write-scope-assigned-responder');
+    const incident = await createTrustScopedIncident({
+      label: 'write-scope-assigned-responder',
+      reporterToken: owner.token,
+    });
+
+    await assignResponderToIncident({
+      incidentId: incident.incidentId,
+      cityMunicipalityId: tuguegaraoCityId,
+    });
+
+    const res = await request(app)
+      .patch(`${BASE}/${incident.incidentId}`)
+      .set('Authorization', `Bearer ${responderToken}`)
+      .send({ description: 'Assigned responder patch success' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      id: incident.incidentId,
+      description: 'Assigned responder patch success',
+    });
+  });
+});
+
 describe(`POST ${BASE}/media/upload`, () => {
   const originalStorageEnabled = process.env.SUPABASE_STORAGE_ENABLED;
   const originalStorageAccessMode = process.env.SUPABASE_STORAGE_ACCESS_MODE;

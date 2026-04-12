@@ -69,6 +69,34 @@ async function canConnectToDatabase() {
   }
 }
 
+async function hasStableDatabaseConnection({
+  pollIntervalMs = 250,
+  requiredConsecutiveSuccesses = 3,
+  timeoutAt = Date.now(),
+} = {}) {
+  let consecutiveSuccesses = 0;
+
+  while (Date.now() <= timeoutAt) {
+    if (await canConnectToDatabase()) {
+      consecutiveSuccesses += 1;
+
+      if (consecutiveSuccesses >= requiredConsecutiveSuccesses) {
+        return true;
+      }
+    } else {
+      consecutiveSuccesses = 0;
+    }
+
+    if (Date.now() >= timeoutAt) {
+      break;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+  }
+
+  return false;
+}
+
 function runCompose(args) {
   const result = spawnSync('sh', ['./scripts/runTestDbCompose.sh', ...args], {
     cwd: repoRoot,
@@ -168,7 +196,11 @@ async function shutdownEmbeddedDatabase() {
 }
 
 async function ensureLocalTestDatabase() {
-  if (await canConnectToDatabase()) {
+  if (
+    await hasStableDatabaseConnection({
+      timeoutAt: Date.now() + 1_000,
+    })
+  ) {
     return;
   }
 
@@ -183,14 +215,13 @@ async function ensureLocalTestDatabase() {
     await ensureEmbeddedDatabase();
   }
 
-  const timeoutAt = Date.now() + 60_000;
-
-  while (Date.now() < timeoutAt) {
-    if (await canConnectToDatabase()) {
-      return;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  if (
+    await hasStableDatabaseConnection({
+      pollIntervalMs: 1_000,
+      timeoutAt: Date.now() + 60_000,
+    })
+  ) {
+    return;
   }
 
   console.error(`Timed out waiting for the local test database at ${databaseTarget.host}.`);
