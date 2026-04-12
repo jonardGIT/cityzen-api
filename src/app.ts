@@ -12,6 +12,7 @@ import statusesRouter from './routes/statuses.js';
 import categoriesRouter from './routes/categories.js';
 import severitiesRouter from './routes/severities.js';
 import incidentsRouter from './routes/incidents.js';
+import casesRouter from './routes/cases.js';
 import assignmentsRouter from './routes/assignments.js';
 import usersRouter from './routes/users.js';
 import auditLogsRouter from './routes/auditLogs.js';
@@ -31,6 +32,27 @@ import { auditLogMiddleware } from './middleware/auditLog.js';
 import { notFoundHandler } from './middleware/notFound.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { validateStartupEnvironment } from './utils/startupEnv.js';
+
+function sanitizeLoggedUrl(url: string | undefined): string {
+  if (!url) {
+    return '/';
+  }
+
+  const [path, queryString] = url.split('?', 2);
+  const sanitizedPath = path.replace(/(\/cases\/)([^/?#]+)/i, '$1[REDACTED]');
+
+  if (!queryString) {
+    return sanitizedPath;
+  }
+
+  const params = new URLSearchParams(queryString);
+  if (params.has('caseToken')) {
+    params.set('caseToken', '[REDACTED]');
+  }
+
+  const sanitizedQuery = params.toString();
+  return sanitizedQuery ? `${sanitizedPath}?${sanitizedQuery}` : sanitizedPath;
+}
 
 function parseBooleanEnv(value: string | undefined, fallback: boolean): boolean {
   if (!value) {
@@ -66,12 +88,17 @@ function requireJwtSecretForSelection(): void {
   requireEnv('JWT_SECRET');
 }
 
+morgan.token('safe-url', (req) => {
+  const request = req as express.Request;
+  return sanitizeLoggedUrl(request.originalUrl || request.url);
+});
+
 const app = express();
 export const API_V1 = process.env.API_BASE_PATH ?? '/api/v1';
 const isProduction = process.env.NODE_ENV === 'production';
 const featureSelection = getFeatureSelection();
-const apiKeyBypassPaths = ['/health', '/openapi.json', '/docs', '/auth'];
-const rateLimitBypassPaths = ['/health', '/openapi.json', '/docs'];
+const apiKeyBypassPaths = ['/health', '/openapi.json', '/docs', '/auth', '/cases'];
+const rateLimitBypassPaths = ['/health', '/openapi.json', '/docs', '/cases'];
 const corsOriginConfig = process.env.CORS_ORIGIN ?? '*';
 const allowedCorsOrigins = corsOriginConfig
   .split(',')
@@ -109,7 +136,13 @@ app.use(
   }),
 );
 // Log incoming HTTP requests in development-friendly format.
-app.use(morgan(isProduction ? 'combined' : 'dev'));
+app.use(
+  morgan(
+    isProduction
+      ? ':remote-addr - :remote-user [:date[clf]] ":method :safe-url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"'
+      : ':method :safe-url :status :response-time ms - :res[content-length]',
+  ),
+);
 
 // Parse JSON request bodies for API handlers.
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT?.trim() || '12mb' }));
@@ -148,6 +181,8 @@ app.use(`${API_V1}/categories`, categoriesRouter);
 app.use(`${API_V1}/severities`, severitiesRouter);
 // Mount incidents resource routes.
 app.use(`${API_V1}/incidents`, incidentsRouter);
+// Mount public case token lookup routes.
+app.use(`${API_V1}/cases`, casesRouter);
 // Mount assignments resource routes.
 app.use(`${API_V1}/assignments`, assignmentsRouter);
 // Mount users resource routes.

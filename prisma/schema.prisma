@@ -9,22 +9,23 @@ datasource db {
 }
 
 model User {
-  id                  String               @id @default(uuid()) @db.Uuid
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  archivedAt          DateTime?
-  name                String
-  email               String               @unique
-  passwordHash        String?
-  supabaseAuthUserId  String?              @unique @db.Uuid
-  role                String               @default("CITIZEN_REPORTER")
-  mfaEnabled          Boolean              @default(false)
-  mfaSecretEncrypted  String?
-  mfaEnabledAt        DateTime?
-  jurisdictionType    String?
-  jurisdictionId      String?              @db.Uuid
-  authSessions        AuthSession[]
-  passwordResetTokens PasswordResetToken[]
+  id                    String                  @id @default(uuid()) @db.Uuid
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  archivedAt            DateTime?
+  name                  String
+  email                 String                  @unique
+  passwordHash          String?
+  supabaseAuthUserId    String?                 @unique @db.Uuid
+  role                  String                  @default("CITIZEN_REPORTER")
+  mfaEnabled            Boolean                 @default(false)
+  mfaSecretEncrypted    String?
+  mfaEnabledAt          DateTime?
+  jurisdictionType      String?
+  jurisdictionId        String?                 @db.Uuid
+  authSessions          AuthSession[]
+  incidentStatusChanges IncidentStatusHistory[]
+  passwordResetTokens   PasswordResetToken[]
 
   @@map("users")
 }
@@ -167,12 +168,14 @@ model Responder {
 }
 
 model Status {
-  id         String            @id @default(uuid()) @db.Uuid
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
-  archivedAt DateTime?
-  name       String
-  incidents  CitizenIncident[]
+  id                String                  @id @default(uuid()) @db.Uuid
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  archivedAt        DateTime?
+  name              String
+  incidents         CitizenIncident[]
+  fromStatusHistory IncidentStatusHistory[] @relation("IncidentStatusHistoryFromStatus")
+  toStatusHistory   IncidentStatusHistory[] @relation("IncidentStatusHistoryToStatus")
 
   @@map("statuses")
 }
@@ -202,15 +205,16 @@ model Severity {
 }
 
 model CitizenIncident {
-  id                  String               @id @default(uuid()) @db.Uuid
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
+  id                  String                  @id @default(uuid()) @db.Uuid
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
   archivedAt          DateTime?
+  publicReference     String?                 @unique
   description         String
   mediaUrl            String?
-  dateReported        DateTime             @default(now())
-  latitude            Decimal?             @db.Decimal(10, 7)
-  longitude           Decimal?             @db.Decimal(10, 7)
+  dateReported        DateTime                @default(now())
+  latitude            Decimal?                @db.Decimal(10, 7)
+  longitude           Decimal?                @db.Decimal(10, 7)
   addressLine1        String?
   addressLine2        String?
   barangay            String?
@@ -220,32 +224,74 @@ model CitizenIncident {
   regionName          String?
   postalCode          String?
   landmark            String?
-  regionId            String?              @db.Uuid
-  regionRef           Region?              @relation(fields: [regionId], references: [id])
-  provinceId          String?              @db.Uuid
-  provinceRef         Province?            @relation(fields: [provinceId], references: [id])
-  cityMunicipalityId  String?              @db.Uuid
-  cityMunicipalityRef CityMunicipality?    @relation(fields: [cityMunicipalityId], references: [id])
-  barangayId          String?              @db.Uuid
-  barangayRef         Barangay?            @relation(fields: [barangayId], references: [id])
-  statusId            String               @db.Uuid
-  citizenId           String               @db.Uuid
-  categoryId          String               @db.Uuid
-  severityId          String               @db.Uuid
-  status              Status               @relation(fields: [statusId], references: [id])
-  citizen             Citizen              @relation(fields: [citizenId], references: [id])
-  category            Category             @relation(fields: [categoryId], references: [id])
-  severity            Severity             @relation(fields: [severityId], references: [id])
+  regionId            String?                 @db.Uuid
+  regionRef           Region?                 @relation(fields: [regionId], references: [id])
+  provinceId          String?                 @db.Uuid
+  provinceRef         Province?               @relation(fields: [provinceId], references: [id])
+  cityMunicipalityId  String?                 @db.Uuid
+  cityMunicipalityRef CityMunicipality?       @relation(fields: [cityMunicipalityId], references: [id])
+  barangayId          String?                 @db.Uuid
+  barangayRef         Barangay?               @relation(fields: [barangayId], references: [id])
+  statusId            String                  @db.Uuid
+  citizenId           String                  @db.Uuid
+  categoryId          String                  @db.Uuid
+  severityId          String                  @db.Uuid
+  status              Status                  @relation(fields: [statusId], references: [id])
+  citizen             Citizen                 @relation(fields: [citizenId], references: [id])
+  category            Category                @relation(fields: [categoryId], references: [id])
+  severity            Severity                @relation(fields: [severityId], references: [id])
   assignments         Assignment[]
   mediaFiles          IncidentMedia[]
   escalations         IncidentEscalation[]
   mutualAidRequests   MutualAidRequest[]
+  caseTokens          CaseToken[]
+  statusHistory       IncidentStatusHistory[]
 
   @@index([regionId])
   @@index([provinceId])
   @@index([cityMunicipalityId])
   @@index([barangayId])
   @@map("incidents")
+}
+
+model CaseToken {
+  id         String          @id @default(uuid()) @db.Uuid
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  archivedAt DateTime?
+  incidentId String          @db.Uuid
+  tokenHash  String          @unique
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  lastUsedAt DateTime?
+  incident   CitizenIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  @@index([incidentId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+  @@map("case_tokens")
+}
+
+model IncidentStatusHistory {
+  id              String          @id @default(uuid()) @db.Uuid
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  archivedAt      DateTime?
+  incidentId      String          @db.Uuid
+  fromStatusId    String?         @db.Uuid
+  toStatusId      String          @db.Uuid
+  changedByUserId String?         @db.Uuid
+  note            String?
+  incident        CitizenIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  changedByUser   User?           @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
+  fromStatus      Status?         @relation("IncidentStatusHistoryFromStatus", fields: [fromStatusId], references: [id])
+  toStatus        Status          @relation("IncidentStatusHistoryToStatus", fields: [toStatusId], references: [id])
+
+  @@index([incidentId, createdAt])
+  @@index([fromStatusId])
+  @@index([toStatusId])
+  @@index([changedByUserId])
+  @@map("incident_status_history")
 }
 
 model IncidentMedia {

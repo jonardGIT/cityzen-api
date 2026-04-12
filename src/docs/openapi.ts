@@ -780,7 +780,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         },
         responses: {
           '201': jsonResponse(
-            { $ref: '#/components/schemas/CitizenIncident' },
+            { $ref: '#/components/schemas/CitizenIncidentReportResponse' },
             'Incident report created.',
           ),
           '400': jsonResponse(
@@ -791,6 +791,41 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
           '422': jsonResponse(
             { $ref: '#/components/schemas/ErrorResponse' },
             'Missing linked citizen profile.',
+          ),
+        },
+      },
+    },
+    '/cases/{caseToken}': {
+      get: {
+        tags: ['Incident'],
+        summary: 'Look up a public case status by raw case token',
+        description:
+          'Public Tuguegarao Phase 1 case lookup. Returns only citizen-safe status, location summary, and timeline fields. Exact addresses, coordinates, media URLs, citizen identifiers, responder identities, and internal notes are intentionally excluded.',
+        security: [],
+        parameters: [
+          {
+            name: 'caseToken',
+            in: 'path',
+            required: true,
+            schema: { type: 'string' },
+          },
+        ],
+        responses: {
+          '200': jsonResponse(
+            { $ref: '#/components/schemas/PublicCaseLookupResponse' },
+            'Public case found.',
+          ),
+          '400': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Invalid case token format.',
+          ),
+          '404': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Case token is invalid, expired, revoked, or not found.',
+          ),
+          '429': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Too many requests.',
           ),
         },
       },
@@ -847,6 +882,28 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         parameters: [idParameter],
         responses: {
           '204': { description: 'Incident archived.' },
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '404': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Incident not found.',
+          ),
+        },
+      },
+    },
+    '/incidents/{id}/timeline': {
+      get: {
+        tags: ['Incident'],
+        summary: 'Get the internal incident status timeline',
+        description:
+          'Returns the authenticated internal status timeline for an incident, including optional notes and the user who made each status transition.',
+        security: apiKeyAndBearerSecurity,
+        parameters: [idParameter],
+        responses: {
+          '200': jsonResponse(
+            { $ref: '#/components/schemas/IncidentTimelineResponse' },
+            'Incident timeline found.',
+          ),
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
           '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
           '404': jsonResponse(
@@ -2314,6 +2371,148 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         required: ['description', 'categoryId', 'severityId'],
         description:
           'Incident report creation requires a full coordinate/address snapshot payload.',
+      },
+      IncidentTrustInfo: {
+        type: 'object',
+        properties: {
+          caseToken: { type: 'string' },
+          caseLookupPath: { type: 'string' },
+          caseTokenExpiresAt: { type: 'string', format: 'date-time' },
+          publicStatusMessage: { type: 'string' },
+        },
+        required: ['caseToken', 'caseLookupPath', 'caseTokenExpiresAt', 'publicStatusMessage'],
+      },
+      CitizenIncidentReportResponse: {
+        allOf: [
+          { $ref: '#/components/schemas/CitizenIncident' },
+          {
+            type: 'object',
+            properties: {
+              trust: { $ref: '#/components/schemas/IncidentTrustInfo' },
+            },
+            required: ['trust'],
+          },
+        ],
+      },
+      PublicCaseTimelineEntry: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          changedAt: { type: 'string', format: 'date-time' },
+          status: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              name: { type: 'string' },
+            },
+            required: ['id', 'name'],
+          },
+          publicStatusMessage: { type: 'string' },
+        },
+        required: ['id', 'changedAt', 'status', 'publicStatusMessage'],
+      },
+      PublicCaseLookupResponse: {
+        type: 'object',
+        properties: {
+          publicReference: { type: 'string', nullable: true },
+          status: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              name: { type: 'string' },
+            },
+            required: ['id', 'name'],
+          },
+          publicStatusMessage: { type: 'string' },
+          caseTokenExpiresAt: { type: 'string', format: 'date-time' },
+          reportedAt: { type: 'string', format: 'date-time' },
+          lastUpdatedAt: { type: 'string', format: 'date-time' },
+          barangay: { type: 'string', nullable: true },
+          cityName: { type: 'string', nullable: true },
+          provinceName: { type: 'string', nullable: true },
+          category: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              name: { type: 'string' },
+              subCategory: { type: 'string', nullable: true },
+            },
+            required: ['id', 'name'],
+          },
+          severity: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              level: { type: 'string' },
+              definition: { type: 'string', nullable: true },
+            },
+            required: ['id', 'level'],
+          },
+          timeline: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/PublicCaseTimelineEntry' },
+          },
+        },
+        required: [
+          'publicReference',
+          'status',
+          'publicStatusMessage',
+          'caseTokenExpiresAt',
+          'reportedAt',
+          'lastUpdatedAt',
+          'barangay',
+          'cityName',
+          'provinceName',
+          'category',
+          'severity',
+          'timeline',
+        ],
+      },
+      IncidentTimelineEntry: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          changedAt: { type: 'string', format: 'date-time' },
+          fromStatus: {
+            type: 'object',
+            nullable: true,
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              name: { type: 'string' },
+            },
+          },
+          toStatus: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              name: { type: 'string' },
+            },
+            required: ['id', 'name'],
+          },
+          changedByUser: {
+            type: 'object',
+            nullable: true,
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              email: { type: 'string' },
+              role: { type: 'string' },
+            },
+          },
+          note: { type: 'string', nullable: true },
+        },
+        required: ['id', 'changedAt', 'fromStatus', 'toStatus', 'changedByUser', 'note'],
+      },
+      IncidentTimelineResponse: {
+        type: 'object',
+        properties: {
+          incidentId: { type: 'string', format: 'uuid' },
+          publicReference: { type: 'string', nullable: true },
+          timeline: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/IncidentTimelineEntry' },
+          },
+        },
+        required: ['incidentId', 'publicReference', 'timeline'],
       },
       UpdateIncidentRequest: {
         type: 'object',

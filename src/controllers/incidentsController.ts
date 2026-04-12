@@ -1,4 +1,5 @@
 // Handles CRUD operations for citizen-reported incidents.
+import type { Prisma } from '@prisma/client';
 import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
 import {
@@ -11,6 +12,18 @@ import { incidentsListQueryConfig } from '../utils/listQueryConfig.js';
 import type { CitizenIncident } from '../types/models.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
 import * as supabaseStorageService from '../services/supabaseStorageService.js';
+import {
+  buildPublicStatusMessage,
+  hashCaseToken,
+  issueIncidentTrustArtifacts,
+} from '../services/incidentTrustService.js';
+import type {
+  IncidentTimelineEntry,
+  IncidentTrustInfo,
+  PublicCaseLookupResponse,
+  PublicIncidentTimelineEntry,
+} from '../types/incidentTrust.js';
+import { resolveJurisdictionScope } from '../middleware/jurisdiction.js';
 import {
   isArchiveEnabled,
   withActiveRecords,
@@ -41,6 +54,102 @@ type UploadMediaItem = {
   dataBase64: string;
 };
 
+type IncidentStatusHistoryRecord = {
+  id: string;
+  createdAt: Date;
+  note: string | null;
+  fromStatus: {
+    id: string;
+    name: string;
+  } | null;
+  toStatus: {
+    id: string;
+    name: string;
+  };
+  changedByUser: {
+    id: string;
+    email: string;
+    role: string;
+  } | null;
+};
+
+type PublicIncidentStatusHistoryRecord = Pick<
+  IncidentStatusHistoryRecord,
+  'id' | 'createdAt' | 'toStatus'
+>;
+
+type PublicCaseTokenRecord = {
+  id: string;
+  expiresAt: Date;
+  incident: {
+    publicReference: string | null;
+    status: {
+      id: string;
+      name: string;
+    };
+    dateReported: Date;
+    updatedAt: Date;
+    barangay: string | null;
+    cityName: string | null;
+    provinceName: string | null;
+    category: {
+      id: string;
+      name: string;
+      subCategory: string | null;
+    };
+    severity: {
+      id: string;
+      level: string;
+      definition: string | null;
+    };
+    statusHistory: PublicIncidentStatusHistoryRecord[];
+  };
+};
+
+type TrustLayerPrismaDelegates = {
+  incidentStatusHistory: {
+    create(args: unknown): Promise<unknown>;
+    findMany(args: unknown): Promise<IncidentStatusHistoryRecord[]>;
+  };
+  caseToken: {
+    create(args: unknown): Promise<unknown>;
+    findFirst(args: unknown): Promise<PublicCaseTokenRecord | null>;
+    update(args: unknown): Promise<unknown>;
+  };
+};
+
+type TrustLayerTransactionClient = Prisma.TransactionClient & TrustLayerPrismaDelegates;
+
+type LinkedCitizenResolution =
+  | { status: 'linked'; citizenId: string }
+  | { status: 'missing' }
+  | { status: 'ambiguous' };
+
+type TimelineAccessResult =
+  | { allowed: true; audience: 'owner' | 'internal' }
+  | { allowed: false };
+
+type IncidentReadScope =
+  | { kind: 'owner'; citizenId: string; audience: 'owner' }
+  | { kind: 'city'; cityMunicipalityIds: string[]; audience: 'internal' }
+  | { kind: 'assigned'; responderId: string; audience: 'internal' };
+
+type IncidentReadScopeResult =
+  | { status: 'scoped'; scope: IncidentReadScope }
+  | { status: 'denied' }
+  | { status: 'response-sent' };
+
+type TimelineIncidentRecord = {
+  id: string;
+  citizenId: string;
+  publicReference: string | null;
+  cityMunicipalityId: string | null;
+};
+
+type IncidentScopeRecord = Pick<TimelineIncidentRecord, 'id' | 'citizenId' | 'cityMunicipalityId'>;
+
+const trustPrisma = prisma as typeof prisma & TrustLayerPrismaDelegates;
+
 function buildIncidentLocationSnapshot(input: Partial<CitizenIncident>) {
   return {
     latitude: input.latitude,
@@ -57,12 +166,40 @@ function buildIncidentLocationSnapshot(input: Partial<CitizenIncident>) {
   };
 }
 
-async function getLinkedCitizenIdByAuthEmail(email: string): Promise<string | null> {
-  const citizen = await prisma.citizen.findFirst({
+async function resolveLinkedCitizenByAuthEmail(email: string): Promise<LinkedCitizenResolution> {
+  const citizens = await prisma.citizen.findMany({
     where: withActiveRecords({ contactInfo: email }),
     select: { id: true },
+    take: 2,
   });
-  return citizen?.id ?? null;
+
+  if (citizens.length === 0) {
+    return { status: 'missing' };
+  }
+
+  if (citizens.length > 1) {
+    return { status: 'ambiguous' };
+  }
+
+  return { status: 'linked', citizenId: citizens[0].id };
+}
+
+function handleLinkedCitizenResolution(res: Response, resolution: LinkedCitizenResolution): string | null {
+  if (resolution.status === 'linked') {
+    return resolution.citizenId;
+  }
+
+  if (resolution.status === 'ambiguous') {
+    res.status(409).json({
+      message: 'Multiple active citizen profiles are linked to this account email. Contact support.',
+    });
+    return null;
+  }
+
+  res.status(422).json({
+    message: 'No citizen profile is linked to this account email. Create a citizen profile first.',
+  });
+  return null;
 }
 
 function normalizeMediaUrls(
@@ -130,6 +267,61 @@ async function serializeIncidentCollection<T extends IncidentWithMediaFiles>(inc
   return Promise.all(incidents.map((incident) => serializeIncident(incident)));
 }
 
+function buildIncidentTrustResponse<T extends Record<string, unknown>>(
+  incident: T,
+  trust: IncidentTrustInfo,
+): T & { trust: IncidentTrustInfo } {
+  return {
+    ...incident,
+    trust,
+  };
+}
+
+async function createIncidentStatusHistory(
+  transaction: Prisma.TransactionClient,
+  input: {
+    incidentId: string;
+    fromStatusId?: string | null;
+    toStatusId: string;
+    changedByUserId?: string | null;
+    note?: string | null;
+  },
+): Promise<void> {
+  const trustTransaction = transaction as TrustLayerTransactionClient;
+
+  await trustTransaction.incidentStatusHistory.create({
+    data: {
+      incidentId: input.incidentId,
+      fromStatusId: input.fromStatusId ?? null,
+      toStatusId: input.toStatusId,
+      changedByUserId: input.changedByUserId ?? null,
+      note: input.note ?? null,
+    },
+  });
+}
+
+function serializeInternalTimelineEntry(entry: IncidentStatusHistoryRecord): IncidentTimelineEntry {
+  return {
+    id: entry.id,
+    changedAt: entry.createdAt.toISOString(),
+    fromStatus: entry.fromStatus,
+    toStatus: entry.toStatus,
+    changedByUser: entry.changedByUser,
+    note: entry.note,
+  };
+}
+
+function serializePublicTimelineEntry(
+  entry: PublicIncidentStatusHistoryRecord,
+): PublicIncidentTimelineEntry {
+  return {
+    id: entry.id,
+    changedAt: entry.createdAt.toISOString(),
+    status: entry.toStatus,
+    publicStatusMessage: buildPublicStatusMessage(entry.toStatus.name),
+  };
+}
+
 function getUploadMediaItems(body: {
   fileName?: unknown;
   contentType?: unknown;
@@ -182,6 +374,158 @@ async function archiveIncidentMediaIfNeeded(mediaUrls: string[] | undefined): Pr
   await supabaseStorageService.archiveIncidentMediaUrls(mediaUrls);
 }
 
+async function resolveCityScopedIncidentReadScope(
+  authUserId: string,
+): Promise<Extract<IncidentReadScope, { kind: 'city' }> | null> {
+  const user = await prisma.user.findFirst({
+    where: withActiveRecords({ id: authUserId }),
+    select: { jurisdictionType: true, jurisdictionId: true },
+  });
+
+  if (!user || user.jurisdictionType !== 'city' || !user.jurisdictionId) {
+    return null;
+  }
+
+  const scope = await resolveJurisdictionScope(user.jurisdictionType, user.jurisdictionId);
+  if (scope.type !== 'city' || !scope.cityMunicipalityIds?.includes(user.jurisdictionId)) {
+    return null;
+  }
+
+  return {
+    kind: 'city',
+    cityMunicipalityIds: scope.cityMunicipalityIds,
+    audience: 'internal',
+  };
+}
+
+async function resolveAssignedResponderId(
+  authUserEmail: string,
+): Promise<string | null> {
+  const responders = await prisma.responder.findMany({
+    where: withActiveRecords({ contactInfo: authUserEmail }),
+    select: { id: true },
+    take: 2,
+  });
+
+  if (responders.length !== 1) {
+    return null;
+  }
+
+  return responders[0].id;
+}
+
+async function resolveIncidentReadScope(
+  authUser: NonNullable<AuthenticatedRequest['authUser']>,
+  res: Response,
+): Promise<IncidentReadScopeResult> {
+  if (authUser.role === 'CITIZEN_REPORTER') {
+    const resolution = await resolveLinkedCitizenByAuthEmail(authUser.email);
+    const citizenId = handleLinkedCitizenResolution(res, resolution);
+    if (!citizenId) {
+      return { status: 'response-sent' };
+    }
+
+    return {
+      status: 'scoped',
+      scope: {
+        kind: 'owner',
+        citizenId,
+        audience: 'owner',
+      },
+    };
+  }
+
+  if (authUser.role === 'CITY_ADMIN' || authUser.role === 'DISPATCHER') {
+    const scope = await resolveCityScopedIncidentReadScope(authUser.id);
+    return scope ? { status: 'scoped', scope } : { status: 'denied' };
+  }
+
+  if (authUser.role === 'RESPONDER') {
+    const responderId = await resolveAssignedResponderId(authUser.email);
+    return responderId
+      ? {
+          status: 'scoped',
+          scope: {
+            kind: 'assigned',
+            responderId,
+            audience: 'internal',
+          },
+        }
+      : { status: 'denied' };
+  }
+
+  return { status: 'denied' };
+}
+
+function buildIncidentReadScopeWhere(scope: IncidentReadScope): Prisma.CitizenIncidentWhereInput {
+  if (scope.kind === 'owner') {
+    return { citizenId: scope.citizenId };
+  }
+
+  if (scope.kind === 'city') {
+    return { cityMunicipalityId: { in: scope.cityMunicipalityIds } };
+  }
+
+  return {
+    assignments: {
+      some: withActiveRecords({ responderId: scope.responderId }),
+    },
+  };
+}
+
+function combineIncidentWhere(
+  baseWhere: Prisma.CitizenIncidentWhereInput,
+  scopeWhere: Prisma.CitizenIncidentWhereInput,
+): Prisma.CitizenIncidentWhereInput {
+  if (Object.keys(baseWhere).length === 0) {
+    return scopeWhere;
+  }
+
+  return {
+    AND: [baseWhere, scopeWhere],
+  };
+}
+
+async function canReadIncidentWithScope(
+  scope: IncidentReadScope,
+  incident: IncidentScopeRecord,
+): Promise<boolean> {
+  if (scope.kind === 'owner') {
+    return incident.citizenId === scope.citizenId;
+  }
+
+  if (scope.kind === 'city') {
+    return Boolean(
+      incident.cityMunicipalityId && scope.cityMunicipalityIds.includes(incident.cityMunicipalityId),
+    );
+  }
+
+  const assignment = await prisma.assignment.findFirst({
+    where: withActiveRecords({
+      incidentId: incident.id,
+      responderId: scope.responderId,
+    }),
+    select: { id: true },
+  });
+
+  return Boolean(assignment);
+}
+
+async function getTimelineAccess(
+  authUser: NonNullable<AuthenticatedRequest['authUser']>,
+  incident: TimelineIncidentRecord,
+  res: Response,
+): Promise<TimelineAccessResult> {
+  const scopeResult = await resolveIncidentReadScope(authUser, res);
+  if (scopeResult.status !== 'scoped') {
+    return { allowed: false };
+  }
+
+  return (await canReadIncidentWithScope(scopeResult.scope, incident))
+    ? { allowed: true, audience: scopeResult.scope.audience }
+    : { allowed: false };
+}
+
 async function getAuthorizedIncidentWithMedia(
   req: Request,
   res: Response,
@@ -207,20 +551,19 @@ async function getAuthorizedIncidentWithMedia(
     return null;
   }
 
-  if (authUser.role === 'CITIZEN_REPORTER') {
-    const citizenId = await getLinkedCitizenIdByAuthEmail(authUser.email);
-    if (!citizenId) {
-      res.status(422).json({
-        message:
-          'No citizen profile is linked to this account email. Create a citizen profile first.',
-      });
-      return null;
-    }
+  const scopeResult = await resolveIncidentReadScope(authUser, res);
+  if (scopeResult.status === 'response-sent') {
+    return null;
+  }
 
-    if (incident.citizenId !== citizenId) {
-      res.status(404).json({ message: 'CitizenIncident not found' });
-      return null;
-    }
+  if (scopeResult.status === 'denied') {
+    res.status(404).json({ message: 'CitizenIncident not found' });
+    return null;
+  }
+
+  if (!(await canReadIncidentWithScope(scopeResult.scope, incident))) {
+    res.status(404).json({ message: 'CitizenIncident not found' });
+    return null;
   }
 
   return incident;
@@ -292,26 +635,26 @@ export async function getIncidents(req: Request, res: Response): Promise<void> {
 
   let where = (listQuery.where ?? {}) as Record<string, unknown>;
 
-  let incidents;
-  if (authUser.role === 'CITIZEN_REPORTER') {
-    const citizenId = await getLinkedCitizenIdByAuthEmail(authUser.email);
-    if (!citizenId) {
-      res.status(422).json({
-        message:
-          'No citizen profile is linked to this account email. Create a citizen profile first.',
-      });
+  const scopeResult = await resolveIncidentReadScope(authUser, res);
+  if (scopeResult.status === 'response-sent') {
+    return;
+  }
+
+  if (scopeResult.status === 'denied') {
+    if (pagination.enabled) {
+      res.json(buildPaginatedResponse([], 0, pagination));
       return;
     }
 
-    const scopedWhereClauses =
-      where.AND && Array.isArray(where.AND)
-        ? [...(where.AND as Record<string, unknown>[]), { citizenId }]
-        : [{ citizenId }];
-
-    where = {
-      AND: scopedWhereClauses,
-    };
+    res.json([]);
+    return;
   }
+
+  let incidents;
+  where = combineIncidentWhere(
+    where as Prisma.CitizenIncidentWhereInput,
+    buildIncidentReadScopeWhere(scopeResult.scope),
+  );
 
   const scopedWhere = withArchiveScope(where, listQuery.archiveScope);
 
@@ -368,6 +711,144 @@ export async function getIncidentById(req: Request, res: Response): Promise<void
   res.json(await serializeIncident(incident));
 }
 
+export async function getIncidentTimeline(req: Request, res: Response): Promise<void> {
+  const id = getParamId(req, res) as string | null;
+  if (id === null) {
+    return;
+  }
+
+  const { authUser } = req as AuthenticatedRequest;
+  if (!authUser) {
+    res.status(401).json({ message: 'Unauthorized: missing authentication context' });
+    return;
+  }
+
+  const incident = await prisma.citizenIncident.findFirst({
+    where: withActiveRecords({ id }),
+    select: {
+      id: true,
+      citizenId: true,
+      publicReference: true,
+      cityMunicipalityId: true,
+    },
+  });
+  if (!incident) {
+    res.status(404).json({ message: 'CitizenIncident not found' });
+    return;
+  }
+
+  const access = await getTimelineAccess(authUser, incident, res);
+  if (!access.allowed) {
+    if (!res.headersSent) {
+      res.status(404).json({ message: 'CitizenIncident not found' });
+    }
+    return;
+  }
+
+  const timeline = await trustPrisma.incidentStatusHistory.findMany({
+    where: withActiveRecords({ incidentId: id }),
+    orderBy: { createdAt: 'asc' },
+    include: {
+      fromStatus: {
+        select: { id: true, name: true },
+      },
+      toStatus: {
+        select: { id: true, name: true },
+      },
+      changedByUser: {
+        select: { id: true, email: true, role: true },
+      },
+    },
+  });
+
+  res.json({
+    incidentId: id,
+    publicReference: incident.publicReference ?? null,
+    timeline:
+      access.audience === 'owner'
+        ? timeline.map((entry: PublicIncidentStatusHistoryRecord) =>
+            serializePublicTimelineEntry(entry),
+          )
+        : timeline.map((entry: IncidentStatusHistoryRecord) => serializeInternalTimelineEntry(entry)),
+  });
+}
+
+export async function getPublicCaseByToken(req: Request, res: Response): Promise<void> {
+  const caseTokenParam = typeof req.params.caseToken === 'string' ? req.params.caseToken.trim() : '';
+  if (!caseTokenParam) {
+    res.status(400).json({ message: 'caseToken is required' });
+    return;
+  }
+
+  const tokenHash = hashCaseToken(caseTokenParam);
+  const now = new Date();
+
+  const caseToken = await trustPrisma.caseToken.findFirst({
+    where: {
+      tokenHash,
+      archivedAt: null,
+      revokedAt: null,
+      expiresAt: { gt: now },
+      incident: {
+        archivedAt: null,
+      },
+    },
+    include: {
+      incident: {
+        include: {
+          status: {
+            select: { id: true, name: true },
+          },
+          category: {
+            select: { id: true, name: true, subCategory: true },
+          },
+          severity: {
+            select: { id: true, level: true, definition: true },
+          },
+          statusHistory: {
+            where: { archivedAt: null },
+            orderBy: { createdAt: 'asc' },
+            include: {
+              toStatus: {
+                select: { id: true, name: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!caseToken) {
+    res.status(404).json({ message: 'Case not found or token is invalid' });
+    return;
+  }
+
+  await trustPrisma.caseToken.update({
+    where: { id: caseToken.id },
+    data: { lastUsedAt: now },
+  });
+
+  const responseBody: PublicCaseLookupResponse = {
+    publicReference: caseToken.incident.publicReference ?? null,
+    status: caseToken.incident.status,
+    publicStatusMessage: buildPublicStatusMessage(caseToken.incident.status.name),
+    caseTokenExpiresAt: caseToken.expiresAt.toISOString(),
+    reportedAt: caseToken.incident.dateReported.toISOString(),
+    lastUpdatedAt: caseToken.incident.updatedAt.toISOString(),
+    barangay: caseToken.incident.barangay ?? null,
+    cityName: caseToken.incident.cityName ?? null,
+    provinceName: caseToken.incident.provinceName ?? null,
+    category: caseToken.incident.category,
+    severity: caseToken.incident.severity,
+    timeline: caseToken.incident.statusHistory.map((entry: PublicIncidentStatusHistoryRecord) =>
+      serializePublicTimelineEntry(entry),
+    ),
+  };
+
+  res.json(responseBody);
+}
+
 export async function getIncidentMediaAccess(req: Request, res: Response): Promise<void> {
   const incidentId = getParamId(req, res) as string | null;
   if (incidentId === null) {
@@ -413,6 +894,7 @@ export async function getIncidentMediaAccess(req: Request, res: Response): Promi
 
 // Creates a new incident. Validates all FK references before persisting to the database.
 export async function createIncident(req: Request, res: Response): Promise<void> {
+  const actorUserId = (req as AuthenticatedRequest).authUser?.id ?? null;
   const {
     description,
     mediaUrl,
@@ -464,35 +946,47 @@ export async function createIncident(req: Request, res: Response): Promise<void>
       res.status(400).json({ message: 'severityId does not reference a valid Severity' });
       return;
     }
-    const incident = await prisma.citizenIncident.create({
-      data: {
-        description,
-        mediaUrl: normalizedMediaUrls?.[0],
-        dateReported: dateReported ? new Date(dateReported) : new Date(),
-        ...buildIncidentLocationSnapshot({
-          latitude,
-          longitude,
-          addressLine1,
-          addressLine2,
-          barangay,
-          districtName,
-          cityName,
-          provinceName,
-          regionName,
-          postalCode,
-          landmark,
-        }),
-        statusId,
-        citizenId,
-        categoryId,
-        severityId,
-        mediaFiles: buildIncidentMediaCreateMany(normalizedMediaUrls),
-      },
-      include: {
-        mediaFiles: {
-          orderBy: { displayOrder: 'asc' },
+    const incident = await prisma.$transaction(async (transaction) => {
+      const trustTransaction = transaction as TrustLayerTransactionClient;
+
+      const createdIncident = await transaction.citizenIncident.create({
+        data: {
+          description,
+          mediaUrl: normalizedMediaUrls?.[0],
+          dateReported: dateReported ? new Date(dateReported) : new Date(),
+          ...buildIncidentLocationSnapshot({
+            latitude,
+            longitude,
+            addressLine1,
+            addressLine2,
+            barangay,
+            districtName,
+            cityName,
+            provinceName,
+            regionName,
+            postalCode,
+            landmark,
+          }),
+          statusId,
+          citizenId,
+          categoryId,
+          severityId,
+          mediaFiles: buildIncidentMediaCreateMany(normalizedMediaUrls),
         },
-      },
+        include: {
+          mediaFiles: {
+            orderBy: { displayOrder: 'asc' },
+          },
+        },
+      });
+
+      await createIncidentStatusHistory(transaction, {
+        incidentId: createdIncident.id,
+        toStatusId: statusId,
+        changedByUserId: actorUserId,
+      });
+
+      return createdIncident;
     });
     res.status(201).json(await serializeIncident(incident));
   } catch (err) {
@@ -539,12 +1033,9 @@ export async function createCitizenIncidentReport(req: Request, res: Response): 
     return;
   }
   try {
-    const citizenId = await getLinkedCitizenIdByAuthEmail(authUser.email);
+    const resolution = await resolveLinkedCitizenByAuthEmail(authUser.email);
+    const citizenId = handleLinkedCitizenResolution(res, resolution);
     if (!citizenId) {
-      res.status(422).json({
-        message:
-          'No citizen profile is linked to this account email. Create a citizen profile first.',
-      });
       return;
     }
     const reportedStatus = await prisma.status.findFirst({
@@ -557,6 +1048,7 @@ export async function createCitizenIncidentReport(req: Request, res: Response): 
       return;
     }
     const statusId = reportedStatus.id;
+    const trustArtifacts = issueIncidentTrustArtifacts(reportedStatus.name);
     if (
       !(await prisma.category.findFirst({ where: withActiveRecords({ id: categoryId }) }))
     ) {
@@ -569,37 +1061,67 @@ export async function createCitizenIncidentReport(req: Request, res: Response): 
       res.status(400).json({ message: 'severityId does not reference a valid Severity' });
       return;
     }
-    const incident = await prisma.citizenIncident.create({
-      data: {
-        description,
-        mediaUrl: normalizedMediaUrls?.[0],
-        dateReported: dateReported ? new Date(dateReported) : new Date(),
-        ...buildIncidentLocationSnapshot({
-          latitude,
-          longitude,
-          addressLine1,
-          addressLine2,
-          barangay,
-          districtName,
-          cityName,
-          provinceName,
-          regionName,
-          postalCode,
-          landmark,
-        }),
-        statusId,
-        citizenId,
-        categoryId,
-        severityId,
-        mediaFiles: buildIncidentMediaCreateMany(normalizedMediaUrls),
-      },
-      include: {
-        mediaFiles: {
-          orderBy: { displayOrder: 'asc' },
+    const incident = await prisma.$transaction(async (transaction) => {
+      const trustTransaction = transaction as TrustLayerTransactionClient;
+
+      const createdIncident = await transaction.citizenIncident.create({
+        data: {
+          publicReference: trustArtifacts.publicReference,
+          description,
+          mediaUrl: normalizedMediaUrls?.[0],
+          dateReported: dateReported ? new Date(dateReported) : new Date(),
+          ...buildIncidentLocationSnapshot({
+            latitude,
+            longitude,
+            addressLine1,
+            addressLine2,
+            barangay,
+            districtName,
+            cityName,
+            provinceName,
+            regionName,
+            postalCode,
+            landmark,
+          }),
+          statusId,
+          citizenId,
+          categoryId,
+          severityId,
+          mediaFiles: buildIncidentMediaCreateMany(normalizedMediaUrls),
         },
-      },
+        include: {
+          mediaFiles: {
+            orderBy: { displayOrder: 'asc' },
+          },
+        },
+      });
+
+      await trustTransaction.caseToken.create({
+        data: {
+          incidentId: createdIncident.id,
+          tokenHash: trustArtifacts.tokenHash,
+          expiresAt: trustArtifacts.expiresAt,
+        },
+      });
+
+      await createIncidentStatusHistory(transaction, {
+        incidentId: createdIncident.id,
+        toStatusId: statusId,
+        changedByUserId: authUser.id,
+      });
+
+      return createdIncident;
     });
-    res.status(201).json(await serializeIncident(incident));
+
+    const serializedIncident = await serializeIncident(incident);
+    res.status(201).json(
+      buildIncidentTrustResponse(serializedIncident, {
+        caseToken: trustArtifacts.caseToken,
+        caseLookupPath: trustArtifacts.caseLookupPath,
+        caseTokenExpiresAt: trustArtifacts.expiresAt.toISOString(),
+        publicStatusMessage: trustArtifacts.publicStatusMessage,
+      }),
+    );
   } catch (err) {
     res.status(400).json({
       message: 'Invalid input or foreign key reference',
@@ -615,6 +1137,7 @@ export async function createCitizenIncidentReport(req: Request, res: Response): 
 
 // Updates an existing incident and validates any provided foreign keys.
 export async function updateIncident(req: Request, res: Response): Promise<void> {
+  const actorUserId = (req as AuthenticatedRequest).authUser?.id ?? null;
   const id = getParamId(req, res) as string | null;
   if (id === null) {
     return;
@@ -688,12 +1211,14 @@ export async function updateIncident(req: Request, res: Response): Promise<void>
     return;
   }
 
+  const shouldAppendStatusHistory = statusId !== undefined && statusId !== existingIncident.statusId;
+
   const incident = await prisma.$transaction(async (transaction) => {
     if (normalizedMediaUrls !== undefined) {
       await transaction.incidentMedia.deleteMany({ where: { incidentId: id } });
     }
 
-    return transaction.citizenIncident.update({
+    const updatedIncident = await transaction.citizenIncident.update({
       where: { id },
       data: {
         description,
@@ -726,6 +1251,17 @@ export async function updateIncident(req: Request, res: Response): Promise<void>
         },
       },
     });
+
+    if (shouldAppendStatusHistory && statusId) {
+      await createIncidentStatusHistory(transaction, {
+        incidentId: id,
+        fromStatusId: existingIncident.statusId,
+        toStatusId: statusId,
+        changedByUserId: actorUserId,
+      });
+    }
+
+    return updatedIncident;
   });
 
   if (normalizedMediaUrls !== undefined) {

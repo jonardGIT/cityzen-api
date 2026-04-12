@@ -8,6 +8,9 @@ import type { Citizen } from '../types/models.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
 import { withActiveRecords } from '../utils/archive.js';
 
+const AMBIGUOUS_LINKED_CITIZEN_MESSAGE =
+  'Multiple active citizen profiles are linked to this account email. Contact support.';
+
 const config: ContentTypeConfig = {
   modelName: 'citizen',
   displayName: 'Citizen',
@@ -60,9 +63,18 @@ export async function linkMyCitizenProfile(req: Request, res: Response): Promise
     return;
   }
 
-  const existingCitizen = await prisma.citizen.findFirst({
+  const existingCitizens = await prisma.citizen.findMany({
     where: withActiveRecords({ contactInfo: authUser.email }),
+    select: { id: true },
+    take: 2,
   });
+
+  if (existingCitizens.length > 1) {
+    res.status(409).json({ message: AMBIGUOUS_LINKED_CITIZEN_MESSAGE });
+    return;
+  }
+
+  const existingCitizen = existingCitizens[0];
 
   if (!existingCitizen) {
     if (!name || !preferredChannel) {

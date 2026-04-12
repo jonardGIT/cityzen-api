@@ -2,7 +2,7 @@ import request from 'supertest';
 import { afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import app, { API_V1 } from '../app.js';
 import prisma from '../lib/prisma.js';
-import { getAdminToken } from './helpers/auth.js';
+import { getAdminToken, getTokenForRole } from './helpers/auth.js';
 import {
   buildIncidentLocationSnapshot,
   createCitizen as createCitizenFactory,
@@ -24,6 +24,227 @@ const createCitizen = () => createCitizenFactory(adminToken);
 const createCategory = () => createCategoryFactory(adminToken);
 const createSeverity = () => createSeverityFactory(adminToken);
 const getStatusId = (name?: string) => getStatusIdFactory(adminToken, name);
+
+async function registerAndLinkCitizenReporter(uniqueLabel: string): Promise<{
+  token: string;
+  citizenId: string;
+  email: string;
+}> {
+  const unique = `${uniqueLabel}-${Date.now()}-${Math.random()}`;
+  const email = `${unique}@postman.local`;
+
+  const registerRes = await request(app).post(`${API_V1}/auth/register`).send({
+    name: `Citizen Reporter ${unique}`,
+    email,
+    password: 'Password123!',
+  });
+  expect(registerRes.status).toBe(201);
+
+  const token = registerRes.body.token as string;
+
+  const linkRes = await request(app)
+    .post(`${API_V1}/citizens/link-me`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({
+      name: `Linked Citizen ${unique}`,
+      preferredChannel: 'app',
+    });
+
+  expect([200, 201]).toContain(linkRes.status);
+
+  return {
+    token,
+    citizenId: linkRes.body.id as string,
+    email,
+  };
+}
+
+function buildTuguegaraoLocationSnapshot() {
+  return {
+    latitude: 17.6132,
+    longitude: 121.7269,
+    addressLine1: '1 Enrile Avenue',
+    cityName: 'Tuguegarao City',
+    provinceName: 'Cagayan',
+    regionName: 'Cagayan Valley',
+    barangay: 'Centro 10',
+  };
+}
+
+async function ensureTuguegaraoCityScope() {
+  const region = await prisma.region.upsert({
+    where: { code: 'PH-02' },
+    update: { name: 'Cagayan Valley', archivedAt: null },
+    create: { code: 'PH-02', name: 'Cagayan Valley' },
+  });
+
+  const province = await prisma.province.upsert({
+    where: { code: 'PH-0215' },
+    update: { name: 'Cagayan', regionId: region.id, archivedAt: null },
+    create: { code: 'PH-0215', name: 'Cagayan', regionId: region.id },
+  });
+
+  const city = await prisma.cityMunicipality.upsert({
+    where: { code: 'PH-021517' },
+    update: {
+      name: 'Tuguegarao City',
+      type: 'CITY',
+      provinceId: province.id,
+      archivedAt: null,
+    },
+    create: {
+      code: 'PH-021517',
+      name: 'Tuguegarao City',
+      type: 'CITY',
+      provinceId: province.id,
+    },
+  });
+
+  await prisma.user.updateMany({
+    where: { email: { in: ['ops.lead@xypes.local', 'dispatcher@xypes.local'] } },
+    data: {
+      jurisdictionType: 'city',
+      jurisdictionId: city.id,
+    },
+  });
+
+  return { region, province, city };
+}
+
+async function ensurePartnerCityScope() {
+  const { province } = await ensureTuguegaraoCityScope();
+
+  const city = await prisma.cityMunicipality.upsert({
+    where: { code: 'PH-021518' },
+    update: {
+      name: 'Penablanca',
+      type: 'MUNICIPALITY',
+      provinceId: province.id,
+      archivedAt: null,
+    },
+    create: {
+      code: 'PH-021518',
+      name: 'Penablanca',
+      type: 'MUNICIPALITY',
+      provinceId: province.id,
+    },
+  });
+
+  return city;
+}
+
+async function ensureScopedUserToken(input: {
+  email: string;
+  name: string;
+  role: 'DISPATCHER';
+  jurisdictionType: string;
+  jurisdictionId: string;
+}): Promise<string> {
+  const templateUser = await prisma.user.findUnique({
+    where: { email: 'dispatcher@xypes.local' },
+    select: { passwordHash: true },
+  });
+
+  expect(templateUser?.passwordHash).toBeTruthy();
+
+  await prisma.user.upsert({
+    where: { email: input.email },
+    update: {
+      name: input.name,
+      role: input.role,
+      passwordHash: templateUser!.passwordHash,
+      jurisdictionType: input.jurisdictionType,
+      jurisdictionId: input.jurisdictionId,
+      archivedAt: null,
+    },
+    create: {
+      name: input.name,
+      email: input.email,
+      role: input.role,
+      passwordHash: templateUser!.passwordHash,
+      jurisdictionType: input.jurisdictionType,
+      jurisdictionId: input.jurisdictionId,
+    },
+  });
+
+  return getTokenForRole(input.email);
+}
+
+async function createTrustScopedIncident(input: {
+  label: string;
+  reporterToken: string;
+  cityMunicipalityId: string;
+}): Promise<{ incidentId: string; mediaId: string }> {
+  const categoryId = await createCategory();
+  const severityId = await createSeverity();
+
+  const reportRes = await request(app)
+    .post(`${BASE}/report`)
+    .set('Authorization', `Bearer ${input.reporterToken}`)
+    .send({
+      description: `Trust-scope incident ${input.label}`,
+      categoryId,
+      severityId,
+      ...buildTuguegaraoLocationSnapshot(),
+    });
+
+  expect(reportRes.status).toBe(201);
+
+  const incidentId = reportRes.body.id as string;
+
+  await prisma.citizenIncident.update({
+    where: { id: incidentId },
+    data: { cityMunicipalityId: input.cityMunicipalityId },
+  });
+
+  const media = await prisma.incidentMedia.create({
+    data: {
+      incidentId,
+      mediaUrl: `supabase://incident-media/${input.label}-${Date.now()}.jpg`,
+      displayOrder: 0,
+    },
+  });
+
+  return { incidentId, mediaId: media.id };
+}
+
+async function assignResponderToIncident(input: {
+  incidentId: string;
+  cityMunicipalityId: string;
+  email?: string;
+}) {
+  const responderEmail = input.email ?? 'responder@xypes.local';
+
+  await prisma.responder.updateMany({
+    where: { contactInfo: responderEmail },
+    data: { archivedAt: new Date() },
+  });
+
+  const agency = await prisma.agency.create({
+    data: {
+      name: `Trust Scope Agency ${Date.now()}`,
+      cityMunicipalityId: input.cityMunicipalityId,
+    },
+  });
+
+  const responder = await prisma.responder.create({
+    data: {
+      name: 'Trust Scope Responder',
+      agencyId: agency.id,
+      role: 'Field Responder',
+      contactInfo: responderEmail,
+    },
+  });
+
+  await prisma.assignment.create({
+    data: {
+      incidentId: input.incidentId,
+      responderId: responder.id,
+    },
+  });
+
+  return responder;
+}
 
 beforeAll(async () => {
   adminToken = await getAdminToken();
@@ -171,6 +392,537 @@ describe(`POST ${BASE}`, () => {
       });
 
     expect(res.status).toBe(400);
+  });
+});
+
+describe(`POST ${BASE}/report trust metadata`, () => {
+  it('should return trust metadata additively for citizen reports', async () => {
+    const reporter = await registerAndLinkCitizenReporter('trust-report');
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const res = await request(app)
+      .post(`${BASE}/report`)
+      .set('Authorization', `Bearer ${reporter.token}`)
+      .send({
+        description: 'Trust-layer citizen report',
+        categoryId,
+        severityId,
+        ...buildIncidentLocationSnapshot(),
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({
+      description: 'Trust-layer citizen report',
+      citizenId: reporter.citizenId,
+    });
+    expect(res.body).toHaveProperty('latitude');
+    expect(res.body).toHaveProperty('publicReference');
+    expect(res.body).toHaveProperty('trust.caseToken');
+    expect(res.body).toHaveProperty('trust.caseLookupPath');
+    expect(res.body).toHaveProperty('trust.caseTokenExpiresAt');
+    expect(res.body).toHaveProperty('trust.publicStatusMessage');
+    expect(res.body.trust.caseLookupPath).toBe(`/api/v1/cases/${res.body.trust.caseToken}`);
+  });
+});
+
+describe('public case lookup trust layer', () => {
+  it('should return a privacy-safe public case view for a valid case token', async () => {
+    const reporter = await registerAndLinkCitizenReporter('public-case');
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const reportRes = await request(app)
+      .post(`${BASE}/report`)
+      .set('Authorization', `Bearer ${reporter.token}`)
+      .send({
+        description: 'Public case lookup incident',
+        categoryId,
+        severityId,
+        ...buildIncidentLocationSnapshot(),
+      });
+
+    expect(reportRes.status).toBe(201);
+
+    const caseRes = await request(app).get(`${API_V1}/cases/${reportRes.body.trust.caseToken}`);
+
+    expect(caseRes.status).toBe(200);
+    expect(caseRes.body).toMatchObject({
+      publicReference: reportRes.body.publicReference,
+      barangay: reportRes.body.barangay,
+      cityName: reportRes.body.cityName,
+      provinceName: reportRes.body.provinceName,
+    });
+    expect(caseRes.body).toHaveProperty('status');
+    expect(caseRes.body).toHaveProperty('publicStatusMessage');
+    expect(caseRes.body).toHaveProperty('caseTokenExpiresAt');
+    expect(caseRes.body).toHaveProperty('timeline');
+    expect(Array.isArray(caseRes.body.timeline)).toBe(true);
+    expect(caseRes.body.timeline).toHaveLength(1);
+    expect(caseRes.body.timeline[0]).toHaveProperty('status');
+    expect(caseRes.body.timeline[0]).toHaveProperty('publicStatusMessage');
+    expect(caseRes.body.timeline[0]).not.toHaveProperty('fromStatus');
+    expect(caseRes.body.timeline[0]).not.toHaveProperty('changedByUser');
+    expect(caseRes.body.timeline[0]).not.toHaveProperty('note');
+    expect(caseRes.body).not.toHaveProperty('description');
+    expect(caseRes.body).not.toHaveProperty('citizenId');
+    expect(caseRes.body).not.toHaveProperty('latitude');
+    expect(caseRes.body).not.toHaveProperty('longitude');
+    expect(caseRes.body).not.toHaveProperty('addressLine1');
+    expect(caseRes.body).not.toHaveProperty('addressLine2');
+    expect(caseRes.body).not.toHaveProperty('mediaUrl');
+    expect(caseRes.body).not.toHaveProperty('mediaUrls');
+  });
+
+  it('should return 400 for an invalid case token format', async () => {
+    const res = await request(app).get(`${API_V1}/cases/not-valid`);
+
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty('errors');
+  });
+
+  it('should return 404 for an unknown but well-formed case token', async () => {
+    const res = await request(app).get(`${API_V1}/cases/UnknownCaseToken1234`);
+
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({
+      message: 'Case not found or token is invalid',
+    });
+  });
+});
+
+describe(`GET ${BASE}/:id/timeline`, () => {
+  let cityAdminToken = '';
+  let dispatcherToken = '';
+  let provincialToken = '';
+  let nationalToken = '';
+  let auditorToken = '';
+  let tuguegaraoCityId = '';
+
+  beforeAll(async () => {
+    const cityScope = await ensureTuguegaraoCityScope();
+    tuguegaraoCityId = cityScope.city.id;
+    cityAdminToken = await getTokenForRole('ops.lead@xypes.local');
+    dispatcherToken = await getTokenForRole('dispatcher@xypes.local');
+    provincialToken = await getTokenForRole('supervisor@xypes.local');
+    nationalToken = await getTokenForRole('admin@xypes.local');
+    auditorToken = await getTokenForRole('auditor@xypes.local');
+  });
+
+  it('should allow the owning citizen and city-side role, while blocking a non-owner citizen', async () => {
+    const owner = await registerAndLinkCitizenReporter('timeline-owner');
+    const otherCitizen = await registerAndLinkCitizenReporter('timeline-other');
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const reportRes = await request(app)
+      .post(`${BASE}/report`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({
+        description: 'Timeline ownership incident',
+        categoryId,
+        severityId,
+        ...buildTuguegaraoLocationSnapshot(),
+        cityMunicipalityId: tuguegaraoCityId,
+      });
+
+    expect(reportRes.status).toBe(201);
+
+    await prisma.citizenIncident.update({
+      where: { id: reportRes.body.id as string },
+      data: { cityMunicipalityId: tuguegaraoCityId },
+    });
+
+    const ownerTimelineRes = await request(app)
+      .get(`${BASE}/${reportRes.body.id}/timeline`)
+      .set('Authorization', `Bearer ${owner.token}`);
+
+    expect(ownerTimelineRes.status).toBe(200);
+    expect(ownerTimelineRes.body).toMatchObject({
+      incidentId: reportRes.body.id,
+      publicReference: reportRes.body.publicReference,
+    });
+    expect(ownerTimelineRes.body.timeline).toHaveLength(1);
+    expect(ownerTimelineRes.body.timeline[0]).toHaveProperty('status.name', 'Reported');
+    expect(ownerTimelineRes.body.timeline[0]).toHaveProperty('publicStatusMessage');
+    expect(ownerTimelineRes.body.timeline[0]).not.toHaveProperty('toStatus');
+    expect(ownerTimelineRes.body.timeline[0]).not.toHaveProperty('fromStatus');
+    expect(ownerTimelineRes.body.timeline[0]).not.toHaveProperty('changedByUser');
+    expect(ownerTimelineRes.body.timeline[0]).not.toHaveProperty('note');
+
+    const cityTimelineRes = await request(app)
+      .get(`${BASE}/${reportRes.body.id}/timeline`)
+      .set('Authorization', `Bearer ${cityAdminToken}`);
+
+    expect(cityTimelineRes.status).toBe(200);
+    expect(cityTimelineRes.body.timeline).toHaveLength(1);
+    expect(cityTimelineRes.body.timeline[0]).toHaveProperty('toStatus.name', 'Reported');
+
+    const blockedTimelineRes = await request(app)
+      .get(`${BASE}/${reportRes.body.id}/timeline`)
+      .set('Authorization', `Bearer ${otherCitizen.token}`);
+
+    expect(blockedTimelineRes.status).toBe(404);
+  });
+
+  it('should block province, national, and auditor roles from the Phase 1 trust timeline route', async () => {
+    const owner = await registerAndLinkCitizenReporter('timeline-role-block');
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const reportRes = await request(app)
+      .post(`${BASE}/report`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({
+        description: 'Timeline role block incident',
+        categoryId,
+        severityId,
+        ...buildTuguegaraoLocationSnapshot(),
+        cityMunicipalityId: tuguegaraoCityId,
+      });
+
+    expect(reportRes.status).toBe(201);
+
+    const responses = await Promise.all([
+      request(app)
+        .get(`${BASE}/${reportRes.body.id}/timeline`)
+        .set('Authorization', `Bearer ${provincialToken}`),
+      request(app)
+        .get(`${BASE}/${reportRes.body.id}/timeline`)
+        .set('Authorization', `Bearer ${nationalToken}`),
+      request(app)
+        .get(`${BASE}/${reportRes.body.id}/timeline`)
+        .set('Authorization', `Bearer ${auditorToken}`),
+    ]);
+
+    for (const response of responses) {
+      expect(response.status).toBe(403);
+    }
+  });
+
+  it('should deny city-scoped timeline access when the incident has no canonical cityMunicipalityId', async () => {
+    const owner = await registerAndLinkCitizenReporter('timeline-missing-city-id');
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const reportRes = await request(app)
+      .post(`${BASE}/report`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({
+        description: 'Timeline missing canonical city id',
+        categoryId,
+        severityId,
+        ...buildTuguegaraoLocationSnapshot(),
+        cityMunicipalityId: tuguegaraoCityId,
+      });
+
+    expect(reportRes.status).toBe(201);
+
+    await prisma.citizenIncident.update({
+      where: { id: reportRes.body.id as string },
+      data: { cityMunicipalityId: null },
+    });
+
+    const cityTimelineRes = await request(app)
+      .get(`${BASE}/${reportRes.body.id}/timeline`)
+      .set('Authorization', `Bearer ${cityAdminToken}`);
+
+    expect(cityTimelineRes.status).toBe(404);
+
+    const ownerTimelineRes = await request(app)
+      .get(`${BASE}/${reportRes.body.id}/timeline`)
+      .set('Authorization', `Bearer ${owner.token}`);
+
+    expect(ownerTimelineRes.status).toBe(200);
+  });
+
+  it('should append timeline history when the incident status is updated', async () => {
+    const owner = await registerAndLinkCitizenReporter('timeline-update');
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const reportRes = await request(app)
+      .post(`${BASE}/report`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({
+        description: 'Timeline status update incident',
+        categoryId,
+        severityId,
+        ...buildTuguegaraoLocationSnapshot(),
+        cityMunicipalityId: tuguegaraoCityId,
+      });
+
+    expect(reportRes.status).toBe(201);
+
+    await prisma.citizenIncident.update({
+      where: { id: reportRes.body.id as string },
+      data: { cityMunicipalityId: tuguegaraoCityId },
+    });
+
+    const newStatusRes = await request(app)
+      .post(`${API_V1}/statuses`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: `Trust Timeline Updated ${Date.now()}` });
+
+    expect(newStatusRes.status).toBe(201);
+
+    const patchRes = await request(app)
+      .patch(`${BASE}/${reportRes.body.id}`)
+      .set('Authorization', `Bearer ${dispatcherToken}`)
+      .send({ statusId: newStatusRes.body.id });
+
+    expect(patchRes.status).toBe(200);
+
+    const timelineRes = await request(app)
+      .get(`${BASE}/${reportRes.body.id}/timeline`)
+      .set('Authorization', `Bearer ${owner.token}`);
+
+    expect(timelineRes.status).toBe(200);
+    expect(timelineRes.body.timeline).toHaveLength(2);
+    expect(timelineRes.body.timeline[0]).toHaveProperty('status.name', 'Reported');
+    expect(timelineRes.body.timeline[1]).toHaveProperty('status.id', newStatusRes.body.id);
+    expect(timelineRes.body.timeline[1]).toHaveProperty('publicStatusMessage');
+    expect(timelineRes.body.timeline[1]).not.toHaveProperty('changedByUser');
+
+    const internalTimelineRes = await request(app)
+      .get(`${BASE}/${reportRes.body.id}/timeline`)
+      .set('Authorization', `Bearer ${cityAdminToken}`);
+
+    expect(internalTimelineRes.status).toBe(200);
+    expect(internalTimelineRes.body.timeline[1]).toHaveProperty('fromStatus.name', 'Reported');
+    expect(internalTimelineRes.body.timeline[1]).toHaveProperty('toStatus.id', newStatusRes.body.id);
+    expect(internalTimelineRes.body.timeline[1]).toHaveProperty(
+      'changedByUser.email',
+      'dispatcher@xypes.local',
+    );
+  });
+
+  it('should allow assigned responders and block unassigned responders', async () => {
+    const owner = await registerAndLinkCitizenReporter('timeline-responder');
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const reportRes = await request(app)
+      .post(`${BASE}/report`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({
+        description: 'Timeline responder incident',
+        categoryId,
+        severityId,
+        ...buildTuguegaraoLocationSnapshot(),
+      });
+
+    expect(reportRes.status).toBe(201);
+
+    const responderToken = await getTokenForRole('responder@xypes.local');
+    const unassignedTimelineRes = await request(app)
+      .get(`${BASE}/${reportRes.body.id}/timeline`)
+      .set('Authorization', `Bearer ${responderToken}`);
+
+    expect(unassignedTimelineRes.status).toBe(404);
+
+    const { city } = await ensureTuguegaraoCityScope();
+    await prisma.responder.updateMany({
+      where: { contactInfo: 'responder@xypes.local' },
+      data: { archivedAt: new Date() },
+    });
+
+    const agency = await prisma.agency.create({
+      data: {
+        name: `Timeline Agency ${Date.now()}`,
+        cityMunicipalityId: city.id,
+      },
+    });
+
+    const responder = await prisma.responder.create({
+      data: {
+        name: 'Assigned Responder',
+        agencyId: agency.id,
+        role: 'Field Responder',
+        contactInfo: 'responder@xypes.local',
+      },
+    });
+
+    await prisma.assignment.create({
+      data: {
+        incidentId: reportRes.body.id,
+        responderId: responder.id,
+      },
+    });
+
+    const assignedTimelineRes = await request(app)
+      .get(`${BASE}/${reportRes.body.id}/timeline`)
+      .set('Authorization', `Bearer ${responderToken}`);
+
+    expect(assignedTimelineRes.status).toBe(200);
+    expect(assignedTimelineRes.body.timeline[0]).toHaveProperty('toStatus.name', 'Reported');
+  });
+
+  it('should fail closed when multiple active citizen profiles share the same email', async () => {
+    const owner = await registerAndLinkCitizenReporter('timeline-duplicate-citizen');
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const reportRes = await request(app)
+      .post(`${BASE}/report`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({
+        description: 'Timeline duplicate citizen incident',
+        categoryId,
+        severityId,
+        ...buildTuguegaraoLocationSnapshot(),
+      });
+
+    expect(reportRes.status).toBe(201);
+
+    await prisma.citizen.create({
+      data: {
+        name: 'Duplicate Citizen',
+        contactInfo: owner.email,
+        preferredChannel: 'app',
+      },
+    });
+
+    const timelineRes = await request(app)
+      .get(`${BASE}/${reportRes.body.id}/timeline`)
+      .set('Authorization', `Bearer ${owner.token}`);
+
+    expect(timelineRes.status).toBe(409);
+    expect(timelineRes.body.message).toMatch(/Multiple active citizen profiles/i);
+  });
+});
+
+describe('Phase 1 trust-layer incident reads', () => {
+  let tuguegaraoCityId = '';
+  let outOfCityDispatcherToken = '';
+  let responderToken = '';
+  let auditorToken = '';
+
+  beforeAll(async () => {
+    const cityScope = await ensureTuguegaraoCityScope();
+    tuguegaraoCityId = cityScope.city.id;
+    responderToken = await getTokenForRole('responder@xypes.local');
+    auditorToken = await getTokenForRole('auditor@xypes.local');
+
+    const partnerCity = await ensurePartnerCityScope();
+    outOfCityDispatcherToken = await ensureScopedUserToken({
+      email: 'phase1.dispatcher@xypes.local',
+      name: 'Phase 1 Out-of-City Dispatcher',
+      role: 'DISPATCHER',
+      jurisdictionType: 'city',
+      jurisdictionId: partnerCity.id,
+    });
+  });
+
+  it('should block an out-of-city dispatcher from list and detail reads', async () => {
+    const owner = await registerAndLinkCitizenReporter('phase1-out-of-city');
+    const incident = await createTrustScopedIncident({
+      label: 'phase1-out-of-city',
+      reporterToken: owner.token,
+      cityMunicipalityId: tuguegaraoCityId,
+    });
+
+    const listRes = await request(app)
+      .get(BASE)
+      .set('Authorization', `Bearer ${outOfCityDispatcherToken}`);
+
+    expect(listRes.status).toBe(200);
+    expect(Array.isArray(listRes.body)).toBe(true);
+    expect(listRes.body.some((entry: { id: string }) => entry.id === incident.incidentId)).toBe(
+      false,
+    );
+
+    const detailRes = await request(app)
+      .get(`${BASE}/${incident.incidentId}`)
+      .set('Authorization', `Bearer ${outOfCityDispatcherToken}`);
+
+    expect(detailRes.status).toBe(404);
+  });
+
+  it('should block an unassigned responder from list, detail, and media reads', async () => {
+    const owner = await registerAndLinkCitizenReporter('phase1-responder-blocked');
+    const incident = await createTrustScopedIncident({
+      label: 'phase1-responder-blocked',
+      reporterToken: owner.token,
+      cityMunicipalityId: tuguegaraoCityId,
+    });
+
+    const listRes = await request(app).get(BASE).set('Authorization', `Bearer ${responderToken}`);
+
+    expect(listRes.status).toBe(200);
+    expect(Array.isArray(listRes.body)).toBe(true);
+    expect(listRes.body.some((entry: { id: string }) => entry.id === incident.incidentId)).toBe(
+      false,
+    );
+
+    const detailRes = await request(app)
+      .get(`${BASE}/${incident.incidentId}`)
+      .set('Authorization', `Bearer ${responderToken}`);
+
+    expect(detailRes.status).toBe(404);
+
+    const mediaRes = await request(app)
+      .get(`${BASE}/${incident.incidentId}/media/${incident.mediaId}`)
+      .set('Authorization', `Bearer ${responderToken}`);
+
+    expect(mediaRes.status).toBe(404);
+  });
+
+  it('should allow an assigned responder on list, detail, and media reads', async () => {
+    const owner = await registerAndLinkCitizenReporter('phase1-responder-allowed');
+    const incident = await createTrustScopedIncident({
+      label: 'phase1-responder-allowed',
+      reporterToken: owner.token,
+      cityMunicipalityId: tuguegaraoCityId,
+    });
+
+    await assignResponderToIncident({
+      incidentId: incident.incidentId,
+      cityMunicipalityId: tuguegaraoCityId,
+    });
+
+    const listRes = await request(app).get(BASE).set('Authorization', `Bearer ${responderToken}`);
+
+    expect(listRes.status).toBe(200);
+    expect(Array.isArray(listRes.body)).toBe(true);
+    expect(listRes.body.some((entry: { id: string }) => entry.id === incident.incidentId)).toBe(
+      true,
+    );
+
+    const detailRes = await request(app)
+      .get(`${BASE}/${incident.incidentId}`)
+      .set('Authorization', `Bearer ${responderToken}`);
+
+    expect(detailRes.status).toBe(200);
+    expect(detailRes.body).toHaveProperty('id', incident.incidentId);
+
+    const mediaRes = await request(app)
+      .get(`${BASE}/${incident.incidentId}/media/${incident.mediaId}`)
+      .set('Authorization', `Bearer ${responderToken}`);
+
+    expect(mediaRes.status).toBe(200);
+    expect(mediaRes.body).toMatchObject({
+      incidentId: incident.incidentId,
+      mediaId: incident.mediaId,
+    });
+  });
+
+  it('should block unsupported roles from Phase 1 incident read routes', async () => {
+    const owner = await registerAndLinkCitizenReporter('phase1-unsupported-role');
+    const incident = await createTrustScopedIncident({
+      label: 'phase1-unsupported-role',
+      reporterToken: owner.token,
+      cityMunicipalityId: tuguegaraoCityId,
+    });
+
+    const listRes = await request(app).get(BASE).set('Authorization', `Bearer ${auditorToken}`);
+    expect(listRes.status).toBe(403);
+
+    const detailRes = await request(app)
+      .get(`${BASE}/${incident.incidentId}`)
+      .set('Authorization', `Bearer ${auditorToken}`);
+
+    expect(detailRes.status).toBe(403);
   });
 });
 

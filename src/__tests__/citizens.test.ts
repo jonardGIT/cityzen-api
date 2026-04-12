@@ -1,5 +1,6 @@
 import request from 'supertest';
 import app, { API_V1 } from '../app.js';
+import prisma from '../lib/prisma.js';
 import { getAdminToken, getTokenForRole } from './helpers/auth.js';
 
 const BASE = `${API_V1}/citizens`;
@@ -205,5 +206,65 @@ describe(`DELETE ${BASE}/:id`, () => {
   it('should return 401 without auth token', async () => {
     const res = await request(app).delete(`${BASE}/${deleteId}`);
     expect(res.status).toBe(401);
+  });
+});
+
+describe(`POST ${BASE}/link-me`, () => {
+  it('should fail closed when multiple active citizens share the authenticated email', async () => {
+    const unique = `${Date.now()}-${Math.random()}`;
+    const email = `duplicate-link-${unique}@postman.local`;
+
+    const registerRes = await request(app).post(`${API_V1}/auth/register`).send({
+      name: `Duplicate Link ${unique}`,
+      email,
+      password: 'Password123!',
+    });
+
+    expect(registerRes.status).toBe(201);
+
+    const token = registerRes.body.token as string;
+
+    const firstCitizen = await prisma.citizen.create({
+      data: {
+        name: `Duplicate Citizen A ${unique}`,
+        contactInfo: email,
+        preferredChannel: 'sms',
+      },
+    });
+
+    const secondCitizen = await prisma.citizen.create({
+      data: {
+        name: `Duplicate Citizen B ${unique}`,
+        contactInfo: email,
+        preferredChannel: 'email',
+      },
+    });
+
+    const linkRes = await request(app)
+      .post(`${BASE}/link-me`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Should Not Link', preferredChannel: 'app' });
+
+    expect(linkRes.status).toBe(409);
+    expect(linkRes.body).toMatchObject({
+      message: 'Multiple active citizen profiles are linked to this account email. Contact support.',
+    });
+
+    const citizens = await prisma.citizen.findMany({
+      where: { id: { in: [firstCitizen.id, secondCitizen.id] } },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    expect(citizens).toHaveLength(2);
+    expect(citizens[0]).toMatchObject({
+      id: firstCitizen.id,
+      name: firstCitizen.name,
+      preferredChannel: firstCitizen.preferredChannel,
+    });
+    expect(citizens[1]).toMatchObject({
+      id: secondCitizen.id,
+      name: secondCitizen.name,
+      preferredChannel: secondCitizen.preferredChannel,
+    });
   });
 });
