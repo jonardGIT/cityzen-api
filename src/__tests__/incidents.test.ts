@@ -389,6 +389,32 @@ describe(`POST ${BASE}`, () => {
 
     expect(res.status).toBe(400);
   });
+
+  it('should return 400 when locality does not resolve to an active city or municipality', async () => {
+    const statusId = await getStatusId();
+    const citizenId = await createCitizen();
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const res = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        description: 'Incident with unresolved city locality',
+        statusId,
+        citizenId,
+        categoryId,
+        severityId,
+        ...buildIncidentLocationSnapshot(),
+        cityName: 'Missing Tuguegarao Partner City',
+        barangay: 'Missing Barangay',
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      message: 'Incident locality must resolve to an active city or municipality',
+    });
+  });
 });
 
 describe(`POST ${BASE}/report trust metadata`, () => {
@@ -419,6 +445,29 @@ describe(`POST ${BASE}/report trust metadata`, () => {
     expect(res.body).toHaveProperty('trust.caseTokenExpiresAt');
     expect(res.body).toHaveProperty('trust.publicStatusMessage');
     expect(res.body.trust.caseLookupPath).toBe(`/api/v1/cases/${res.body.trust.caseToken}`);
+  });
+
+  it('should return 400 when report locality does not resolve to an active city or municipality', async () => {
+    const reporter = await registerAndLinkCitizenReporter('trust-report-unresolved-city');
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const res = await request(app)
+      .post(`${BASE}/report`)
+      .set('Authorization', `Bearer ${reporter.token}`)
+      .send({
+        description: 'Trust-layer citizen report with unresolved locality',
+        categoryId,
+        severityId,
+        ...buildIncidentLocationSnapshot(),
+        cityName: 'Missing Tuguegarao Partner City',
+        barangay: 'Missing Barangay',
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      message: 'Incident locality must resolve to an active city or municipality',
+    });
   });
 
   it('should persist canonical locality ids for Tuguegarao snapshot writes', async () => {
@@ -513,6 +562,41 @@ describe(`POST ${BASE}/report trust metadata`, () => {
       cityMunicipalityId: createRes.body.cityMunicipalityId,
       provinceId: createRes.body.provinceId,
       regionId: createRes.body.regionId,
+    });
+  });
+
+  it('should return 400 when an admin patch locality does not resolve to an active city or municipality', async () => {
+    const statusId = await getStatusId();
+    const citizenId = await createCitizen();
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const createRes = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        description: 'Admin unresolved locality patch regression',
+        statusId,
+        citizenId,
+        categoryId,
+        severityId,
+        ...buildTuguegaraoLocationSnapshot(),
+      });
+
+    expect(createRes.status).toBe(201);
+
+    const patchRes = await request(app)
+      .patch(`${BASE}/${createRes.body.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        ...buildTuguegaraoLocationSnapshot(),
+        cityName: 'Missing Tuguegarao Partner City',
+        barangay: 'Missing Barangay',
+      });
+
+    expect(patchRes.status).toBe(400);
+    expect(patchRes.body).toMatchObject({
+      message: 'Incident locality must resolve to an active city or municipality',
     });
   });
 });
@@ -877,12 +961,14 @@ describe(`GET ${BASE}/:id/timeline`, () => {
 describe('Phase 1 trust-layer incident reads', () => {
   let tuguegaraoCityId = '';
   let outOfCityDispatcherToken = '';
+  let nationalAdminToken = '';
   let responderToken = '';
   let auditorToken = '';
 
   beforeAll(async () => {
     const cityScope = await ensureTuguegaraoCityScope();
     tuguegaraoCityId = cityScope.city.id;
+    nationalAdminToken = await getTokenForRole('admin@xypes.local');
     responderToken = await getTokenForRole('responder@xypes.local');
     auditorToken = await getTokenForRole('auditor@xypes.local');
 
@@ -978,6 +1064,41 @@ describe('Phase 1 trust-layer incident reads', () => {
     const mediaRes = await request(app)
       .get(`${BASE}/${incident.incidentId}/media/${incident.mediaId}`)
       .set('Authorization', `Bearer ${responderToken}`);
+
+    expect(mediaRes.status).toBe(200);
+    expect(mediaRes.body).toMatchObject({
+      incidentId: incident.incidentId,
+      mediaId: incident.mediaId,
+    });
+  });
+
+  it('should allow NATIONAL_ADMIN on list, detail, and media reads', async () => {
+    const owner = await registerAndLinkCitizenReporter('phase1-national-admin');
+    const incident = await createTrustScopedIncident({
+      label: 'phase1-national-admin',
+      reporterToken: owner.token,
+    });
+
+    const listRes = await request(app)
+      .get(BASE)
+      .set('Authorization', `Bearer ${nationalAdminToken}`);
+
+    expect(listRes.status).toBe(200);
+    expect(Array.isArray(listRes.body)).toBe(true);
+    expect(listRes.body.some((entry: { id: string }) => entry.id === incident.incidentId)).toBe(
+      true,
+    );
+
+    const detailRes = await request(app)
+      .get(`${BASE}/${incident.incidentId}`)
+      .set('Authorization', `Bearer ${nationalAdminToken}`);
+
+    expect(detailRes.status).toBe(200);
+    expect(detailRes.body).toHaveProperty('id', incident.incidentId);
+
+    const mediaRes = await request(app)
+      .get(`${BASE}/${incident.incidentId}/media/${incident.mediaId}`)
+      .set('Authorization', `Bearer ${nationalAdminToken}`);
 
     expect(mediaRes.status).toBe(200);
     expect(mediaRes.body).toMatchObject({

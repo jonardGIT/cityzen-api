@@ -189,8 +189,8 @@ Important variables:
 - `API_KEY`: optional single-key fallback if `API_KEYS` is not set.
 - `RATE_LIMIT_ENABLED`, `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX_REQUESTS`: request throttling controls.
 - `PUBLIC_CASE_LOOKUP_RATE_LIMIT_ENABLED`: public case-lookup limiter switch for the trust-layer endpoint. Keep this enabled for any deployment that exposes `/api/v1/cases/:caseToken`. In production, startup now fails closed if this is explicitly set to `false`.
-- `PUBLIC_CASE_LOOKUP_RATE_LIMIT_WINDOW_MS`, `PUBLIC_CASE_LOOKUP_RATE_LIMIT_MAX_REQUESTS`: public case-lookup throttle for trust-layer reads. In production, set these explicitly to the current partner-rollout baseline of `600000` ms and `20` requests. Startup rejects values outside `60000` to `3600000` ms and `1` to `30` requests.
-- `INCIDENT_CASE_TOKEN_TTL_DAYS`: public case-token lifetime. In production, set this explicitly to the current partner-rollout baseline of `30` days. Startup rejects values outside `1` to `30` days.
+- `PUBLIC_CASE_LOOKUP_RATE_LIMIT_WINDOW_MS`, `PUBLIC_CASE_LOOKUP_RATE_LIMIT_MAX_REQUESTS`: public case-lookup throttle for trust-layer reads. In production, explicit overrides are recommended and the current partner-LGU baseline remains `600000` ms and `20` requests when these variables are omitted. Startup still rejects explicit values outside `60000` to `3600000` ms and `1` to `30` requests.
+- `INCIDENT_CASE_TOKEN_TTL_DAYS`: public case-token lifetime. In production, an explicit override is recommended and omission falls back to the current partner-LGU baseline of `30` days. Startup still rejects explicit values outside `1` to `30` days.
 - `RATE_LIMIT_STORE`: optional rate-limit backend. Use `database` for shared counters across multiple API instances. Defaults to `database` in production and `memory` elsewhere. In production, the API now fails closed with `503` responses if the shared limiter store is unavailable.
 - `AUTH_LOGIN_RATE_LIMIT_WINDOW_MS`, `AUTH_LOGIN_RATE_LIMIT_MAX_REQUESTS`: optional tighter login throttle. Defaults to 60 seconds and 5 attempts per client-plus-email.
 - `AUTH_REFRESH_RATE_LIMIT_WINDOW_MS`, `AUTH_REFRESH_RATE_LIMIT_MAX_REQUESTS`: optional tighter refresh throttle. Defaults to 60 seconds and 10 attempts per client.
@@ -660,6 +660,8 @@ Run:
 npm test
 ```
 
+`npm test` invokes `scripts/runJestWithTestDb.js`, which first checks the `.env.test` `DATABASE_URL` and then auto-starts the bundled local test database when the target is the default local harness and it is not reachable yet.
+
 Coverage includes route behavior, validation, security middleware, and health/docs endpoints.
 
 For a local test database that matches CI, use the bundled Postgres container workflow:
@@ -671,13 +673,13 @@ npm run test:db:seed
 npm test
 ```
 
-This starts PostgreSQL 16 on `localhost:5432` with the same defaults used by `.env.test` and CI:
+This uses the bundled PostgreSQL 16 test database on `localhost:55432` with the same local defaults used by `.env.test`:
 
 - database: `xypes_test`
 - username: `postgres`
 - password: `postgres`
 
-When `npm test` runs locally, it now tries to connect to the `.env.test` database first and, if that target is the bundled local test database and it is not reachable yet, it starts the bundled container automatically before invoking Jest.
+When `npm test` runs locally, the wrapper first tries the configured `.env.test` database. If that target is the bundled local harness on `localhost:55432` and it is not reachable yet, the wrapper starts the local test DB automatically before invoking Jest. It prefers `docker compose` through `scripts/runTestDbCompose.sh` and falls back to `embedded-postgres` when compose is unavailable.
 
 By default the bundled local container is exposed on `localhost:55432` so it does not conflict with an existing PostgreSQL instance on `5432`. CI still injects its own database on `5432` through environment variables, so the automated workflows are unchanged.
 
@@ -693,12 +695,12 @@ Notes:
 - Do not point local tests at the droplet or production database.
 - If you want a different local port, set `TEST_DB_PORT=<port>` before `npm run test:db:up` and update `.env.test` or your shell overrides to match.
 - The npm scripts support both `docker compose` and the older `docker-compose` binary.
-- `npm run test:local` brings the container up, resets the test schema, seeds it, and then runs Jest.
+- `npm run test:local` is the explicit reset-and-seed path: it brings the container up, resets the test schema, seeds it, and then runs Jest.
 
 If `.env.test` points to a local placeholder database, provide a reachable `DATABASE_URL` and `JWT_SECRET` at command time, for example:
 
 ```bash
-DATABASE_URL=postgresql://postgres:<password>@<host>:5432/postgres JWT_SECRET=<test-secret> npm test
+DATABASE_URL=postgresql://postgres:<password>@localhost:55432/xypes_test JWT_SECRET=<test-secret> npm test
 ```
 
 ## Build and Run (Production)

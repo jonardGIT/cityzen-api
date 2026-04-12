@@ -60,6 +60,26 @@ describe('startup environment validation', () => {
     ).not.toThrow();
   });
 
+  it('allows production startup when trust baseline envs are omitted and other required config is valid', () => {
+    const env = createProductionEnv({
+      JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
+      API_KEYS: 'prod-api-key-0123456789',
+      MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
+      PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'https://security.example.gov/password-reset',
+    });
+
+    delete env.PUBLIC_CASE_LOOKUP_RATE_LIMIT_WINDOW_MS;
+    delete env.PUBLIC_CASE_LOOKUP_RATE_LIMIT_MAX_REQUESTS;
+    delete env.INCIDENT_CASE_TOKEN_TTL_DAYS;
+
+    expect(() =>
+      validateStartupEnvironment({
+        env,
+        selection: createSelection({ mfaMode: 'local-totp' }),
+      }),
+    ).not.toThrow();
+  });
+
   it('rejects production builds that explicitly disable public case lookup rate limiting', () => {
     expect(() =>
       validateStartupEnvironment({
@@ -75,28 +95,6 @@ describe('startup environment validation', () => {
     ).toThrow(
       'PUBLIC_CASE_LOOKUP_RATE_LIMIT_ENABLED must remain enabled in production for the public case lookup trust-layer endpoint',
     );
-  });
-
-  it.each([
-    ['PUBLIC_CASE_LOOKUP_RATE_LIMIT_WINDOW_MS'],
-    ['PUBLIC_CASE_LOOKUP_RATE_LIMIT_MAX_REQUESTS'],
-    ['INCIDENT_CASE_TOKEN_TTL_DAYS'],
-  ])('rejects missing production trust-layer env %s', (missingEnvName) => {
-    const env = createProductionEnv({
-      JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
-      API_KEYS: 'prod-api-key-0123456789',
-      MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
-      PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'https://security.example.gov/password-reset',
-    });
-
-    delete env[missingEnvName];
-
-    expect(() =>
-      validateStartupEnvironment({
-        env,
-        selection: createSelection({ mfaMode: 'local-totp' }),
-      }),
-    ).toThrow(`${missingEnvName} must be explicitly configured in production`);
   });
 
   it.each([

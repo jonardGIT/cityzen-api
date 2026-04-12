@@ -85,6 +85,8 @@ function getAuditEvent(method: string, path: string): AuditEventDefinition | nul
     'categories',
     'severities',
     'incidents',
+    'incident-escalations',
+    'mutual-aid-requests',
     'assignments',
     'users',
   ]);

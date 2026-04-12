@@ -134,7 +134,12 @@ type TimelineAccessResult = { allowed: true; audience: 'owner' | 'internal' } | 
 type IncidentReadScope =
   | { kind: 'owner'; citizenId: string; audience: 'owner' }
   | { kind: 'city'; cityMunicipalityIds: string[]; audience: 'internal' }
+  | { kind: 'global'; audience: 'internal' }
   | { kind: 'assigned'; responderId: string; audience: 'internal' };
+
+type IncidentReadScopeOptions = {
+  allowNationalAdmin?: boolean;
+};
 
 type IncidentReadScopeResult =
   | { status: 'scoped'; scope: IncidentReadScope }
@@ -203,6 +208,16 @@ function buildIncidentLocalityResolutionInput(input: IncidentLocalityInput) {
     provinceId: input.provinceId,
     regionId: input.regionId,
   };
+}
+
+function assertIncidentCityMunicipalityResolved(input: {
+  cityMunicipalityId: string | null;
+}): void {
+  if (!input.cityMunicipalityId) {
+    throw new IncidentLocalityResolutionError(
+      'Incident locality must resolve to an active city or municipality',
+    );
+  }
 }
 
 async function resolveLinkedCitizenByAuthEmail(email: string): Promise<LinkedCitizenResolution> {
@@ -458,6 +473,7 @@ async function resolveAssignedResponderId(authUserEmail: string): Promise<string
 async function resolveIncidentReadScope(
   authUser: NonNullable<AuthenticatedRequest['authUser']>,
   res: Response,
+  options: IncidentReadScopeOptions = {},
 ): Promise<IncidentReadScopeResult> {
   if (authUser.role === 'CITIZEN_REPORTER') {
     const resolution = await resolveLinkedCitizenByAuthEmail(authUser.email);
@@ -472,6 +488,16 @@ async function resolveIncidentReadScope(
         kind: 'owner',
         citizenId,
         audience: 'owner',
+      },
+    };
+  }
+
+  if (options.allowNationalAdmin && authUser.role === 'NATIONAL_ADMIN') {
+    return {
+      status: 'scoped',
+      scope: {
+        kind: 'global',
+        audience: 'internal',
       },
     };
   }
@@ -501,6 +527,10 @@ async function resolveIncidentReadScope(
 function buildIncidentReadScopeWhere(scope: IncidentReadScope): Prisma.CitizenIncidentWhereInput {
   if (scope.kind === 'owner') {
     return { citizenId: scope.citizenId };
+  }
+
+  if (scope.kind === 'global') {
+    return {};
   }
 
   if (scope.kind === 'city') {
@@ -533,6 +563,10 @@ async function canReadIncidentWithScope(
 ): Promise<boolean> {
   if (scope.kind === 'owner') {
     return incident.citizenId === scope.citizenId;
+  }
+
+  if (scope.kind === 'global') {
+    return true;
   }
 
   if (scope.kind === 'city') {
@@ -593,7 +627,9 @@ async function getAuthorizedIncidentWithMedia(
     return null;
   }
 
-  const scopeResult = await resolveIncidentReadScope(authUser, res);
+  const scopeResult = await resolveIncidentReadScope(authUser, res, {
+    allowNationalAdmin: true,
+  });
   if (scopeResult.status === 'response-sent') {
     return null;
   }
@@ -677,7 +713,9 @@ export async function getIncidents(req: Request, res: Response): Promise<void> {
 
   let where = (listQuery.where ?? {}) as Record<string, unknown>;
 
-  const scopeResult = await resolveIncidentReadScope(authUser, res);
+  const scopeResult = await resolveIncidentReadScope(authUser, res, {
+    allowNationalAdmin: true,
+  });
   if (scopeResult.status === 'response-sent') {
     return;
   }
@@ -1002,6 +1040,7 @@ export async function createIncident(req: Request, res: Response): Promise<void>
       cityMunicipalityId,
       barangayId,
     });
+    assertIncidentCityMunicipalityResolved(resolvedLocalityIds);
 
     const incident = await prisma.$transaction(async (transaction) => {
       const trustTransaction = transaction as TrustLayerTransactionClient;
@@ -1129,6 +1168,7 @@ export async function createCitizenIncidentReport(req: Request, res: Response): 
         regionName,
       }),
     );
+    assertIncidentCityMunicipalityResolved(resolvedLocalityIds);
 
     const incident = await prisma.$transaction(async (transaction) => {
       const trustTransaction = transaction as TrustLayerTransactionClient;
@@ -1321,6 +1361,7 @@ export async function updateIncident(req: Request, res: Response): Promise<void>
           regionId,
         }),
       );
+      assertIncidentCityMunicipalityResolved(resolvedLocalityIds);
     } catch (err) {
       if (err instanceof IncidentLocalityResolutionError) {
         res.status(400).json({ message: err.message });
@@ -1328,6 +1369,31 @@ export async function updateIncident(req: Request, res: Response): Promise<void>
       }
 
       throw err;
+    }
+  }
+
+  const hasCanonicalLocalityChange =
+    resolvedLocalityIds !== undefined &&
+    (resolvedLocalityIds.regionId !== existingIncident.regionId ||
+      resolvedLocalityIds.provinceId !== existingIncident.provinceId ||
+      resolvedLocalityIds.cityMunicipalityId !== existingIncident.cityMunicipalityId ||
+      resolvedLocalityIds.barangayId !== existingIncident.barangayId);
+
+  if (hasCanonicalLocalityChange) {
+    const supportedEscalationCount = await prisma.incidentEscalation.count({
+      where: {
+        incidentId: id,
+        fromLevel: 'city',
+        toLevel: 'province',
+      },
+    });
+
+    if (supportedEscalationCount > 0) {
+      res.status(409).json({
+        message:
+          'Incident locality cannot be changed after a city-to-province escalation has been created',
+      });
+      return;
     }
   }
 

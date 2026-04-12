@@ -4,13 +4,13 @@ import app, { API_V1 } from '../../app.js';
 
 export function buildIncidentLocationSnapshot() {
   return {
-    latitude: 14.5995,
-    longitude: 120.9842,
-    addressLine1: '123 Rizal Ave',
-    cityName: 'Manila',
-    provinceName: 'Metro Manila',
-    regionName: 'NCR',
-    barangay: 'Barangay 123',
+    latitude: 17.6132,
+    longitude: 121.7269,
+    addressLine1: '1 Enrile Avenue',
+    cityName: 'Tuguegarao City',
+    provinceName: 'Cagayan',
+    regionName: 'Cagayan Valley',
+    barangay: 'Centro 10',
   };
 }
 

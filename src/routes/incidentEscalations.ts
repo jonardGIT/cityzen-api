@@ -1,89 +1,101 @@
 import { Router } from 'express';
 import { body } from 'express-validator';
+import { param } from 'express-validator';
 import {
-  getIncidentEscalations,
-  getIncidentEscalationById,
   createIncidentEscalation,
-  updateIncidentEscalation,
   deleteIncidentEscalation,
+  getIncidentEscalationById,
+  getIncidentEscalations,
+  PATCHABLE_STATUSES,
   restoreIncidentEscalation,
-  validators,
-  VALID_LEVELS,
-  LEVEL_ORDER,
-  VALID_STATUSES,
+  updateIncidentEscalation,
 } from '../controllers/incidentEscalationsController.js';
-import { DISPATCH_ROLES, ESCALATION_ROLES } from '../types/auth.js';
-import { asyncHandler } from '../utils/asyncHandler.js';
-import { isArchiveEnabled } from '../utils/archive.js';
-import { validateRequest } from '../middleware/validateRequest.js';
 import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
-import type { Request, Response, NextFunction } from 'express';
+import { validateRequest } from '../middleware/validateRequest.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
 
 const router = Router();
 
-const readMiddleware = [requireJwtAuth, requireRole(...DISPATCH_ROLES)];
-const writeMiddleware = [requireJwtAuth, requireRole(...ESCALATION_ROLES)];
+const readMiddleware = [
+  requireJwtAuth,
+  requireRole('CITY_ADMIN', 'DISPATCHER', 'PROVINCIAL_ADMIN'),
+];
+const createMiddleware = [requireJwtAuth, requireRole('CITY_ADMIN', 'DISPATCHER')];
+const provinceWriteMiddleware = [requireJwtAuth, requireRole('PROVINCIAL_ADMIN')];
 
-// Inject authenticated user's ID as escalatedById
-function injectActorId(req: Request, _res: Response, next: NextFunction): void {
-  const authReq = req as any;
-  if (authReq.authUser?.id) {
-    req.body.escalatedById = authReq.authUser.id;
-  }
-  next();
+function exactBodyFields(allowedFields: readonly string[]) {
+  return body().custom((value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new Error('Request body must be an object');
+    }
+
+    const unexpectedFields = Object.keys(value).filter((field) => !allowedFields.includes(field));
+    if (unexpectedFields.length > 0) {
+      throw new Error(`Unexpected fields: ${unexpectedFields.join(', ')}`);
+    }
+
+    return true;
+  });
 }
 
-// Custom validators for enum fields
-const levelValidator = (field: string) =>
-  body(field)
-    .isIn([...VALID_LEVELS])
-    .withMessage(`${field} must be one of: ${VALID_LEVELS.join(', ')}`);
+const createValidators = [
+  exactBodyFields(['incidentId', 'reason']),
+  body('incidentId')
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('incidentId is required')
+    .bail()
+    .isUUID()
+    .withMessage('incidentId must be a valid UUID'),
+  body('reason').isString().trim().notEmpty().withMessage('reason is required'),
+];
 
-const escalationHierarchyValidator = body('toLevel').custom((toLevel, { req }) => {
-  const fromLevel = req.body?.fromLevel;
-  if (!fromLevel || !toLevel) return true;
-  if (LEVEL_ORDER[toLevel] === undefined || LEVEL_ORDER[fromLevel] === undefined) return true;
-  if (LEVEL_ORDER[toLevel] <= LEVEL_ORDER[fromLevel]) {
-    throw new Error('toLevel must be higher than fromLevel in the administrative hierarchy');
-  }
-  return true;
-});
+const patchValidators = [
+  exactBodyFields(['status']),
+  body('status')
+    .isIn([...PATCHABLE_STATUSES])
+    .withMessage(`status must be one of: ${PATCHABLE_STATUSES.join(', ')}`),
+];
 
-const statusCreateValidator = body('status')
-  .isIn([...VALID_STATUSES])
-  .withMessage(`status must be one of: ${VALID_STATUSES.join(', ')}`);
-
-const statusUpdateValidator = body('status')
-  .optional()
-  .isIn([...VALID_STATUSES])
-  .withMessage(`status must be one of: ${VALID_STATUSES.join(', ')}`);
+const idValidators = [param('id').isUUID().withMessage('id must be a valid UUID')];
 
 router.get('/', ...readMiddleware, asyncHandler(getIncidentEscalations));
-router.get('/:id', ...readMiddleware, asyncHandler(getIncidentEscalationById));
+router.get(
+  '/:id',
+  ...readMiddleware,
+  ...idValidators,
+  validateRequest,
+  asyncHandler(getIncidentEscalationById),
+);
 router.post(
   '/',
-  ...writeMiddleware,
-  injectActorId,
-  ...validators.create,
-  levelValidator('fromLevel'),
-  levelValidator('toLevel'),
-  escalationHierarchyValidator,
-  statusCreateValidator,
+  ...createMiddleware,
+  ...createValidators,
   validateRequest,
   asyncHandler(createIncidentEscalation),
 );
 router.patch(
   '/:id',
-  ...writeMiddleware,
-  ...validators.update,
-  statusUpdateValidator,
+  ...provinceWriteMiddleware,
+  ...idValidators,
+  ...patchValidators,
   validateRequest,
   asyncHandler(updateIncidentEscalation),
 );
-router.delete('/:id', ...writeMiddleware, asyncHandler(deleteIncidentEscalation));
-
-if (isArchiveEnabled()) {
-  router.post('/:id/restore', ...writeMiddleware, asyncHandler(restoreIncidentEscalation));
-}
+router.delete(
+  '/:id',
+  ...readMiddleware,
+  ...idValidators,
+  validateRequest,
+  asyncHandler(deleteIncidentEscalation),
+);
+router.post(
+  '/:id/restore',
+  ...readMiddleware,
+  ...idValidators,
+  validateRequest,
+  asyncHandler(restoreIncidentEscalation),
+);
 
 export default router;

@@ -126,6 +126,12 @@ beforeAll(async () => {
     'CREATE TABLE IF NOT EXISTS incident_status_history (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), "createdAt" timestamptz NOT NULL DEFAULT NOW(), "updatedAt" timestamptz NOT NULL DEFAULT NOW(), "archivedAt" timestamptz, "incidentId" uuid NOT NULL REFERENCES incidents(id) ON DELETE CASCADE, "fromStatusId" uuid REFERENCES statuses(id), "toStatusId" uuid NOT NULL REFERENCES statuses(id), "changedByUserId" uuid REFERENCES users(id) ON DELETE SET NULL, note text)',
   );
   await prisma.$executeRawUnsafe(
+    'CREATE TABLE IF NOT EXISTS incident_escalations (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), "createdAt" timestamptz NOT NULL DEFAULT NOW(), "updatedAt" timestamptz NOT NULL DEFAULT NOW(), "incidentId" uuid NOT NULL REFERENCES incidents(id), "fromLevel" text NOT NULL, "toLevel" text NOT NULL, "escalatedById" uuid NOT NULL, reason text NOT NULL, status text NOT NULL)',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE TABLE IF NOT EXISTS mutual_aid_requests (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), "createdAt" timestamptz NOT NULL DEFAULT NOW(), "updatedAt" timestamptz NOT NULL DEFAULT NOW(), "incidentId" uuid NOT NULL REFERENCES incidents(id), "requestingJurisdictionId" uuid NOT NULL, "targetJurisdictionId" uuid NOT NULL, "requestedById" uuid NOT NULL, status text NOT NULL, notes text)',
+  );
+  await prisma.$executeRawUnsafe(
     'CREATE TABLE IF NOT EXISTS audit_logs (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), "createdAt" timestamptz NOT NULL DEFAULT NOW(), "updatedAt" timestamptz NOT NULL DEFAULT NOW(), timestamp timestamptz NOT NULL DEFAULT NOW(), action text NOT NULL, summary text NOT NULL, outcome text NOT NULL, "actorUserId" uuid, "actorEmail" text, "actorRole" text, resource text NOT NULL, method text NOT NULL, path text NOT NULL, "statusCode" integer, "targetId" text, "ipAddress" text, "userAgent" text, "requestId" text, metadata jsonb)',
   );
   await prisma.$executeRawUnsafe(
@@ -151,9 +157,7 @@ beforeAll(async () => {
   await prisma.$executeRawUnsafe(
     'ALTER TABLE incidents ADD COLUMN IF NOT EXISTS "provinceName" text',
   );
-  await prisma.$executeRawUnsafe(
-    'ALTER TABLE incidents ADD COLUMN IF NOT EXISTS "regionId" uuid',
-  );
+  await prisma.$executeRawUnsafe('ALTER TABLE incidents ADD COLUMN IF NOT EXISTS "regionId" uuid');
   await prisma.$executeRawUnsafe(
     'ALTER TABLE incidents ADD COLUMN IF NOT EXISTS "provinceId" uuid',
   );
@@ -163,27 +167,19 @@ beforeAll(async () => {
   await prisma.$executeRawUnsafe(
     'ALTER TABLE incidents ADD COLUMN IF NOT EXISTS "barangayId" uuid',
   );
-  await prisma.$executeRawUnsafe(
-    'ALTER TABLE agencies ADD COLUMN IF NOT EXISTS "regionId" uuid',
-  );
-  await prisma.$executeRawUnsafe(
-    'ALTER TABLE agencies ADD COLUMN IF NOT EXISTS "provinceId" uuid',
-  );
+  await prisma.$executeRawUnsafe('ALTER TABLE agencies ADD COLUMN IF NOT EXISTS "regionId" uuid');
+  await prisma.$executeRawUnsafe('ALTER TABLE agencies ADD COLUMN IF NOT EXISTS "provinceId" uuid');
   await prisma.$executeRawUnsafe(
     'ALTER TABLE agencies ADD COLUMN IF NOT EXISTS "cityMunicipalityId" uuid',
   );
-  await prisma.$executeRawUnsafe(
-    'ALTER TABLE agencies ADD COLUMN IF NOT EXISTS "barangayId" uuid',
-  );
+  await prisma.$executeRawUnsafe('ALTER TABLE agencies ADD COLUMN IF NOT EXISTS "barangayId" uuid');
   await prisma.$executeRawUnsafe(
     'ALTER TABLE agencies ADD COLUMN IF NOT EXISTS "jurisdictionType" text',
   );
   await prisma.$executeRawUnsafe(
     'ALTER TABLE agencies ADD COLUMN IF NOT EXISTS "jurisdictionId" uuid',
   );
-  await prisma.$executeRawUnsafe(
-    'ALTER TABLE agencies ADD COLUMN IF NOT EXISTS "agencyType" text',
-  );
+  await prisma.$executeRawUnsafe('ALTER TABLE agencies ADD COLUMN IF NOT EXISTS "agencyType" text');
   await prisma.$executeRawUnsafe(
     'ALTER TABLE incidents ADD COLUMN IF NOT EXISTS "regionName" text',
   );
@@ -235,6 +231,12 @@ beforeAll(async () => {
   );
   await prisma.$executeRawUnsafe(
     'ALTER TABLE incident_status_history ADD COLUMN IF NOT EXISTS "archivedAt" timestamptz',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE incident_escalations ADD COLUMN IF NOT EXISTS "sourceCityMunicipalityId" uuid',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE incident_escalations ADD COLUMN IF NOT EXISTS "targetProvinceId" uuid',
   );
   await prisma.$executeRawUnsafe(
     'ALTER TABLE auth_sessions ADD COLUMN IF NOT EXISTS "refreshTokenHash" text NOT NULL DEFAULT \'\'',
@@ -316,6 +318,27 @@ beforeAll(async () => {
   );
   await prisma.$executeRawUnsafe(
     'CREATE INDEX IF NOT EXISTS incident_status_history_incident_id_created_at_idx ON incident_status_history ("incidentId", "createdAt")',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS incident_escalations_incident_id_idx ON incident_escalations ("incidentId")',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS incident_escalations_source_city_municipality_id_idx ON incident_escalations ("sourceCityMunicipalityId")',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS incident_escalations_target_province_id_idx ON incident_escalations ("targetProvinceId")',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS incident_escalations_escalated_by_id_idx ON incident_escalations ("escalatedById")',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS mutual_aid_requests_incident_id_idx ON mutual_aid_requests ("incidentId")',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS mutual_aid_requests_requesting_jurisdiction_id_idx ON mutual_aid_requests ("requestingJurisdictionId")',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS mutual_aid_requests_target_jurisdiction_id_idx ON mutual_aid_requests ("targetJurisdictionId")',
   );
   await prisma.$executeRawUnsafe(
     'CREATE INDEX IF NOT EXISTS incident_status_history_from_status_id_idx ON incident_status_history ("fromStatusId")',
@@ -475,6 +498,20 @@ beforeAll(async () => {
       IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'set_incident_status_history_updated_at') THEN
         CREATE TRIGGER set_incident_status_history_updated_at
         BEFORE UPDATE ON incident_status_history
+        FOR EACH ROW
+        EXECUTE FUNCTION set_updated_at();
+      END IF;
+
+      IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'set_incident_escalations_updated_at') THEN
+        CREATE TRIGGER set_incident_escalations_updated_at
+        BEFORE UPDATE ON incident_escalations
+        FOR EACH ROW
+        EXECUTE FUNCTION set_updated_at();
+      END IF;
+
+      IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'set_mutual_aid_requests_updated_at') THEN
+        CREATE TRIGGER set_mutual_aid_requests_updated_at
+        BEFORE UPDATE ON mutual_aid_requests
         FOR EACH ROW
         EXECUTE FUNCTION set_updated_at();
       END IF;

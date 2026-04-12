@@ -156,6 +156,19 @@ function validateRequiredProductionInteger(
   }
 }
 
+function validateOptionalProductionInteger(
+  env: NodeJS.ProcessEnv,
+  name: string,
+  bounds: { min: number; max: number; recommended: number },
+): void {
+  const value = env[name]?.trim();
+  if (!value) {
+    return;
+  }
+
+  validateRequiredProductionInteger(env, name, bounds);
+}
+
 function validateIncidentTrustProductionEnv(env: NodeJS.ProcessEnv): void {
   if (isFalse(env.PUBLIC_CASE_LOOKUP_RATE_LIMIT_ENABLED)) {
     throw new Error(
@@ -163,17 +176,17 @@ function validateIncidentTrustProductionEnv(env: NodeJS.ProcessEnv): void {
     );
   }
 
-  validateRequiredProductionInteger(
+  validateOptionalProductionInteger(
     env,
     'PUBLIC_CASE_LOOKUP_RATE_LIMIT_WINDOW_MS',
     PUBLIC_CASE_LOOKUP_RATE_LIMIT_WINDOW_MS_BOUNDS,
   );
-  validateRequiredProductionInteger(
+  validateOptionalProductionInteger(
     env,
     'PUBLIC_CASE_LOOKUP_RATE_LIMIT_MAX_REQUESTS',
     PUBLIC_CASE_LOOKUP_RATE_LIMIT_MAX_REQUESTS_BOUNDS,
   );
-  validateRequiredProductionInteger(
+  validateOptionalProductionInteger(
     env,
     'INCIDENT_CASE_TOKEN_TTL_DAYS',
     INCIDENT_CASE_TOKEN_TTL_DAYS_BOUNDS,

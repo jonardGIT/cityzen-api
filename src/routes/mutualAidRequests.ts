@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { body } from 'express-validator';
+import { param } from 'express-validator';
 import {
   getMutualAidRequests,
   getMutualAidRequestById,
@@ -7,71 +8,107 @@ import {
   updateMutualAidRequest,
   deleteMutualAidRequest,
   restoreMutualAidRequest,
-  validators,
+  PATCHABLE_STATUSES,
   VALID_STATUSES,
 } from '../controllers/mutualAidRequestsController.js';
-import { DISPATCH_ROLES, CITY_ROLES } from '../types/auth.js';
+import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
+import { validateRequest } from '../middleware/validateRequest.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { isArchiveEnabled } from '../utils/archive.js';
-import { validateRequest } from '../middleware/validateRequest.js';
-import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
-import type { Request, Response, NextFunction } from 'express';
 
 const router = Router();
 
-const readMiddleware = [requireJwtAuth, requireRole(...DISPATCH_ROLES)];
-const writeMiddleware = [requireJwtAuth, requireRole(...CITY_ROLES)];
+const readMiddleware = [
+  requireJwtAuth,
+  requireRole('CITY_ADMIN', 'DISPATCHER', 'PROVINCIAL_ADMIN'),
+];
+const createMiddleware = [requireJwtAuth, requireRole('CITY_ADMIN', 'DISPATCHER')];
+const patchMiddleware = [requireJwtAuth, requireRole('CITY_ADMIN', 'DISPATCHER')];
 
-// Inject authenticated user's ID as requestedById
-function injectActorId(req: Request, _res: Response, next: NextFunction): void {
-  const authReq = req as any;
-  if (authReq.authUser?.id) {
-    req.body.requestedById = authReq.authUser.id;
-  }
-  next();
+function exactBodyFields(allowedFields: readonly string[]) {
+  return body().custom((value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new Error('Request body must be an object');
+    }
+
+    const unexpectedFields = Object.keys(value).filter((field) => !allowedFields.includes(field));
+    if (unexpectedFields.length > 0) {
+      throw new Error(`Unexpected fields: ${unexpectedFields.join(', ')}`);
+    }
+
+    return true;
+  });
 }
 
-// Validate requesting and target jurisdictions are different
-const jurisdictionDifferenceValidator = body('targetJurisdictionId').custom((targetId, { req }) => {
-  if (targetId === req.body?.requestingJurisdictionId) {
-    throw new Error('targetJurisdictionId must be different from requestingJurisdictionId');
-  }
-  return true;
-});
+const createValidators = [
+  exactBodyFields(['incidentId', 'targetJurisdictionId', 'notes']),
+  body('incidentId')
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('incidentId is required')
+    .bail()
+    .isUUID()
+    .withMessage('incidentId must be a valid UUID'),
+  body('targetJurisdictionId')
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('targetJurisdictionId is required')
+    .bail()
+    .isUUID()
+    .withMessage('targetJurisdictionId must be a valid UUID'),
+  body('notes').optional({ nullable: true }).isString().withMessage('notes must be a string'),
+];
 
-const statusCreateValidator = body('status')
-  .isIn([...VALID_STATUSES])
-  .withMessage(`status must be one of: ${VALID_STATUSES.join(', ')}`);
+const patchValidators = [
+  exactBodyFields(['status']),
+  body('status')
+    .isIn([...PATCHABLE_STATUSES])
+    .withMessage(`status must be one of: ${PATCHABLE_STATUSES.join(', ')}`),
+];
 
-const statusUpdateValidator = body('status')
-  .optional()
-  .isIn([...VALID_STATUSES])
-  .withMessage(`status must be one of: ${VALID_STATUSES.join(', ')}`);
+const idValidators = [param('id').isUUID().withMessage('id must be a valid UUID')];
 
 router.get('/', ...readMiddleware, asyncHandler(getMutualAidRequests));
-router.get('/:id', ...readMiddleware, asyncHandler(getMutualAidRequestById));
+router.get(
+  '/:id',
+  ...readMiddleware,
+  ...idValidators,
+  validateRequest,
+  asyncHandler(getMutualAidRequestById),
+);
 router.post(
   '/',
-  ...writeMiddleware,
-  injectActorId,
-  ...validators.create,
-  jurisdictionDifferenceValidator,
-  statusCreateValidator,
+  ...createMiddleware,
+  ...createValidators,
   validateRequest,
   asyncHandler(createMutualAidRequest),
 );
 router.patch(
   '/:id',
-  ...writeMiddleware,
-  ...validators.update,
-  statusUpdateValidator,
+  ...patchMiddleware,
+  ...idValidators,
+  ...patchValidators,
   validateRequest,
   asyncHandler(updateMutualAidRequest),
 );
-router.delete('/:id', ...writeMiddleware, asyncHandler(deleteMutualAidRequest));
+router.delete(
+  '/:id',
+  ...readMiddleware,
+  ...idValidators,
+  validateRequest,
+  asyncHandler(deleteMutualAidRequest),
+);
 
 if (isArchiveEnabled()) {
-  router.post('/:id/restore', ...writeMiddleware, asyncHandler(restoreMutualAidRequest));
+  router.post(
+    '/:id/restore',
+    ...readMiddleware,
+    ...idValidators,
+    validateRequest,
+    asyncHandler(restoreMutualAidRequest),
+  );
 }
 
 export default router;

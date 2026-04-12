@@ -44,9 +44,26 @@ const incidentMediaUploadRateLimit = createEnvRateLimitMiddleware({
   keyGenerator: buildAuthenticatedUserScopedKey,
 });
 
-const PHASE_ONE_TRUST_READ_ROLES = ['CITIZEN_REPORTER', 'CITY_ADMIN', 'DISPATCHER', 'RESPONDER'] as const;
+const STANDARD_INCIDENT_READ_ROLES = [
+  'CITIZEN_REPORTER',
+  'CITY_ADMIN',
+  'DISPATCHER',
+  'RESPONDER',
+  'NATIONAL_ADMIN',
+] as const;
+const PHASE_ONE_TRUST_TIMELINE_READ_ROLES = [
+  'CITIZEN_REPORTER',
+  'CITY_ADMIN',
+  'DISPATCHER',
+  'RESPONDER',
+] as const;
 
-router.get('/', requireJwtAuth, requireRole(...PHASE_ONE_TRUST_READ_ROLES), asyncHandler(getIncidents));
+router.get(
+  '/',
+  requireJwtAuth,
+  requireRole(...STANDARD_INCIDENT_READ_ROLES),
+  asyncHandler(getIncidents),
+);
 
 if (isIncidentMediaUploadFeatureEnabled()) {
   router.post(
@@ -63,18 +80,23 @@ if (isIncidentMediaUploadFeatureEnabled()) {
 router.get(
   '/:id/media/:mediaId',
   requireJwtAuth,
-  requireRole(...PHASE_ONE_TRUST_READ_ROLES),
+  requireRole(...STANDARD_INCIDENT_READ_ROLES),
   asyncHandler(getIncidentMediaAccess),
 );
 router.get(
   '/:id/timeline',
   requireJwtAuth,
-  requireRole(...PHASE_ONE_TRUST_READ_ROLES),
+  requireRole(...PHASE_ONE_TRUST_TIMELINE_READ_ROLES),
   incidentTimelineParamValidator,
   validateRequest,
   asyncHandler(getIncidentTimeline),
 );
-router.get('/:id', requireJwtAuth, requireRole(...PHASE_ONE_TRUST_READ_ROLES), asyncHandler(getIncidentById));
+router.get(
+  '/:id',
+  requireJwtAuth,
+  requireRole(...STANDARD_INCIDENT_READ_ROLES),
+  asyncHandler(getIncidentById),
+);
 router.post(
   '/report',
   requireJwtAuth,

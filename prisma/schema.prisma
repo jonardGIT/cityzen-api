@@ -334,6 +334,7 @@ model Province {
   region     Region             @relation(fields: [regionId], references: [id])
   cities     CityMunicipality[]
   incidents  CitizenIncident[]
+  targetIncidentEscalations IncidentEscalation[] @relation("IncidentEscalationTargetProvince")
   agencies   Agency[]
 
   @@index([regionId])
@@ -352,6 +353,9 @@ model CityMunicipality {
   province   Province          @relation(fields: [provinceId], references: [id])
   barangays  Barangay[]
   incidents  CitizenIncident[]
+  sourceIncidentEscalations IncidentEscalation[] @relation("IncidentEscalationSourceCityMunicipality")
+  requestingMutualAidRequests MutualAidRequest[] @relation("MutualAidRequestRequestingJurisdiction")
+  targetMutualAidRequests MutualAidRequest[] @relation("MutualAidRequestTargetJurisdiction")
   agencies   Agency[]
 
   @@index([provinceId])
@@ -375,31 +379,39 @@ model Barangay {
 }
 
 model IncidentEscalation {
-  id            String          @id @default(uuid()) @db.Uuid
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  incidentId    String          @db.Uuid
-  incident      CitizenIncident @relation(fields: [incidentId], references: [id])
-  fromLevel     String
-  toLevel       String
-  escalatedById String          @db.Uuid
-  reason        String
-  status        String
+  id                     String            @id @default(uuid()) @db.Uuid
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  incidentId             String            @db.Uuid
+  sourceCityMunicipalityId String?         @db.Uuid
+  targetProvinceId       String?           @db.Uuid
+  incident               CitizenIncident   @relation(fields: [incidentId], references: [id])
+  sourceCityMunicipality CityMunicipality? @relation("IncidentEscalationSourceCityMunicipality", fields: [sourceCityMunicipalityId], references: [id])
+  targetProvince         Province?         @relation("IncidentEscalationTargetProvince", fields: [targetProvinceId], references: [id])
+  fromLevel              String
+  toLevel                String
+  escalatedById          String            @db.Uuid
+  reason                 String
+  status                 String
 
   @@index([incidentId])
+  @@index([sourceCityMunicipalityId])
+  @@index([targetProvinceId])
   @@index([escalatedById])
   @@map("incident_escalations")
 }
 
 model MutualAidRequest {
-  id                       String          @id @default(uuid()) @db.Uuid
-  createdAt                DateTime        @default(now())
-  updatedAt                DateTime        @updatedAt
-  incidentId               String          @db.Uuid
-  incident                 CitizenIncident @relation(fields: [incidentId], references: [id])
-  requestingJurisdictionId String          @db.Uuid
-  targetJurisdictionId     String          @db.Uuid
-  requestedById            String          @db.Uuid
+  id                       String            @id @default(uuid()) @db.Uuid
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @updatedAt
+  incidentId               String            @db.Uuid
+  incident                 CitizenIncident   @relation(fields: [incidentId], references: [id])
+  requestingJurisdictionId String            @db.Uuid
+  targetJurisdictionId     String            @db.Uuid
+  requestingJurisdiction   CityMunicipality  @relation("MutualAidRequestRequestingJurisdiction", fields: [requestingJurisdictionId], references: [id])
+  targetJurisdiction       CityMunicipality  @relation("MutualAidRequestTargetJurisdiction", fields: [targetJurisdictionId], references: [id])
+  requestedById            String            @db.Uuid
   status                   String
   notes                    String?
 
