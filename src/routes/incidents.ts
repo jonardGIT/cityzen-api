@@ -56,6 +56,7 @@ const PHASE_ONE_TRUST_TIMELINE_READ_ROLES = [
   'CITY_ADMIN',
   'DISPATCHER',
   'RESPONDER',
+  'NATIONAL_ADMIN',
 ] as const;
 
 router.get(

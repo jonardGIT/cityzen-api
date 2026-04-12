@@ -660,7 +660,9 @@ async function getTimelineAccess(
   incident: TimelineIncidentRecord,
   res: Response,
 ): Promise<TimelineAccessResult> {
-  const scopeResult = await resolveIncidentReadScope(authUser, res);
+  const scopeResult = await resolveIncidentReadScope(authUser, res, {
+    allowNationalAdmin: true,
+  });
   if (scopeResult.status !== 'scoped') {
     return { allowed: false };
   }

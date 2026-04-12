@@ -735,7 +735,7 @@ describe(`GET ${BASE}/:id/timeline`, () => {
     expect(blockedTimelineRes.status).toBe(404);
   });
 
-  it('should block province, national, and auditor roles from the Phase 1 trust timeline route', async () => {
+  it('should allow national internal timeline reads while keeping province and auditor blocked', async () => {
     const owner = await registerAndLinkCitizenReporter('timeline-role-block');
     const categoryId = await createCategory();
     const severityId = await createSeverity();
@@ -752,7 +752,7 @@ describe(`GET ${BASE}/:id/timeline`, () => {
 
     expect(reportRes.status).toBe(201);
 
-    const responses = await Promise.all([
+    const [provincialRes, nationalRes, auditorRes] = await Promise.all([
       request(app)
         .get(`${BASE}/${reportRes.body.id}/timeline`)
         .set('Authorization', `Bearer ${provincialToken}`),
@@ -764,9 +764,15 @@ describe(`GET ${BASE}/:id/timeline`, () => {
         .set('Authorization', `Bearer ${auditorToken}`),
     ]);
 
-    for (const response of responses) {
-      expect(response.status).toBe(403);
-    }
+    expect(nationalRes.status).toBe(200);
+    expect(nationalRes.body.timeline).toHaveLength(1);
+    expect(nationalRes.body.timeline[0]).toHaveProperty('toStatus.name', 'Reported');
+    expect(nationalRes.body.timeline[0]).toHaveProperty('changedByUser.email', owner.email);
+    expect(nationalRes.body.timeline[0]).toHaveProperty('changedByUser.role', 'CITIZEN_REPORTER');
+    expect(nationalRes.body.timeline[0]).toHaveProperty('note', null);
+
+    expect(provincialRes.status).toBe(403);
+    expect(auditorRes.status).toBe(403);
   });
 
   it('should deny city-scoped timeline access when the incident has no canonical cityMunicipalityId', async () => {
