@@ -41,13 +41,13 @@ async function waitForFetchCallCount(
 
 function buildIncidentLocationSnapshot() {
   return {
-    latitude: 14.5995,
-    longitude: 120.9842,
-    addressLine1: '123 Rizal Ave',
-    cityName: 'Manila',
-    provinceName: 'Metro Manila',
-    regionName: 'NCR',
-    barangay: 'Barangay 123',
+    latitude: 17.6132,
+    longitude: 121.7269,
+    addressLine1: '1 Enrile Avenue',
+    cityName: 'Tuguegarao City',
+    provinceName: 'Cagayan',
+    regionName: 'Cagayan Valley',
+    barangay: 'Centro 10',
   };
 }
 
@@ -348,6 +348,34 @@ describe('Audit log persistence', () => {
     });
   });
 
+  it('forwards a security alert when an auditor account is created', async () => {
+    process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
+    const fetchMock = mockSecurityAlertFetch();
+
+    const createRes = await request(app)
+      .post(`${API_V1}/users`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: `Alerted Auditor ${Date.now()}`,
+        email: `alert.auditor.${Date.now()}@postman.local`,
+        password: 'Password1234!@#',
+        role: 'AUDITOR',
+      });
+
+    expect(createRes.status).toBe(201);
+    await waitForFetchCallCount(fetchMock, 1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')) as Record<
+      string,
+      unknown
+    >;
+    expect(payload).toMatchObject({
+      type: 'security-alert',
+      ruleId: 'privileged-user-created',
+      severity: 'high',
+    });
+  });
+
   it('records failed login attempts without storing secrets', async () => {
     const actorEmail = `missing.${Date.now()}@xypes.local`;
     const loginRes = await request(app).post(`${API_V1}/auth/login`).send({
@@ -462,7 +490,7 @@ describe('Audit log persistence', () => {
 
     expect(resetRes.status).toBe(202);
 
-    const latest = await getLatestAuditLog(auditorToken, {
+    const latest = await getLatestAuditLog(adminToken, {
       action: 'password_reset_request',
       resource: 'auth',
       outcome: 'success',
@@ -481,6 +509,100 @@ describe('Audit log persistence', () => {
     expect(metadata?.resetToken).toBeUndefined();
     expect(metadata?.resetTokenIssued).toBe(true);
     expect(typeof metadata?.deliveryMode).toBe('string');
+  });
+
+  it('redacts auth audit telemetry and recovery metadata for AUDITOR reads after a password reset request', async () => {
+    const unique = Date.now();
+    const email = `audit.redacted.reset.${unique}@postman.local`;
+
+    const registerRes = await request(app)
+      .post(`${API_V1}/auth/register`)
+      .send({
+        name: `Audit Redacted Reset User ${unique}`,
+        email,
+        password: 'Password1234!@#',
+      });
+
+    expect(registerRes.status).toBe(201);
+
+    const resetRes = await request(app)
+      .post(`${API_V1}/auth/password-reset/request`)
+      .send({ email });
+
+    expect(resetRes.status).toBe(202);
+
+    const latest = await getLatestAuditLog(auditorToken, {
+      action: 'password_reset_request',
+      resource: 'auth',
+      outcome: 'success',
+      actorEmail: email,
+      statusCode: 202,
+    });
+
+    expect(latest).toMatchObject({
+      action: 'password_reset_request',
+      resource: 'auth',
+      outcome: 'success',
+      actorEmail: email,
+      statusCode: 202,
+      ipAddress: null,
+      userAgent: null,
+      requestId: null,
+      metadata: null,
+    });
+  });
+
+  it('returns 422 when AUDITOR filters auth audit logs by requestId', async () => {
+    const unique = Date.now();
+    const email = `audit.requestid.filter.${unique}@postman.local`;
+
+    const registerRes = await request(app)
+      .post(`${API_V1}/auth/register`)
+      .send({
+        name: `Audit RequestId Filter User ${unique}`,
+        email,
+        password: 'Password1234!@#',
+      });
+
+    expect(registerRes.status).toBe(201);
+
+    const resetRes = await request(app)
+      .post(`${API_V1}/auth/password-reset/request`)
+      .send({ email });
+
+    expect(resetRes.status).toBe(202);
+
+    const latest = await getLatestAuditLog(adminToken, {
+      action: 'password_reset_request',
+      resource: 'auth',
+      outcome: 'success',
+      actorEmail: email,
+      statusCode: 202,
+    });
+
+    expect(typeof latest.requestId).toBe('string');
+
+    const filters = encodeURIComponent(
+      JSON.stringify([
+        { field: 'resource', operator: 'equals', value: 'auth' },
+        { field: 'requestId', operator: 'equals', value: latest.requestId },
+      ]),
+    );
+
+    const response = await request(app)
+      .get(`${BASE}?filters=${filters}`)
+      .set('Authorization', `Bearer ${auditorToken}`);
+
+    expect(response.status).toBe(422);
+    expect(response.body).toMatchObject({
+      message: 'Invalid list query parameters',
+      errors: [
+        expect.objectContaining({
+          field: 'filters[1].field',
+          message: 'requestId is not filterable for audit-logs',
+        }),
+      ],
+    });
   });
 
   it('records privileged password reset requests as blocked in production', async () => {
@@ -503,7 +625,7 @@ describe('Audit log persistence', () => {
 
     expect(resetRes.status).toBe(202);
 
-    const latest = await getLatestAuditLog(auditorToken, {
+    const latest = await getLatestAuditLog(adminToken, {
       action: 'password_reset_request',
       resource: 'auth',
       outcome: 'success',
@@ -611,7 +733,7 @@ describe('Audit log persistence', () => {
 
     expect(resetRes.status).toBe(503);
 
-    const latest = await getLatestAuditLog(auditorToken, {
+    const latest = await getLatestAuditLog(adminToken, {
       action: 'password_reset_request',
       resource: 'auth',
       outcome: 'failure',
@@ -846,10 +968,10 @@ describe('Audit log persistence', () => {
       .post(`${API_V1}/users`)
       .set('Authorization', `Bearer ${login.body.token as string}`)
       .send({
-        name: `Burst Responder ${unique}`,
-        email: `burst.responder.${unique}@postman.local`,
+        name: `Burst Dispatcher C ${unique}`,
+        email: `burst.dispatcher.c.${unique}@postman.local`,
         password: 'Password1234!@#',
-        role: 'RESPONDER',
+        role: 'DISPATCHER',
       });
 
     expect(firstCreate.status).toBe(201);

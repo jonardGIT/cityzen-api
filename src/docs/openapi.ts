@@ -14,6 +14,7 @@ const CONDITIONAL_RESTORE_PATHS = [
   '/incidents/{id}/restore',
   '/assignments/{id}/restore',
   '/users/{id}/restore',
+  '/mobile-content/{id}/restore',
 ] as const;
 const HARD_DELETE_PATH_METADATA = {
   '/citizens/{id}': { summary: 'Delete citizen', responseDescription: 'Citizen deleted.' },
@@ -25,6 +26,10 @@ const HARD_DELETE_PATH_METADATA = {
   '/incidents/{id}': { summary: 'Delete incident', responseDescription: 'Incident deleted.' },
   '/assignments/{id}': { summary: 'Delete assignment', responseDescription: 'Assignment deleted.' },
   '/users/{id}': { summary: 'Delete user', responseDescription: 'User deleted.' },
+  '/mobile-content/{id}': {
+    summary: 'Delete mobile app content',
+    responseDescription: 'Mobile app content deleted.',
+  },
 } as const;
 const ARCHIVE_QUERY_PARAMETER_NAMES = new Set(['includeArchived', 'archivedOnly']);
 
@@ -178,7 +183,7 @@ const paginatedAuditLogListExample: OpenAPIV3.ExampleObject = {
   },
 };
 
-const systemAdminCapabilitiesExample: OpenAPIV3.ExampleObject = {
+const nationalAdminCapabilitiesExample: OpenAPIV3.ExampleObject = {
   summary: 'National admin capabilities',
   value: {
     role: 'NATIONAL_ADMIN',
@@ -199,7 +204,7 @@ const systemAdminCapabilitiesExample: OpenAPIV3.ExampleObject = {
   },
 };
 
-const departmentManagerCapabilitiesExample: OpenAPIV3.ExampleObject = {
+const cityAdminCapabilitiesExample: OpenAPIV3.ExampleObject = {
   summary: 'City/Municipal admin capabilities',
   value: {
     role: 'CITY_ADMIN',
@@ -285,6 +290,7 @@ function listResponse(schemaName: string): OpenAPIV3.ResponseObject {
 }
 
 const apiKeySecurity: OpenAPIV3.SecurityRequirementObject[] = [{ ApiKeyAuth: [] }];
+const bearerSecurity: OpenAPIV3.SecurityRequirementObject[] = [{ BearerAuth: [] }];
 const apiKeyAndBearerSecurity: OpenAPIV3.SecurityRequirementObject[] = [
   { ApiKeyAuth: [], BearerAuth: [] },
 ];
@@ -305,6 +311,33 @@ function getAuthResponses(
         }
       : {}),
   };
+}
+
+function getRegisterOperationDescription(selection: FeatureSelection): string {
+  if (selection.tokenMode === 'supabase-jwt') {
+    return 'Creates a self-service account with the default role CITIZEN_REPORTER. In Supabase JWT mode, registration returns a session bundle only when immediate sign-in succeeds; otherwise the API returns 201 with emailConfirmationRequired=true and no token fields until the user confirms their email.';
+  }
+
+  return 'Creates a self-service account with the default role CITIZEN_REPORTER and immediately returns access and refresh tokens.';
+}
+
+function getRegisterCreatedResponse(selection: FeatureSelection): OpenAPIV3.ResponseObject {
+  if (selection.tokenMode === 'supabase-jwt') {
+    return jsonResponse(
+      {
+        oneOf: [
+          { $ref: '#/components/schemas/AuthResponse' },
+          { $ref: '#/components/schemas/RegisterEmailConfirmationRequiredResponse' },
+        ],
+      },
+      'Registration succeeded. In Supabase JWT mode, the response either returns a session bundle or indicates that email confirmation is required before sign-in.',
+    );
+  }
+
+  return jsonResponse(
+    { $ref: '#/components/schemas/AuthResponse' },
+    'Registration succeeded and returned access and refresh tokens.',
+  );
 }
 
 function resourcePath(
@@ -475,6 +508,18 @@ function createFeatureAwarePaths(
     }
   }
 
+  const registerPathItem = nextPaths['/auth/register'];
+  if (registerPathItem?.post) {
+    registerPathItem.post = {
+      ...registerPathItem.post,
+      description: getRegisterOperationDescription(selection),
+      responses: {
+        ...registerPathItem.post.responses,
+        '201': getRegisterCreatedResponse(selection),
+      },
+    };
+  }
+
   if (selection.recordDeletion !== 'archive') {
     for (const path of CONDITIONAL_RESTORE_PATHS) {
       delete nextPaths[path];
@@ -543,6 +588,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
     { name: 'Incident' },
     { name: 'Assignment' },
     { name: 'User' },
+    { name: 'Mobile' },
   ],
   paths: {
     '/health': {
@@ -688,6 +734,25 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         },
       },
     },
+    '/incidents/audit': {
+      get: {
+        tags: ['Incident'],
+        summary: 'List auditor-safe incidents',
+        description:
+          'Returns the redacted incident list available only to AUDITOR users. This surface excludes internal incident details such as description, citizen identifiers, exact location fields, and media URLs while preserving status, classification, coarse locality, and aggregate counts.',
+        security: apiKeyAndBearerSecurity,
+        parameters: paginationParameters,
+        responses: {
+          '200': listResponse('AuditorIncident'),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '422': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Invalid list query parameters.',
+          ),
+        },
+      },
+    },
     '/incidents/media/upload': {
       post: {
         tags: ['Incident'],
@@ -823,10 +888,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
             { $ref: '#/components/schemas/ErrorResponse' },
             'Case token is invalid, expired, revoked, or not found.',
           ),
-          '429': jsonResponse(
-            { $ref: '#/components/schemas/ErrorResponse' },
-            'Too many requests.',
-          ),
+          '429': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Too many requests.'),
         },
       },
     },
@@ -891,6 +953,28 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         },
       },
     },
+    '/incidents/audit/{id}': {
+      get: {
+        tags: ['Incident'],
+        summary: 'Get auditor-safe incident by id',
+        description:
+          'Returns the redacted incident detail available only to AUDITOR users. This route remains separate from the internal incident detail route and does not expose description, citizenId, exact location fields, or media URLs.',
+        security: apiKeyAndBearerSecurity,
+        parameters: [idParameter],
+        responses: {
+          '200': jsonResponse(
+            { $ref: '#/components/schemas/AuditorIncident' },
+            'Auditor incident found.',
+          ),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '404': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Incident not found.',
+          ),
+        },
+      },
+    },
     '/incidents/{id}/timeline': {
       get: {
         tags: ['Incident'],
@@ -903,6 +987,28 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
           '200': jsonResponse(
             { $ref: '#/components/schemas/IncidentTimelineResponse' },
             'Incident timeline found.',
+          ),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '404': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Incident not found.',
+          ),
+        },
+      },
+    },
+    '/incidents/audit/{id}/timeline': {
+      get: {
+        tags: ['Incident'],
+        summary: 'Get the auditor-safe incident status timeline',
+        description:
+          'Returns the redacted incident timeline available only to AUDITOR users. This auditor route stays separate from the internal timeline route and exposes only the timeline id, changedAt, fromStatus, and toStatus fields.',
+        security: apiKeyAndBearerSecurity,
+        parameters: [idParameter],
+        responses: {
+          '200': jsonResponse(
+            { $ref: '#/components/schemas/AuditorIncidentTimelineResponse' },
+            'Auditor incident timeline found.',
           ),
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
           '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
@@ -941,7 +1047,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         tags: ['Assignment'],
         summary: 'List assignments',
         description:
-          'Available to assignment-management roles only: SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, and DISPATCHER.',
+          'Available to assignment-management roles only: NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, CITY_ADMIN, and DISPATCHER.',
         security: apiKeyAndBearerSecurity,
         parameters: paginationParameters,
         responses: {
@@ -954,7 +1060,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         tags: ['Assignment'],
         summary: 'Create assignment',
         description:
-          'Available to assignment-management roles only: SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, and DISPATCHER.',
+          'Available to assignment-management roles only: NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, CITY_ADMIN, and DISPATCHER.',
         security: apiKeyAndBearerSecurity,
         requestBody: {
           required: true,
@@ -981,7 +1087,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         tags: ['Assignment'],
         summary: 'Get assignment by id',
         description:
-          'Available to assignment-management roles only: SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, and DISPATCHER.',
+          'Available to assignment-management roles only: NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, CITY_ADMIN, and DISPATCHER.',
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
@@ -998,7 +1104,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         tags: ['Assignment'],
         summary: 'Update assignment',
         description:
-          'Available to assignment-management roles only: SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, and DISPATCHER.',
+          'Available to assignment-management roles only: NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, CITY_ADMIN, and DISPATCHER.',
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         requestBody: {
@@ -1027,7 +1133,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         tags: ['Assignment'],
         summary: 'Archive assignment',
         description:
-          'Available to assignment-management roles only: SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, and DISPATCHER.',
+          'Available to assignment-management roles only: NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, CITY_ADMIN, and DISPATCHER.',
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
@@ -1046,7 +1152,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         tags: ['Assignment'],
         summary: 'Restore assignment',
         description:
-          'Available to assignment-management roles only: SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, and DISPATCHER. Restore requires both the linked incident and responder to already be active.',
+          'Available to assignment-management roles only: NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, CITY_ADMIN, and DISPATCHER. Restore requires both the linked incident and responder to already be active.',
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
@@ -1066,7 +1172,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         tags: ['User'],
         summary: 'Get authenticated user role capabilities',
         description:
-          'Returns the authenticated user role, label, scope, permission list, and dashboard-friendly booleans. This endpoint is available to any authenticated user, not only admin roles. `canUpdateUser` maps to `user:update:department` or `user:manage:global`. `canDeleteUser` maps to `user:manage:global` only.',
+          'Returns the authenticated user role, label, scope, permission list, and dashboard-friendly booleans. This endpoint is available to any authenticated user, not only admin roles. `canUpdateUser` maps to the current user-management permissions: `user:update:city`, `user:manage:province`, `user:manage:region`, or `user:manage:global`. `canDeleteUser` maps to `user:manage:global` only.',
         security: apiKeyAndBearerSecurity,
         responses: {
           '200': {
@@ -1075,8 +1181,8 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
               'application/json': {
                 schema: { $ref: '#/components/schemas/UserCapabilities' },
                 examples: {
-                  systemAdmin: systemAdminCapabilitiesExample,
-                  departmentManager: departmentManagerCapabilitiesExample,
+                  nationalAdmin: nationalAdminCapabilitiesExample,
+                  cityAdmin: cityAdminCapabilitiesExample,
                   auditor: auditorCapabilitiesExample,
                   citizenReporter: citizenReporterCapabilitiesExample,
                 },
@@ -1092,7 +1198,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         tags: ['User'],
         summary: 'List users',
         description:
-          'Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER. User-management authority is explicit and target-role aware, not based on a universal descending role ladder.',
+          'Available to NATIONAL_ADMIN only. This phase keeps global user inventory reads fail-closed until scoped user reads are implemented.',
         security: apiKeyAndBearerSecurity,
         parameters: paginationParameters,
         responses: {
@@ -1105,7 +1211,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         tags: ['User'],
         summary: 'Create user',
         description:
-          "Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER. The backend rejects creation of target roles outside the caller's manageable set.",
+          "Available to LGU admin roles only: NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, and CITY_ADMIN. The backend rejects creation of target roles outside the caller's manageable set.",
         security: apiKeyAndBearerSecurity,
         requestBody: {
           required: true,
@@ -1131,7 +1237,8 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
       get: {
         tags: ['User'],
         summary: 'Get user by id',
-        description: 'Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER.',
+        description:
+          'Available to NATIONAL_ADMIN only. This phase keeps direct user detail reads fail-closed until scoped user reads are implemented.',
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
@@ -1145,7 +1252,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         tags: ['User'],
         summary: 'Update user',
         description:
-          'Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER. The backend enforces explicit target-role management rules rather than a generic role hierarchy.',
+          'Available to LGU admin roles only: NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, and CITY_ADMIN. The backend enforces explicit target-role management rules rather than a generic role hierarchy.',
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         requestBody: {
@@ -1172,7 +1279,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         tags: ['User'],
         summary: 'Archive user',
         description:
-          'Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER. Only SYSTEM_ADMIN has global destructive user-management capability.',
+          'Available to LGU admin roles only: NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, and CITY_ADMIN. Only NATIONAL_ADMIN has global destructive user-management capability.',
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
@@ -1188,7 +1295,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         tags: ['User'],
         summary: 'Restore user',
         description:
-          'Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER when archive mode is enabled.',
+          'Available to LGU admin roles only: NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, and CITY_ADMIN when archive mode is enabled.',
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
@@ -1208,7 +1315,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         tags: ['Auth'],
         summary: 'Register a citizen reporter account',
         description:
-          'Creates a self-service account with the default role CITIZEN_REPORTER and immediately returns access and refresh tokens.',
+          'Creates a self-service account with the default role CITIZEN_REPORTER. The 201 response shape depends on the active token mode.',
         security: [],
         requestBody: {
           required: true,
@@ -1220,8 +1327,13 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         },
         responses: {
           '201': jsonResponse(
-            { $ref: '#/components/schemas/AuthResponse' },
-            'Registration succeeded.',
+            {
+              oneOf: [
+                { $ref: '#/components/schemas/AuthResponse' },
+                { $ref: '#/components/schemas/RegisterEmailConfirmationRequiredResponse' },
+              ],
+            },
+            'Registration succeeded. Depending on the active token mode and sign-in outcome, the response may either return a session bundle or require email confirmation before sign-in.',
           ),
           '409': jsonResponse(
             { $ref: '#/components/schemas/ErrorResponse' },
@@ -1250,10 +1362,382 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
             'Authentication succeeded.',
           ),
           '401': jsonResponse(
+            { $ref: '#/components/schemas/LoginDeniedResponse' },
+            'Login denied due to invalid credentials or because MFA is required and no valid MFA code was supplied.',
+          ),
+          '429': jsonResponse(
             { $ref: '#/components/schemas/ErrorResponse' },
-            'Invalid credentials.',
+            'Too many login attempts. Retry after the backoff window indicated by the rate-limit headers.',
           ),
           '422': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Validation error.'),
+        },
+      },
+    },
+    '/auth/mobile/register': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Register a citizen reporter account with a mobile number',
+        description:
+          'Creates a local-app citizen reporter account tied to a normalized Philippine mobile number and returns the standard JWT session bundle. This route is available only when local app auth and app JWT sessions are enabled.',
+        security: [],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/MobileRegisterRequest' },
+            },
+          },
+        },
+        responses: {
+          '201': jsonResponse(
+            { $ref: '#/components/schemas/AuthResponse' },
+            'Mobile registration succeeded.',
+          ),
+          '409': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Mobile number already registered.',
+          ),
+          '422': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Validation error.'),
+          '429': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Too many mobile registration attempts. Retry after the rate-limit window.',
+          ),
+          '501': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Mobile auth is unavailable for the active auth/session configuration.',
+          ),
+        },
+      },
+    },
+    '/auth/mobile/login': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Authenticate a citizen reporter with mobile number and password',
+        description:
+          'Authenticates a CITIZEN_REPORTER account by normalized Philippine mobile number and returns the standard JWT session bundle. This route is available only when local app auth and app JWT sessions are enabled.',
+        security: [],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/MobileLoginRequest' },
+            },
+          },
+        },
+        responses: {
+          '200': jsonResponse(
+            { $ref: '#/components/schemas/AuthResponse' },
+            'Mobile authentication succeeded.',
+          ),
+          '401': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Invalid mobile number or password.',
+          ),
+          '403': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Mobile auth is only available for citizen accounts.',
+          ),
+          '422': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Validation error.'),
+          '429': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Too many mobile login attempts. Retry after the rate-limit window.',
+          ),
+          '501': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Mobile auth is unavailable for the active auth/session configuration.',
+          ),
+        },
+      },
+    },
+    '/mobile/content': {
+      get: {
+        tags: ['Mobile'],
+        summary: 'List published mobile app content',
+        description:
+          'Public mobile content feed. Returns only active, published content whose publish window is open, filtered by optional placement and restricted to generic content with a null audience.',
+        security: [],
+        parameters: [
+          {
+            name: 'placement',
+            in: 'query',
+            required: false,
+            description: 'Optional placement filter, for example `home`.',
+            schema: { type: 'string' },
+          },
+        ],
+        responses: {
+          '200': jsonResponse(
+            {
+              type: 'array',
+              items: { $ref: '#/components/schemas/MobilePublishedContent' },
+            },
+            'Published mobile content list.',
+          ),
+          '400': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Invalid placement filter.',
+          ),
+        },
+      },
+    },
+    '/mobile/profile': {
+      get: {
+        tags: ['Mobile'],
+        summary: 'Get the authenticated citizen reporter profile',
+        description:
+          'Returns the citizen profile linked to the authenticated CITIZEN_REPORTER account.',
+        security: bearerSecurity,
+        responses: {
+          '200': jsonResponse({ $ref: '#/components/schemas/Citizen' }, 'Citizen profile found.'),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '404': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Citizen profile not found for authenticated user.',
+          ),
+          '409': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Citizen link state is ambiguous or conflicting.',
+          ),
+        },
+      },
+      patch: {
+        tags: ['Mobile'],
+        summary: 'Create or update the authenticated citizen reporter profile',
+        description:
+          'Creates the linked citizen profile on first use or updates the existing one for the authenticated CITIZEN_REPORTER account.',
+        security: bearerSecurity,
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/LinkMyCitizenProfileRequest' },
+            },
+          },
+        },
+        responses: {
+          '200': jsonResponse({ $ref: '#/components/schemas/Citizen' }, 'Citizen profile updated.'),
+          '201': jsonResponse({ $ref: '#/components/schemas/Citizen' }, 'Citizen profile created.'),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '409': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Citizen link state is ambiguous or conflicting.',
+          ),
+          '422': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Validation error.'),
+        },
+      },
+    },
+    '/mobile/incidents': {
+      get: {
+        tags: ['Mobile'],
+        summary: 'List the authenticated citizen reporter incidents',
+        description:
+          'Returns only incidents visible to the authenticated CITIZEN_REPORTER, with the same list and pagination behavior as the internal incident list endpoint.',
+        security: bearerSecurity,
+        parameters: paginationParameters,
+        responses: {
+          '200': listResponse('CitizenIncident'),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '422': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Invalid list query parameters or missing linked citizen profile.',
+          ),
+        },
+      },
+    },
+    '/mobile/incidents/{id}': {
+      get: {
+        tags: ['Mobile'],
+        summary: 'Get a citizen-visible incident by id',
+        description:
+          'Returns a single incident only when it is visible to the authenticated CITIZEN_REPORTER.',
+        security: bearerSecurity,
+        parameters: [idParameter],
+        responses: {
+          '200': jsonResponse({ $ref: '#/components/schemas/CitizenIncident' }, 'Incident found.'),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '404': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Incident not found.',
+          ),
+        },
+      },
+    },
+    '/mobile/incidents/{id}/timeline': {
+      get: {
+        tags: ['Mobile'],
+        summary: 'Get the citizen-safe incident timeline',
+        description:
+          'Returns the citizen-safe timeline for an incident visible to the authenticated CITIZEN_REPORTER.',
+        security: bearerSecurity,
+        parameters: [idParameter],
+        responses: {
+          '200': jsonResponse(
+            { $ref: '#/components/schemas/MobileIncidentTimelineResponse' },
+            'Citizen-safe incident timeline found.',
+          ),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '404': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Incident not found.',
+          ),
+          '422': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Validation error.'),
+        },
+      },
+    },
+    '/mobile/incidents/report': {
+      post: {
+        tags: ['Mobile'],
+        summary: 'Create an incident report from the mobile citizen flow',
+        description:
+          'Creates an incident for the authenticated CITIZEN_REPORTER. The citizen identity is derived from the authenticated account and linked citizen profile.',
+        security: bearerSecurity,
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/CreateCitizenIncidentReportRequest' },
+            },
+          },
+        },
+        responses: {
+          '201': jsonResponse(
+            { $ref: '#/components/schemas/CitizenIncidentReportResponse' },
+            'Incident report created.',
+          ),
+          '400': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Invalid input or foreign key reference.',
+          ),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '409': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Citizen link state is ambiguous or conflicting.',
+          ),
+          '422': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Validation error.'),
+        },
+      },
+    },
+    '/mobile-content': {
+      get: {
+        tags: ['Admin'],
+        summary: 'List mobile app content',
+        description: 'Admin CRUD surface for mobile app content. Available to admin roles only.',
+        security: apiKeyAndBearerSecurity,
+        parameters: paginationParameters,
+        responses: {
+          '200': listResponse('MobileAppContent'),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '422': jsonResponse(
+            { $ref: '#/components/schemas/ErrorResponse' },
+            'Invalid list query parameters.',
+          ),
+        },
+      },
+      post: {
+        tags: ['Admin'],
+        summary: 'Create mobile app content',
+        description: 'Admin CRUD surface for mobile app content. Available to admin roles only.',
+        security: apiKeyAndBearerSecurity,
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/CreateMobileAppContentRequest' },
+            },
+          },
+        },
+        responses: {
+          '201': jsonResponse(
+            { $ref: '#/components/schemas/MobileAppContent' },
+            'Mobile app content created.',
+          ),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '422': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Validation error.'),
+        },
+      },
+    },
+    '/mobile-content/{id}': {
+      get: {
+        tags: ['Admin'],
+        summary: 'Get mobile app content by id',
+        description: 'Admin CRUD surface for mobile app content. Available to admin roles only.',
+        security: apiKeyAndBearerSecurity,
+        parameters: [idParameter],
+        responses: {
+          '200': jsonResponse(
+            { $ref: '#/components/schemas/MobileAppContent' },
+            'Mobile app content found.',
+          ),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '404': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Not found.'),
+        },
+      },
+      patch: {
+        tags: ['Admin'],
+        summary: 'Update mobile app content',
+        description: 'Admin CRUD surface for mobile app content. Available to admin roles only.',
+        security: apiKeyAndBearerSecurity,
+        parameters: [idParameter],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/UpdateMobileAppContentRequest' },
+            },
+          },
+        },
+        responses: {
+          '200': jsonResponse(
+            { $ref: '#/components/schemas/MobileAppContent' },
+            'Mobile app content updated.',
+          ),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '404': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Not found.'),
+          '422': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Validation error.'),
+        },
+      },
+      delete: {
+        tags: ['Admin'],
+        summary: 'Archive mobile app content',
+        description: 'Admin CRUD surface for mobile app content. Available to admin roles only.',
+        security: apiKeyAndBearerSecurity,
+        parameters: [idParameter],
+        responses: {
+          '204': { description: 'Mobile app content archived.' },
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '404': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Not found.'),
+          '409': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Conflict.'),
+        },
+      },
+    },
+    '/mobile-content/{id}/restore': {
+      post: {
+        tags: ['Admin'],
+        summary: 'Restore mobile app content',
+        description:
+          'Admin CRUD surface for mobile app content. Available to admin roles only when archive mode is enabled.',
+        security: apiKeyAndBearerSecurity,
+        parameters: [idParameter],
+        responses: {
+          '200': jsonResponse(
+            { $ref: '#/components/schemas/MobileAppContent' },
+            'Mobile app content restored.',
+          ),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '404': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Not found.'),
+          '409': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Conflict.'),
         },
       },
     },
@@ -1502,7 +1986,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         tags: ['Admin'],
         summary: 'List users for admin dashboard',
         description:
-          'Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER users. Returns the standard user list response used by dashboard administration screens.',
+          'Available to NATIONAL_ADMIN only. Returns the standard user list response used by dashboard administration screens.',
         security: apiKeyAndBearerSecurity,
         parameters: paginationParameters,
         responses: {
@@ -1517,7 +2001,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         tags: ['Admin'],
         summary: 'Review privileged MFA compliance',
         description:
-          'Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER users. Returns privileged-account MFA enrollment status for operational compliance review.',
+          'Available to NATIONAL_ADMIN only. Returns privileged-account MFA enrollment status for operational compliance review.',
         security: apiKeyAndBearerSecurity,
         responses: {
           '200': jsonResponse(
@@ -1534,7 +2018,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         tags: ['Admin'],
         summary: 'Review privileged account access posture',
         description:
-          'Available to SYSTEM_ADMIN and DEPARTMENT_MANAGER users. Returns privileged-account access-review data including MFA status, active-session counts, last session activity, and stale-account flags for periodic access review procedures.',
+          'Available to NATIONAL_ADMIN only. Returns privileged-account access-review data including MFA status, active-session counts, last session activity, and stale-account flags for periodic access review procedures.',
         security: apiKeyAndBearerSecurity,
         responses: {
           '200': jsonResponse(
@@ -1546,12 +2030,29 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         },
       },
     },
+    '/admin/security/data-governance': {
+      get: {
+        tags: ['Admin'],
+        summary: 'Review admin data governance posture',
+        description:
+          'Available to admin roles, including NATIONAL_ADMIN, plus AUDITOR. Returns the current governance summary for data classification, retention, operational controls, encryption posture, and legal-hold handling. Non-privileged users are forbidden.',
+        security: apiKeyAndBearerSecurity,
+        responses: {
+          '200': jsonResponse(
+            { $ref: '#/components/schemas/DataGovernanceReport' },
+            'Data governance report.',
+          ),
+          '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
+          '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+        },
+      },
+    },
     '/audit-logs': {
       get: {
         tags: ['AuditLog'],
         summary: 'List audit logs',
         description:
-          'Returns persistent audit records for SYSTEM_ADMIN and AUDITOR users. Supports the standard list query contract, including pagination, search, sorting, timestamp windows, and JSON filter expressions.',
+          'Returns persistent audit records for NATIONAL_ADMIN and AUDITOR users. Supports the standard list query contract, including pagination, search, sorting, timestamp windows, and JSON filter expressions.',
         security: apiKeyAndBearerSecurity,
         parameters: auditLogPaginationParameters,
         responses: {
@@ -1588,7 +2089,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         tags: ['AuditLog'],
         summary: 'Get audit log by id',
         description:
-          'Returns a single persistent audit log record for SYSTEM_ADMIN and AUDITOR users.',
+          'Returns a single persistent audit log record for NATIONAL_ADMIN and AUDITOR users.',
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
@@ -1645,6 +2146,22 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         },
         required: ['message'],
       },
+      LoginDeniedResponse: {
+        allOf: [
+          { $ref: '#/components/schemas/ErrorResponse' },
+          {
+            type: 'object',
+            properties: {
+              mfaRequired: {
+                type: 'boolean',
+                enum: [true],
+                description:
+                  'Returned when login is denied because the account requires MFA and no valid MFA code was supplied.',
+              },
+            },
+          },
+        ],
+      },
       PaginationMeta: {
         type: 'object',
         properties: {
@@ -1693,6 +2210,9 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
           updatedAt: { type: 'string', format: 'date-time' },
           name: { type: 'string' },
           email: { type: 'string', format: 'email' },
+          mobileNumber: { type: 'string', nullable: true },
+          mobileNumberVerifiedAt: { type: 'string', format: 'date-time', nullable: true },
+          citizenId: { type: 'string', format: 'uuid', nullable: true },
           role: { $ref: '#/components/schemas/UserRole' },
         },
         required: ['id', 'createdAt', 'updatedAt', 'name', 'email', 'role'],
@@ -1800,6 +2320,106 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
           },
         },
         required: ['summary', 'data'],
+      },
+      DataGovernanceReport: {
+        type: 'object',
+        properties: {
+          summary: {
+            type: 'object',
+            properties: {
+              legalHoldEnabled: { type: 'boolean' },
+              mediaStorageMode: {
+                type: 'string',
+                enum: ['disabled', 'public', 'signed'],
+              },
+              tlsRequired: { type: 'boolean' },
+              retentionPolicyCount: { type: 'integer' },
+            },
+            required: [
+              'legalHoldEnabled',
+              'mediaStorageMode',
+              'tlsRequired',
+              'retentionPolicyCount',
+            ],
+          },
+          classifications: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                domain: { type: 'string' },
+                classification: { type: 'string' },
+                handling: { type: 'string' },
+              },
+              required: ['domain', 'classification', 'handling'],
+            },
+          },
+          retentionPolicies: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                domain: { type: 'string' },
+                retentionDays: { type: 'integer' },
+                purgeAuthority: { type: 'string' },
+                legalHoldSupported: { type: 'boolean' },
+              },
+              required: ['domain', 'retentionDays', 'purgeAuthority', 'legalHoldSupported'],
+            },
+          },
+          operationalControls: {
+            type: 'object',
+            properties: {
+              monitoringRunbookDocumented: { type: 'boolean' },
+              administrationControlsDocumented: { type: 'boolean' },
+              accessGovernanceDocumented: { type: 'boolean' },
+              sessionGovernanceDocumented: { type: 'boolean' },
+              privilegedAccessReviewEndpoint: { type: 'string' },
+              privilegedMfaComplianceEndpoint: { type: 'string' },
+              sessionInventoryMode: {
+                type: 'string',
+                enum: ['app-jwt', 'external-provider'],
+              },
+              quarterlyReviewRequired: { type: 'boolean' },
+            },
+            required: [
+              'monitoringRunbookDocumented',
+              'administrationControlsDocumented',
+              'accessGovernanceDocumented',
+              'sessionGovernanceDocumented',
+              'privilegedAccessReviewEndpoint',
+              'privilegedMfaComplianceEndpoint',
+              'sessionInventoryMode',
+              'quarterlyReviewRequired',
+            ],
+          },
+          encryption: {
+            type: 'object',
+            properties: {
+              transport: { type: 'string' },
+              databaseAtRest: { type: 'string' },
+              mediaStorage: { type: 'string' },
+            },
+            required: ['transport', 'databaseAtRest', 'mediaStorage'],
+          },
+          legalHold: {
+            type: 'object',
+            properties: {
+              enabled: { type: 'boolean' },
+              contact: { type: 'string', nullable: true },
+              procedure: { type: 'string' },
+            },
+            required: ['enabled', 'contact', 'procedure'],
+          },
+        },
+        required: [
+          'summary',
+          'classifications',
+          'retentionPolicies',
+          'operationalControls',
+          'encryption',
+          'legalHold',
+        ],
       },
       AuditLog: {
         type: 'object',
@@ -2011,6 +2631,66 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
           'severityId',
         ],
       },
+      AuditorIncident: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          publicReference: { type: 'string', nullable: true },
+          status: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              name: { type: 'string' },
+            },
+            required: ['id', 'name'],
+          },
+          category: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              name: { type: 'string' },
+              subCategory: { type: 'string', nullable: true },
+            },
+            required: ['id', 'name', 'subCategory'],
+          },
+          severity: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              level: { type: 'string' },
+              definition: { type: 'string', nullable: true },
+            },
+            required: ['id', 'level', 'definition'],
+          },
+          dateReported: { type: 'string', format: 'date-time' },
+          createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' },
+          barangay: { type: 'string', nullable: true },
+          cityName: { type: 'string', nullable: true },
+          provinceName: { type: 'string', nullable: true },
+          regionName: { type: 'string', nullable: true },
+          hasMedia: { type: 'boolean' },
+          assignmentCount: { type: 'integer' },
+          statusHistoryCount: { type: 'integer' },
+        },
+        required: [
+          'id',
+          'publicReference',
+          'status',
+          'category',
+          'severity',
+          'dateReported',
+          'createdAt',
+          'updatedAt',
+          'barangay',
+          'cityName',
+          'provinceName',
+          'regionName',
+          'hasMedia',
+          'assignmentCount',
+          'statusHistoryCount',
+        ],
+      },
       Assignment: {
         type: 'object',
         properties: {
@@ -2041,17 +2721,17 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
             type: 'array',
             items: { type: 'string' },
             description:
-              'Normalized scoped permission keys exposed to clients for feature gating, for example `incident:read:department` or `audit:export:global`.',
+              'Normalized scoped permission keys exposed to clients for feature gating, for example `incident:read:city` or `audit:export:global`.',
           },
           scope: {
             type: 'string',
-            enum: ['own', 'team', 'department', 'region', 'global'],
+            enum: ['own', 'assigned', 'city', 'province', 'region', 'national', 'global'],
             description: 'Highest operational scope granted by the role.',
           },
           canUpdateUser: {
             type: 'boolean',
             description:
-              'Convenience flag for dashboard user-edit affordances. True when the role has `user:update:department` or `user:manage:global`.',
+              'Convenience flag for dashboard user-edit affordances. True when the role has `user:update:city`, `user:manage:province`, `user:manage:region`, or `user:manage:global`.',
           },
           canDeleteUser: {
             type: 'boolean',
@@ -2070,6 +2750,20 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         },
         required: ['name', 'email', 'password'],
       },
+      RegisterEmailConfirmationRequiredResponse: {
+        type: 'object',
+        properties: {
+          message: { type: 'string' },
+          emailConfirmationRequired: {
+            type: 'boolean',
+            enum: [true],
+            description:
+              'Returned when registration succeeded but the user must confirm their email before immediate sign-in is allowed.',
+          },
+          user: { $ref: '#/components/schemas/AuthUser' },
+        },
+        required: ['message', 'emailConfirmationRequired', 'user'],
+      },
       LoginRequest: {
         type: 'object',
         properties: {
@@ -2082,6 +2776,32 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
           },
         },
         required: ['email', 'password'],
+      },
+      MobileRegisterRequest: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          mobileNumber: {
+            type: 'string',
+            description:
+              'Philippine mobile number that the backend normalizes to +63 format before persistence.',
+          },
+          password: { type: 'string', minLength: 12 },
+          preferredChannel: { type: 'string' },
+        },
+        required: ['name', 'mobileNumber', 'password'],
+      },
+      MobileLoginRequest: {
+        type: 'object',
+        properties: {
+          mobileNumber: {
+            type: 'string',
+            description:
+              'Philippine mobile number that the backend normalizes to +63 format before lookup.',
+          },
+          password: { type: 'string' },
+        },
+        required: ['mobileNumber', 'password'],
       },
       MfaSetupRequest: {
         type: 'object',
@@ -2188,6 +2908,11 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
             type: 'boolean',
             description:
               'Returned on failed login when the account requires MFA and no valid MFA code was supplied.',
+          },
+          mfaEnrollmentRequired: {
+            type: 'boolean',
+            description:
+              'Returned on successful auth responses for privileged users who must enroll in MFA before accessing privileged routes.',
           },
           user: { $ref: '#/components/schemas/AuthUser' },
         },
@@ -2394,6 +3119,79 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
           },
         ],
       },
+      MobilePublishedContent: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          slug: { type: 'string' },
+          title: { type: 'string' },
+          summary: { type: 'string', nullable: true },
+          body: { type: 'string' },
+          contentType: { type: 'string' },
+          placement: { type: 'string' },
+          audience: { type: 'string', nullable: true },
+          imageUrl: { type: 'string', nullable: true },
+          ctaLabel: { type: 'string', nullable: true },
+          ctaUrl: { type: 'string', nullable: true },
+          sortOrder: { type: 'integer' },
+          publishedAt: { type: 'string', format: 'date-time', nullable: true },
+          startsAt: { type: 'string', format: 'date-time', nullable: true },
+          endsAt: { type: 'string', format: 'date-time', nullable: true },
+          metadata: {
+            type: 'object',
+            nullable: true,
+            additionalProperties: true,
+          },
+          updatedAt: { type: 'string', format: 'date-time' },
+        },
+        required: [
+          'id',
+          'slug',
+          'title',
+          'summary',
+          'body',
+          'contentType',
+          'placement',
+          'audience',
+          'imageUrl',
+          'ctaLabel',
+          'ctaUrl',
+          'sortOrder',
+          'publishedAt',
+          'startsAt',
+          'endsAt',
+          'metadata',
+          'updatedAt',
+        ],
+      },
+      MobileIncidentTimelineEntry: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          changedAt: { type: 'string', format: 'date-time' },
+          status: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+            },
+            required: ['name'],
+          },
+          publicStatusMessage: { type: 'string' },
+        },
+        required: ['id', 'changedAt', 'status', 'publicStatusMessage'],
+      },
+      MobileIncidentTimelineResponse: {
+        type: 'object',
+        properties: {
+          incidentId: { type: 'string', format: 'uuid' },
+          publicReference: { type: 'string', nullable: true },
+          timeline: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/MobileIncidentTimelineEntry' },
+          },
+        },
+        required: ['incidentId', 'publicReference', 'timeline'],
+      },
       PublicCaseTimelineEntry: {
         type: 'object',
         properties: {
@@ -2510,6 +3308,43 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
           timeline: {
             type: 'array',
             items: { $ref: '#/components/schemas/IncidentTimelineEntry' },
+          },
+        },
+        required: ['incidentId', 'publicReference', 'timeline'],
+      },
+      AuditorIncidentTimelineEntry: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          changedAt: { type: 'string', format: 'date-time' },
+          fromStatus: {
+            type: 'object',
+            nullable: true,
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              name: { type: 'string' },
+            },
+            required: ['id', 'name'],
+          },
+          toStatus: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              name: { type: 'string' },
+            },
+            required: ['id', 'name'],
+          },
+        },
+        required: ['id', 'changedAt', 'fromStatus', 'toStatus'],
+      },
+      AuditorIncidentTimelineResponse: {
+        type: 'object',
+        properties: {
+          incidentId: { type: 'string', format: 'uuid' },
+          publicReference: { type: 'string', nullable: true },
+          timeline: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/AuditorIncidentTimelineEntry' },
           },
         },
         required: ['incidentId', 'publicReference', 'timeline'],
@@ -2649,6 +3484,106 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         },
         required: ['incidentId', 'mediaId', 'displayOrder', 'mediaUrl', 'accessUrl'],
       },
+      MobileAppContent: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' },
+          slug: { type: 'string' },
+          title: { type: 'string' },
+          summary: { type: 'string', nullable: true },
+          body: { type: 'string' },
+          contentType: { type: 'string' },
+          placement: { type: 'string' },
+          audience: { type: 'string', nullable: true },
+          imageUrl: { type: 'string', nullable: true },
+          ctaLabel: { type: 'string', nullable: true },
+          ctaUrl: { type: 'string', nullable: true },
+          sortOrder: { type: 'integer' },
+          isPublished: { type: 'boolean' },
+          publishedAt: { type: 'string', format: 'date-time', nullable: true },
+          startsAt: { type: 'string', format: 'date-time', nullable: true },
+          endsAt: { type: 'string', format: 'date-time', nullable: true },
+          metadata: {
+            type: 'object',
+            nullable: true,
+            additionalProperties: true,
+          },
+        },
+        required: [
+          'id',
+          'createdAt',
+          'updatedAt',
+          'slug',
+          'title',
+          'summary',
+          'body',
+          'contentType',
+          'placement',
+          'audience',
+          'imageUrl',
+          'ctaLabel',
+          'ctaUrl',
+          'sortOrder',
+          'isPublished',
+          'publishedAt',
+          'startsAt',
+          'endsAt',
+          'metadata',
+        ],
+      },
+      CreateMobileAppContentRequest: {
+        type: 'object',
+        properties: {
+          slug: { type: 'string' },
+          title: { type: 'string' },
+          summary: { type: 'string', nullable: true },
+          body: { type: 'string' },
+          contentType: { type: 'string' },
+          placement: { type: 'string' },
+          audience: { type: 'string', nullable: true },
+          imageUrl: { type: 'string', nullable: true },
+          ctaLabel: { type: 'string', nullable: true },
+          ctaUrl: { type: 'string', nullable: true },
+          sortOrder: { type: 'integer' },
+          isPublished: { type: 'boolean' },
+          publishedAt: { type: 'string', format: 'date-time', nullable: true },
+          startsAt: { type: 'string', format: 'date-time', nullable: true },
+          endsAt: { type: 'string', format: 'date-time', nullable: true },
+          metadata: {
+            type: 'object',
+            nullable: true,
+            additionalProperties: true,
+          },
+        },
+        required: ['slug', 'title', 'body'],
+      },
+      UpdateMobileAppContentRequest: {
+        type: 'object',
+        properties: {
+          slug: { type: 'string' },
+          title: { type: 'string' },
+          summary: { type: 'string', nullable: true },
+          body: { type: 'string' },
+          contentType: { type: 'string' },
+          placement: { type: 'string' },
+          audience: { type: 'string', nullable: true },
+          imageUrl: { type: 'string', nullable: true },
+          ctaLabel: { type: 'string', nullable: true },
+          ctaUrl: { type: 'string', nullable: true },
+          sortOrder: { type: 'integer' },
+          isPublished: { type: 'boolean' },
+          publishedAt: { type: 'string', format: 'date-time', nullable: true },
+          startsAt: { type: 'string', format: 'date-time', nullable: true },
+          endsAt: { type: 'string', format: 'date-time', nullable: true },
+          metadata: {
+            type: 'object',
+            nullable: true,
+            additionalProperties: true,
+          },
+        },
+      },
       CreateAssignmentRequest: {
         type: 'object',
         properties: {
@@ -2749,10 +3684,26 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         },
         required: ['data', 'pagination'],
       },
+      PaginatedAuditorIncidentList: {
+        type: 'object',
+        properties: {
+          data: { type: 'array', items: { $ref: '#/components/schemas/AuditorIncident' } },
+          pagination: { $ref: '#/components/schemas/PaginationMeta' },
+        },
+        required: ['data', 'pagination'],
+      },
       PaginatedAssignmentList: {
         type: 'object',
         properties: {
           data: { type: 'array', items: { $ref: '#/components/schemas/Assignment' } },
+          pagination: { $ref: '#/components/schemas/PaginationMeta' },
+        },
+        required: ['data', 'pagination'],
+      },
+      PaginatedMobileAppContentList: {
+        type: 'object',
+        properties: {
+          data: { type: 'array', items: { $ref: '#/components/schemas/MobileAppContent' } },
           pagination: { $ref: '#/components/schemas/PaginationMeta' },
         },
         required: ['data', 'pagination'],

@@ -65,6 +65,21 @@ function getStoredUserRole(role: string) {
   return normalizeUserRoleInput(role);
 }
 
+const PRIVILEGED_AUDIT_TARGET_ROLES = [
+  'NATIONAL_ADMIN',
+  'REGIONAL_DIRECTOR',
+  'PROVINCIAL_ADMIN',
+  'CITY_ADMIN',
+  'DISPATCHER',
+  'AUDITOR',
+] as const;
+
+function isPrivilegedAuditTargetRole(role: string): boolean {
+  return PRIVILEGED_AUDIT_TARGET_ROLES.includes(
+    role as (typeof PRIVILEGED_AUDIT_TARGET_ROLES)[number],
+  );
+}
+
 function isUniqueConstraintError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }
@@ -99,14 +114,19 @@ export async function getUserCapabilities(req: Request, res: Response): Promise<
   }
 
   const profile = ROLE_PROFILES[authUser.role];
+  const canUpdateUser = [
+    'user:update:city',
+    'user:manage:province',
+    'user:manage:region',
+    'user:manage:global',
+  ].some((permission) => profile.permissions.includes(permission));
+
   res.json({
     role: authUser.role,
     label: profile.label,
     permissions: profile.permissions,
     scope: profile.scope,
-    canUpdateUser:
-      profile.permissions.includes('user:update:department') ||
-      profile.permissions.includes('user:manage:global'),
+    canUpdateUser,
     canDeleteUser: profile.permissions.includes('user:manage:global'),
   });
 }
@@ -185,7 +205,7 @@ export async function createUser(req: Request, res: Response): Promise<void> {
   if (!normalizedRole) {
     res.status(422).json({
       message:
-        'role must be one of NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, CITY_ADMIN, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
+        'role must be one of NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, CITY_ADMIN, CITY_CONTENT_EDITOR, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
     });
     return;
   }
@@ -242,13 +262,7 @@ export async function createUser(req: Request, res: Response): Promise<void> {
 
     res.locals.auditMetadata = {
       managedUserRole: normalizedRole,
-      privilegedTarget: [
-        'NATIONAL_ADMIN',
-        'REGIONAL_DIRECTOR',
-        'PROVINCIAL_ADMIN',
-        'CITY_ADMIN',
-        'DISPATCHER',
-      ].includes(normalizedRole),
+      privilegedTarget: isPrivilegedAuditTargetRole(normalizedRole),
       passwordChanged: password !== undefined,
       authProvider: isSupabaseAuthEnabled() ? 'supabase' : 'local',
     };
@@ -312,7 +326,7 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
   if (role !== undefined && !normalizedRole) {
     res.status(422).json({
       message:
-        'role must be one of NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, CITY_ADMIN, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
+        'role must be one of NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, CITY_ADMIN, CITY_CONTENT_EDITOR, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
     });
     return;
   }
@@ -384,13 +398,7 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
     res.locals.auditMetadata = {
       previousRole: existingUserRole,
       managedUserRole: updatedUser.role,
-      privilegedTarget: [
-        'NATIONAL_ADMIN',
-        'REGIONAL_DIRECTOR',
-        'PROVINCIAL_ADMIN',
-        'CITY_ADMIN',
-        'DISPATCHER',
-      ].includes(updatedUser.role),
+      privilegedTarget: isPrivilegedAuditTargetRole(updatedUser.role),
       roleChanged: normalizedRole !== null && normalizedRole !== existingUserRole,
       emailChanged: normalizedEmail !== undefined && normalizedEmail !== existingUser.email,
       passwordChanged: password !== undefined,
@@ -455,13 +463,7 @@ export async function deleteUser(req: Request, res: Response): Promise<void> {
   res.locals.auditMetadata = {
     previousRole: existingUserRole,
     managedUserRole: existingUserRole,
-    privilegedTarget: [
-      'NATIONAL_ADMIN',
-      'REGIONAL_DIRECTOR',
-      'PROVINCIAL_ADMIN',
-      'CITY_ADMIN',
-      'DISPATCHER',
-    ].includes(existingUserRole),
+    privilegedTarget: isPrivilegedAuditTargetRole(existingUserRole),
     archiveModeDelete: isArchiveEnabled(),
   };
 
@@ -532,13 +534,7 @@ export async function restoreUser(req: Request, res: Response): Promise<void> {
   res.locals.auditMetadata = {
     previousRole: existingUserRole,
     managedUserRole: existingUserRole,
-    privilegedTarget: [
-      'NATIONAL_ADMIN',
-      'REGIONAL_DIRECTOR',
-      'PROVINCIAL_ADMIN',
-      'CITY_ADMIN',
-      'DISPATCHER',
-    ].includes(existingUserRole),
+    privilegedTarget: isPrivilegedAuditTargetRole(existingUserRole),
     restoredFromArchive: true,
   };
 

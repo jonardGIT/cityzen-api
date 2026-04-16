@@ -32,6 +32,18 @@ type IncidentScopeRecord = {
   } | null;
 };
 
+type CityToProvinceWorkflowRecord = {
+  incident: {
+    provinceId: string | null;
+  } | null;
+  sourceCityMunicipality: {
+    provinceId: string;
+  } | null;
+  targetProvince: {
+    id: string;
+  } | null;
+};
+
 type IncidentEscalationTransaction = Prisma.TransactionClient;
 
 type EscalationCreateBody = {
@@ -171,6 +183,28 @@ function buildSupportedWorkflowReadWhere(
   };
 }
 
+function hasCityToProvinceWorkflowIntegrity(record: CityToProvinceWorkflowRecord): boolean {
+  const incidentProvinceId = record.incident?.provinceId;
+  const sourceProvinceId = record.sourceCityMunicipality?.provinceId;
+  const targetProvinceId = record.targetProvince?.id;
+
+  if (!incidentProvinceId || !sourceProvinceId || !targetProvinceId) {
+    return false;
+  }
+
+  return sourceProvinceId === incidentProvinceId && targetProvinceId === incidentProvinceId;
+}
+
+function filterCityToProvinceWorkflowRecords<T extends CityToProvinceWorkflowRecord>(
+  records: T[],
+): T[] {
+  if (records.length === 0) {
+    return records;
+  }
+
+  return records.filter((record) => hasCityToProvinceWorkflowIntegrity(record));
+}
+
 function respondWithEmptyScope(req: Request, res: Response): void {
   const pagination = getPaginationQuery(req);
   if (pagination.enabled) {
@@ -261,7 +295,7 @@ export async function getIncidentEscalations(req: Request, res: Response): Promi
   const readWhere = buildSupportedWorkflowReadWhere(scopedWhere, scope);
 
   if (pagination.enabled) {
-    const [escalations, total] = await Promise.all([
+    const [escalations, countCandidates] = await Promise.all([
       prisma.incidentEscalation.findMany({
         where: readWhere,
         include: incidentEscalationInclude,
@@ -269,10 +303,32 @@ export async function getIncidentEscalations(req: Request, res: Response): Promi
         skip: pagination.skip,
         take: pagination.take,
       }),
-      prisma.incidentEscalation.count({ where: readWhere }),
+      prisma.incidentEscalation.findMany({
+        where: readWhere,
+        select: {
+          incident: {
+            select: {
+              provinceId: true,
+            },
+          },
+          sourceCityMunicipality: {
+            select: {
+              provinceId: true,
+            },
+          },
+          targetProvince: {
+            select: {
+              id: true,
+            },
+          },
+        },
+      }),
     ]);
 
-    res.json(buildPaginatedResponse(escalations, total, pagination));
+    const visibleEscalations = filterCityToProvinceWorkflowRecords(escalations);
+    const total = filterCityToProvinceWorkflowRecords(countCandidates).length;
+
+    res.json(buildPaginatedResponse(visibleEscalations, total, pagination));
     return;
   }
 
@@ -282,7 +338,7 @@ export async function getIncidentEscalations(req: Request, res: Response): Promi
     orderBy: listQuery.orderBy,
   });
 
-  res.json(escalations);
+  res.json(filterCityToProvinceWorkflowRecords(escalations));
 }
 
 export async function getIncidentEscalationById(req: Request, res: Response): Promise<void> {
@@ -308,6 +364,11 @@ export async function getIncidentEscalationById(req: Request, res: Response): Pr
   });
 
   if (!escalation) {
+    res.status(404).json({ message: 'Incident escalation not found' });
+    return;
+  }
+
+  if (!hasCityToProvinceWorkflowIntegrity(escalation)) {
     res.status(404).json({ message: 'Incident escalation not found' });
     return;
   }
@@ -416,6 +477,11 @@ export async function updateIncidentEscalation(req: Request, res: Response): Pro
   });
 
   if (!escalation) {
+    res.status(404).json({ message: 'Incident escalation not found' });
+    return;
+  }
+
+  if (!hasCityToProvinceWorkflowIntegrity(escalation)) {
     res.status(404).json({ message: 'Incident escalation not found' });
     return;
   }

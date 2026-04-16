@@ -10,6 +10,10 @@ import {
   createSeverity as createSeverityFactory,
   getStatusId as getStatusIdFactory,
 } from './helpers/factories.js';
+import {
+  CONFLICTING_LINKED_CITIZEN_MESSAGE,
+  MANUAL_LINK_REQUIRED_LINKED_CITIZEN_MESSAGE as MANUAL_LINK_REQUIRED_MESSAGE,
+} from '../services/userCitizenLinkService.js';
 import * as supabaseStorageService from '../services/supabaseStorageService.js';
 import { isArchiveEnabled } from '../utils/archive.js';
 
@@ -135,10 +139,38 @@ async function ensurePartnerCityScope() {
   return city;
 }
 
+async function ensureSameRegionDifferentProvinceCityScope() {
+  const { region } = await ensureTuguegaraoCityScope();
+
+  const province = await prisma.province.upsert({
+    where: { code: 'PH-0231' },
+    update: { name: 'Isabela', regionId: region.id, archivedAt: null },
+    create: { code: 'PH-0231', name: 'Isabela', regionId: region.id },
+  });
+
+  const city = await prisma.cityMunicipality.upsert({
+    where: { code: 'PH-023101' },
+    update: {
+      name: 'Ilagan City',
+      type: 'CITY',
+      provinceId: province.id,
+      archivedAt: null,
+    },
+    create: {
+      code: 'PH-023101',
+      name: 'Ilagan City',
+      type: 'CITY',
+      provinceId: province.id,
+    },
+  });
+
+  return { region, province, city };
+}
+
 async function ensureScopedUserToken(input: {
   email: string;
   name: string;
-  role: 'DISPATCHER';
+  role: 'DISPATCHER' | 'REGIONAL_DIRECTOR';
   jurisdictionType: string;
   jurisdictionId: string;
 }): Promise<string> {
@@ -629,12 +661,18 @@ describe('public case lookup trust layer', () => {
       provinceName: reportRes.body.provinceName,
     });
     expect(caseRes.body).toHaveProperty('status');
+    expect(caseRes.body.status).not.toHaveProperty('id');
     expect(caseRes.body).toHaveProperty('publicStatusMessage');
     expect(caseRes.body).toHaveProperty('caseTokenExpiresAt');
+    expect(caseRes.body).toHaveProperty('category');
+    expect(caseRes.body.category).not.toHaveProperty('id');
+    expect(caseRes.body).toHaveProperty('severity');
+    expect(caseRes.body.severity).not.toHaveProperty('id');
     expect(caseRes.body).toHaveProperty('timeline');
     expect(Array.isArray(caseRes.body.timeline)).toBe(true);
     expect(caseRes.body.timeline).toHaveLength(1);
     expect(caseRes.body.timeline[0]).toHaveProperty('status');
+    expect(caseRes.body.timeline[0].status).not.toHaveProperty('id');
     expect(caseRes.body.timeline[0]).toHaveProperty('publicStatusMessage');
     expect(caseRes.body.timeline[0]).not.toHaveProperty('fromStatus');
     expect(caseRes.body.timeline[0]).not.toHaveProperty('changedByUser');
@@ -669,6 +707,7 @@ describe('public case lookup trust layer', () => {
 describe(`GET ${BASE}/:id/timeline`, () => {
   let cityAdminToken = '';
   let dispatcherToken = '';
+  let regionalToken = '';
   let provincialToken = '';
   let nationalToken = '';
   let auditorToken = '';
@@ -679,6 +718,13 @@ describe(`GET ${BASE}/:id/timeline`, () => {
     tuguegaraoCityId = cityScope.city.id;
     cityAdminToken = await getTokenForRole('ops.lead@xypes.local');
     dispatcherToken = await getTokenForRole('dispatcher@xypes.local');
+    regionalToken = await ensureScopedUserToken({
+      email: 'timeline.region.director@xypes.local',
+      name: 'Timeline Regional Director',
+      role: 'REGIONAL_DIRECTOR',
+      jurisdictionType: 'region',
+      jurisdictionId: cityScope.region.id,
+    });
     provincialToken = await getTokenForRole('supervisor@xypes.local');
     nationalToken = await getTokenForRole('admin@xypes.local');
     auditorToken = await getTokenForRole('auditor@xypes.local');
@@ -735,8 +781,9 @@ describe(`GET ${BASE}/:id/timeline`, () => {
     expect(blockedTimelineRes.status).toBe(404);
   });
 
-  it('should allow national internal timeline reads while keeping province and auditor blocked', async () => {
+  it('should allow province and national internal timeline reads while keeping auditor blocked', async () => {
     const owner = await registerAndLinkCitizenReporter('timeline-role-block');
+    const partnerCity = await ensurePartnerCityScope();
     const categoryId = await createCategory();
     const severityId = await createSeverity();
 
@@ -751,10 +798,29 @@ describe(`GET ${BASE}/:id/timeline`, () => {
       });
 
     expect(reportRes.status).toBe(201);
+    expect(reportRes.body.cityMunicipalityId).toBe(tuguegaraoCityId);
 
-    const [provincialRes, nationalRes, auditorRes] = await Promise.all([
+    const partnerReportRes = await request(app)
+      .post(`${BASE}/report`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({
+        description: 'Timeline province partner-city incident',
+        categoryId,
+        severityId,
+        ...buildTuguegaraoLocationSnapshot(),
+        cityName: partnerCity.name,
+        barangay: null,
+      });
+
+    expect(partnerReportRes.status).toBe(201);
+    expect(partnerReportRes.body.cityMunicipalityId).toBe(partnerCity.id);
+
+    const [provincialRes, provincialPartnerCityRes, nationalRes, auditorRes] = await Promise.all([
       request(app)
         .get(`${BASE}/${reportRes.body.id}/timeline`)
+        .set('Authorization', `Bearer ${provincialToken}`),
+      request(app)
+        .get(`${BASE}/${partnerReportRes.body.id}/timeline`)
         .set('Authorization', `Bearer ${provincialToken}`),
       request(app)
         .get(`${BASE}/${reportRes.body.id}/timeline`)
@@ -764,6 +830,16 @@ describe(`GET ${BASE}/:id/timeline`, () => {
         .set('Authorization', `Bearer ${auditorToken}`),
     ]);
 
+    expect(provincialRes.status).toBe(200);
+    expect(provincialRes.body.timeline).toHaveLength(1);
+    expect(provincialRes.body.timeline[0]).toHaveProperty('toStatus.name', 'Reported');
+    expect(provincialRes.body.timeline[0]).toHaveProperty('changedByUser.email', owner.email);
+    expect(provincialRes.body.timeline[0]).toHaveProperty('note', null);
+
+    expect(provincialPartnerCityRes.status).toBe(200);
+    expect(provincialPartnerCityRes.body.timeline).toHaveLength(1);
+    expect(provincialPartnerCityRes.body.timeline[0]).toHaveProperty('toStatus.name', 'Reported');
+
     expect(nationalRes.status).toBe(200);
     expect(nationalRes.body.timeline).toHaveLength(1);
     expect(nationalRes.body.timeline[0]).toHaveProperty('toStatus.name', 'Reported');
@@ -771,8 +847,39 @@ describe(`GET ${BASE}/:id/timeline`, () => {
     expect(nationalRes.body.timeline[0]).toHaveProperty('changedByUser.role', 'CITIZEN_REPORTER');
     expect(nationalRes.body.timeline[0]).toHaveProperty('note', null);
 
-    expect(provincialRes.status).toBe(403);
     expect(auditorRes.status).toBe(403);
+  });
+
+  it('should allow regional timeline reads across same-region different-province incidents', async () => {
+    const owner = await registerAndLinkCitizenReporter('timeline-regional-director');
+    const partnerScope = await ensureSameRegionDifferentProvinceCityScope();
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const reportRes = await request(app)
+      .post(`${BASE}/report`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({
+        description: 'Timeline regional same-region different-province incident',
+        categoryId,
+        severityId,
+        ...buildTuguegaraoLocationSnapshot(),
+        cityName: partnerScope.city.name,
+        provinceName: partnerScope.province.name,
+        barangay: null,
+      });
+
+    expect(reportRes.status).toBe(201);
+    expect(reportRes.body.cityMunicipalityId).toBe(partnerScope.city.id);
+
+    const timelineRes = await request(app)
+      .get(`${BASE}/${reportRes.body.id}/timeline`)
+      .set('Authorization', `Bearer ${regionalToken}`);
+
+    expect(timelineRes.status).toBe(200);
+    expect(timelineRes.body.timeline).toHaveLength(1);
+    expect(timelineRes.body.timeline[0]).toHaveProperty('toStatus.name', 'Reported');
+    expect(timelineRes.body.timeline[0]).toHaveProperty('changedByUser.email', owner.email);
   });
 
   it('should deny city-scoped timeline access when the incident has no canonical cityMunicipalityId', async () => {
@@ -849,7 +956,8 @@ describe(`GET ${BASE}/:id/timeline`, () => {
     expect(timelineRes.status).toBe(200);
     expect(timelineRes.body.timeline).toHaveLength(2);
     expect(timelineRes.body.timeline[0]).toHaveProperty('status.name', 'Reported');
-    expect(timelineRes.body.timeline[1]).toHaveProperty('status.id', newStatusRes.body.id);
+    expect(timelineRes.body.timeline[1]).toHaveProperty('status.name', newStatusRes.body.name);
+    expect(timelineRes.body.timeline[1].status).not.toHaveProperty('id');
     expect(timelineRes.body.timeline[1]).toHaveProperty('publicStatusMessage');
     expect(timelineRes.body.timeline[1]).not.toHaveProperty('changedByUser');
 
@@ -964,9 +1072,79 @@ describe(`GET ${BASE}/:id/timeline`, () => {
   });
 });
 
+describe(`GET ${BASE}/audit/:id/timeline`, () => {
+  let auditorToken = '';
+  let cityAdminToken = '';
+
+  beforeAll(async () => {
+    auditorToken = await getTokenForRole('auditor@xypes.local');
+    cityAdminToken = await getTokenForRole('ops.lead@xypes.local');
+  });
+
+  it('should allow AUDITOR on the redacted audit timeline while keeping the internal timeline route blocked', async () => {
+    const owner = await registerAndLinkCitizenReporter('audit-timeline-auditor');
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const reportRes = await request(app)
+      .post(`${BASE}/report`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({
+        description: 'Auditor timeline redaction incident',
+        categoryId,
+        severityId,
+        ...buildTuguegaraoLocationSnapshot(),
+      });
+
+    expect(reportRes.status).toBe(201);
+
+    const [auditTimelineRes, internalTimelineRes] = await Promise.all([
+      request(app)
+        .get(`${BASE}/audit/${reportRes.body.id}/timeline`)
+        .set('Authorization', `Bearer ${auditorToken}`),
+      request(app)
+        .get(`${BASE}/${reportRes.body.id}/timeline`)
+        .set('Authorization', `Bearer ${auditorToken}`),
+    ]);
+
+    expect(auditTimelineRes.status).toBe(200);
+    expect(auditTimelineRes.body).toMatchObject({
+      incidentId: reportRes.body.id,
+      publicReference: reportRes.body.publicReference,
+    });
+    expect(auditTimelineRes.body.timeline).toHaveLength(1);
+    expect(auditTimelineRes.body.timeline[0]).toMatchObject({
+      id: expect.any(String),
+      changedAt: expect.any(String),
+      fromStatus: null,
+      toStatus: { id: expect.any(String), name: 'Reported' },
+    });
+    expect(auditTimelineRes.body.timeline[0]).not.toHaveProperty('changedByUser');
+    expect(auditTimelineRes.body.timeline[0]).not.toHaveProperty('note');
+
+    expect(internalTimelineRes.status).toBe(403);
+  });
+
+  it('should block non-auditor internal roles from the auditor-only timeline route', async () => {
+    const owner = await registerAndLinkCitizenReporter('audit-timeline-city-admin-blocked');
+    const incident = await createTrustScopedIncident({
+      label: 'audit-timeline-city-admin-blocked',
+      reporterToken: owner.token,
+    });
+
+    const auditTimelineRes = await request(app)
+      .get(`${BASE}/audit/${incident.incidentId}/timeline`)
+      .set('Authorization', `Bearer ${cityAdminToken}`);
+
+    expect(auditTimelineRes.status).toBe(403);
+  });
+});
+
 describe('Phase 1 trust-layer incident reads', () => {
   let tuguegaraoCityId = '';
   let outOfCityDispatcherToken = '';
+  let regionalDirectorToken = '';
+  let provincialAdminToken = '';
   let nationalAdminToken = '';
   let responderToken = '';
   let auditorToken = '';
@@ -974,9 +1152,17 @@ describe('Phase 1 trust-layer incident reads', () => {
   beforeAll(async () => {
     const cityScope = await ensureTuguegaraoCityScope();
     tuguegaraoCityId = cityScope.city.id;
+    provincialAdminToken = await getTokenForRole('supervisor@xypes.local');
     nationalAdminToken = await getTokenForRole('admin@xypes.local');
     responderToken = await getTokenForRole('responder@xypes.local');
     auditorToken = await getTokenForRole('auditor@xypes.local');
+    regionalDirectorToken = await ensureScopedUserToken({
+      email: 'reads.region.director@xypes.local',
+      name: 'Incident Reads Regional Director',
+      role: 'REGIONAL_DIRECTOR',
+      jurisdictionType: 'region',
+      jurisdictionId: cityScope.region.id,
+    });
 
     const partnerCity = await ensurePartnerCityScope();
     outOfCityDispatcherToken = await ensureScopedUserToken({
@@ -1113,6 +1299,133 @@ describe('Phase 1 trust-layer incident reads', () => {
     });
   });
 
+  it('should allow PROVINCIAL_ADMIN on list, detail, and media reads across same-province cities', async () => {
+    const owner = await registerAndLinkCitizenReporter('phase2-provincial-admin');
+    const partnerCity = await ensurePartnerCityScope();
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const tuguegaraoReportRes = await request(app)
+      .post(`${BASE}/report`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({
+        description: 'Phase 2 provincial admin Tuguegarao incident',
+        categoryId,
+        severityId,
+        ...buildTuguegaraoLocationSnapshot(),
+      });
+
+    expect(tuguegaraoReportRes.status).toBe(201);
+    expect(tuguegaraoReportRes.body.cityMunicipalityId).toBe(tuguegaraoCityId);
+
+    const partnerReportRes = await request(app)
+      .post(`${BASE}/report`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({
+        description: 'Phase 2 provincial admin partner-city incident',
+        categoryId,
+        severityId,
+        ...buildTuguegaraoLocationSnapshot(),
+        cityName: partnerCity.name,
+        barangay: null,
+      });
+
+    expect(partnerReportRes.status).toBe(201);
+    expect(partnerReportRes.body.cityMunicipalityId).toBe(partnerCity.id);
+
+    const partnerMedia = await prisma.incidentMedia.create({
+      data: {
+        incidentId: partnerReportRes.body.id as string,
+        mediaUrl: `supabase://incident-media/phase2-provincial-admin-${Date.now()}.jpg`,
+        displayOrder: 0,
+      },
+    });
+
+    const [listRes, detailRes, mediaRes] = await Promise.all([
+      request(app).get(BASE).set('Authorization', `Bearer ${provincialAdminToken}`),
+      request(app)
+        .get(`${BASE}/${tuguegaraoReportRes.body.id}`)
+        .set('Authorization', `Bearer ${provincialAdminToken}`),
+      request(app)
+        .get(`${BASE}/${partnerReportRes.body.id}/media/${partnerMedia.id}`)
+        .set('Authorization', `Bearer ${provincialAdminToken}`),
+    ]);
+
+    expect(listRes.status).toBe(200);
+    expect(Array.isArray(listRes.body)).toBe(true);
+    expect(
+      listRes.body.some((entry: { id: string }) => entry.id === tuguegaraoReportRes.body.id),
+    ).toBe(true);
+    expect(
+      listRes.body.some((entry: { id: string }) => entry.id === partnerReportRes.body.id),
+    ).toBe(true);
+
+    expect(detailRes.status).toBe(200);
+    expect(detailRes.body).toHaveProperty('id', tuguegaraoReportRes.body.id);
+    expect(detailRes.body).toHaveProperty('cityMunicipalityId', tuguegaraoCityId);
+
+    expect(mediaRes.status).toBe(200);
+    expect(mediaRes.body).toMatchObject({
+      incidentId: partnerReportRes.body.id,
+      mediaId: partnerMedia.id,
+    });
+  });
+
+  it('should allow REGIONAL_DIRECTOR on list, detail, and media reads across same-region different-province cities', async () => {
+    const owner = await registerAndLinkCitizenReporter('phase2-regional-director');
+    const partnerScope = await ensureSameRegionDifferentProvinceCityScope();
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const reportRes = await request(app)
+      .post(`${BASE}/report`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({
+        description: 'Phase 2 regional director same-region read incident',
+        categoryId,
+        severityId,
+        ...buildTuguegaraoLocationSnapshot(),
+        cityName: partnerScope.city.name,
+        provinceName: partnerScope.province.name,
+        barangay: null,
+      });
+
+    expect(reportRes.status).toBe(201);
+    expect(reportRes.body.cityMunicipalityId).toBe(partnerScope.city.id);
+
+    const media = await prisma.incidentMedia.create({
+      data: {
+        incidentId: reportRes.body.id as string,
+        mediaUrl: `supabase://incident-media/phase2-regional-director-${Date.now()}.jpg`,
+        displayOrder: 0,
+      },
+    });
+
+    const [listRes, detailRes, mediaRes] = await Promise.all([
+      request(app).get(BASE).set('Authorization', `Bearer ${regionalDirectorToken}`),
+      request(app)
+        .get(`${BASE}/${reportRes.body.id}`)
+        .set('Authorization', `Bearer ${regionalDirectorToken}`),
+      request(app)
+        .get(`${BASE}/${reportRes.body.id}/media/${media.id}`)
+        .set('Authorization', `Bearer ${regionalDirectorToken}`),
+    ]);
+
+    expect(listRes.status).toBe(200);
+    expect(Array.isArray(listRes.body)).toBe(true);
+    expect(listRes.body.some((entry: { id: string }) => entry.id === reportRes.body.id)).toBe(true);
+
+    expect(detailRes.status).toBe(200);
+    expect(detailRes.body).toHaveProperty('id', reportRes.body.id);
+    expect(detailRes.body).toHaveProperty('cityMunicipalityId', partnerScope.city.id);
+
+    expect(mediaRes.status).toBe(200);
+    expect(mediaRes.body).toMatchObject({
+      incidentId: reportRes.body.id,
+      mediaId: media.id,
+    });
+  });
+
   it('should block unsupported roles from Phase 1 incident read routes', async () => {
     const owner = await registerAndLinkCitizenReporter('phase1-unsupported-role');
     const incident = await createTrustScopedIncident({
@@ -1128,18 +1441,119 @@ describe('Phase 1 trust-layer incident reads', () => {
       .set('Authorization', `Bearer ${auditorToken}`);
 
     expect(detailRes.status).toBe(403);
+
+    const mediaRes = await request(app)
+      .get(`${BASE}/${incident.incidentId}/media/${incident.mediaId}`)
+      .set('Authorization', `Bearer ${auditorToken}`);
+
+    expect(mediaRes.status).toBe(403);
+  });
+
+  it('should allow AUDITOR on the redacted audit list and detail routes without exposing sensitive fields', async () => {
+    const owner = await registerAndLinkCitizenReporter('phase1-auditor-audit-surface');
+    const incident = await createTrustScopedIncident({
+      label: 'phase1-auditor-audit-surface',
+      reporterToken: owner.token,
+    });
+
+    await assignResponderToIncident({
+      incidentId: incident.incidentId,
+      cityMunicipalityId: tuguegaraoCityId,
+    });
+
+    const [listRes, detailRes, internalDetailRes] = await Promise.all([
+      request(app).get(`${BASE}/audit`).set('Authorization', `Bearer ${auditorToken}`),
+      request(app)
+        .get(`${BASE}/audit/${incident.incidentId}`)
+        .set('Authorization', `Bearer ${auditorToken}`),
+      request(app)
+        .get(`${BASE}/${incident.incidentId}`)
+        .set('Authorization', `Bearer ${auditorToken}`),
+    ]);
+
+    expect(listRes.status).toBe(200);
+    expect(Array.isArray(listRes.body)).toBe(true);
+
+    const listEntry = listRes.body.find(
+      (entry: { id: string }) => entry.id === incident.incidentId,
+    );
+    expect(listEntry).toBeDefined();
+    expect(listEntry).toMatchObject({
+      id: incident.incidentId,
+      hasMedia: true,
+      assignmentCount: 1,
+      statusHistoryCount: 1,
+      status: { name: 'Reported' },
+    });
+
+    expect(detailRes.status).toBe(200);
+    expect(detailRes.body).toMatchObject({
+      id: incident.incidentId,
+      hasMedia: true,
+      assignmentCount: 1,
+      statusHistoryCount: 1,
+      status: { name: 'Reported' },
+      category: { id: expect.any(String), name: expect.any(String) },
+      severity: { id: expect.any(String), level: expect.any(String) },
+      barangay: expect.any(String),
+      cityName: expect.any(String),
+      provinceName: expect.any(String),
+      regionName: expect.any(String),
+    });
+
+    for (const payload of [listEntry, detailRes.body]) {
+      expect(payload).not.toHaveProperty('description');
+      expect(payload).not.toHaveProperty('citizenId');
+      expect(payload).not.toHaveProperty('latitude');
+      expect(payload).not.toHaveProperty('longitude');
+      expect(payload).not.toHaveProperty('addressLine1');
+      expect(payload).not.toHaveProperty('addressLine2');
+      expect(payload).not.toHaveProperty('mediaUrl');
+      expect(payload).not.toHaveProperty('mediaUrls');
+      expect(payload).not.toHaveProperty('mediaFiles');
+    }
+
+    expect(internalDetailRes.status).toBe(403);
+  });
+
+  it('should block PROVINCIAL_ADMIN from the auditor-only incident audit routes', async () => {
+    const owner = await registerAndLinkCitizenReporter('phase1-audit-route-city-admin-blocked');
+    const incident = await createTrustScopedIncident({
+      label: 'phase1-audit-route-city-admin-blocked',
+      reporterToken: owner.token,
+    });
+
+    const [listRes, detailRes] = await Promise.all([
+      request(app).get(`${BASE}/audit`).set('Authorization', `Bearer ${provincialAdminToken}`),
+      request(app)
+        .get(`${BASE}/audit/${incident.incidentId}`)
+        .set('Authorization', `Bearer ${provincialAdminToken}`),
+    ]);
+
+    expect(listRes.status).toBe(403);
+    expect(detailRes.status).toBe(403);
   });
 });
 
 describe('Phase 1 trust-layer incident writes', () => {
   let tuguegaraoCityId = '';
   let outOfCityDispatcherToken = '';
+  let regionalDirectorToken = '';
+  let provincialAdminToken = '';
   let responderToken = '';
 
   beforeAll(async () => {
     const cityScope = await ensureTuguegaraoCityScope();
     tuguegaraoCityId = cityScope.city.id;
+    provincialAdminToken = await getTokenForRole('supervisor@xypes.local');
     responderToken = await getTokenForRole('responder@xypes.local');
+    regionalDirectorToken = await ensureScopedUserToken({
+      email: 'writes.region.director@xypes.local',
+      name: 'Incident Writes Regional Director',
+      role: 'REGIONAL_DIRECTOR',
+      jurisdictionType: 'region',
+      jurisdictionId: cityScope.region.id,
+    });
 
     const partnerCity = await ensurePartnerCityScope();
     outOfCityDispatcherToken = await ensureScopedUserToken({
@@ -1172,6 +1586,62 @@ describe('Phase 1 trust-layer incident writes', () => {
     expect(res.status).toBe(403);
     expect(res.body).toMatchObject({
       message: 'Forbidden: incident creation is outside your allowed scope',
+    });
+  });
+
+  it('should allow a provincial admin to create an incident within the same province', async () => {
+    const statusId = await getStatusId();
+    const citizenId = await createCitizen();
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const res = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${provincialAdminToken}`)
+      .send({
+        description: 'Provincial admin create allowed in same province',
+        statusId,
+        citizenId,
+        categoryId,
+        severityId,
+        ...buildTuguegaraoLocationSnapshot(),
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({
+      description: 'Provincial admin create allowed in same province',
+      cityMunicipalityId: tuguegaraoCityId,
+    });
+  });
+
+  it('should allow a regional director to create an incident within the same region across a different province', async () => {
+    const partnerScope = await ensureSameRegionDifferentProvinceCityScope();
+    const statusId = await getStatusId();
+    const citizenId = await createCitizen();
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const res = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${regionalDirectorToken}`)
+      .send({
+        description: 'Regional director create allowed in same region',
+        statusId,
+        citizenId,
+        categoryId,
+        severityId,
+        ...buildTuguegaraoLocationSnapshot(),
+        cityName: partnerScope.city.name,
+        provinceName: partnerScope.province.name,
+        barangay: null,
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({
+      description: 'Regional director create allowed in same region',
+      cityMunicipalityId: partnerScope.city.id,
+      provinceId: partnerScope.province.id,
+      regionId: partnerScope.region.id,
     });
   });
 
@@ -1210,6 +1680,29 @@ describe('Phase 1 trust-layer incident writes', () => {
       .patch(`${BASE}/${incident.incidentId}`)
       .set('Authorization', `Bearer ${responderToken}`)
       .send({ description: 'Responder should not patch this incident' });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({
+      message: 'Forbidden: incident mutation is outside your allowed scope',
+    });
+  });
+
+  it('should deny an out-of-city dispatcher when patching a Tuguegarao incident into their partner city', async () => {
+    const owner = await registerAndLinkCitizenReporter('write-scope-out-of-city-locality-move');
+    const incident = await createTrustScopedIncident({
+      label: 'write-scope-out-of-city-locality-move',
+      reporterToken: owner.token,
+    });
+    const partnerCity = await ensurePartnerCityScope();
+
+    const res = await request(app)
+      .patch(`${BASE}/${incident.incidentId}`)
+      .set('Authorization', `Bearer ${outOfCityDispatcherToken}`)
+      .send({
+        ...buildTuguegaraoLocationSnapshot(),
+        cityName: partnerCity.name,
+        barangay: null,
+      });
 
     expect(res.status).toBe(403);
     expect(res.body).toMatchObject({
@@ -1932,6 +2425,115 @@ describe('VIEWER incident scoping', () => {
 
     expect(res.status).toBe(400);
     expect(res.body).toHaveProperty('errors');
+  });
+
+  it('POST /incidents/report fails closed when a legacy matched citizen is already linked to another active user', async () => {
+    const unique = `${Date.now()}-${Math.random()}`;
+    const email = `legacy-conflict.${unique}@postman.local`;
+
+    const registerRes = await request(app)
+      .post(`${API_V1}/auth/register`)
+      .send({
+        name: `Legacy Conflict Reporter ${unique}`,
+        email,
+        password: 'Password123!',
+      });
+    expect(registerRes.status).toBe(201);
+
+    const citizen = await prisma.citizen.create({
+      data: {
+        name: `Legacy Conflict Citizen ${unique}`,
+        contactInfo: email,
+        preferredChannel: 'app',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        name: `Legacy Conflict Owner ${unique}`,
+        email: `legacy-owner.${unique}@postman.local`,
+        passwordHash: 'not-used-in-this-test',
+        role: 'CITIZEN_REPORTER',
+        citizenId: citizen.id,
+        mfaEnabled: false,
+      },
+    });
+
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const reportRes = await request(app)
+      .post(`${API_V1}/incidents/report`)
+      .set('Authorization', `Bearer ${registerRes.body.token as string}`)
+      .send({
+        description: 'Legacy auto-link conflict should not 500',
+        categoryId,
+        severityId,
+        ...buildIncidentLocationSnapshot(),
+      });
+
+    expect(reportRes.status).toBe(409);
+    expect(reportRes.body).toEqual({ message: CONFLICTING_LINKED_CITIZEN_MESSAGE });
+
+    const reporter = await prisma.user.findUniqueOrThrow({
+      where: { email },
+      select: { citizenId: true },
+    });
+
+    expect(reporter.citizenId).toBeNull();
+  });
+
+  it('POST /incidents/report requires manual linking when exactly one legacy citizen matches the authenticated account', async () => {
+    const unique = `${Date.now()}-${Math.random()}`;
+    const email = `legacy-unlinked.${unique}@postman.local`;
+
+    const registerRes = await request(app)
+      .post(`${API_V1}/auth/register`)
+      .send({
+        name: `Legacy Unlinked Reporter ${unique}`,
+        email,
+        password: 'Password123!',
+      });
+
+    expect(registerRes.status).toBe(201);
+
+    const legacyCitizen = await prisma.citizen.create({
+      data: {
+        name: `Legacy Unlinked Citizen ${unique}`,
+        contactInfo: email,
+        preferredChannel: 'app',
+      },
+    });
+
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const reportRes = await request(app)
+      .post(`${API_V1}/incidents/report`)
+      .set('Authorization', `Bearer ${registerRes.body.token as string}`)
+      .send({
+        description: 'Legacy citizen match should require manual linking',
+        categoryId,
+        severityId,
+        ...buildIncidentLocationSnapshot(),
+      });
+
+    expect(reportRes.status).toBe(409);
+    expect(reportRes.body).toEqual({ message: MANUAL_LINK_REQUIRED_MESSAGE });
+
+    const reporter = await prisma.user.findUniqueOrThrow({
+      where: { email },
+      select: { citizenId: true },
+    });
+
+    expect(reporter.citizenId).toBeNull();
+
+    const matchedCitizens = await prisma.citizen.findMany({
+      where: { contactInfo: email },
+      select: { id: true },
+    });
+
+    expect(matchedCitizens).toEqual([{ id: legacyCitizen.id }]);
   });
 
   it('POST /incidents/report rejects client-provided citizenId', async () => {

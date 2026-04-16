@@ -7,9 +7,13 @@ import type { ContentTypeConfig } from '../engine/types.js';
 import type { Citizen } from '../types/models.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
 import { withActiveRecords } from '../utils/archive.js';
-
-const AMBIGUOUS_LINKED_CITIZEN_MESSAGE =
-  'Multiple active citizen profiles are linked to this account email. Contact support.';
+import {
+  AMBIGUOUS_LINKED_CITIZEN_MESSAGE,
+  CONFLICTING_LINKED_CITIZEN_MESSAGE,
+  MANUAL_LINK_REQUIRED_LINKED_CITIZEN_MESSAGE,
+  assignCitizenToUser,
+  resolveLinkedCitizenForAuthUser,
+} from '../services/userCitizenLinkService.js';
 
 const config: ContentTypeConfig = {
   modelName: 'citizen',
@@ -50,6 +54,50 @@ export const updateCitizen = handlers.update;
 export const deleteCitizen = handlers.remove;
 export const restoreCitizen = handlers.restore;
 
+export async function getMyCitizenProfile(req: Request, res: Response): Promise<void> {
+  const { authUser } = req as AuthenticatedRequest;
+  if (!authUser) {
+    res.status(401).json({ message: 'Unauthorized: missing authentication context' });
+    return;
+  }
+
+  const resolution = await resolveLinkedCitizenForAuthUser({
+    id: authUser.id,
+    email: authUser.email,
+  });
+
+  if (resolution.status === 'ambiguous') {
+    res.status(409).json({ message: AMBIGUOUS_LINKED_CITIZEN_MESSAGE });
+    return;
+  }
+
+  if (resolution.status === 'conflict') {
+    res.status(409).json({ message: CONFLICTING_LINKED_CITIZEN_MESSAGE });
+    return;
+  }
+
+  if (resolution.status === 'manual-link-required') {
+    res.status(409).json({ message: MANUAL_LINK_REQUIRED_LINKED_CITIZEN_MESSAGE });
+    return;
+  }
+
+  if (resolution.status === 'missing') {
+    res.status(404).json({ message: 'Citizen profile not found for authenticated user' });
+    return;
+  }
+
+  const citizen = await prisma.citizen.findFirst({
+    where: withActiveRecords({ id: resolution.citizenId }),
+  });
+
+  if (!citizen) {
+    res.status(404).json({ message: 'Citizen profile not found for authenticated user' });
+    return;
+  }
+
+  res.json(citizen);
+}
+
 export async function linkMyCitizenProfile(req: Request, res: Response): Promise<void> {
   const { authUser } = req as AuthenticatedRequest;
   if (!authUser) {
@@ -63,20 +111,29 @@ export async function linkMyCitizenProfile(req: Request, res: Response): Promise
     return;
   }
 
-  const existingCitizens = await prisma.citizen.findMany({
-    where: withActiveRecords({ contactInfo: authUser.email }),
-    select: { id: true },
-    take: 2,
+  const resolution = await resolveLinkedCitizenForAuthUser({
+    id: authUser.id,
+    email: authUser.email,
   });
 
-  if (existingCitizens.length > 1) {
+  if (resolution.status === 'ambiguous') {
     res.status(409).json({ message: AMBIGUOUS_LINKED_CITIZEN_MESSAGE });
     return;
   }
 
-  const existingCitizen = existingCitizens[0];
+  if (resolution.status === 'conflict') {
+    res.status(409).json({ message: CONFLICTING_LINKED_CITIZEN_MESSAGE });
+    return;
+  }
 
-  if (!existingCitizen) {
+  if (resolution.status === 'manual-link-required') {
+    res.status(409).json({ message: MANUAL_LINK_REQUIRED_LINKED_CITIZEN_MESSAGE });
+    return;
+  }
+
+  const existingCitizenId = resolution.status === 'linked' ? resolution.citizenId : null;
+
+  if (!existingCitizenId) {
     if (!name || !preferredChannel) {
       res.status(422).json({
         message:
@@ -85,12 +142,18 @@ export async function linkMyCitizenProfile(req: Request, res: Response): Promise
       return;
     }
 
-    const citizen = await prisma.citizen.create({
-      data: {
-        name,
-        preferredChannel,
-        contactInfo: authUser.email,
-      },
+    const citizen = await prisma.$transaction(async (transaction) => {
+      const createdCitizen = await transaction.citizen.create({
+        data: {
+          name,
+          preferredChannel,
+          contactInfo: authUser.email,
+        },
+      });
+
+      await assignCitizenToUser(authUser.id, createdCitizen.id, transaction);
+
+      return createdCitizen;
     });
 
     res.status(201).json(citizen);
@@ -98,7 +161,7 @@ export async function linkMyCitizenProfile(req: Request, res: Response): Promise
   }
 
   const citizen = await prisma.citizen.update({
-    where: { id: existingCitizen.id },
+    where: { id: existingCitizenId },
     data: {
       name,
       preferredChannel,

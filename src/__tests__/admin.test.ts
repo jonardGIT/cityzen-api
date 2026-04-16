@@ -7,6 +7,7 @@ import { getAdminToken, getTokenForRole } from './helpers/auth.js';
 describe('admin access review', () => {
   let adminToken = '';
   let managerToken = '';
+  let auditorToken = '';
   let citizenToken = '';
 
   beforeAll(async () => {
@@ -30,6 +31,7 @@ describe('admin access review', () => {
 
     adminToken = await getAdminToken();
     managerToken = await getTokenForRole('ops.lead@xypes.local');
+    auditorToken = await getTokenForRole('auditor@xypes.local');
     citizenToken = await getTokenForRole('analyst@xypes.local');
   });
 
@@ -98,18 +100,72 @@ describe('admin access review', () => {
     });
   });
 
-  it('allows CITY_ADMIN to read the privileged access review report', async () => {
+  it('allows NATIONAL_ADMIN to list admin users', async () => {
+    const response = await request(app)
+      .get(`${API_V1}/admin/users`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(response.status).toBe(200);
+    expect(Array.isArray(response.body)).toBe(true);
+  });
+
+  it('allows NATIONAL_ADMIN to read the privileged MFA compliance report', async () => {
+    const response = await request(app)
+      .get(`${API_V1}/admin/users/mfa-compliance`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.summary).toMatchObject({
+      totalPrivilegedUsers: expect.any(Number),
+      compliantUsers: expect.any(Number),
+      nonCompliantUsers: expect.any(Number),
+    });
+    expect(Array.isArray(response.body.data)).toBe(true);
+  });
+
+  it('returns 403 for CITY_ADMIN on the privileged access review report', async () => {
     const response = await request(app)
       .get(`${API_V1}/admin/users/access-review`)
       .set('Authorization', `Bearer ${managerToken}`);
 
-    expect(response.status).toBe(200);
-    expect(Array.isArray(response.body.data)).toBe(true);
+    expect(response.status).toBe(403);
+  });
+
+  it('returns 403 for AUDITOR on the privileged access review report', async () => {
+    const response = await request(app)
+      .get(`${API_V1}/admin/users/access-review`)
+      .set('Authorization', `Bearer ${auditorToken}`);
+
+    expect(response.status).toBe(403);
+  });
+
+  it('returns 403 for CITY_ADMIN on the admin user list', async () => {
+    const response = await request(app)
+      .get(`${API_V1}/admin/users`)
+      .set('Authorization', `Bearer ${managerToken}`);
+
+    expect(response.status).toBe(403);
+  });
+
+  it('returns 403 for CITY_ADMIN on the privileged MFA compliance report', async () => {
+    const response = await request(app)
+      .get(`${API_V1}/admin/users/mfa-compliance`)
+      .set('Authorization', `Bearer ${managerToken}`);
+
+    expect(response.status).toBe(403);
   });
 
   it('returns 403 for non-admin users', async () => {
     const response = await request(app)
       .get(`${API_V1}/admin/users/access-review`)
+      .set('Authorization', `Bearer ${citizenToken}`);
+
+    expect(response.status).toBe(403);
+  });
+
+  it('returns 403 for non-admin users on the admin user list', async () => {
+    const response = await request(app)
+      .get(`${API_V1}/admin/users`)
       .set('Authorization', `Bearer ${citizenToken}`);
 
     expect(response.status).toBe(403);

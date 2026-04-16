@@ -56,10 +56,12 @@ jest.mock('../services/supabaseAuthService.js', () => {
 });
 
 import app, { API_V1 } from '../app.js';
+import { SupabaseAuthServiceError } from '../services/supabaseAuthService.js';
 
 const ADMIN_EMAIL = 'admin@xypes.local';
 const SUPABASE_USER_ID = '11111111-1111-4111-8111-111111111111';
 const SUPABASE_SESSION_ID = '22222222-2222-4222-8222-222222222222';
+const PENDING_CONFIRMATION_SUPABASE_USER_ID = '33333333-3333-4333-8333-333333333333';
 
 describe('Supabase JWT mode', () => {
   beforeEach(async () => {
@@ -73,6 +75,17 @@ describe('Supabase JWT mode', () => {
       currentLevel: 'aal1',
       nextLevel: 'aal1',
       currentAuthenticationMethods: ['password'],
+    });
+
+    await prisma.user.deleteMany({
+      where: {
+        NOT: { email: ADMIN_EMAIL },
+        OR: [
+          { supabaseAuthUserId: SUPABASE_USER_ID },
+          { supabaseAuthUserId: PENDING_CONFIRMATION_SUPABASE_USER_ID },
+          { email: { startsWith: 'pending-confirmation-' } },
+        ],
+      },
     });
 
     await prisma.user.updateMany({
@@ -114,6 +127,100 @@ describe('Supabase JWT mode', () => {
     expect(mockSignInSupabaseUser).toHaveBeenCalledWith({
       email: ADMIN_EMAIL,
       password: 'Password123!',
+    });
+  });
+
+  it('returns 201 with email confirmation required and no session tokens when Supabase registration cannot sign in immediately', async () => {
+    const registrationEmail = `pending-confirmation-${Date.now()}@xypes.local`;
+
+    mockRegisterSupabaseAuthUser.mockResolvedValue({
+      id: PENDING_CONFIRMATION_SUPABASE_USER_ID,
+      email: registrationEmail,
+    });
+    mockSignInSupabaseUser.mockRejectedValue(
+      new SupabaseAuthServiceError(
+        'EMAIL_NOT_CONFIRMED',
+        'Confirm your email before signing in.',
+        401,
+      ),
+    );
+
+    const response = await request(app).post(`${API_V1}/auth/register`).send({
+      name: 'Pending Citizen Reporter',
+      email: registrationEmail,
+      password: 'Password123!',
+    });
+
+    expect(response.status).toBe(201);
+    expect(response.body).toMatchObject({
+      message: 'Registration succeeded. Confirm your email before signing in.',
+      emailConfirmationRequired: true,
+      user: {
+        email: registrationEmail,
+        role: 'CITIZEN_REPORTER',
+      },
+    });
+    expect(response.body).not.toHaveProperty('token');
+    expect(response.body).not.toHaveProperty('accessToken');
+    expect(response.body).not.toHaveProperty('refreshToken');
+    expect(mockRegisterSupabaseAuthUser).toHaveBeenCalledWith({
+      email: registrationEmail,
+      password: 'Password123!',
+      name: 'Pending Citizen Reporter',
+      role: 'CITIZEN_REPORTER',
+    });
+    expect(mockSignInSupabaseUser).toHaveBeenCalledWith({
+      email: registrationEmail,
+      password: 'Password123!',
+    });
+  });
+
+  it('rejects mobile registration when Supabase JWT mode is enabled', async () => {
+    const mobileNumber = '09171239999';
+
+    const response = await request(app).post(`${API_V1}/auth/mobile/register`).send({
+      name: 'Mobile Citizen Reporter',
+      mobileNumber,
+      password: 'Password123!',
+    });
+
+    expect(response.status).toBe(501);
+    expect(response.body).toMatchObject({
+      message: 'Mobile auth is only available when local app auth and app JWT sessions are enabled',
+    });
+
+    const createdUser = await prisma.user.findUnique({
+      where: { mobileNumber: '+639171239999' },
+      select: { id: true },
+    });
+
+    expect(createdUser).toBeNull();
+  });
+
+  it('rejects mobile login when Supabase JWT mode is enabled', async () => {
+    const passwordHash = await import('bcryptjs').then(({ default: bcrypt }) =>
+      bcrypt.hash('Password123!', 10),
+    );
+
+    await prisma.user.create({
+      data: {
+        name: 'Mobile Login Citizen',
+        email: 'mobile.login@xypes.local',
+        mobileNumber: '+639179998888',
+        mobileNumberVerifiedAt: new Date(),
+        passwordHash,
+        role: 'CITIZEN_REPORTER',
+      },
+    });
+
+    const response = await request(app).post(`${API_V1}/auth/mobile/login`).send({
+      mobileNumber: '09179998888',
+      password: 'Password123!',
+    });
+
+    expect(response.status).toBe(501);
+    expect(response.body).toMatchObject({
+      message: 'Mobile auth is only available when local app auth and app JWT sessions are enabled',
     });
   });
 

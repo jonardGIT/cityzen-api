@@ -15,6 +15,9 @@ model User {
   archivedAt            DateTime?
   name                  String
   email                 String                  @unique
+  mobileNumber          String?                 @unique
+  mobileNumberVerifiedAt DateTime?
+  mobileAuthSubject     String?                 @unique
   passwordHash          String?
   supabaseAuthUserId    String?                 @unique @db.Uuid
   role                  String                  @default("CITIZEN_REPORTER")
@@ -23,6 +26,8 @@ model User {
   mfaEnabledAt          DateTime?
   jurisdictionType      String?
   jurisdictionId        String?                 @db.Uuid
+  citizenId             String?                 @unique @db.Uuid
+  citizen               Citizen?                @relation(fields: [citizenId], references: [id], onDelete: SetNull)
   authSessions          AuthSession[]
   incidentStatusChanges IncidentStatusHistory[]
   passwordResetTokens   PasswordResetToken[]
@@ -120,9 +125,35 @@ model Citizen {
   name             String
   contactInfo      String
   preferredChannel String
+  user             User?
   incidents        CitizenIncident[]
 
   @@map("citizens")
+}
+
+model MobileAppContent {
+  id          String    @id @default(uuid()) @db.Uuid
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  archivedAt  DateTime?
+  slug        String    @unique
+  title       String
+  summary     String?
+  body        String
+  contentType String    @default("announcement")
+  placement   String    @default("home")
+  audience    String?
+  imageUrl    String?
+  ctaLabel    String?
+  ctaUrl      String?
+  sortOrder   Int       @default(0)
+  isPublished Boolean   @default(false)
+  publishedAt DateTime?
+  startsAt    DateTime?
+  endsAt      DateTime?
+  metadata    Json?
+
+  @@map("mobile_app_content")
 }
 
 model Agency {

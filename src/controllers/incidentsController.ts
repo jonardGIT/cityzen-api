@@ -8,7 +8,10 @@ import {
   getPaginationQuery,
   getParamId,
 } from '../utils/request.js';
-import { incidentsListQueryConfig } from '../utils/listQueryConfig.js';
+import {
+  incidentsAuditListQueryConfig,
+  incidentsListQueryConfig,
+} from '../utils/listQueryConfig.js';
 import type { CitizenIncident } from '../types/models.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
 import * as supabaseStorageService from '../services/supabaseStorageService.js';
@@ -21,6 +24,11 @@ import {
   IncidentLocalityResolutionError,
   resolveIncidentLocalityIds,
 } from '../services/incidentLocalityResolutionService.js';
+import {
+  handleLinkedCitizenResolution,
+  type LinkedCitizenResolution,
+  resolveLinkedCitizenForAuthUser,
+} from '../services/userCitizenLinkService.js';
 import type {
   IncidentTimelineEntry,
   IncidentTrustInfo,
@@ -77,9 +85,17 @@ type IncidentStatusHistoryRecord = {
   } | null;
 };
 
-type PublicIncidentStatusHistoryRecord = Pick<
-  IncidentStatusHistoryRecord,
-  'id' | 'createdAt' | 'toStatus'
+type PublicTimelineStatusRecord = {
+  name: string;
+};
+
+type PublicIncidentStatusHistoryRecord = Pick<IncidentStatusHistoryRecord, 'id' | 'createdAt'> & {
+  toStatus: PublicTimelineStatusRecord;
+};
+
+type AuditorIncidentTimelineEntry = Pick<
+  IncidentTimelineEntry,
+  'id' | 'changedAt' | 'fromStatus' | 'toStatus'
 >;
 
 type PublicCaseTokenRecord = {
@@ -88,7 +104,6 @@ type PublicCaseTokenRecord = {
   incident: {
     publicReference: string | null;
     status: {
-      id: string;
       name: string;
     };
     dateReported: Date;
@@ -97,12 +112,10 @@ type PublicCaseTokenRecord = {
     cityName: string | null;
     provinceName: string | null;
     category: {
-      id: string;
       name: string;
       subCategory: string | null;
     };
     severity: {
-      id: string;
       level: string;
       definition: string | null;
     };
@@ -124,16 +137,13 @@ type TrustLayerPrismaDelegates = {
 
 type TrustLayerTransactionClient = Prisma.TransactionClient & TrustLayerPrismaDelegates;
 
-type LinkedCitizenResolution =
-  | { status: 'linked'; citizenId: string }
-  | { status: 'missing' }
-  | { status: 'ambiguous' };
-
 type TimelineAccessResult = { allowed: true; audience: 'owner' | 'internal' } | { allowed: false };
 
 type IncidentReadScope =
   | { kind: 'owner'; citizenId: string; audience: 'owner' }
   | { kind: 'city'; cityMunicipalityIds: string[]; audience: 'internal' }
+  | { kind: 'region'; cityMunicipalityIds: string[]; audience: 'internal' }
+  | { kind: 'province'; cityMunicipalityIds: string[]; audience: 'internal' }
   | { kind: 'global'; audience: 'internal' }
   | { kind: 'assigned'; responderId: string; audience: 'internal' };
 
@@ -222,46 +232,6 @@ function assertIncidentCityMunicipalityResolved(input: {
   }
 }
 
-async function resolveLinkedCitizenByAuthEmail(email: string): Promise<LinkedCitizenResolution> {
-  const citizens = await prisma.citizen.findMany({
-    where: withActiveRecords({ contactInfo: email }),
-    select: { id: true },
-    take: 2,
-  });
-
-  if (citizens.length === 0) {
-    return { status: 'missing' };
-  }
-
-  if (citizens.length > 1) {
-    return { status: 'ambiguous' };
-  }
-
-  return { status: 'linked', citizenId: citizens[0].id };
-}
-
-function handleLinkedCitizenResolution(
-  res: Response,
-  resolution: LinkedCitizenResolution,
-): string | null {
-  if (resolution.status === 'linked') {
-    return resolution.citizenId;
-  }
-
-  if (resolution.status === 'ambiguous') {
-    res.status(409).json({
-      message:
-        'Multiple active citizen profiles are linked to this account email. Contact support.',
-    });
-    return null;
-  }
-
-  res.status(422).json({
-    message: 'No citizen profile is linked to this account email. Create a citizen profile first.',
-  });
-  return null;
-}
-
 function normalizeMediaUrls(
   body: Partial<CitizenIncident> & { mediaUrls?: unknown },
 ): string[] | undefined {
@@ -337,6 +307,73 @@ function buildIncidentTrustResponse<T extends Record<string, unknown>>(
   };
 }
 
+const auditorIncidentSelect = {
+  id: true,
+  publicReference: true,
+  dateReported: true,
+  createdAt: true,
+  updatedAt: true,
+  barangay: true,
+  cityName: true,
+  provinceName: true,
+  regionName: true,
+  status: {
+    select: {
+      id: true,
+      name: true,
+    },
+  },
+  category: {
+    select: {
+      id: true,
+      name: true,
+      subCategory: true,
+    },
+  },
+  severity: {
+    select: {
+      id: true,
+      level: true,
+      definition: true,
+    },
+  },
+  _count: {
+    select: {
+      mediaFiles: true,
+      assignments: true,
+      statusHistory: true,
+    },
+  },
+} satisfies Prisma.CitizenIncidentSelect;
+
+type AuditorIncidentRecord = Prisma.CitizenIncidentGetPayload<{
+  select: typeof auditorIncidentSelect;
+}>;
+
+function serializeAuditorIncident(incident: AuditorIncidentRecord) {
+  return {
+    id: incident.id,
+    publicReference: incident.publicReference,
+    status: incident.status,
+    category: incident.category,
+    severity: incident.severity,
+    dateReported: incident.dateReported,
+    createdAt: incident.createdAt,
+    updatedAt: incident.updatedAt,
+    barangay: incident.barangay,
+    cityName: incident.cityName,
+    provinceName: incident.provinceName,
+    regionName: incident.regionName,
+    hasMedia: incident._count.mediaFiles > 0,
+    assignmentCount: incident._count.assignments,
+    statusHistoryCount: incident._count.statusHistory,
+  };
+}
+
+function serializeAuditorIncidentCollection(incidents: AuditorIncidentRecord[]) {
+  return incidents.map((incident) => serializeAuditorIncident(incident));
+}
+
 async function createIncidentStatusHistory(
   transaction: Prisma.TransactionClient,
   input: {
@@ -377,8 +414,21 @@ function serializePublicTimelineEntry(
   return {
     id: entry.id,
     changedAt: entry.createdAt.toISOString(),
-    status: entry.toStatus,
+    status: {
+      name: entry.toStatus.name,
+    },
     publicStatusMessage: buildPublicStatusMessage(entry.toStatus.name),
+  };
+}
+
+function serializeAuditorTimelineEntry(
+  entry: IncidentStatusHistoryRecord,
+): AuditorIncidentTimelineEntry {
+  return {
+    id: entry.id,
+    changedAt: entry.createdAt.toISOString(),
+    fromStatus: entry.fromStatus,
+    toStatus: entry.toStatus,
   };
 }
 
@@ -458,6 +508,54 @@ async function resolveCityScopedIncidentReadScope(
   };
 }
 
+async function resolveProvinceScopedIncidentReadScope(
+  authUserId: string,
+): Promise<Extract<IncidentReadScope, { kind: 'province' }> | null> {
+  const user = await prisma.user.findFirst({
+    where: withActiveRecords({ id: authUserId }),
+    select: { jurisdictionType: true, jurisdictionId: true },
+  });
+
+  if (!user || user.jurisdictionType !== 'province' || !user.jurisdictionId) {
+    return null;
+  }
+
+  const scope = await resolveJurisdictionScope(user.jurisdictionType, user.jurisdictionId);
+  if (scope.type !== 'province' || !scope.cityMunicipalityIds?.length) {
+    return null;
+  }
+
+  return {
+    kind: 'province',
+    cityMunicipalityIds: scope.cityMunicipalityIds,
+    audience: 'internal',
+  };
+}
+
+async function resolveRegionScopedIncidentReadScope(
+  authUserId: string,
+): Promise<Extract<IncidentReadScope, { kind: 'region' }> | null> {
+  const user = await prisma.user.findFirst({
+    where: withActiveRecords({ id: authUserId }),
+    select: { jurisdictionType: true, jurisdictionId: true },
+  });
+
+  if (!user || user.jurisdictionType !== 'region' || !user.jurisdictionId) {
+    return null;
+  }
+
+  const scope = await resolveJurisdictionScope(user.jurisdictionType, user.jurisdictionId);
+  if (scope.type !== 'region' || !scope.cityMunicipalityIds?.length) {
+    return null;
+  }
+
+  return {
+    kind: 'region',
+    cityMunicipalityIds: scope.cityMunicipalityIds,
+    audience: 'internal',
+  };
+}
+
 async function resolveAssignedResponderId(authUserEmail: string): Promise<string | null> {
   const responders = await prisma.responder.findMany({
     where: withActiveRecords({ contactInfo: authUserEmail }),
@@ -478,7 +576,10 @@ async function resolveIncidentReadScope(
   options: IncidentReadScopeOptions = {},
 ): Promise<IncidentReadScopeResult> {
   if (authUser.role === 'CITIZEN_REPORTER') {
-    const resolution = await resolveLinkedCitizenByAuthEmail(authUser.email);
+    const resolution = await resolveLinkedCitizenForAuthUser({
+      id: authUser.id,
+      email: authUser.email,
+    });
     const citizenId = handleLinkedCitizenResolution(res, resolution);
     if (!citizenId) {
       return { status: 'response-sent' };
@@ -509,6 +610,16 @@ async function resolveIncidentReadScope(
     return scope ? { status: 'scoped', scope } : { status: 'denied' };
   }
 
+  if (authUser.role === 'REGIONAL_DIRECTOR') {
+    const scope = await resolveRegionScopedIncidentReadScope(authUser.id);
+    return scope ? { status: 'scoped', scope } : { status: 'denied' };
+  }
+
+  if (authUser.role === 'PROVINCIAL_ADMIN') {
+    const scope = await resolveProvinceScopedIncidentReadScope(authUser.id);
+    return scope ? { status: 'scoped', scope } : { status: 'denied' };
+  }
+
   if (authUser.role === 'RESPONDER') {
     const responderId = await resolveAssignedResponderId(authUser.email);
     return responderId
@@ -536,6 +647,14 @@ function buildIncidentReadScopeWhere(scope: IncidentReadScope): Prisma.CitizenIn
   }
 
   if (scope.kind === 'city') {
+    return { cityMunicipalityId: { in: scope.cityMunicipalityIds } };
+  }
+
+  if (scope.kind === 'region') {
+    return { cityMunicipalityId: { in: scope.cityMunicipalityIds } };
+  }
+
+  if (scope.kind === 'province') {
     return { cityMunicipalityId: { in: scope.cityMunicipalityIds } };
   }
 
@@ -578,6 +697,20 @@ async function canReadIncidentWithScope(
     );
   }
 
+  if (scope.kind === 'region') {
+    return Boolean(
+      incident.cityMunicipalityId &&
+      scope.cityMunicipalityIds.includes(incident.cityMunicipalityId),
+    );
+  }
+
+  if (scope.kind === 'province') {
+    return Boolean(
+      incident.cityMunicipalityId &&
+      scope.cityMunicipalityIds.includes(incident.cityMunicipalityId),
+    );
+  }
+
   const assignment = await prisma.assignment.findFirst({
     where: withActiveRecords({
       incidentId: incident.id,
@@ -593,13 +726,17 @@ function denyIncidentWrite(res: Response, message: string): void {
   res.status(403).json({ message });
 }
 
-async function authorizeIncidentCreate(
+async function authorizeIncidentDestinationScope(
   authUser: NonNullable<AuthenticatedRequest['authUser']>,
   res: Response,
   cityMunicipalityId: string,
+  messages: {
+    responder: string;
+    outsideScope: string;
+  },
 ): Promise<boolean> {
   if (authUser.role === 'RESPONDER') {
-    denyIncidentWrite(res, 'Forbidden: responders cannot create incidents through this route');
+    denyIncidentWrite(res, messages.responder);
     return false;
   }
 
@@ -609,7 +746,7 @@ async function authorizeIncidentCreate(
 
   if (scopeResult.status !== 'scoped') {
     if (scopeResult.status === 'denied') {
-      denyIncidentWrite(res, 'Forbidden: incident creation is outside your allowed scope');
+      denyIncidentWrite(res, messages.outsideScope);
     }
 
     return false;
@@ -626,8 +763,44 @@ async function authorizeIncidentCreate(
     return true;
   }
 
-  denyIncidentWrite(res, 'Forbidden: incident creation is outside your allowed scope');
+  if (
+    scopeResult.scope.kind === 'region' &&
+    scopeResult.scope.cityMunicipalityIds.includes(cityMunicipalityId)
+  ) {
+    return true;
+  }
+
+  if (
+    scopeResult.scope.kind === 'province' &&
+    scopeResult.scope.cityMunicipalityIds.includes(cityMunicipalityId)
+  ) {
+    return true;
+  }
+
+  denyIncidentWrite(res, messages.outsideScope);
   return false;
+}
+
+async function authorizeIncidentCreate(
+  authUser: NonNullable<AuthenticatedRequest['authUser']>,
+  res: Response,
+  cityMunicipalityId: string,
+): Promise<boolean> {
+  return authorizeIncidentDestinationScope(authUser, res, cityMunicipalityId, {
+    responder: 'Forbidden: responders cannot create incidents through this route',
+    outsideScope: 'Forbidden: incident creation is outside your allowed scope',
+  });
+}
+
+async function authorizeIncidentLocalityMutation(
+  authUser: NonNullable<AuthenticatedRequest['authUser']>,
+  res: Response,
+  cityMunicipalityId: string,
+): Promise<boolean> {
+  return authorizeIncidentDestinationScope(authUser, res, cityMunicipalityId, {
+    responder: 'Forbidden: incident mutation is outside your allowed scope',
+    outsideScope: 'Forbidden: incident mutation is outside your allowed scope',
+  });
 }
 
 async function authorizeIncidentMutation(
@@ -670,6 +843,38 @@ async function getTimelineAccess(
   return (await canReadIncidentWithScope(scopeResult.scope, incident))
     ? { allowed: true, audience: scopeResult.scope.audience }
     : { allowed: false };
+}
+
+async function getTimelineIncidentById(incidentId: string): Promise<TimelineIncidentRecord | null> {
+  return prisma.citizenIncident.findFirst({
+    where: withActiveRecords({ id: incidentId }),
+    select: {
+      id: true,
+      citizenId: true,
+      publicReference: true,
+      cityMunicipalityId: true,
+    },
+  });
+}
+
+async function getIncidentTimelineEntries(
+  incidentId: string,
+): Promise<IncidentStatusHistoryRecord[]> {
+  return trustPrisma.incidentStatusHistory.findMany({
+    where: withActiveRecords({ incidentId }),
+    orderBy: { createdAt: 'asc' },
+    include: {
+      fromStatus: {
+        select: { id: true, name: true },
+      },
+      toStatus: {
+        select: { id: true, name: true },
+      },
+      changedByUser: {
+        select: { id: true, email: true, role: true },
+      },
+    },
+  });
 }
 
 async function getAuthorizedIncidentWithMedia(
@@ -846,6 +1051,51 @@ export async function getIncidents(req: Request, res: Response): Promise<void> {
   res.json(await serializeIncidentCollection(incidents));
 }
 
+export async function getAuditorIncidents(req: Request, res: Response): Promise<void> {
+  const { authUser } = req as AuthenticatedRequest;
+  if (!authUser) {
+    res.status(401).json({ message: 'Unauthorized: missing authentication context' });
+    return;
+  }
+
+  const pagination = getPaginationQuery(req);
+  const listQuery = getListQuery(req, res, incidentsAuditListQueryConfig);
+  if (!listQuery) {
+    return;
+  }
+
+  const scopedWhere = withArchiveScope(
+    (listQuery.where ?? {}) as Prisma.CitizenIncidentWhereInput,
+    listQuery.archiveScope,
+  );
+
+  if (pagination.enabled) {
+    const [incidents, total] = await Promise.all([
+      prisma.citizenIncident.findMany({
+        where: scopedWhere,
+        select: auditorIncidentSelect,
+        orderBy: listQuery.orderBy,
+        skip: pagination.skip,
+        take: pagination.take,
+      }),
+      prisma.citizenIncident.count({ where: scopedWhere }),
+    ]);
+
+    res.json(
+      buildPaginatedResponse(serializeAuditorIncidentCollection(incidents), total, pagination),
+    );
+    return;
+  }
+
+  const incidents = await prisma.citizenIncident.findMany({
+    where: scopedWhere,
+    select: auditorIncidentSelect,
+    orderBy: listQuery.orderBy,
+  });
+
+  res.json(serializeAuditorIncidentCollection(incidents));
+}
+
 // Returns a single incident by UUID. Responds 404 if not found.
 export async function getIncidentById(req: Request, res: Response): Promise<void> {
   const id = getParamId(req, res) as string | null;
@@ -861,6 +1111,52 @@ export async function getIncidentById(req: Request, res: Response): Promise<void
   res.json(await serializeIncident(incident));
 }
 
+export async function getAuditorIncidentById(req: Request, res: Response): Promise<void> {
+  const id = getParamId(req, res) as string | null;
+  if (id === null) {
+    return;
+  }
+
+  const incident = await prisma.citizenIncident.findFirst({
+    where: withActiveRecords({ id }),
+    select: auditorIncidentSelect,
+  });
+
+  if (!incident) {
+    res.status(404).json({ message: 'CitizenIncident not found' });
+    return;
+  }
+
+  res.json(serializeAuditorIncident(incident));
+}
+
+export async function getAuditorIncidentTimeline(req: Request, res: Response): Promise<void> {
+  const id = getParamId(req, res) as string | null;
+  if (id === null) {
+    return;
+  }
+
+  const { authUser } = req as AuthenticatedRequest;
+  if (!authUser) {
+    res.status(401).json({ message: 'Unauthorized: missing authentication context' });
+    return;
+  }
+
+  const incident = await getTimelineIncidentById(id);
+  if (!incident) {
+    res.status(404).json({ message: 'CitizenIncident not found' });
+    return;
+  }
+
+  const timeline = await getIncidentTimelineEntries(id);
+
+  res.json({
+    incidentId: id,
+    publicReference: incident.publicReference ?? null,
+    timeline: timeline.map((entry) => serializeAuditorTimelineEntry(entry)),
+  });
+}
+
 export async function getIncidentTimeline(req: Request, res: Response): Promise<void> {
   const id = getParamId(req, res) as string | null;
   if (id === null) {
@@ -873,15 +1169,7 @@ export async function getIncidentTimeline(req: Request, res: Response): Promise<
     return;
   }
 
-  const incident = await prisma.citizenIncident.findFirst({
-    where: withActiveRecords({ id }),
-    select: {
-      id: true,
-      citizenId: true,
-      publicReference: true,
-      cityMunicipalityId: true,
-    },
-  });
+  const incident = await getTimelineIncidentById(id);
   if (!incident) {
     res.status(404).json({ message: 'CitizenIncident not found' });
     return;
@@ -895,21 +1183,7 @@ export async function getIncidentTimeline(req: Request, res: Response): Promise<
     return;
   }
 
-  const timeline = await trustPrisma.incidentStatusHistory.findMany({
-    where: withActiveRecords({ incidentId: id }),
-    orderBy: { createdAt: 'asc' },
-    include: {
-      fromStatus: {
-        select: { id: true, name: true },
-      },
-      toStatus: {
-        select: { id: true, name: true },
-      },
-      changedByUser: {
-        select: { id: true, email: true, role: true },
-      },
-    },
-  });
+  const timeline = await getIncidentTimelineEntries(id);
 
   res.json({
     incidentId: id,
@@ -950,20 +1224,20 @@ export async function getPublicCaseByToken(req: Request, res: Response): Promise
       incident: {
         include: {
           status: {
-            select: { id: true, name: true },
+            select: { name: true },
           },
           category: {
-            select: { id: true, name: true, subCategory: true },
+            select: { name: true, subCategory: true },
           },
           severity: {
-            select: { id: true, level: true, definition: true },
+            select: { level: true, definition: true },
           },
           statusHistory: {
             where: { archivedAt: null },
             orderBy: { createdAt: 'asc' },
             include: {
               toStatus: {
-                select: { id: true, name: true },
+                select: { name: true },
               },
             },
           },
@@ -1215,7 +1489,10 @@ export async function createCitizenIncidentReport(req: Request, res: Response): 
     return;
   }
   try {
-    const resolution = await resolveLinkedCitizenByAuthEmail(authUser.email);
+    const resolution = await resolveLinkedCitizenForAuthUser({
+      id: authUser.id,
+      email: authUser.email,
+    });
     const citizenId = handleLinkedCitizenResolution(res, resolution);
     if (!citizenId) {
       return;
@@ -1470,6 +1747,17 @@ export async function updateIncident(req: Request, res: Response): Promise<void>
       resolvedLocalityIds.barangayId !== existingIncident.barangayId);
 
   if (hasCanonicalLocalityChange) {
+    if (
+      resolvedLocalityIds?.cityMunicipalityId &&
+      !(await authorizeIncidentLocalityMutation(
+        authUser,
+        res,
+        resolvedLocalityIds.cityMunicipalityId,
+      ))
+    ) {
+      return;
+    }
+
     const supportedEscalationCount = await prisma.incidentEscalation.count({
       where: {
         incidentId: id,

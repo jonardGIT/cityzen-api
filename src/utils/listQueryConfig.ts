@@ -109,6 +109,50 @@ export const incidentsListQueryConfig: ListQueryConfig = {
   },
 };
 
+export const incidentsAuditListQueryConfig: ListQueryConfig = {
+  resource: 'incidents-audit',
+  defaultSortBy: 'createdAt',
+  fields: {
+    id: { type: 'uuid', sortable: true, filterOperators: [...uuidOps] },
+    publicReference: {
+      type: 'string',
+      searchable: true,
+      sortable: true,
+      filterOperators: [...textOps],
+    },
+    barangay: {
+      type: 'string',
+      searchable: true,
+      sortable: true,
+      filterOperators: [...textOps],
+    },
+    cityName: {
+      type: 'string',
+      searchable: true,
+      sortable: true,
+      filterOperators: [...textOps],
+    },
+    provinceName: {
+      type: 'string',
+      searchable: true,
+      sortable: true,
+      filterOperators: [...textOps],
+    },
+    regionName: {
+      type: 'string',
+      searchable: true,
+      sortable: true,
+      filterOperators: [...textOps],
+    },
+    statusId: { type: 'uuid', sortable: true, filterOperators: [...uuidOps] },
+    categoryId: { type: 'uuid', sortable: true, filterOperators: [...uuidOps] },
+    severityId: { type: 'uuid', sortable: true, filterOperators: [...uuidOps] },
+    dateReported: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
+    createdAt: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
+    updatedAt: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
+  },
+};
+
 export const assignmentsListQueryConfig: ListQueryConfig = {
   resource: 'assignments',
   defaultSortBy: 'createdAt',
@@ -184,6 +228,48 @@ export const auditLogsListQueryConfig: ListQueryConfig = {
     statusCode: { type: 'integer', sortable: true, filterOperators: [...integerOps] },
     targetId: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
     requestId: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
+    createdAt: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
+    updatedAt: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
+  },
+};
+
+const { requestId: _auditLogsRequestIdField, ...auditorAuditLogFields } =
+  auditLogsListQueryConfig.fields;
+
+export const auditorAuditLogsListQueryConfig: ListQueryConfig = {
+  ...auditLogsListQueryConfig,
+  fields: auditorAuditLogFields,
+};
+
+export const mobileAppContentListQueryConfig: ListQueryConfig = {
+  resource: 'mobile-content',
+  defaultSortBy: 'updatedAt',
+  fields: {
+    id: { type: 'uuid', sortable: true, filterOperators: [...uuidOps] },
+    slug: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
+    title: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
+    contentType: {
+      type: 'string',
+      searchable: true,
+      sortable: true,
+      filterOperators: [...textOps],
+    },
+    placement: {
+      type: 'string',
+      searchable: true,
+      sortable: true,
+      filterOperators: [...textOps],
+    },
+    audience: {
+      type: 'string',
+      searchable: true,
+      sortable: true,
+      filterOperators: [...textOps],
+    },
+    sortOrder: { type: 'integer', sortable: true, filterOperators: [...integerOps] },
+    publishedAt: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
+    startsAt: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
+    endsAt: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
     createdAt: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
     updatedAt: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
   },

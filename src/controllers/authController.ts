@@ -45,10 +45,15 @@ import {
   updateSupabaseAuthUser,
 } from '../services/supabaseAuthService.js';
 import { isArchiveEnabled, withActiveRecords } from '../utils/archive.js';
+import { buildCitizenMobileSurrogateEmail, normalizeMobileNumber } from '../utils/mobileAuth.js';
 import {
   isPrivilegedMfaFeatureMisconfigured,
   requiresPrivilegedMfaEnrollment,
 } from '../utils/mfaPolicy.js';
+
+const MOBILE_AUTH_ROLE_ONLY_MESSAGE = 'Mobile auth is only available for citizen accounts';
+const MOBILE_AUTH_PROVIDER_BOUNDARY_MESSAGE =
+  'Mobile auth is only available when local app auth and app JWT sessions are enabled';
 
 function isStrongPassword(password: string): boolean {
   return (
@@ -106,10 +111,63 @@ function getAuthUserSelect() {
     updatedAt: true,
     name: true,
     email: true,
+    mobileNumber: true,
+    mobileNumberVerifiedAt: true,
+    citizenId: true,
     role: true,
     mfaEnabled: true,
     mfaEnabledAt: true,
   } as const;
+}
+
+function buildAuthUserPayload(user: {
+  id: string;
+  createdAt: Date;
+  updatedAt: Date;
+  name: string;
+  email: string;
+  mobileNumber: string | null;
+  mobileNumberVerifiedAt: Date | null;
+  citizenId: string | null;
+  role: string;
+  mfaEnabled: boolean;
+  mfaEnabledAt: Date | null;
+}) {
+  return {
+    id: user.id,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+    name: user.name,
+    email: user.email,
+    mobileNumber: user.mobileNumber,
+    mobileNumberVerifiedAt: user.mobileNumberVerifiedAt,
+    citizenId: user.citizenId,
+    role: normalizeUserRoleInput(user.role) ?? 'CITIZEN_REPORTER',
+    mfaEnabled: user.mfaEnabled,
+    mfaEnabledAt: user.mfaEnabledAt,
+  };
+}
+
+function buildLocalJwtResponse(
+  session: {
+    token: string;
+    refreshToken: string;
+    sessionId: string;
+    expiresAt: string;
+    refreshExpiresAt: string;
+  },
+  user: ReturnType<typeof buildAuthUserPayload>,
+) {
+  return {
+    token: session.token,
+    accessToken: session.token,
+    refreshToken: session.refreshToken,
+    tokenType: 'Bearer',
+    sessionId: session.sessionId,
+    expiresAt: session.expiresAt,
+    refreshExpiresAt: session.refreshExpiresAt,
+    user,
+  };
 }
 
 function isMfaConfigurationError(error: unknown): boolean {
@@ -278,6 +336,14 @@ async function getLocalAuthUserForSupabaseIdentity(supabaseUserId: string, email
   return authUser;
 }
 
+function isCitizenReporterAccount(role: string): boolean {
+  return normalizeUserRoleInput(role) === 'CITIZEN_REPORTER';
+}
+
+function isMobileAuthProviderBoundaryViolated(): boolean {
+  return isSupabaseAuthEnabled() || isSupabaseJwtEnabled();
+}
+
 function handlePasswordResetRuntimeError(res: Response, error: unknown): boolean {
   if (
     error instanceof Error &&
@@ -311,12 +377,19 @@ function handlePasswordResetRuntimeError(res: Response, error: unknown): boolean
 // Registers a new user (public endpoint for self-registration).
 export async function register(req: Request, res: Response): Promise<void> {
   const { name, email, password } = req.body as {
-    name?: string;
-    email?: string;
-    password?: string;
+    name?: unknown;
+    email?: unknown;
+    password?: unknown;
   };
 
-  if (!name || !email || !password) {
+  if (
+    typeof name !== 'string' ||
+    typeof email !== 'string' ||
+    typeof password !== 'string' ||
+    !name ||
+    !email ||
+    !password
+  ) {
     res.status(422).json({ message: 'name, email, and password are required' });
     return;
   }
@@ -409,16 +482,7 @@ export async function register(req: Request, res: Response): Promise<void> {
       ipAddress: req.ip ?? null,
     });
 
-    res.status(201).json({
-      token: session.token,
-      accessToken: session.token,
-      refreshToken: session.refreshToken,
-      tokenType: 'Bearer',
-      sessionId: session.sessionId,
-      expiresAt: session.expiresAt,
-      refreshExpiresAt: session.refreshExpiresAt,
-      user,
-    });
+    res.status(201).json(buildLocalJwtResponse(session, buildAuthUserPayload(user)));
   } catch (error) {
     if (supabaseAuthUserId) {
       await deleteSupabaseAuthUser(supabaseAuthUserId).catch(() => undefined);
@@ -433,15 +497,123 @@ export async function register(req: Request, res: Response): Promise<void> {
   }
 }
 
+export async function registerMobileCitizen(req: Request, res: Response): Promise<void> {
+  const { name, mobileNumber, password, preferredChannel } = req.body as {
+    name?: unknown;
+    mobileNumber?: unknown;
+    password?: unknown;
+    preferredChannel?: unknown;
+  };
+
+  if (isMobileAuthProviderBoundaryViolated()) {
+    res.status(501).json({ message: MOBILE_AUTH_PROVIDER_BOUNDARY_MESSAGE });
+    return;
+  }
+
+  if (
+    typeof name !== 'string' ||
+    typeof mobileNumber !== 'string' ||
+    typeof password !== 'string' ||
+    (preferredChannel !== undefined && typeof preferredChannel !== 'string') ||
+    !name.trim() ||
+    !mobileNumber.trim() ||
+    !password
+  ) {
+    res.status(422).json({ message: 'name, mobileNumber, and password are required' });
+    return;
+  }
+
+  const normalizedMobileNumber = normalizeMobileNumber(mobileNumber);
+  if (!normalizedMobileNumber) {
+    res
+      .status(422)
+      .json({ message: 'mobileNumber must be a valid normalized Philippine mobile number' });
+    return;
+  }
+
+  if (!isStrongPassword(password)) {
+    res.status(422).json({
+      message:
+        'password must be at least 12 characters and include uppercase, lowercase, number, and special character',
+    });
+    return;
+  }
+
+  const existingUser = await prisma.user.findFirst({
+    where: withActiveRecords({ mobileNumber: normalizedMobileNumber }),
+    select: { id: true },
+  });
+
+  if (existingUser) {
+    res.status(409).json({ message: 'Mobile number already registered' });
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  const surrogateEmail = buildCitizenMobileSurrogateEmail(normalizedMobileNumber);
+  const preferredCitizenChannel =
+    typeof preferredChannel === 'string' && preferredChannel.trim()
+      ? preferredChannel.trim()
+      : 'mobile';
+
+  try {
+    const user = await prisma.$transaction(async (transaction) => {
+      const citizen = await transaction.citizen.create({
+        data: {
+          name: name.trim(),
+          contactInfo: normalizedMobileNumber,
+          preferredChannel: preferredCitizenChannel,
+        },
+      });
+
+      return transaction.user.create({
+        data: {
+          name: name.trim(),
+          email: surrogateEmail,
+          mobileNumber: normalizedMobileNumber,
+          mobileNumberVerifiedAt: new Date(),
+          passwordHash,
+          role: 'CITIZEN_REPORTER',
+          citizenId: citizen.id,
+        },
+        select: getAuthUserSelect(),
+      });
+    });
+
+    const session = await createAuthSession({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      userAgent: req.get('user-agent') ?? null,
+      ipAddress: req.ip ?? null,
+    });
+
+    res.status(201).json(buildLocalJwtResponse(session, buildAuthUserPayload(user)));
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      res.status(409).json({ message: 'Mobile number already registered' });
+      return;
+    }
+
+    throw error;
+  }
+}
+
 // Authenticates a user by email and password, returning a signed JWT.
 export async function login(req: Request, res: Response): Promise<void> {
   const { email, password, mfaCode } = req.body as {
-    email?: string;
-    password?: string;
-    mfaCode?: string;
+    email?: unknown;
+    password?: unknown;
+    mfaCode?: unknown;
   };
 
-  if (!email || !password) {
+  if (
+    typeof email !== 'string' ||
+    typeof password !== 'string' ||
+    (mfaCode !== undefined && typeof mfaCode !== 'string') ||
+    !email ||
+    !password
+  ) {
     res.status(422).json({ message: 'email and password are required' });
     return;
   }
@@ -631,16 +803,7 @@ export async function login(req: Request, res: Response): Promise<void> {
       applyPrivilegedMfaEnrollmentFlags(
         role,
         user.mfaEnabled,
-        buildSupabaseJwtResponse(supabaseJwtSession, {
-          id: user.id,
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt,
-          name: user.name,
-          email: user.email,
-          role,
-          mfaEnabled: user.mfaEnabled,
-          mfaEnabledAt: user.mfaEnabledAt,
-        }),
+        buildSupabaseJwtResponse(supabaseJwtSession, buildAuthUserPayload(user)),
       ),
     );
     return;
@@ -656,25 +819,78 @@ export async function login(req: Request, res: Response): Promise<void> {
 
   res.json(
     applyPrivilegedMfaEnrollmentFlags(role, user.mfaEnabled, {
-      token: session.token,
-      accessToken: session.token,
-      refreshToken: session.refreshToken,
-      tokenType: 'Bearer',
-      sessionId: session.sessionId,
-      expiresAt: session.expiresAt,
-      refreshExpiresAt: session.refreshExpiresAt,
-      user: {
-        id: user.id,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-        name: user.name,
-        email: user.email,
-        role,
-        mfaEnabled: user.mfaEnabled,
-        mfaEnabledAt: user.mfaEnabledAt,
-      },
+      ...buildLocalJwtResponse(session, buildAuthUserPayload(user)),
     }),
   );
+}
+
+export async function loginMobileCitizen(req: Request, res: Response): Promise<void> {
+  const { mobileNumber, password } = req.body as {
+    mobileNumber?: unknown;
+    password?: unknown;
+  };
+
+  if (isMobileAuthProviderBoundaryViolated()) {
+    res.status(501).json({ message: MOBILE_AUTH_PROVIDER_BOUNDARY_MESSAGE });
+    return;
+  }
+
+  if (
+    typeof mobileNumber !== 'string' ||
+    typeof password !== 'string' ||
+    !mobileNumber ||
+    !password
+  ) {
+    res.status(422).json({ message: 'mobileNumber and password are required' });
+    return;
+  }
+
+  const normalizedMobileNumber = normalizeMobileNumber(mobileNumber);
+  if (!normalizedMobileNumber) {
+    res
+      .status(422)
+      .json({ message: 'mobileNumber must be a valid normalized Philippine mobile number' });
+    return;
+  }
+
+  const user = await prisma.user.findFirst({
+    where: withActiveRecords({ mobileNumber: normalizedMobileNumber }),
+    select: {
+      ...getAuthUserSelect(),
+      passwordHash: true,
+    },
+  });
+
+  if (!user) {
+    res.status(401).json({ message: 'Invalid mobile number or password' });
+    return;
+  }
+
+  if (!isCitizenReporterAccount(user.role)) {
+    res.status(403).json({ message: MOBILE_AUTH_ROLE_ONLY_MESSAGE });
+    return;
+  }
+
+  if (!user.passwordHash) {
+    res.status(401).json({ message: 'Invalid mobile number or password' });
+    return;
+  }
+
+  const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+  if (!isValidPassword) {
+    res.status(401).json({ message: 'Invalid mobile number or password' });
+    return;
+  }
+
+  const session = await createAuthSession({
+    userId: user.id,
+    email: user.email,
+    role: user.role,
+    userAgent: req.get('user-agent') ?? null,
+    ipAddress: req.ip ?? null,
+  });
+
+  res.json(buildLocalJwtResponse(session, buildAuthUserPayload(user)));
 }
 
 // Creates a one-time password reset token for account recovery without exposing whether the email exists.
@@ -1218,6 +1434,33 @@ export async function refresh(req: Request, res: Response): Promise<void> {
     return;
   }
 
+  const appSession = await refreshAuthSession({
+    refreshToken,
+    userAgent: req.get('user-agent') ?? null,
+    ipAddress: req.ip ?? null,
+  });
+
+  if (appSession) {
+    const refreshedSession = await prisma.authSession.findUnique({
+      where: { id: appSession.sessionId },
+      include: {
+        user: {
+          select: {
+            ...getAuthUserSelect(),
+          },
+        },
+      },
+    });
+
+    if (!refreshedSession) {
+      res.status(401).json({ message: 'Invalid or expired refresh token' });
+      return;
+    }
+
+    res.json(buildLocalJwtResponse(appSession, buildAuthUserPayload(refreshedSession.user)));
+    return;
+  }
+
   if (isSupabaseJwtEnabled()) {
     try {
       const supabaseSession = await refreshSupabaseSession(refreshToken);
@@ -1232,7 +1475,7 @@ export async function refresh(req: Request, res: Response): Promise<void> {
         return;
       }
 
-      res.json(buildSupabaseJwtResponse(supabaseSession, user));
+      res.json(buildSupabaseJwtResponse(supabaseSession, buildAuthUserPayload(user)));
       return;
     } catch (error) {
       if (handleSupabaseAuthRuntimeError(res, error)) {
@@ -1243,48 +1486,12 @@ export async function refresh(req: Request, res: Response): Promise<void> {
     }
   }
 
-  const session = await refreshAuthSession({
-    refreshToken,
-    userAgent: req.get('user-agent') ?? null,
-    ipAddress: req.ip ?? null,
-  });
-
-  if (!session) {
-    res.status(401).json({ message: 'Invalid or expired refresh token' });
-    return;
-  }
-
-  const refreshedSession = await prisma.authSession.findUnique({
-    where: { id: session.sessionId },
-    include: {
-      user: {
-        select: {
-          ...getAuthUserSelect(),
-        },
-      },
-    },
-  });
-
-  if (!refreshedSession) {
-    res.status(401).json({ message: 'Invalid or expired refresh token' });
-    return;
-  }
-
-  res.json({
-    token: session.token,
-    accessToken: session.token,
-    refreshToken: session.refreshToken,
-    tokenType: 'Bearer',
-    sessionId: session.sessionId,
-    expiresAt: session.expiresAt,
-    refreshExpiresAt: session.refreshExpiresAt,
-    user: refreshedSession.user,
-  });
+  res.status(401).json({ message: 'Invalid or expired refresh token' });
 }
 
 // Lists the authenticated user's sessions for device/session management UI.
 export async function listSessions(req: Request, res: Response): Promise<void> {
-  if (isSupabaseJwtEnabled()) {
+  if ((req as AuthenticatedRequest).authProvider === 'supabase') {
     res.status(501).json({
       message: 'Session listing is not available when Supabase JWT mode is enabled',
     });
@@ -1309,7 +1516,7 @@ export async function listSessions(req: Request, res: Response): Promise<void> {
 
 // Revokes one of the authenticated user's sessions by session id.
 export async function revokeSession(req: Request, res: Response): Promise<void> {
-  if (isSupabaseJwtEnabled()) {
+  if ((req as AuthenticatedRequest).authProvider === 'supabase') {
     res.status(501).json({
       message: 'Revoking an arbitrary session is not available when Supabase JWT mode is enabled',
     });
@@ -1339,7 +1546,7 @@ export async function revokeSession(req: Request, res: Response): Promise<void> 
 
 // Revokes the current authenticated auth session.
 export async function logout(req: Request, res: Response): Promise<void> {
-  if (isSupabaseJwtEnabled()) {
+  if ((req as AuthenticatedRequest).authProvider === 'supabase') {
     const authAccessToken = (req as AuthenticatedRequest).authAccessToken;
     if (!authAccessToken) {
       res.status(401).json({ message: 'Unauthorized: missing authentication session' });

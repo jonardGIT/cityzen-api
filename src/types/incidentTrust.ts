@@ -28,7 +28,6 @@ export interface PublicIncidentTimelineEntry {
   id: string;
   changedAt: string;
   status: {
-    id: string;
     name: string;
   };
   publicStatusMessage: string;
@@ -37,7 +36,6 @@ export interface PublicIncidentTimelineEntry {
 export interface PublicCaseLookupResponse {
   publicReference: string | null;
   status: {
-    id: string;
     name: string;
   };
   publicStatusMessage: string;
@@ -48,12 +46,10 @@ export interface PublicCaseLookupResponse {
   cityName: string | null;
   provinceName: string | null;
   category: {
-    id: string;
     name: string;
     subCategory: string | null;
   };
   severity: {
-    id: string;
     level: string;
     definition: string | null;
   };

@@ -32,6 +32,7 @@ describe('startup environment validation', () => {
           JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
           API_KEYS: 'prod-api-key-0123456789',
           MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
+          SUPABASE_URL: 'https://project.supabase.co',
           SUPABASE_SERVICE_ROLE_KEY: 'prod-service-role-key-0123456789-abcdef-uvwxyz',
           SUPABASE_STORAGE_ACCESS_MODE: 'signed',
           SUPABASE_STORAGE_SCAN_WEBHOOK_URL: 'https://security.example.gov/media-scan',
@@ -94,6 +95,41 @@ describe('startup environment validation', () => {
       }),
     ).toThrow(
       'PUBLIC_CASE_LOOKUP_RATE_LIMIT_ENABLED must remain enabled in production for the public case lookup trust-layer endpoint',
+    );
+  });
+
+  it('rejects production builds that explicitly disable global rate limiting', () => {
+    expect(() =>
+      validateStartupEnvironment({
+        env: createProductionEnv({
+          RATE_LIMIT_ENABLED: 'false',
+          JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
+          API_KEYS: 'prod-api-key-0123456789',
+          MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
+          PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'https://security.example.gov/password-reset',
+        }),
+        selection: createSelection({ mfaMode: 'local-totp' }),
+      }),
+    ).toThrow(
+      'RATE_LIMIT_ENABLED must remain enabled in production so auth, recovery, and MFA throttles cannot be globally disabled',
+    );
+  });
+
+  it('rejects production builds with JEST_WORKER_ID set when global rate limiting is disabled', () => {
+    expect(() =>
+      validateStartupEnvironment({
+        env: createProductionEnv({
+          JEST_WORKER_ID: '1',
+          RATE_LIMIT_ENABLED: 'false',
+          JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
+          API_KEYS: 'prod-api-key-0123456789',
+          MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
+          PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'https://security.example.gov/password-reset',
+        }),
+        selection: createSelection({ mfaMode: 'local-totp' }),
+      }),
+    ).toThrow(
+      'RATE_LIMIT_ENABLED must remain enabled in production so auth, recovery, and MFA throttles cannot be globally disabled',
     );
   });
 
@@ -161,6 +197,63 @@ describe('startup environment validation', () => {
       validateStartupEnvironment({
         env: createProductionEnv({
           API_KEYS: 'prod-api-key-0123456789',
+          SUPABASE_URL: 'https://project.supabase.co',
+          SUPABASE_ANON_KEY: 'prod-anon-key-0123456789-abcdef-uvwxyz',
+          SUPABASE_SERVICE_ROLE_KEY: 'prod-service-role-key-0123456789-abcdef-uvwxyz',
+          PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'https://security.example.gov/password-reset',
+        }),
+        selection: createSelection({
+          authProvider: 'supabase',
+          tokenMode: 'supabase-jwt',
+          mfaMode: 'supabase-totp',
+        }),
+      }),
+    ).not.toThrow();
+  });
+
+  it('rejects production Supabase JWT mode when SUPABASE_URL is missing', () => {
+    expect(() =>
+      validateStartupEnvironment({
+        env: createProductionEnv({
+          API_KEYS: 'prod-api-key-0123456789',
+          SUPABASE_ANON_KEY: 'prod-anon-key-0123456789-abcdef-uvwxyz',
+          SUPABASE_SERVICE_ROLE_KEY: 'prod-service-role-key-0123456789-abcdef-uvwxyz',
+          PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'https://security.example.gov/password-reset',
+        }),
+        selection: createSelection({
+          authProvider: 'supabase',
+          tokenMode: 'supabase-jwt',
+          mfaMode: 'supabase-totp',
+        }),
+      }),
+    ).toThrow('SUPABASE_URL must be configured in production');
+  });
+
+  it('rejects production Supabase JWT mode when SUPABASE_ANON_KEY is missing', () => {
+    expect(() =>
+      validateStartupEnvironment({
+        env: createProductionEnv({
+          API_KEYS: 'prod-api-key-0123456789',
+          SUPABASE_URL: 'https://project.supabase.co',
+          SUPABASE_SERVICE_ROLE_KEY: 'prod-service-role-key-0123456789-abcdef-uvwxyz',
+          PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'https://security.example.gov/password-reset',
+        }),
+        selection: createSelection({
+          authProvider: 'supabase',
+          tokenMode: 'supabase-jwt',
+          mfaMode: 'supabase-totp',
+        }),
+      }),
+    ).toThrow('SUPABASE_ANON_KEY must be configured');
+  });
+
+  it('accepts a valid production Supabase JWT configuration with auth URL, anon key, service role key, and password reset delivery', () => {
+    expect(() =>
+      validateStartupEnvironment({
+        env: createProductionEnv({
+          API_KEYS: 'prod-api-key-0123456789',
+          SUPABASE_URL: 'https://project.supabase.co',
+          SUPABASE_ANON_KEY: 'prod-anon-key-0123456789-abcdef-uvwxyz',
           SUPABASE_SERVICE_ROLE_KEY: 'prod-service-role-key-0123456789-abcdef-uvwxyz',
           PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'https://security.example.gov/password-reset',
         }),
@@ -217,6 +310,7 @@ describe('startup environment validation', () => {
       validateStartupEnvironment({
         env: createProductionEnv({
           JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
+          SUPABASE_URL: 'https://project.supabase.co',
           SUPABASE_SERVICE_ROLE_KEY: 'prod-service-role-key-0123456789-abcdef-uvwxyz',
           MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
           SUPABASE_STORAGE_ACCESS_MODE: 'public',
@@ -234,6 +328,7 @@ describe('startup environment validation', () => {
       validateStartupEnvironment({
         env: createProductionEnv({
           JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
+          SUPABASE_URL: 'https://project.supabase.co',
           SUPABASE_SERVICE_ROLE_KEY: 'prod-service-role-key-0123456789-abcdef-uvwxyz',
           MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
           SUPABASE_STORAGE_ACCESS_MODE: 'signed',
@@ -241,6 +336,22 @@ describe('startup environment validation', () => {
         selection: createSelection({ mfaMode: 'local-totp', mediaStorage: 'supabase-storage' }),
       }),
     ).toThrow('SUPABASE_STORAGE_SCAN_WEBHOOK_URL must be configured in production');
+  });
+
+  it('rejects production Supabase media storage mode when SUPABASE_URL is missing', () => {
+    expect(() =>
+      validateStartupEnvironment({
+        env: createProductionEnv({
+          JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
+          SUPABASE_SERVICE_ROLE_KEY: 'prod-service-role-key-0123456789-abcdef-uvwxyz',
+          MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
+          SUPABASE_STORAGE_ACCESS_MODE: 'signed',
+          SUPABASE_STORAGE_SCAN_WEBHOOK_URL: 'https://security.example.gov/media-scan',
+          PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'https://security.example.gov/password-reset',
+        }),
+        selection: createSelection({ mfaMode: 'local-totp', mediaStorage: 'supabase-storage' }),
+      }),
+    ).toThrow('SUPABASE_URL must be configured in production');
   });
 
   it('rejects non-HTTPS password reset delivery webhooks in production', () => {
@@ -268,6 +379,34 @@ describe('startup environment validation', () => {
         selection: createSelection({ mfaMode: 'local-totp' }),
       }),
     ).toThrow('PASSWORD_RESET_DELIVERY_WEBHOOK_URL must be configured in production');
+  });
+
+  it('rejects overlong password reset token TTL values in production', () => {
+    expect(() =>
+      validateStartupEnvironment({
+        env: createProductionEnv({
+          JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
+          MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
+          PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'https://security.example.gov/password-reset',
+          PASSWORD_RESET_TOKEN_TTL_MINUTES: '180',
+        }),
+        selection: createSelection({ mfaMode: 'local-totp' }),
+      }),
+    ).toThrow('PASSWORD_RESET_TOKEN_TTL_MINUTES must be between 5 and 60 in production');
+  });
+
+  it('accepts an explicit bounded password reset token TTL in production', () => {
+    expect(() =>
+      validateStartupEnvironment({
+        env: createProductionEnv({
+          JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
+          MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
+          PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'https://security.example.gov/password-reset',
+          PASSWORD_RESET_TOKEN_TTL_MINUTES: '45',
+        }),
+        selection: createSelection({ mfaMode: 'local-totp' }),
+      }),
+    ).not.toThrow();
   });
 
   it('rejects invalid security alert webhook URLs in production', () => {

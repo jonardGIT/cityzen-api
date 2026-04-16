@@ -14,14 +14,14 @@ const router = Router();
 router.get(
   '/users/mfa-compliance',
   requireJwtAuth,
-  requireRole(...ADMIN_ROLES),
+  requireRole('NATIONAL_ADMIN'),
   asyncHandler(getPrivilegedMfaComplianceReport),
 );
 
 router.get(
   '/users/access-review',
   requireJwtAuth,
-  requireRole(...ADMIN_ROLES),
+  requireRole('NATIONAL_ADMIN'),
   asyncHandler(getPrivilegedAccessReviewReport),
 );
 
@@ -35,7 +35,7 @@ router.get(
 router.get(
   '/users',
   requireJwtAuth,
-  requireRole(...ADMIN_ROLES),
+  requireRole('NATIONAL_ADMIN'),
   asyncHandler(getAllUsersForAdmin),
 );
 

@@ -4,12 +4,14 @@ import {
   disableMfa,
   enableMfa,
   login,
+  loginMobileCitizen,
   listSessions,
   logout,
   me,
   requestPasswordReset,
   refresh,
   register,
+  registerMobileCitizen,
   revokeSession,
   setupMfa,
 } from '../controllers/authController.js';
@@ -19,6 +21,7 @@ import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
 import { MFA_REQUIRED_ROLES } from '../types/auth.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { normalizeMobileNumber } from '../utils/mobileAuth.js';
 
 const router = Router();
 
@@ -30,6 +33,14 @@ function buildEmailScopedKey(req: Request): string {
   const email =
     typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : 'missing-email';
   return `${buildIpScopedKey(req)}:${email}`;
+}
+
+function buildMobileScopedKey(req: Request): string {
+  const normalizedMobileNumber =
+    typeof req.body?.mobileNumber === 'string'
+      ? normalizeMobileNumber(req.body.mobileNumber)
+      : null;
+  return `${buildIpScopedKey(req)}:${normalizedMobileNumber ?? 'missing-mobile'}`;
 }
 
 function buildAuthenticatedUserScopedKey(req: Request): string {
@@ -44,6 +55,22 @@ const loginRateLimit = createEnvRateLimitMiddleware({
   defaultWindowMs: 60_000,
   defaultMaxRequests: 5,
   keyGenerator: buildEmailScopedKey,
+});
+const mobileRegisterRateLimit = createEnvRateLimitMiddleware({
+  scope: 'auth-mobile-register',
+  windowMsEnvVar: 'AUTH_MOBILE_REGISTER_RATE_LIMIT_WINDOW_MS',
+  maxRequestsEnvVar: 'AUTH_MOBILE_REGISTER_RATE_LIMIT_MAX_REQUESTS',
+  defaultWindowMs: 60_000,
+  defaultMaxRequests: 5,
+  keyGenerator: buildMobileScopedKey,
+});
+const mobileLoginRateLimit = createEnvRateLimitMiddleware({
+  scope: 'auth-mobile-login',
+  windowMsEnvVar: 'AUTH_MOBILE_LOGIN_RATE_LIMIT_WINDOW_MS',
+  maxRequestsEnvVar: 'AUTH_MOBILE_LOGIN_RATE_LIMIT_MAX_REQUESTS',
+  defaultWindowMs: 60_000,
+  defaultMaxRequests: 5,
+  keyGenerator: buildMobileScopedKey,
 });
 const refreshRateLimit = createEnvRateLimitMiddleware({
   scope: 'auth-refresh',
@@ -95,7 +122,9 @@ const mfaDisableRateLimit = createEnvRateLimitMiddleware({
 });
 
 router.post('/register', asyncHandler(register));
+router.post('/mobile/register', mobileRegisterRateLimit, asyncHandler(registerMobileCitizen));
 router.post('/login', loginRateLimit, asyncHandler(login));
+router.post('/mobile/login', mobileLoginRateLimit, asyncHandler(loginMobileCitizen));
 router.post(
   '/password-reset/request',
   passwordResetRequestRateLimit,

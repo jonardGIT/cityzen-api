@@ -12,11 +12,15 @@ const archiveEnabled = isArchiveEnabled();
 
 let adminToken = '';
 let citizenReporterToken = '';
+let cityAdminToken = '';
+let contentEditorToken = '';
 
 beforeAll(async () => {
-  [adminToken, citizenReporterToken] = await Promise.all([
+  [adminToken, citizenReporterToken, cityAdminToken, contentEditorToken] = await Promise.all([
     getAdminToken(),
     getTokenForRole('analyst@xypes.local'),
+    getTokenForRole('ops.lead@xypes.local'),
+    getTokenForRole('content.editor@xypes.local'),
   ]);
 });
 
@@ -64,7 +68,7 @@ describe(`GET ${CAPABILITIES}`, () => {
         'user:manage:global',
         'role:manage:global',
         'settings:manage:global',
-        'incident:delete:global',
+        'incident:manage:global',
       ]),
     );
   });
@@ -76,7 +80,7 @@ describe(`GET ${CAPABILITIES}`, () => {
     expect(typeof res.body.canDeleteUser).toBe('boolean');
   });
 
-  it('should return 200 with department-scoped capability metadata for DISPATCHER', async () => {
+  it('should return 200 with city-scoped capability metadata for DISPATCHER', async () => {
     const dispatcherToken = await getTokenForRole('dispatcher@xypes.local');
     const res = await request(app)
       .get(CAPABILITIES)
@@ -85,15 +89,39 @@ describe(`GET ${CAPABILITIES}`, () => {
     expect(res.body).toMatchObject({
       role: 'DISPATCHER',
       label: 'Dispatcher',
-      scope: 'department',
+      scope: 'city',
       canUpdateUser: false,
       canDeleteUser: false,
     });
     expect(res.body.permissions).toEqual(
       expect.arrayContaining([
-        'incident:read:department',
-        'incident:assign:department',
-        'incident:update:priority:department',
+        'incident:read:city',
+        'incident:assign:city',
+        'incident:update:priority:city',
+      ]),
+    );
+  });
+
+  it('should return narrow mobile-content capability metadata for CITY_CONTENT_EDITOR', async () => {
+    const res = await request(app)
+      .get(CAPABILITIES)
+      .set('Authorization', `Bearer ${contentEditorToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      role: 'CITY_CONTENT_EDITOR',
+      label: 'City Content Editor',
+      scope: 'city',
+      canUpdateUser: false,
+      canDeleteUser: false,
+    });
+    expect(res.body.permissions).toEqual(
+      expect.arrayContaining([
+        'mobile_content:create:city',
+        'mobile_content:read:city',
+        'mobile_content:update:city',
+        'mobile_content:publish:city',
+        'mobile_content:archive:city',
       ]),
     );
   });
@@ -150,6 +178,46 @@ describe(`GET ${USERS}`, () => {
       const second = new Date(res.body.data[1].updatedAt).getTime();
       expect(first).toBeGreaterThanOrEqual(second);
     }
+  });
+
+  it('should return 403 for CITY_ADMIN', async () => {
+    const res = await request(app).get(USERS).set('Authorization', `Bearer ${cityAdminToken}`);
+
+    expect(res.status).toBe(403);
+  });
+});
+
+describe(`GET ${USERS}/:id`, () => {
+  it('should return 200 for NATIONAL_ADMIN when requesting a known existing user', async () => {
+    const adminUser = await prisma.user.findUnique({
+      where: { email: 'admin@xypes.local' },
+      select: { id: true },
+    });
+
+    expect(adminUser).not.toBeNull();
+
+    const res = await request(app)
+      .get(`${USERS}/${adminUser!.id}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('id', adminUser!.id);
+    expect(res.body).toHaveProperty('email', 'admin@xypes.local');
+  });
+
+  it('should return 403 for CITY_ADMIN when requesting a known existing user', async () => {
+    const adminUser = await prisma.user.findUnique({
+      where: { email: 'admin@xypes.local' },
+      select: { id: true },
+    });
+
+    expect(adminUser).not.toBeNull();
+
+    const res = await request(app)
+      .get(`${USERS}/${adminUser!.id}`)
+      .set('Authorization', `Bearer ${cityAdminToken}`);
+
+    expect(res.status).toBe(403);
   });
 });
 

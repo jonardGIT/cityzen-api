@@ -3,6 +3,9 @@ import {
   createCitizenIncidentReport,
   createIncident,
   deleteIncident,
+  getAuditorIncidentById,
+  getAuditorIncidents,
+  getAuditorIncidentTimeline,
   getIncidentById,
   getIncidentMediaAccess,
   getIncidentTimeline,
@@ -49,6 +52,8 @@ const STANDARD_INCIDENT_READ_ROLES = [
   'CITY_ADMIN',
   'DISPATCHER',
   'RESPONDER',
+  'REGIONAL_DIRECTOR',
+  'PROVINCIAL_ADMIN',
   'NATIONAL_ADMIN',
 ] as const;
 const PHASE_ONE_TRUST_TIMELINE_READ_ROLES = [
@@ -56,6 +61,8 @@ const PHASE_ONE_TRUST_TIMELINE_READ_ROLES = [
   'CITY_ADMIN',
   'DISPATCHER',
   'RESPONDER',
+  'REGIONAL_DIRECTOR',
+  'PROVINCIAL_ADMIN',
   'NATIONAL_ADMIN',
 ] as const;
 
@@ -64,6 +71,24 @@ router.get(
   requireJwtAuth,
   requireRole(...STANDARD_INCIDENT_READ_ROLES),
   asyncHandler(getIncidents),
+);
+
+router.get('/audit', requireJwtAuth, requireRole('AUDITOR'), asyncHandler(getAuditorIncidents));
+
+router.get(
+  '/audit/:id/timeline',
+  requireJwtAuth,
+  requireRole('AUDITOR'),
+  incidentTimelineParamValidator,
+  validateRequest,
+  asyncHandler(getAuditorIncidentTimeline),
+);
+
+router.get(
+  '/audit/:id',
+  requireJwtAuth,
+  requireRole('AUDITOR'),
+  asyncHandler(getAuditorIncidentById),
 );
 
 if (isIncidentMediaUploadFeatureEnabled()) {

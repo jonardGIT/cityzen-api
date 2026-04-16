@@ -115,6 +115,27 @@ describe('API key authentication', () => {
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ status: 'ok' });
   });
+
+  it('bypasses API key enforcement for the narrow /mobile namespace but not for adjacent admin CRUD routes', async () => {
+    const { default: app, API_V1 } = await import('../app.js');
+
+    const mobileProfileResponse = await request(app).get(`${API_V1}/mobile/profile`);
+    const mobileContentResponse = await request(app).get(`${API_V1}/mobile/content`);
+    const mobileAdminCrudResponse = await request(app).get(`${API_V1}/mobile-content`);
+
+    expect(mobileProfileResponse.status).toBe(401);
+    expect(mobileProfileResponse.body).toHaveProperty(
+      'message',
+      'Unauthorized: bearer token required',
+    );
+    expect(mobileContentResponse.status).toBe(200);
+    expect(Array.isArray(mobileContentResponse.body)).toBe(true);
+    expect(mobileAdminCrudResponse.status).toBe(401);
+    expect(mobileAdminCrudResponse.body).toHaveProperty(
+      'message',
+      'Unauthorized: valid API key required',
+    );
+  });
 });
 
 describe('Rate limiting', () => {
@@ -217,6 +238,116 @@ describe('Endpoint-specific rate limiting', () => {
     expect(third.status).toBe(429);
     expect(third.headers['x-ratelimit-limit']).toBe('2');
     expect(differentEmail.status).toBe(401);
+  });
+
+  it('applies a stricter mobile register limit keyed by mobile number and client', async () => {
+    process.env.TRUST_PROXY = 'true';
+    process.env.AUTH_MOBILE_REGISTER_RATE_LIMIT_WINDOW_MS = '60000';
+    process.env.AUTH_MOBILE_REGISTER_RATE_LIMIT_MAX_REQUESTS = '1';
+
+    const { default: app, API_V1 } = await import('../app.js');
+
+    const first = await request(app)
+      .post(`${API_V1}/auth/mobile/register`)
+      .set('X-Forwarded-For', '198.51.100.10')
+      .send({
+        name: 'Mobile Register Limit One',
+        mobileNumber: '09170001001',
+        password: 'Password123!',
+      });
+    const second = await request(app)
+      .post(`${API_V1}/auth/mobile/register`)
+      .set('X-Forwarded-For', '198.51.100.10')
+      .send({
+        name: 'Mobile Register Limit Retry',
+        mobileNumber: '09170001001',
+        password: 'Password123!',
+      });
+    const differentMobile = await request(app)
+      .post(`${API_V1}/auth/mobile/register`)
+      .set('X-Forwarded-For', '198.51.100.10')
+      .send({
+        name: 'Mobile Register Limit Two',
+        mobileNumber: '09170001002',
+        password: 'Password123!',
+      });
+    const differentClient = await request(app)
+      .post(`${API_V1}/auth/mobile/register`)
+      .set('X-Forwarded-For', '198.51.100.11')
+      .send({
+        name: 'Mobile Register Limit Different Client',
+        mobileNumber: '09170001001',
+        password: 'Password123!',
+      });
+
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(429);
+    expect(second.headers['x-ratelimit-limit']).toBe('1');
+    expect(differentMobile.status).toBe(201);
+    expect(differentClient.status).toBe(409);
+  });
+
+  it('applies a stricter mobile login limit keyed by mobile number and client', async () => {
+    process.env.TRUST_PROXY = 'true';
+    process.env.AUTH_MOBILE_LOGIN_RATE_LIMIT_WINDOW_MS = '60000';
+    process.env.AUTH_MOBILE_LOGIN_RATE_LIMIT_MAX_REQUESTS = '1';
+
+    const { default: app, API_V1 } = await import('../app.js');
+
+    const firstSetup = await request(app)
+      .post(`${API_V1}/auth/mobile/register`)
+      .set('X-Forwarded-For', '198.51.100.20')
+      .send({
+        name: 'Mobile Login Limit One',
+        mobileNumber: '09170002001',
+        password: 'Password123!',
+      });
+    const secondSetup = await request(app)
+      .post(`${API_V1}/auth/mobile/register`)
+      .set('X-Forwarded-For', '198.51.100.21')
+      .send({
+        name: 'Mobile Login Limit Two',
+        mobileNumber: '09170002002',
+        password: 'Password123!',
+      });
+
+    expect(firstSetup.status).toBe(201);
+    expect(secondSetup.status).toBe(201);
+
+    const first = await request(app)
+      .post(`${API_V1}/auth/mobile/login`)
+      .set('X-Forwarded-For', '198.51.100.30')
+      .send({
+        mobileNumber: '09170002001',
+        password: 'WrongPassword!',
+      });
+    const second = await request(app)
+      .post(`${API_V1}/auth/mobile/login`)
+      .set('X-Forwarded-For', '198.51.100.30')
+      .send({
+        mobileNumber: '09170002001',
+        password: 'WrongPassword!',
+      });
+    const differentMobile = await request(app)
+      .post(`${API_V1}/auth/mobile/login`)
+      .set('X-Forwarded-For', '198.51.100.30')
+      .send({
+        mobileNumber: '09170002002',
+        password: 'WrongPassword!',
+      });
+    const differentClient = await request(app)
+      .post(`${API_V1}/auth/mobile/login`)
+      .set('X-Forwarded-For', '198.51.100.31')
+      .send({
+        mobileNumber: '09170002001',
+        password: 'WrongPassword!',
+      });
+
+    expect(first.status).toBe(401);
+    expect(second.status).toBe(429);
+    expect(second.headers['x-ratelimit-limit']).toBe('1');
+    expect(differentMobile.status).toBe(401);
+    expect(differentClient.status).toBe(401);
   });
 
   it('applies a stricter media upload limit for authenticated users', async () => {
@@ -354,6 +485,34 @@ describe('Public case lookup rate limiting', () => {
     expect(secondLookup.headers['retry-after']).toBeDefined();
     expect(secondLookup.headers['x-ratelimit-limit']).toBe('1');
     expect(secondLookup.headers['x-ratelimit-remaining']).toBe('0');
+  });
+
+  it('fails app bootstrap in production when the public case lookup limiter is disabled', async () => {
+    jest.resetModules();
+    process.env = { ...originalEnv };
+    delete process.env.API_KEYS;
+    delete process.env.API_KEY;
+    process.env.NODE_ENV = 'production';
+    process.env.FEATURE_AUTH_PROVIDER = 'local';
+    process.env.FEATURE_TOKEN_MODE = 'app-jwt';
+    process.env.FEATURE_MFA_MODE = 'local-totp';
+    process.env.FEATURE_MEDIA_STORAGE = 'disabled';
+    process.env.FEATURE_RECORD_DELETION = 'archive';
+    process.env.JWT_SECRET = 'prod-jwt-secret-0123456789-abcdef-uvwxyz';
+    process.env.MFA_ENCRYPTION_KEY = 'prod-mfa-secret-0123456789-abcdef-uvwxyz';
+    process.env.RATE_LIMIT_ENABLED = 'true';
+    process.env.RATE_LIMIT_STORE = 'memory';
+    process.env.RATE_LIMIT_WINDOW_MS = '60000';
+    process.env.RATE_LIMIT_MAX_REQUESTS = '100';
+    process.env.PUBLIC_CASE_LOOKUP_RATE_LIMIT_ENABLED = 'false';
+    process.env.PUBLIC_CASE_LOOKUP_RATE_LIMIT_WINDOW_MS = '600000';
+    process.env.PUBLIC_CASE_LOOKUP_RATE_LIMIT_MAX_REQUESTS = '20';
+    process.env.INCIDENT_CASE_TOKEN_TTL_DAYS = '30';
+    process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL = 'https://example.test/password-reset';
+
+    await expect(import('../app.js')).rejects.toThrow(
+      'PUBLIC_CASE_LOOKUP_RATE_LIMIT_ENABLED must remain enabled in production for the public case lookup trust-layer endpoint',
+    );
   });
 });
 
@@ -504,26 +663,40 @@ describe('Shared-store rate limiting', () => {
 
 describe('Production privileged MFA enforcement', () => {
   const originalEnv = createSecurityTestEnv();
+  const productionJwtSecret = 'prod-jwt-secret-0123456789-abcdef-uvwxyz';
+  const productionMfaEncryptionKey = 'prod-mfa-secret-0123456789-abcdef-uvwxyz';
+  const passwordResetWebhookUrl = 'https://example.test/password-reset';
+  const securityAlertWebhookUrl = 'https://monitoring.example.test/security-alerts';
 
   beforeEach(async () => {
     jest.resetModules();
     process.env = { ...originalEnv };
     delete process.env.API_KEYS;
     delete process.env.API_KEY;
-    process.env.RATE_LIMIT_ENABLED = 'false';
     process.env.NODE_ENV = 'production';
-    process.env.JWT_SECRET = process.env.JWT_SECRET ?? 'test-jwt-secret';
-    process.env.MFA_ENCRYPTION_KEY =
-      process.env.MFA_ENCRYPTION_KEY ?? 'test-only-mfa-encryption-key';
+    process.env.JWT_SECRET = productionJwtSecret;
+    process.env.MFA_ENCRYPTION_KEY = productionMfaEncryptionKey;
     process.env.FEATURE_AUTH_PROVIDER = 'local';
     process.env.FEATURE_TOKEN_MODE = 'app-jwt';
     process.env.FEATURE_MFA_MODE = 'local-totp';
     process.env.FEATURE_MEDIA_STORAGE = 'disabled';
     process.env.FEATURE_RECORD_DELETION = 'archive';
+    process.env.RATE_LIMIT_ENABLED = 'true';
+    process.env.RATE_LIMIT_STORE = 'memory';
+    process.env.RATE_LIMIT_WINDOW_MS = '60000';
+    process.env.RATE_LIMIT_MAX_REQUESTS = '100';
+    process.env.PUBLIC_CASE_LOOKUP_RATE_LIMIT_ENABLED = 'true';
+    process.env.PUBLIC_CASE_LOOKUP_RATE_LIMIT_WINDOW_MS = '600000';
+    process.env.PUBLIC_CASE_LOOKUP_RATE_LIMIT_MAX_REQUESTS = '20';
+    process.env.INCIDENT_CASE_TOKEN_TTL_DAYS = '30';
+    process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL = passwordResetWebhookUrl;
+    process.env.SECURITY_ALERT_WEBHOOK_URL = securityAlertWebhookUrl;
     await ensureSecurityTestUsers();
   });
 
   afterEach(() => {
+    jest.dontMock('../featureSelection.js');
+    jest.dontMock('../generated/productionFeatureProfile.js');
     process.env = originalEnv;
   });
 
@@ -584,7 +757,16 @@ describe('Production privileged MFA enforcement', () => {
   });
 
   it('fails closed for privileged users when production build disables MFA entirely', async () => {
-    process.env.FEATURE_MFA_MODE = 'disabled';
+    jest.doMock('../featureSelection.js', () => {
+      const actual = jest.requireActual(
+        '../featureSelection.js',
+      ) as typeof import('../featureSelection.js');
+
+      return {
+        ...actual,
+        isAnyMfaFeatureEnabled: () => false,
+      };
+    });
 
     jest.doMock('../generated/productionFeatureProfile.js', () => ({
       productionFeatureProfile: {
@@ -594,7 +776,7 @@ describe('Production privileged MFA enforcement', () => {
         selection: {
           authProvider: 'local',
           tokenMode: 'app-jwt',
-          mfaMode: 'disabled',
+          mfaMode: 'local-totp',
           mediaStorage: 'disabled',
           recordDeletion: 'archive',
         },
@@ -624,6 +806,7 @@ describe('Production privileged MFA enforcement', () => {
       'Privileged MFA enforcement is enabled in production but MFA is disabled for this build',
     );
 
+    jest.dontMock('../featureSelection.js');
     jest.dontMock('../generated/productionFeatureProfile.js');
   });
 });

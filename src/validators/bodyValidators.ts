@@ -198,6 +198,115 @@ export const linkMyCitizenProfileValidator = [
     .withMessage('preferredChannel must be a non-empty string'),
 ];
 
+const MOBILE_APP_CONTENT_FIELDS = [
+  'slug',
+  'title',
+  'summary',
+  'body',
+  'contentType',
+  'placement',
+  'audience',
+  'imageUrl',
+  'ctaLabel',
+  'ctaUrl',
+  'sortOrder',
+  'isPublished',
+  'publishedAt',
+  'startsAt',
+  'endsAt',
+  'metadata',
+] as const;
+
+const mobileAppContentFieldValidators = [
+  body('slug')
+    .optional()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('slug must be a non-empty string'),
+  body('title')
+    .optional()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('title must be a non-empty string'),
+  body('summary').optional({ nullable: true }).isString().withMessage('summary must be a string'),
+  body('body')
+    .optional()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('body must be a non-empty string'),
+  body('contentType')
+    .optional()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('contentType must be a non-empty string'),
+  body('placement')
+    .optional()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('placement must be a non-empty string'),
+  body('audience').optional({ nullable: true }).isString().withMessage('audience must be a string'),
+  body('imageUrl').optional({ nullable: true }).isString().withMessage('imageUrl must be a string'),
+  body('ctaLabel').optional({ nullable: true }).isString().withMessage('ctaLabel must be a string'),
+  body('ctaUrl').optional({ nullable: true }).isString().withMessage('ctaUrl must be a string'),
+  body('sortOrder').optional().isInt().withMessage('sortOrder must be an integer'),
+  body('isPublished').optional().isBoolean().withMessage('isPublished must be a boolean'),
+  body('publishedAt')
+    .optional({ nullable: true })
+    .isISO8601()
+    .withMessage('publishedAt must be a valid ISO 8601 datetime'),
+  body('startsAt')
+    .optional({ nullable: true })
+    .isISO8601()
+    .withMessage('startsAt must be a valid ISO 8601 datetime'),
+  body('endsAt')
+    .optional({ nullable: true })
+    .isISO8601()
+    .withMessage('endsAt must be a valid ISO 8601 datetime'),
+  body('metadata')
+    .optional({ nullable: true })
+    .custom((value) => value === null || (typeof value === 'object' && !Array.isArray(value)))
+    .withMessage('metadata must be an object'),
+];
+
+export const createMobileAppContentValidator = [
+  body('slug')
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('slug is required and must be a non-empty string'),
+  body('title')
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('title is required and must be a non-empty string'),
+  body('body')
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('body is required and must be a non-empty string'),
+  ...mobileAppContentFieldValidators,
+];
+
+export const updateMobileAppContentValidator = [
+  body().custom((value) => {
+    const hasUpdatableField = MOBILE_APP_CONTENT_FIELDS.some(
+      (field) => value?.[field] !== undefined,
+    );
+    if (!hasUpdatableField) {
+      throw new Error(
+        'at least one of slug, title, summary, body, contentType, placement, audience, imageUrl, ctaLabel, ctaUrl, sortOrder, isPublished, publishedAt, startsAt, endsAt, or metadata is required',
+      );
+    }
+    return true;
+  }),
+  ...mobileAppContentFieldValidators,
+];
+
 export const createLocationValidator = [
   body('district').isString().trim().notEmpty().withMessage('district is required'),
   body('city').isString().trim().notEmpty().withMessage('city is required'),
@@ -502,7 +611,7 @@ export const createUserValidator = [
       ),
     )
     .withMessage(
-      'role must be one of NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, CITY_ADMIN, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
+      'role must be one of NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, CITY_ADMIN, CITY_CONTENT_EDITOR, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
     ),
 ];
 
@@ -543,6 +652,6 @@ export const updateUserValidator = [
       ),
     )
     .withMessage(
-      'role must be one of NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, CITY_ADMIN, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
+      'role must be one of NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, CITY_ADMIN, CITY_CONTENT_EDITOR, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
     ),
 ];

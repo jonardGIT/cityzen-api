@@ -10,6 +10,7 @@ export const USER_ROLES = [
   'REGIONAL_DIRECTOR',
   'PROVINCIAL_ADMIN',
   'CITY_ADMIN',
+  'CITY_CONTENT_EDITOR',
   'DISPATCHER',
   'RESPONDER',
   'CITIZEN_REPORTER',
@@ -43,6 +44,8 @@ const ROLE_ALIASES: Record<string, UserRole> = {
   'PROVINCIAL ADMIN': 'PROVINCIAL_ADMIN',
   CITY_ADMIN: 'CITY_ADMIN',
   'CITY ADMIN': 'CITY_ADMIN',
+  CITY_CONTENT_EDITOR: 'CITY_CONTENT_EDITOR',
+  'CITY CONTENT EDITOR': 'CITY_CONTENT_EDITOR',
   DISPATCHER: 'DISPATCHER',
   RESPONDER: 'RESPONDER',
   CITIZEN_REPORTER: 'CITIZEN_REPORTER',
@@ -113,6 +116,17 @@ export const ROLE_PROFILES: Record<UserRole, RoleProfile> = {
     ],
     scope: 'city',
   },
+  CITY_CONTENT_EDITOR: {
+    label: 'City Content Editor',
+    permissions: [
+      'mobile_content:create:city',
+      'mobile_content:read:city',
+      'mobile_content:update:city',
+      'mobile_content:publish:city',
+      'mobile_content:archive:city',
+    ],
+    scope: 'city',
+  },
   DISPATCHER: {
     label: 'Dispatcher',
     permissions: [
@@ -162,6 +176,7 @@ export const ADMIN_MANAGEMENT_LEVELS: Partial<Record<UserRole, number>> = {
   REGIONAL_DIRECTOR: 4,
   PROVINCIAL_ADMIN: 3,
   CITY_ADMIN: 2,
+  CITY_CONTENT_EDITOR: 1,
 };
 
 // ─── Role Group Constants ──────────────────────────────────────────────────────
@@ -183,6 +198,7 @@ export const CITY_ROLES: UserRole[] = [
 // Backward-compatible aliases
 export const USER_ADMIN_ROLES: UserRole[] = CITY_ROLES;
 export const ADMIN_ROLES: UserRole[] = CITY_ROLES;
+export const MOBILE_CONTENT_ROLES: UserRole[] = [...CITY_ROLES, 'CITY_CONTENT_EDITOR'];
 
 export const DISPATCH_OVERSIGHT_ROLES: UserRole[] = [...CITY_ROLES, 'DISPATCHER'];
 export const DISPATCH_ROLES: UserRole[] = DISPATCH_OVERSIGHT_ROLES;
@@ -190,7 +206,12 @@ export const ASSIGNMENT_MANAGEMENT_ROLES: UserRole[] = DISPATCH_OVERSIGHT_ROLES;
 
 export const INCIDENT_WRITE_ROLES: UserRole[] = [...DISPATCH_ROLES, 'RESPONDER'];
 export const MEDIA_UPLOAD_ROLES: UserRole[] = ['CITIZEN_REPORTER', ...INCIDENT_WRITE_ROLES];
-export const MFA_REQUIRED_ROLES: UserRole[] = [...CITY_ROLES, 'DISPATCHER'];
+export const MFA_REQUIRED_ROLES: UserRole[] = [
+  ...CITY_ROLES,
+  'CITY_CONTENT_EDITOR',
+  'DISPATCHER',
+  'AUDITOR',
+];
 export const AUDIT_READ_ROLES: UserRole[] = ['NATIONAL_ADMIN', 'AUDITOR'];
 
 // Geographic management roles (for CRUD on regions/provinces/cities/barangays)
@@ -223,6 +244,7 @@ const HIERARCHY_LEVEL: Record<UserRole, number> = {
   REGIONAL_DIRECTOR: 4,
   PROVINCIAL_ADMIN: 3,
   CITY_ADMIN: 2,
+  CITY_CONTENT_EDITOR: 1,
   DISPATCHER: 1,
   RESPONDER: 0,
   CITIZEN_REPORTER: 0,

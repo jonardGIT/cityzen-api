@@ -24,6 +24,8 @@ import incidentEscalationsRouter from './routes/incidentEscalations.js';
 import mutualAidRequestsRouter from './routes/mutualAidRequests.js';
 import authRouter from './routes/auth.js';
 import adminRouter from './routes/admin.js';
+import mobileRouter from './routes/mobile.js';
+import mobileContentRouter from './routes/mobileContent.js';
 import { openApiDocument } from './docs/openapi.js';
 import { getFeatureSelection } from './featureSelection.js';
 import { createApiKeyAuthMiddleware } from './middleware/apiKeyAuth.js';
@@ -97,7 +99,7 @@ const app = express();
 export const API_V1 = process.env.API_BASE_PATH ?? '/api/v1';
 const isProduction = process.env.NODE_ENV === 'production';
 const featureSelection = getFeatureSelection();
-const apiKeyBypassPaths = ['/health', '/openapi.json', '/docs', '/auth', '/cases'];
+const apiKeyBypassPaths = ['/health', '/openapi.json', '/docs', '/auth', '/cases', '/mobile'];
 const rateLimitBypassPaths = ['/health', '/openapi.json', '/docs', '/cases'];
 const corsOriginConfig = process.env.CORS_ORIGIN ?? '*';
 const allowedCorsOrigins = corsOriginConfig
@@ -201,6 +203,10 @@ app.use(`${API_V1}/mutual-aid-requests`, mutualAidRequestsRouter);
 app.use(`${API_V1}/auth`, authRouter);
 // Mount admin endpoints (JWT + role-protected).
 app.use(`${API_V1}/admin`, adminRouter);
+// Mount first-party mobile app routes.
+app.use(`${API_V1}/mobile`, mobileRouter);
+// Mount mobile content admin CRUD routes.
+app.use(`${API_V1}/mobile-content`, mobileContentRouter);
 
 if (Sentry.isEnabled()) {
   Sentry.setupExpressErrorHandler(app);

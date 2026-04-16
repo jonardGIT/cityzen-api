@@ -22,6 +22,11 @@ const INCIDENT_CASE_TOKEN_TTL_DAYS_BOUNDS = {
   max: 30,
   recommended: 30,
 } as const;
+const PASSWORD_RESET_TOKEN_TTL_MINUTES_BOUNDS = {
+  min: 5,
+  max: 60,
+  recommended: 30,
+} as const;
 const WEAK_SECRET_VALUES = new Set([
   'change-me',
   'changeme',
@@ -52,7 +57,11 @@ function isFalse(value: string | undefined): boolean {
 }
 
 function shouldSkipStrictValidation(env: NodeJS.ProcessEnv): boolean {
-  return Boolean(env.JEST_WORKER_ID) && !isTrue(env.SECURITY_STRICT_ENV_VALIDATION);
+  return (
+    env.NODE_ENV !== 'production' &&
+    Boolean(env.JEST_WORKER_ID) &&
+    !isTrue(env.SECURITY_STRICT_ENV_VALIDATION)
+  );
 }
 
 function normalizeValue(value: string): string {
@@ -104,6 +113,20 @@ function requiresSupabaseServiceRoleKey(selection: FeatureSelection): boolean {
     selection.tokenMode === 'supabase-jwt' ||
     selection.mfaMode === 'supabase-totp' ||
     selection.mediaStorage === 'supabase-storage'
+  );
+}
+
+function requiresSupabaseAuthPublicClient(selection: FeatureSelection): boolean {
+  return (
+    selection.authProvider === 'supabase' ||
+    selection.tokenMode === 'supabase-jwt' ||
+    selection.mfaMode === 'supabase-totp'
+  );
+}
+
+function requiresSupabaseUrl(selection: FeatureSelection): boolean {
+  return (
+    requiresSupabaseAuthPublicClient(selection) || selection.mediaStorage === 'supabase-storage'
   );
 }
 
@@ -170,6 +193,12 @@ function validateOptionalProductionInteger(
 }
 
 function validateIncidentTrustProductionEnv(env: NodeJS.ProcessEnv): void {
+  if (isFalse(env.RATE_LIMIT_ENABLED)) {
+    throw new Error(
+      'RATE_LIMIT_ENABLED must remain enabled in production so auth, recovery, and MFA throttles cannot be globally disabled',
+    );
+  }
+
   if (isFalse(env.PUBLIC_CASE_LOOKUP_RATE_LIMIT_ENABLED)) {
     throw new Error(
       'PUBLIC_CASE_LOOKUP_RATE_LIMIT_ENABLED must remain enabled in production for the public case lookup trust-layer endpoint',
@@ -232,6 +261,11 @@ export function validateStartupEnvironment({ env, selection }: StartupValidation
   }
 
   validateIncidentTrustProductionEnv(env);
+  validateOptionalProductionInteger(
+    env,
+    'PASSWORD_RESET_TOKEN_TTL_MINUTES',
+    PASSWORD_RESET_TOKEN_TTL_MINUTES_BOUNDS,
+  );
   validateProductionMfaMode(selection);
 
   if (selection.tokenMode === 'app-jwt') {
@@ -246,6 +280,14 @@ export function validateStartupEnvironment({ env, selection }: StartupValidation
 
   if (requiresSupabaseServiceRoleKey(selection)) {
     validateRequiredSecret(env, 'SUPABASE_SERVICE_ROLE_KEY', MIN_SECRET_LENGTH);
+  }
+
+  if (requiresSupabaseUrl(selection)) {
+    validateRequiredHttpsUrl(env, 'SUPABASE_URL');
+  }
+
+  if (requiresSupabaseAuthPublicClient(selection)) {
+    validateRequiredSecret(env, 'SUPABASE_ANON_KEY', MIN_SECRET_LENGTH);
   }
 
   validateSupabaseStorageAccessMode(env, selection);

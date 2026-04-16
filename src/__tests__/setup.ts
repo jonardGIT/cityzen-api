@@ -32,6 +32,11 @@ async function seedTestUsers(): Promise<void> {
   const users = [
     { name: 'System Admin', email: 'admin@xypes.local', role: 'NATIONAL_ADMIN' },
     { name: 'Ops Lead', email: 'ops.lead@xypes.local', role: 'CITY_ADMIN' },
+    {
+      name: 'City Content Editor',
+      email: 'content.editor@xypes.local',
+      role: 'CITY_CONTENT_EDITOR',
+    },
     { name: 'Dispatcher', email: 'dispatcher@xypes.local', role: 'DISPATCHER' },
     { name: 'Supervisor', email: 'supervisor@xypes.local', role: 'PROVINCIAL_ADMIN' },
     { name: 'Responder', email: 'responder@xypes.local', role: 'RESPONDER' },
@@ -85,6 +90,9 @@ beforeAll(async () => {
   );
   await prisma.$executeRawUnsafe(
     'CREATE TABLE IF NOT EXISTS citizens (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), "createdAt" timestamptz NOT NULL DEFAULT NOW(), "updatedAt" timestamptz NOT NULL DEFAULT NOW(), name text NOT NULL, "contactInfo" text NOT NULL, "preferredChannel" text NOT NULL)',
+  );
+  await prisma.$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS mobile_app_content (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), "createdAt" timestamptz NOT NULL DEFAULT NOW(), "updatedAt" timestamptz NOT NULL DEFAULT NOW(), "archivedAt" timestamptz, slug text NOT NULL UNIQUE, title text NOT NULL, summary text, body text NOT NULL, "contentType" text NOT NULL DEFAULT 'announcement', placement text NOT NULL DEFAULT 'home', audience text, "imageUrl" text, "ctaLabel" text, "ctaUrl" text, "sortOrder" integer NOT NULL DEFAULT 0, "isPublished" boolean NOT NULL DEFAULT false, "publishedAt" timestamptz, "startsAt" timestamptz, "endsAt" timestamptz, metadata jsonb)`,
   );
   await prisma.$executeRawUnsafe(
     'CREATE TABLE IF NOT EXISTS regions (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), "createdAt" timestamptz NOT NULL DEFAULT NOW(), "updatedAt" timestamptz NOT NULL DEFAULT NOW(), code text NOT NULL UNIQUE, name text NOT NULL, designation text)',
@@ -194,6 +202,48 @@ beforeAll(async () => {
     'ALTER TABLE citizens ADD COLUMN IF NOT EXISTS "archivedAt" timestamptz',
   );
   await prisma.$executeRawUnsafe(
+    'ALTER TABLE mobile_app_content ADD COLUMN IF NOT EXISTS "archivedAt" timestamptz',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE mobile_app_content ADD COLUMN IF NOT EXISTS summary text',
+  );
+  await prisma.$executeRawUnsafe(
+    `ALTER TABLE mobile_app_content ADD COLUMN IF NOT EXISTS "contentType" text NOT NULL DEFAULT 'announcement'`,
+  );
+  await prisma.$executeRawUnsafe(
+    `ALTER TABLE mobile_app_content ADD COLUMN IF NOT EXISTS placement text NOT NULL DEFAULT 'home'`,
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE mobile_app_content ADD COLUMN IF NOT EXISTS audience text',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE mobile_app_content ADD COLUMN IF NOT EXISTS "imageUrl" text',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE mobile_app_content ADD COLUMN IF NOT EXISTS "ctaLabel" text',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE mobile_app_content ADD COLUMN IF NOT EXISTS "ctaUrl" text',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE mobile_app_content ADD COLUMN IF NOT EXISTS "sortOrder" integer NOT NULL DEFAULT 0',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE mobile_app_content ADD COLUMN IF NOT EXISTS "isPublished" boolean NOT NULL DEFAULT false',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE mobile_app_content ADD COLUMN IF NOT EXISTS "publishedAt" timestamptz',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE mobile_app_content ADD COLUMN IF NOT EXISTS "startsAt" timestamptz',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE mobile_app_content ADD COLUMN IF NOT EXISTS "endsAt" timestamptz',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE mobile_app_content ADD COLUMN IF NOT EXISTS metadata jsonb',
+  );
+  await prisma.$executeRawUnsafe(
     'ALTER TABLE regions ADD COLUMN IF NOT EXISTS "archivedAt" timestamptz',
   );
   await prisma.$executeRawUnsafe(
@@ -261,6 +311,18 @@ beforeAll(async () => {
   );
   await prisma.$executeRawUnsafe(
     'CREATE INDEX IF NOT EXISTS citizens_archived_at_idx ON citizens ("archivedAt")',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS mobile_app_content_archived_at_idx ON mobile_app_content ("archivedAt")',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS mobile_app_content_is_published_idx ON mobile_app_content ("isPublished")',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS mobile_app_content_placement_idx ON mobile_app_content (placement)',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS mobile_app_content_audience_idx ON mobile_app_content (audience)',
   );
   await prisma.$executeRawUnsafe(
     'CREATE INDEX IF NOT EXISTS agencies_archived_at_idx ON agencies ("archivedAt")',
@@ -411,6 +473,13 @@ beforeAll(async () => {
         EXECUTE FUNCTION set_updated_at();
       END IF;
 
+      IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'set_mobile_app_content_updated_at') THEN
+        CREATE TRIGGER set_mobile_app_content_updated_at
+        BEFORE UPDATE ON mobile_app_content
+        FOR EACH ROW
+        EXECUTE FUNCTION set_updated_at();
+      END IF;
+
       IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'set_regions_updated_at') THEN
         CREATE TRIGGER set_regions_updated_at
         BEFORE UPDATE ON regions
@@ -538,8 +607,25 @@ beforeAll(async () => {
   await prisma.$executeRawUnsafe(
     'ALTER TABLE users ADD COLUMN IF NOT EXISTS "jurisdictionId" uuid',
   );
+  await prisma.$executeRawUnsafe('ALTER TABLE users ADD COLUMN IF NOT EXISTS "mobileNumber" text');
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE users ADD COLUMN IF NOT EXISTS "mobileNumberVerifiedAt" timestamptz',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE users ADD COLUMN IF NOT EXISTS "mobileAuthSubject" text',
+  );
+  await prisma.$executeRawUnsafe('ALTER TABLE users ADD COLUMN IF NOT EXISTS "citizenId" uuid');
   await prisma.$executeRawUnsafe(
     'CREATE UNIQUE INDEX IF NOT EXISTS users_supabase_auth_user_id_idx ON users ("supabaseAuthUserId") WHERE "supabaseAuthUserId" IS NOT NULL',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE UNIQUE INDEX IF NOT EXISTS users_mobile_number_idx ON users ("mobileNumber") WHERE "mobileNumber" IS NOT NULL',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE UNIQUE INDEX IF NOT EXISTS users_mobile_auth_subject_idx ON users ("mobileAuthSubject") WHERE "mobileAuthSubject" IS NOT NULL',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE UNIQUE INDEX IF NOT EXISTS users_citizen_id_idx ON users ("citizenId") WHERE "citizenId" IS NOT NULL',
   );
   await prisma.$executeRawUnsafe(
     'ALTER TABLE users ADD COLUMN IF NOT EXISTS "mfaSecretEncrypted" text',
@@ -571,6 +657,7 @@ beforeAll(async () => {
      SET role = CASE
        WHEN LOWER(email) = 'admin@xypes.local' THEN 'NATIONAL_ADMIN'
        WHEN LOWER(email) = 'ops.lead@xypes.local' THEN 'CITY_ADMIN'
+       WHEN LOWER(email) = 'content.editor@xypes.local' THEN 'CITY_CONTENT_EDITOR'
        WHEN LOWER(email) = 'dispatcher@xypes.local' THEN 'DISPATCHER'
        WHEN LOWER(email) = 'analyst@xypes.local' THEN 'CITIZEN_REPORTER'
        WHEN LOWER(email) = 'supervisor@xypes.local' THEN 'PROVINCIAL_ADMIN'
@@ -588,6 +675,22 @@ beforeAll(async () => {
        IF NOT EXISTS (
          SELECT 1
          FROM pg_constraint
+         WHERE conname = 'users_citizen_id_fkey'
+           AND conrelid = 'users'::regclass
+       ) THEN
+         ALTER TABLE users
+         ADD CONSTRAINT users_citizen_id_fkey
+         FOREIGN KEY ("citizenId") REFERENCES citizens(id)
+         ON DELETE SET NULL;
+       END IF;
+     END $$`,
+  );
+  await prisma.$executeRawUnsafe(
+    `DO $$
+     BEGIN
+       IF NOT EXISTS (
+         SELECT 1
+         FROM pg_constraint
          WHERE conname = 'users_role_check'
            AND conrelid = 'users'::regclass
        ) THEN
@@ -598,6 +701,7 @@ beforeAll(async () => {
              'REGIONAL_DIRECTOR',
              'PROVINCIAL_ADMIN',
              'CITY_ADMIN',
+             'CITY_CONTENT_EDITOR',
              'DISPATCHER',
              'RESPONDER',
              'CITIZEN_REPORTER',

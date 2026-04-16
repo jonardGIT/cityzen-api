@@ -1,6 +1,10 @@
 import request from 'supertest';
 import app, { API_V1 } from '../app.js';
 import prisma from '../lib/prisma.js';
+import {
+  AMBIGUOUS_LINKED_CITIZEN_MESSAGE,
+  MANUAL_LINK_REQUIRED_LINKED_CITIZEN_MESSAGE,
+} from '../services/userCitizenLinkService.js';
 import { getAdminToken, getTokenForRole } from './helpers/auth.js';
 
 const BASE = `${API_V1}/citizens`;
@@ -214,11 +218,13 @@ describe(`POST ${BASE}/link-me`, () => {
     const unique = `${Date.now()}-${Math.random()}`;
     const email = `duplicate-link-${unique}@postman.local`;
 
-    const registerRes = await request(app).post(`${API_V1}/auth/register`).send({
-      name: `Duplicate Link ${unique}`,
-      email,
-      password: 'Password123!',
-    });
+    const registerRes = await request(app)
+      .post(`${API_V1}/auth/register`)
+      .send({
+        name: `Duplicate Link ${unique}`,
+        email,
+        password: 'Password123!',
+      });
 
     expect(registerRes.status).toBe(201);
 
@@ -247,7 +253,7 @@ describe(`POST ${BASE}/link-me`, () => {
 
     expect(linkRes.status).toBe(409);
     expect(linkRes.body).toMatchObject({
-      message: 'Multiple active citizen profiles are linked to this account email. Contact support.',
+      message: AMBIGUOUS_LINKED_CITIZEN_MESSAGE,
     });
 
     const citizens = await prisma.citizen.findMany({
@@ -266,5 +272,65 @@ describe(`POST ${BASE}/link-me`, () => {
       name: secondCitizen.name,
       preferredChannel: secondCitizen.preferredChannel,
     });
+  });
+
+  it('should require manual support linking when exactly one legacy citizen matches the authenticated account', async () => {
+    const unique = `${Date.now()}-${Math.random()}`;
+    const email = `legacy-link-${unique}@postman.local`;
+
+    const registerRes = await request(app)
+      .post(`${API_V1}/auth/register`)
+      .send({
+        name: `Legacy Link ${unique}`,
+        email,
+        password: 'Password123!',
+      });
+
+    expect(registerRes.status).toBe(201);
+
+    const token = registerRes.body.token as string;
+
+    const legacyCitizen = await prisma.citizen.create({
+      data: {
+        name: `Legacy Citizen ${unique}`,
+        contactInfo: email,
+        preferredChannel: 'sms',
+      },
+    });
+
+    const linkRes = await request(app)
+      .post(`${BASE}/link-me`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Should Not Create Duplicate', preferredChannel: 'app' });
+
+    expect(linkRes.status).toBe(409);
+    expect(linkRes.body).toEqual({
+      message: MANUAL_LINK_REQUIRED_LINKED_CITIZEN_MESSAGE,
+    });
+
+    const reporter = await prisma.user.findUniqueOrThrow({
+      where: { email },
+      select: { citizenId: true },
+    });
+
+    expect(reporter.citizenId).toBeNull();
+
+    const matchedCitizens = await prisma.citizen.findMany({
+      where: { contactInfo: email },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        preferredChannel: true,
+      },
+    });
+
+    expect(matchedCitizens).toEqual([
+      {
+        id: legacyCitizen.id,
+        name: legacyCitizen.name,
+        preferredChannel: legacyCitizen.preferredChannel,
+      },
+    ]);
   });
 });
