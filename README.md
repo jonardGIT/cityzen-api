@@ -245,7 +245,7 @@ When `SUPABASE_TOTP_ENABLED=true`, privileged-role MFA uses Supabase Auth's TOTP
 - `POST /auth/mfa/setup`, `POST /auth/mfa/enable`, and `POST /auth/mfa/disable` require the caller's current Supabase `refreshToken` in the request body so the backend can perform session-scoped MFA operations against Supabase.
 - Protected routes reject privileged users who only have an `aal1` Supabase session after first-factor sign-in.
 
-When `NODE_ENV=production`, privileged roles (`SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`) are now treated as MFA-required operationally:
+When `NODE_ENV=production`, privileged roles (`NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `CITY_CONTENT_EDITOR`, `DISPATCHER`, `AUDITOR`) are now treated as MFA-required operationally:
 
 - If the selected production feature profile disables MFA entirely, privileged login fails closed with a `503` configuration error.
 - If MFA is enabled in the build but the privileged account is not enrolled yet, login still succeeds but returns `mfaEnrollmentRequired=true` and the resulting session is limited to MFA enrollment routes until setup is completed.
@@ -258,7 +258,7 @@ Password reset recovery behavior:
 - `POST /auth/password-reset/request` always returns a generic acceptance response.
 - In non-production environments, the backend still returns `resetToken` and `resetExpiresAt` in the API response for local end-to-end testing.
 - In production, raw reset tokens are never returned in the API response. The backend sends the generic password-reset delivery payload to `PASSWORD_RESET_DELIVERY_WEBHOOK_URL`, which must be configured for a valid production rollout.
-- In production, privileged roles (`SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`) are blocked from public self-service password reset and require an admin-assisted recovery workflow.
+- In production, privileged roles (`NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `CITY_CONTENT_EDITOR`, `DISPATCHER`, `AUDITOR`) are blocked from public self-service password reset and require an admin-assisted recovery workflow.
 - Password reset request and confirm events remain auditable, and audit metadata records the delivery mode and privileged-recovery policy outcome without storing the reset token itself.
 
 Centralized security alerting:
@@ -327,6 +327,12 @@ If you are enabling shared database-backed rate limiting on an existing database
 If you are enabling Supabase-managed email/password auth on an existing database, also run:
 
 1. `prisma/add-supabase-auth.sql`
+
+If you are rolling out the narrower city communications publisher role on an existing database, also run:
+
+1. `prisma/add-city-content-editor-role.sql`
+
+If you still rely on the legacy hierarchy conversion script, note that `prisma/migrate-roles.sql` now includes `CITY_CONTENT_EDITOR` in the rebuilt `users_role_check` constraint, but existing databases that already ran an older copy still need the additive patch above.
 
 ### 4. Start development server
 
@@ -420,10 +426,14 @@ Auth and admin routes:
 - `GET /api/v1/auth/sessions`
 - `POST /api/v1/auth/logout`
 - `DELETE /api/v1/auth/sessions/:id`
+- `GET /api/v1/users/capabilities`
 - `POST /api/v1/citizens/link-me`
 - `POST /api/v1/incidents/media/upload`
 - `POST /api/v1/incidents/report`
 - `GET /api/v1/admin/users` (admin roles only)
+- `GET /api/v1/admin/users/mfa-compliance` (national admin only)
+- `GET /api/v1/admin/users/access-review` (national admin only)
+- `GET /api/v1/admin/security/data-governance` (LGU admin roles and auditor)
 - `GET /api/v1/audit-logs` and `GET /api/v1/audit-logs/:id` (admin roles only)
 
 Notes:
@@ -552,13 +562,14 @@ JWT auth is used for human users and role-aware dashboard/mobile access.
 - Refresh tokens are one-time rotation tokens bound to the same server-side auth session.
 - `GET /api/v1/auth/sessions` returns the caller's session inventory for account security UI, including `isCurrent`, expiry timestamps, revocation state, user agent, and IP address metadata.
 - `DELETE /api/v1/auth/sessions/:id` revokes one owned session by id and is intended for targeted sign-out from other devices.
-- `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, and `DISPATCHER` accounts can enable TOTP MFA. Once enabled, login requires `mfaCode` in addition to email and password.
+- `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `CITY_CONTENT_EDITOR`, `DISPATCHER`, and `AUDITOR` accounts can enable TOTP MFA. Once enabled, login requires `mfaCode` in addition to email and password.
 - Enabling or disabling MFA revokes all active sessions for that user.
 - Password changes and role changes revoke all active sessions for the affected user.
 - Archived users are excluded from login, token resolution, MFA operations, and password reset flows.
 - Elevated JWT routes include:
-  - `GET /api/v1/admin/users` for `SYSTEM_ADMIN` and `DEPARTMENT_MANAGER`
-  - `GET /api/v1/audit-logs` and `GET /api/v1/audit-logs/:id` for `SYSTEM_ADMIN` and `AUDITOR`
+  - `GET /api/v1/admin/users`, `GET /api/v1/admin/users/mfa-compliance`, and `GET /api/v1/admin/users/access-review` for `NATIONAL_ADMIN`
+  - `GET /api/v1/admin/security/data-governance` for LGU admin roles and `AUDITOR`
+  - `GET /api/v1/audit-logs` and `GET /api/v1/audit-logs/:id` for `NATIONAL_ADMIN` and `AUDITOR`
   - citizen create/list/get/update/delete for admin roles
   - user CRUD for admin roles
   - agency/responder/status/category/severity writes for admin roles
@@ -566,22 +577,50 @@ JWT auth is used for human users and role-aware dashboard/mobile access.
 - Incident access uses JWT for all list/get/write operations:
   - `CITIZEN_REPORTER` can use `/api/v1/incidents/report`
   - `CITIZEN_REPORTER` incident list/get is scoped by backend logic to that user's own incidents
-  - `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`, and `RESPONDER` can access broader incident operations based on route requirements
+  - `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `DISPATCHER`, and `RESPONDER` can access broader incident operations based on route requirements
 - `POST /api/v1/citizens/link-me` requires a `CITIZEN_REPORTER` JWT and links the citizen profile to the authenticated email.
 
 Password policy:
 
 - Passwords must be at least 12 characters and include uppercase, lowercase, number, and special character.
 
-Seeded development login:
+Seeded development logins:
 
-- `admin@xypes.local` / `Password123!` (role: `SYSTEM_ADMIN`)
+- `admin@xypes.local` / `Password123!` (role: `NATIONAL_ADMIN`)
+- `regional.director@xypes.local` / `Password123!` (role: `REGIONAL_DIRECTOR`)
+- `supervisor@xypes.local` / `Password123!` (role: `PROVINCIAL_ADMIN`)
+- `ops.lead@xypes.local` / `Password123!` (role: `CITY_ADMIN`)
+- `content.editor@xypes.local` / `Password123!` (role: `CITY_CONTENT_EDITOR`)
+- `dispatcher@xypes.local` / `Password123!` (role: `DISPATCHER`)
+- `responder@xypes.local` / `Password123!` (role: `RESPONDER`)
+- `analyst@xypes.local` / `Password123!` (role: `CITIZEN_REPORTER`)
+- `auditor@xypes.local` / `Password123!` (role: `AUDITOR`)
+- `roxas.municipal.admin@xypes.local` / `Password123!` (role: `CITY_ADMIN`, jurisdiction: Roxas, Isabela)
+- `roxas.content.editor@xypes.local` / `Password123!` (role: `CITY_CONTENT_EDITOR`, jurisdiction: Roxas, Isabela)
+- `roxas.dispatcher@xypes.local` / `Password123!` (role: `DISPATCHER`, jurisdiction: Roxas, Isabela)
+- `roxas.responder@xypes.local` / `Password123!` (role: `RESPONDER`, jurisdiction: Roxas, Isabela)
+
+Seeded mobile content baseline:
+
+- `tuguegarao-summer-water-advisory` is a published `home` advisory for the public mobile feed.
+- `mytuguegarao-digital-permit-week` is a published `news` item for city-service communications.
+- `cagayan-river-watch-alerts` is a published `alerts` item for urgent public updates.
+- `barangay-cleanup-campaign-preview` is an unpublished draft that gives `CITY_CONTENT_EDITOR` and `CITY_ADMIN` a safe approval workflow example.
+
+Seeded locality baseline:
+
+- Region II `Cagayan Valley` is available in the default seed set.
+- Province `Isabela` is seeded under Region II.
+- `Roxas` is seeded under Isabela using PSGC code `023126000` and type `MUNICIPALITY`.
+- `regional.director@xypes.local` is scoped to Region II, `supervisor@xypes.local` is scoped to Isabela, and the Roxas municipal staff accounts are scoped to the Roxas municipality record.
 
 Role values:
 
-- `SYSTEM_ADMIN`
-- `DEPARTMENT_MANAGER`
-- `SUPERVISOR`
+- `NATIONAL_ADMIN`
+- `REGIONAL_DIRECTOR`
+- `PROVINCIAL_ADMIN`
+- `CITY_ADMIN`
+- `CITY_CONTENT_EDITOR`
 - `DISPATCHER`
 - `RESPONDER`
 - `CITIZEN_REPORTER`
@@ -591,27 +630,29 @@ Role values:
 
 The table below summarizes the current route protection model. When `API_KEYS` or `API_KEY` is configured, assume `x-api-key` is also required for every versioned route except the explicit public bypasses under `/health`, `/openapi.json`, `/docs`, and `/auth/*`.
 
-| Route Group                                                                                                                                         | Read Access                                                                     | Write Access                                                                                      |
-| --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `/api/v1/auth/register`, `/api/v1/auth/login`, `/api/v1/auth/refresh`, `/api/v1/auth/password-reset/request`, `/api/v1/auth/password-reset/confirm` | Public                                                                          | Public                                                                                            |
-| `/api/v1/auth/me`, `/api/v1/auth/sessions`, `/api/v1/auth/logout`                                                                                   | Any authenticated JWT user                                                      | Current session only                                                                              |
-| `/api/v1/auth/sessions/:id`                                                                                                                         | N/A                                                                             | Any authenticated JWT user, limited to own session                                                |
-| `/api/v1/auth/mfa/setup`, `/api/v1/auth/mfa/enable`, `/api/v1/auth/mfa/disable`                                                                     | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`                | Current session only                                                                              |
-| `/api/v1/citizens`                                                                                                                                  | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                            | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                                              |
-| `/api/v1/citizens/link-me`                                                                                                                          | N/A                                                                             | `CITIZEN_REPORTER`                                                                                |
-| `/api/v1/agencies`                                                                                                                                  | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`                | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                                              |
-| `/api/v1/responders`                                                                                                                                | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`                | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                                              |
-| `/api/v1/statuses`                                                                                                                                  | Any authenticated JWT user                                                      | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                                              |
-| `/api/v1/categories`                                                                                                                                | Any authenticated JWT user                                                      | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                                              |
-| `/api/v1/severities`                                                                                                                                | Any authenticated JWT user                                                      | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                                              |
-| `/api/v1/incidents`                                                                                                                                 | Any authenticated JWT user. `CITIZEN_REPORTER` is scoped to own incidents only. | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`, `RESPONDER`                     |
-| `/api/v1/incidents/media/upload`                                                                                                                    | N/A                                                                             | `CITIZEN_REPORTER`, `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`, `RESPONDER` |
-| `/api/v1/incidents/report`                                                                                                                          | N/A                                                                             | `CITIZEN_REPORTER`                                                                                |
-| `/api/v1/assignments`                                                                                                                               | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`                | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`                                  |
-| `/api/v1/users`                                                                                                                                     | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                            | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                                              |
-| `/api/v1/users/capabilities`                                                                                                                        | Any authenticated JWT user                                                      | N/A                                                                                               |
-| `/api/v1/admin/users`                                                                                                                               | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                            | N/A                                                                                               |
-| `/api/v1/audit-logs`                                                                                                                                | `SYSTEM_ADMIN`, `AUDITOR`                                                       | Read-only                                                                                         |
+| Route Group                                                                                                                                         | Read Access                                                                                                             | Write Access                                                                                                           |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `/api/v1/auth/register`, `/api/v1/auth/login`, `/api/v1/auth/refresh`, `/api/v1/auth/password-reset/request`, `/api/v1/auth/password-reset/confirm` | Public                                                                                                                  | Public                                                                                                                 |
+| `/api/v1/auth/me`, `/api/v1/auth/sessions`, `/api/v1/auth/logout`                                                                                   | Any authenticated JWT user                                                                                              | Current session only                                                                                                   |
+| `/api/v1/auth/sessions/:id`                                                                                                                         | N/A                                                                                                                     | Any authenticated JWT user, limited to own session                                                                     |
+| `/api/v1/auth/mfa/setup`, `/api/v1/auth/mfa/enable`, `/api/v1/auth/mfa/disable`                                                                     | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `CITY_CONTENT_EDITOR`, `DISPATCHER`, `AUDITOR` | Current session only                                                                                                   |
+| `/api/v1/citizens`                                                                                                                                  | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`                                                 | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`                                                |
+| `/api/v1/citizens/link-me`                                                                                                                          | N/A                                                                                                                     | `CITIZEN_REPORTER`                                                                                                     |
+| `/api/v1/agencies`                                                                                                                                  | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `DISPATCHER`                                   | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`                                                |
+| `/api/v1/responders`                                                                                                                                | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `DISPATCHER`                                   | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`                                                |
+| `/api/v1/statuses`                                                                                                                                  | Any authenticated JWT user                                                                                              | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`                                                |
+| `/api/v1/categories`                                                                                                                                | Any authenticated JWT user                                                                                              | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`                                                |
+| `/api/v1/severities`                                                                                                                                | Any authenticated JWT user                                                                                              | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`                                                |
+| `/api/v1/incidents`                                                                                                                                 | Any authenticated JWT user. `CITIZEN_REPORTER` is scoped to own incidents only.                                         | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `DISPATCHER`, `RESPONDER`                     |
+| `/api/v1/incidents/media/upload`                                                                                                                    | N/A                                                                                                                     | `CITIZEN_REPORTER`, `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `DISPATCHER`, `RESPONDER` |
+| `/api/v1/incidents/report`                                                                                                                          | N/A                                                                                                                     | `CITIZEN_REPORTER`                                                                                                     |
+| `/api/v1/assignments`                                                                                                                               | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `DISPATCHER`                                   | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `DISPATCHER`                                  |
+| `/api/v1/users`                                                                                                                                     | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`                                                 | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`                                                |
+| `/api/v1/users/capabilities`                                                                                                                        | Any authenticated JWT user                                                                                              | N/A                                                                                                                    |
+| `/api/v1/admin/users`                                                                                                                               | `NATIONAL_ADMIN`                                                                                                        | N/A                                                                                                                    |
+| `/api/v1/admin/users/mfa-compliance`, `/api/v1/admin/users/access-review`                                                                           | `NATIONAL_ADMIN`                                                                                                        | N/A                                                                                                                    |
+| `/api/v1/admin/security/data-governance`                                                                                                            | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `AUDITOR`                                      | Read-only                                                                                                              |
+| `/api/v1/audit-logs`                                                                                                                                | `NATIONAL_ADMIN`, `AUDITOR`                                                                                             | Read-only                                                                                                              |
 
 Notes:
 
@@ -628,7 +669,7 @@ Persistent audit logging is enabled through the API layer and stored in the `aud
 - Audit log read routes:
   - `GET /api/v1/audit-logs`
   - `GET /api/v1/audit-logs/:id`
-- Audit log reads require both a valid API key when configured and a JWT for `SYSTEM_ADMIN` or `AUDITOR`.
+- Audit log reads require both a valid API key when configured and a JWT for `NATIONAL_ADMIN` or `AUDITOR`.
 - The backend records selected auth and mutation events, including:
   - `POST /api/v1/auth/login`
   - `POST /api/v1/auth/register`

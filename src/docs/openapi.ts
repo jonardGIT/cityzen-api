@@ -1198,13 +1198,14 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         tags: ['User'],
         summary: 'List users',
         description:
-          'Available to NATIONAL_ADMIN only. This phase keeps global user inventory reads fail-closed until scoped user reads are implemented.',
+          'Available to LGU admin roles. NATIONAL_ADMIN receives the full inventory, while REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, and CITY_ADMIN receive only self plus manageable users inside their jurisdiction scope.',
         security: apiKeyAndBearerSecurity,
         parameters: paginationParameters,
         responses: {
           '200': listResponse('UserSummary'),
           '401': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Unauthorized.'),
           '403': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Forbidden.'),
+          '422': jsonResponse({ $ref: '#/components/schemas/ErrorResponse' }, 'Validation error.'),
         },
       },
       post: {
@@ -1238,7 +1239,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         tags: ['User'],
         summary: 'Get user by id',
         description:
-          'Available to NATIONAL_ADMIN only. This phase keeps direct user detail reads fail-closed until scoped user reads are implemented.',
+          'Available to LGU admin roles. NATIONAL_ADMIN can read any user, while scoped admins can read only self plus manageable users inside their jurisdiction scope.',
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
@@ -1279,7 +1280,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         tags: ['User'],
         summary: 'Archive user',
         description:
-          'Available to LGU admin roles only: NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, and CITY_ADMIN. Only NATIONAL_ADMIN has global destructive user-management capability.',
+          'Available to LGU admin roles only: NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, and CITY_ADMIN. The backend enforces both manageable-role rules and jurisdiction scope, so scoped admins can archive only users inside their own region, province, or municipality.',
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
@@ -1295,7 +1296,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         tags: ['User'],
         summary: 'Restore user',
         description:
-          'Available to LGU admin roles only: NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, and CITY_ADMIN when archive mode is enabled.',
+          'Available to LGU admin roles only: NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, and CITY_ADMIN when archive mode is enabled. The backend enforces both manageable-role rules and jurisdiction scope on archived user restoration.',
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
@@ -2214,8 +2215,19 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
           mobileNumberVerifiedAt: { type: 'string', format: 'date-time', nullable: true },
           citizenId: { type: 'string', format: 'uuid', nullable: true },
           role: { $ref: '#/components/schemas/UserRole' },
+          jurisdictionType: { type: 'string', nullable: true },
+          jurisdictionId: { type: 'string', format: 'uuid', nullable: true },
         },
-        required: ['id', 'createdAt', 'updatedAt', 'name', 'email', 'role'],
+        required: [
+          'id',
+          'createdAt',
+          'updatedAt',
+          'name',
+          'email',
+          'role',
+          'jurisdictionType',
+          'jurisdictionId',
+        ],
       },
       PrivilegedMfaComplianceUser: {
         allOf: [
@@ -3616,6 +3628,12 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
           email: { type: 'string', format: 'email' },
           password: { type: 'string', minLength: 12 },
           role: { $ref: '#/components/schemas/UserRole' },
+          jurisdictionType: {
+            type: 'string',
+            enum: ['region', 'province', 'city', 'municipality', 'barangay'],
+            nullable: true,
+          },
+          jurisdictionId: { type: 'string', format: 'uuid', nullable: true },
         },
         required: ['name', 'email', 'password'],
       },
@@ -3626,6 +3644,12 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
           email: { type: 'string', format: 'email' },
           password: { type: 'string', minLength: 12 },
           role: { $ref: '#/components/schemas/UserRole' },
+          jurisdictionType: {
+            type: 'string',
+            enum: ['region', 'province', 'city', 'municipality', 'barangay'],
+            nullable: true,
+          },
+          jurisdictionId: { type: 'string', format: 'uuid', nullable: true },
         },
       },
       PaginatedCitizenList: {

@@ -195,6 +195,13 @@ export const usersListQueryConfig: ListQueryConfig = {
     name: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
     email: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
     role: { type: 'string', searchable: true, sortable: true, filterOperators: [...textOps] },
+    jurisdictionType: {
+      type: 'string',
+      searchable: true,
+      sortable: true,
+      filterOperators: [...textOps],
+    },
+    jurisdictionId: { type: 'uuid', sortable: true, filterOperators: [...uuidOps] },
     createdAt: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
     updatedAt: { type: 'datetime', sortable: true, filterOperators: [...dateOps] },
   },

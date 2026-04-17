@@ -10,11 +10,17 @@ dotenv.config({ path: '.env.development' });
 
 const DEFAULT_SEED_EMAILS = [
   'admin@xypes.local',
-  'ops.lead@xypes.local',
-  'dispatcher@xypes.local',
-  'analyst@xypes.local',
+  'regional.director@xypes.local',
   'supervisor@xypes.local',
+  'ops.lead@xypes.local',
+  'content.editor@xypes.local',
+  'roxas.municipal.admin@xypes.local',
+  'roxas.content.editor@xypes.local',
+  'dispatcher@xypes.local',
+  'roxas.dispatcher@xypes.local',
+  'analyst@xypes.local',
   'responder@xypes.local',
+  'roxas.responder@xypes.local',
   'auditor@xypes.local',
 ];
 

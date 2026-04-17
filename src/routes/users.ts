@@ -9,7 +9,7 @@ import {
   updateUser,
 } from '../controllers/usersController.js';
 import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
-import { ADMIN_ROLES, NATIONAL_ROLES } from '../types/auth.js';
+import { ADMIN_ROLES } from '../types/auth.js';
 import { isArchiveEnabled } from '../utils/archive.js';
 import { validateRequest } from '../middleware/validateRequest.js';
 import { createUserValidator, updateUserValidator } from '../validators/bodyValidators.js';
@@ -18,8 +18,8 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 const router = Router();
 
 router.get('/capabilities', requireJwtAuth, asyncHandler(getUserCapabilities));
-router.get('/', requireJwtAuth, requireRole(...NATIONAL_ROLES), asyncHandler(getUsers));
-router.get('/:id', requireJwtAuth, requireRole(...NATIONAL_ROLES), asyncHandler(getUserById));
+router.get('/', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(getUsers));
+router.get('/:id', requireJwtAuth, requireRole(...ADMIN_ROLES), asyncHandler(getUserById));
 router.post(
   '/',
   requireJwtAuth,

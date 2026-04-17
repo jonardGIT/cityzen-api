@@ -613,15 +613,42 @@ export const createUserValidator = [
     .withMessage(
       'role must be one of NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, CITY_ADMIN, CITY_CONTENT_EDITOR, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
     ),
+  body('jurisdictionType')
+    .optional()
+    .isString()
+    .custom((value) =>
+      ['region', 'province', 'city', 'municipality', 'barangay'].includes(
+        value.trim().toLowerCase(),
+      ),
+    )
+    .withMessage(
+      'jurisdictionType must be one of region, province, city, municipality, or barangay',
+    ),
+  body('jurisdictionId').optional().isUUID(4).withMessage('jurisdictionId must be a valid UUID v4'),
+  body().custom((value) => {
+    const hasJurisdictionType = value?.jurisdictionType !== undefined;
+    const hasJurisdictionId = value?.jurisdictionId !== undefined;
+    if (hasJurisdictionType !== hasJurisdictionId) {
+      throw new Error('jurisdictionType and jurisdictionId must be provided together');
+    }
+    return true;
+  }),
 ];
 
 export const updateUserValidator = [
   body().custom((value) => {
-    const hasUpdatableField = ['name', 'email', 'password', 'role'].some(
-      (field) => value?.[field] !== undefined,
-    );
+    const hasUpdatableField = [
+      'name',
+      'email',
+      'password',
+      'role',
+      'jurisdictionType',
+      'jurisdictionId',
+    ].some((field) => value?.[field] !== undefined);
     if (!hasUpdatableField) {
-      throw new Error('at least one of name, email, password, or role is required');
+      throw new Error(
+        'at least one of name, email, password, role, jurisdictionType, or jurisdictionId is required',
+      );
     }
     return true;
   }),
@@ -654,4 +681,24 @@ export const updateUserValidator = [
     .withMessage(
       'role must be one of NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, CITY_ADMIN, CITY_CONTENT_EDITOR, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
     ),
+  body('jurisdictionType')
+    .optional()
+    .isString()
+    .custom((value) =>
+      ['region', 'province', 'city', 'municipality', 'barangay'].includes(
+        value.trim().toLowerCase(),
+      ),
+    )
+    .withMessage(
+      'jurisdictionType must be one of region, province, city, municipality, or barangay',
+    ),
+  body('jurisdictionId').optional().isUUID(4).withMessage('jurisdictionId must be a valid UUID v4'),
+  body().custom((value) => {
+    const hasJurisdictionType = value?.jurisdictionType !== undefined;
+    const hasJurisdictionId = value?.jurisdictionId !== undefined;
+    if (hasJurisdictionType !== hasJurisdictionId) {
+      throw new Error('jurisdictionType and jurisdictionId must be provided together');
+    }
+    return true;
+  }),
 ];

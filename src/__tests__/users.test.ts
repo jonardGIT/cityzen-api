@@ -14,13 +14,127 @@ let adminToken = '';
 let citizenReporterToken = '';
 let cityAdminToken = '';
 let contentEditorToken = '';
+let provincialAdminToken = '';
+let regionalDirectorToken = '';
+
+async function ensureRoxasMunicipalityScope() {
+  const region = await prisma.region.upsert({
+    where: { code: '020000000' },
+    update: { name: 'Cagayan Valley', designation: 'Region II', archivedAt: null },
+    create: { code: '020000000', name: 'Cagayan Valley', designation: 'Region II' },
+  });
+
+  const province = await prisma.province.upsert({
+    where: { code: '023100000' },
+    update: { name: 'Isabela', regionId: region.id, archivedAt: null },
+    create: { code: '023100000', name: 'Isabela', regionId: region.id },
+  });
+
+  const city = await prisma.cityMunicipality.upsert({
+    where: { code: '023126000' },
+    update: { name: 'Roxas', type: 'MUNICIPALITY', provinceId: province.id, archivedAt: null },
+    create: { code: '023126000', name: 'Roxas', type: 'MUNICIPALITY', provinceId: province.id },
+  });
+
+  return { region, province, city };
+}
+
+async function ensureOutsideProvinceMunicipalityScope() {
+  const region = await prisma.region.upsert({
+    where: { code: '020000000' },
+    update: { name: 'Cagayan Valley', designation: 'Region II', archivedAt: null },
+    create: { code: '020000000', name: 'Cagayan Valley', designation: 'Region II' },
+  });
+
+  const province = await prisma.province.upsert({
+    where: { code: '021500000' },
+    update: { name: 'Cagayan', regionId: region.id, archivedAt: null },
+    create: { code: '021500000', name: 'Cagayan', regionId: region.id },
+  });
+
+  const city = await prisma.cityMunicipality.upsert({
+    where: { code: '021527000' },
+    update: { name: 'Tuguegarao City', type: 'CITY', provinceId: province.id, archivedAt: null },
+    create: { code: '021527000', name: 'Tuguegarao City', type: 'CITY', provinceId: province.id },
+  });
+
+  return { region, province, city };
+}
+
+async function ensureSecondIsabelaCityScope() {
+  const region = await prisma.region.upsert({
+    where: { code: '020000000' },
+    update: { name: 'Cagayan Valley', designation: 'Region II', archivedAt: null },
+    create: { code: '020000000', name: 'Cagayan Valley', designation: 'Region II' },
+  });
+
+  const province = await prisma.province.upsert({
+    where: { code: '023100000' },
+    update: { name: 'Isabela', regionId: region.id, archivedAt: null },
+    create: { code: '023100000', name: 'Isabela', regionId: region.id },
+  });
+
+  const city = await prisma.cityMunicipality.upsert({
+    where: { code: '023108000' },
+    update: { name: 'Cauayan City', type: 'CITY', provinceId: province.id, archivedAt: null },
+    create: { code: '023108000', name: 'Cauayan City', type: 'CITY', provinceId: province.id },
+  });
+
+  return { region, province, city };
+}
+
+async function ensureOutsideRegionMunicipalityScope() {
+  const region = await prisma.region.upsert({
+    where: { code: '030000000' },
+    update: { name: 'Central Luzon', designation: 'Region III', archivedAt: null },
+    create: { code: '030000000', name: 'Central Luzon', designation: 'Region III' },
+  });
+
+  const province = await prisma.province.upsert({
+    where: { code: '031400000' },
+    update: { name: 'Bulacan', regionId: region.id, archivedAt: null },
+    create: { code: '031400000', name: 'Bulacan', regionId: region.id },
+  });
+
+  const city = await prisma.cityMunicipality.upsert({
+    where: { code: '031410000' },
+    update: { name: 'Malolos City', type: 'CITY', provinceId: province.id, archivedAt: null },
+    create: { code: '031410000', name: 'Malolos City', type: 'CITY', provinceId: province.id },
+  });
+
+  return { region, province, city };
+}
 
 beforeAll(async () => {
-  [adminToken, citizenReporterToken, cityAdminToken, contentEditorToken] = await Promise.all([
-    getAdminToken(),
+  adminToken = await getAdminToken();
+
+  await prisma.user.upsert({
+    where: { email: 'regional.director@xypes.local' },
+    update: {
+      name: 'Regional Director',
+      passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+      role: 'REGIONAL_DIRECTOR',
+    },
+    create: {
+      name: 'Regional Director',
+      email: 'regional.director@xypes.local',
+      passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+      role: 'REGIONAL_DIRECTOR',
+    },
+  });
+
+  [
+    citizenReporterToken,
+    cityAdminToken,
+    contentEditorToken,
+    provincialAdminToken,
+    regionalDirectorToken,
+  ] = await Promise.all([
     getTokenForRole('analyst@xypes.local'),
     getTokenForRole('ops.lead@xypes.local'),
     getTokenForRole('content.editor@xypes.local'),
+    getTokenForRole('supervisor@xypes.local'),
+    getTokenForRole('regional.director@xypes.local'),
   ]);
 });
 
@@ -125,6 +239,435 @@ describe(`GET ${CAPABILITIES}`, () => {
       ]),
     );
   });
+
+  it('should return scoped lifecycle capability metadata for CITY_ADMIN', async () => {
+    const res = await request(app)
+      .get(CAPABILITIES)
+      .set('Authorization', `Bearer ${cityAdminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      role: 'CITY_ADMIN',
+      label: 'City/Municipal Admin',
+      scope: 'city',
+      canUpdateUser: true,
+      canDeleteUser: true,
+    });
+    expect(res.body.permissions).toEqual(
+      expect.arrayContaining([
+        'user:create:city',
+        'user:read:city',
+        'user:update:city',
+        'user:reset_password:city',
+      ]),
+    );
+  });
+
+  it('should return scoped lifecycle capability metadata for PROVINCIAL_ADMIN', async () => {
+    const res = await request(app)
+      .get(CAPABILITIES)
+      .set('Authorization', `Bearer ${provincialAdminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      role: 'PROVINCIAL_ADMIN',
+      label: 'Provincial Admin',
+      scope: 'province',
+      canUpdateUser: true,
+      canDeleteUser: true,
+    });
+    expect(res.body.permissions).toEqual(
+      expect.arrayContaining([
+        'user:manage:province',
+        'incident:read:province',
+        'agency:manage:province',
+      ]),
+    );
+  });
+
+  it('should return scoped lifecycle capability metadata for REGIONAL_DIRECTOR', async () => {
+    const res = await request(app)
+      .get(CAPABILITIES)
+      .set('Authorization', `Bearer ${regionalDirectorToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      role: 'REGIONAL_DIRECTOR',
+      label: 'Regional Director',
+      scope: 'region',
+      canUpdateUser: true,
+      canDeleteUser: true,
+    });
+    expect(res.body.permissions).toEqual(
+      expect.arrayContaining([
+        'user:manage:region',
+        'incident:read:region',
+        'agency:manage:region',
+      ]),
+    );
+  });
+});
+
+describe(`POST ${USERS}`, () => {
+  it('should allow NATIONAL_ADMIN to create a Roxas municipal admin with city jurisdiction', async () => {
+    const { city } = await ensureRoxasMunicipalityScope();
+    const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+    const email = `roxas.municipal.admin.${unique}@xypes.local`;
+
+    const res = await request(app)
+      .post(USERS)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: `Roxas Municipal Admin ${unique}`,
+        email,
+        password: 'Password123!',
+        role: 'CITY_ADMIN',
+        jurisdictionType: 'municipality',
+        jurisdictionId: city.id,
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({
+      email,
+      role: 'CITY_ADMIN',
+      jurisdictionType: 'city',
+      jurisdictionId: city.id,
+    });
+  });
+
+  it('should allow CITY_ADMIN to create CITY_CONTENT_EDITOR users', async () => {
+    const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+    const email = `city.content.editor.${unique}@xypes.local`;
+
+    const res = await request(app)
+      .post(USERS)
+      .set('Authorization', `Bearer ${cityAdminToken}`)
+      .send({
+        name: `City Content Editor ${unique}`,
+        email,
+        password: 'Password123!',
+        role: 'CITY_CONTENT_EDITOR',
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({
+      email,
+      role: 'CITY_CONTENT_EDITOR',
+    });
+  });
+
+  it('should inherit the municipal jurisdiction when CITY_ADMIN creates local staff', async () => {
+    const { city } = await ensureRoxasMunicipalityScope();
+    await prisma.user.update({
+      where: { email: 'ops.lead@xypes.local' },
+      data: {
+        jurisdictionType: 'city',
+        jurisdictionId: city.id,
+      },
+    });
+
+    const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+    const email = `roxas.dispatcher.${unique}@xypes.local`;
+
+    const res = await request(app)
+      .post(USERS)
+      .set('Authorization', `Bearer ${cityAdminToken}`)
+      .send({
+        name: `Roxas Dispatcher ${unique}`,
+        email,
+        password: 'Password123!',
+        role: 'DISPATCHER',
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({
+      email,
+      role: 'DISPATCHER',
+      jurisdictionType: 'city',
+      jurisdictionId: city.id,
+    });
+  });
+
+  it('should return 403 for CITY_CONTENT_EDITOR when creating users', async () => {
+    const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+
+    const res = await request(app)
+      .post(USERS)
+      .set('Authorization', `Bearer ${contentEditorToken}`)
+      .send({
+        name: `Blocked Editor ${unique}`,
+        email: `blocked.editor.${unique}@xypes.local`,
+        password: 'Password123!',
+        role: 'CITIZEN_REPORTER',
+      });
+
+    expect(res.status).toBe(403);
+  });
+
+  it('should allow REGIONAL_DIRECTOR to create in-region users and reject out-of-region assignments', async () => {
+    const { region, city: roxasCity } = await ensureRoxasMunicipalityScope();
+    const { city: outsideRegionCity } = await ensureOutsideRegionMunicipalityScope();
+
+    await prisma.user.update({
+      where: { email: 'regional.director@xypes.local' },
+      data: {
+        jurisdictionType: 'region',
+        jurisdictionId: region.id,
+      },
+    });
+
+    const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+    const inRegionEmail = `region.created.dispatcher.${unique}@xypes.local`;
+    const outOfRegionEmail = `region.blocked.dispatcher.${unique}@xypes.local`;
+
+    const allowedRes = await request(app)
+      .post(USERS)
+      .set('Authorization', `Bearer ${regionalDirectorToken}`)
+      .send({
+        name: `Region Created Dispatcher ${unique}`,
+        email: inRegionEmail,
+        password: 'Password123!',
+        role: 'DISPATCHER',
+        jurisdictionType: 'city',
+        jurisdictionId: roxasCity.id,
+      });
+
+    expect(allowedRes.status).toBe(201);
+    expect(allowedRes.body).toMatchObject({
+      email: inRegionEmail,
+      role: 'DISPATCHER',
+      jurisdictionType: 'city',
+      jurisdictionId: roxasCity.id,
+    });
+
+    const blockedRes = await request(app)
+      .post(USERS)
+      .set('Authorization', `Bearer ${regionalDirectorToken}`)
+      .send({
+        name: `Region Blocked Dispatcher ${unique}`,
+        email: outOfRegionEmail,
+        password: 'Password123!',
+        role: 'DISPATCHER',
+        jurisdictionType: 'city',
+        jurisdictionId: outsideRegionCity.id,
+      });
+
+    expect(blockedRes.status).toBe(403);
+  });
+
+  it('should allow PROVINCIAL_ADMIN to create in-province users and reject out-of-province assignments', async () => {
+    const { province, city: roxasCity } = await ensureRoxasMunicipalityScope();
+    const { city: outsideProvinceCity } = await ensureOutsideProvinceMunicipalityScope();
+
+    await prisma.user.update({
+      where: { email: 'supervisor@xypes.local' },
+      data: {
+        jurisdictionType: 'province',
+        jurisdictionId: province.id,
+      },
+    });
+
+    const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+    const inProvinceEmail = `province.created.dispatcher.${unique}@xypes.local`;
+    const outOfProvinceEmail = `province.blocked.dispatcher.${unique}@xypes.local`;
+
+    const allowedRes = await request(app)
+      .post(USERS)
+      .set('Authorization', `Bearer ${provincialAdminToken}`)
+      .send({
+        name: `Province Created Dispatcher ${unique}`,
+        email: inProvinceEmail,
+        password: 'Password123!',
+        role: 'DISPATCHER',
+        jurisdictionType: 'city',
+        jurisdictionId: roxasCity.id,
+      });
+
+    expect(allowedRes.status).toBe(201);
+    expect(allowedRes.body).toMatchObject({
+      email: inProvinceEmail,
+      role: 'DISPATCHER',
+      jurisdictionType: 'city',
+      jurisdictionId: roxasCity.id,
+    });
+
+    const blockedRes = await request(app)
+      .post(USERS)
+      .set('Authorization', `Bearer ${provincialAdminToken}`)
+      .send({
+        name: `Province Blocked Dispatcher ${unique}`,
+        email: outOfProvinceEmail,
+        password: 'Password123!',
+        role: 'DISPATCHER',
+        jurisdictionType: 'city',
+        jurisdictionId: outsideProvinceCity.id,
+      });
+
+    expect(blockedRes.status).toBe(403);
+  });
+});
+
+describe(`PATCH ${USERS}/:id`, () => {
+  it('should allow REGIONAL_DIRECTOR to retarget in-region users and reject out-of-region retargeting', async () => {
+    const { region, city: roxasCity } = await ensureRoxasMunicipalityScope();
+    const { city: tuguegaraoCity } = await ensureOutsideProvinceMunicipalityScope();
+    const { city: outsideRegionCity } = await ensureOutsideRegionMunicipalityScope();
+
+    await prisma.user.update({
+      where: { email: 'regional.director@xypes.local' },
+      data: {
+        jurisdictionType: 'region',
+        jurisdictionId: region.id,
+      },
+    });
+
+    const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+    const regionalUser = await prisma.user.create({
+      data: {
+        name: `Region Retarget User ${unique}`,
+        email: `region.retarget.${unique}@xypes.local`,
+        passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+        role: 'DISPATCHER',
+        jurisdictionType: 'city',
+        jurisdictionId: roxasCity.id,
+      },
+      select: { id: true },
+    });
+
+    const allowedRes = await request(app)
+      .patch(`${USERS}/${regionalUser.id}`)
+      .set('Authorization', `Bearer ${regionalDirectorToken}`)
+      .send({
+        role: 'CITY_CONTENT_EDITOR',
+        jurisdictionType: 'city',
+        jurisdictionId: tuguegaraoCity.id,
+      });
+
+    expect(allowedRes.status).toBe(200);
+    expect(allowedRes.body).toMatchObject({
+      id: regionalUser.id,
+      role: 'CITY_CONTENT_EDITOR',
+      jurisdictionType: 'city',
+      jurisdictionId: tuguegaraoCity.id,
+    });
+
+    const blockedRes = await request(app)
+      .patch(`${USERS}/${regionalUser.id}`)
+      .set('Authorization', `Bearer ${regionalDirectorToken}`)
+      .send({
+        jurisdictionType: 'city',
+        jurisdictionId: outsideRegionCity.id,
+      });
+
+    expect(blockedRes.status).toBe(403);
+  });
+
+  it('should allow PROVINCIAL_ADMIN to retarget in-province users and reject out-of-province retargeting', async () => {
+    const { province, city: roxasCity } = await ensureRoxasMunicipalityScope();
+    const { city: cauayanCity } = await ensureSecondIsabelaCityScope();
+    const { city: outsideProvinceCity } = await ensureOutsideProvinceMunicipalityScope();
+
+    await prisma.user.update({
+      where: { email: 'supervisor@xypes.local' },
+      data: {
+        jurisdictionType: 'province',
+        jurisdictionId: province.id,
+      },
+    });
+
+    const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+    const provincialUser = await prisma.user.create({
+      data: {
+        name: `Province Retarget User ${unique}`,
+        email: `province.retarget.${unique}@xypes.local`,
+        passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+        role: 'DISPATCHER',
+        jurisdictionType: 'city',
+        jurisdictionId: roxasCity.id,
+      },
+      select: { id: true },
+    });
+
+    const allowedRes = await request(app)
+      .patch(`${USERS}/${provincialUser.id}`)
+      .set('Authorization', `Bearer ${provincialAdminToken}`)
+      .send({
+        role: 'CITY_CONTENT_EDITOR',
+        jurisdictionType: 'city',
+        jurisdictionId: cauayanCity.id,
+      });
+
+    expect(allowedRes.status).toBe(200);
+    expect(allowedRes.body).toMatchObject({
+      id: provincialUser.id,
+      role: 'CITY_CONTENT_EDITOR',
+      jurisdictionType: 'city',
+      jurisdictionId: cauayanCity.id,
+    });
+
+    const blockedRes = await request(app)
+      .patch(`${USERS}/${provincialUser.id}`)
+      .set('Authorization', `Bearer ${provincialAdminToken}`)
+      .send({
+        jurisdictionType: 'city',
+        jurisdictionId: outsideProvinceCity.id,
+      });
+
+    expect(blockedRes.status).toBe(403);
+  });
+
+  it('should allow CITY_ADMIN to update local municipal users and reject cross-municipality retargeting', async () => {
+    const { city: roxasCity } = await ensureRoxasMunicipalityScope();
+    const { city: cauayanCity } = await ensureSecondIsabelaCityScope();
+
+    await prisma.user.update({
+      where: { email: 'ops.lead@xypes.local' },
+      data: {
+        jurisdictionType: 'city',
+        jurisdictionId: roxasCity.id,
+      },
+    });
+
+    const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+    const municipalUser = await prisma.user.create({
+      data: {
+        name: `Municipal Retarget User ${unique}`,
+        email: `municipal.retarget.${unique}@xypes.local`,
+        passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+        role: 'DISPATCHER',
+        jurisdictionType: 'city',
+        jurisdictionId: roxasCity.id,
+      },
+      select: { id: true },
+    });
+
+    const allowedRes = await request(app)
+      .patch(`${USERS}/${municipalUser.id}`)
+      .set('Authorization', `Bearer ${cityAdminToken}`)
+      .send({
+        role: 'CITY_CONTENT_EDITOR',
+        jurisdictionType: 'city',
+        jurisdictionId: roxasCity.id,
+      });
+
+    expect(allowedRes.status).toBe(200);
+    expect(allowedRes.body).toMatchObject({
+      id: municipalUser.id,
+      role: 'CITY_CONTENT_EDITOR',
+      jurisdictionType: 'city',
+      jurisdictionId: roxasCity.id,
+    });
+
+    const blockedRes = await request(app)
+      .patch(`${USERS}/${municipalUser.id}`)
+      .set('Authorization', `Bearer ${cityAdminToken}`)
+      .send({
+        jurisdictionType: 'city',
+        jurisdictionId: cauayanCity.id,
+      });
+
+    expect(blockedRes.status).toBe(403);
+  });
 });
 
 describe(`GET ${USERS}`, () => {
@@ -180,10 +723,279 @@ describe(`GET ${USERS}`, () => {
     }
   });
 
-  it('should return 403 for CITY_ADMIN', async () => {
+  it('should return only scoped Roxas municipality users for CITY_ADMIN', async () => {
+    const { city } = await ensureRoxasMunicipalityScope();
+    await prisma.user.update({
+      where: { email: 'ops.lead@xypes.local' },
+      data: {
+        jurisdictionType: 'city',
+        jurisdictionId: city.id,
+      },
+    });
+
+    const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+    const localEmail = `roxas.viewer.${unique}@xypes.local`;
+    const outsideEmail = `outside.viewer.${unique}@xypes.local`;
+
+    await prisma.user.create({
+      data: {
+        name: `Roxas Local ${unique}`,
+        email: localEmail,
+        passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+        role: 'DISPATCHER',
+        jurisdictionType: 'city',
+        jurisdictionId: city.id,
+      },
+    });
+
+    await prisma.user
+      .create({
+        data: {
+          name: `Outside Local ${unique}`,
+          email: outsideEmail,
+          passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+          role: 'DISPATCHER',
+          jurisdictionType: 'city',
+          jurisdictionId: '5871fc20-607a-4c3d-ab43-2da5afd4fda3',
+        },
+      })
+      .catch(async () => {
+        const alternateCity = await prisma.cityMunicipality.create({
+          data: {
+            code: `TMP-${unique}`,
+            name: `Outside City ${unique}`,
+            type: 'MUNICIPALITY',
+            provinceId: (await ensureRoxasMunicipalityScope()).province.id,
+          },
+        });
+        await prisma.user.create({
+          data: {
+            name: `Outside Local ${unique}`,
+            email: outsideEmail,
+            passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+            role: 'DISPATCHER',
+            jurisdictionType: 'city',
+            jurisdictionId: alternateCity.id,
+          },
+        });
+      });
+
     const res = await request(app).get(USERS).set('Authorization', `Bearer ${cityAdminToken}`);
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.some((user: { email: string }) => user.email === 'ops.lead@xypes.local')).toBe(
+      true,
+    );
+    expect(res.body.some((user: { email: string }) => user.email === localEmail)).toBe(true);
+    expect(res.body.some((user: { email: string }) => user.email === outsideEmail)).toBe(false);
+  });
+
+  it('should allow CITY_ADMIN to filter scoped users by role and jurisdiction fields', async () => {
+    const { city } = await ensureRoxasMunicipalityScope();
+    await prisma.user.update({
+      where: { email: 'ops.lead@xypes.local' },
+      data: {
+        jurisdictionType: 'city',
+        jurisdictionId: city.id,
+      },
+    });
+
+    const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+    const dispatcherEmail = `roxas.filtered.dispatcher.${unique}@xypes.local`;
+    const editorEmail = `roxas.filtered.editor.${unique}@xypes.local`;
+
+    await prisma.user.createMany({
+      data: [
+        {
+          name: `Filtered Dispatcher ${unique}`,
+          email: dispatcherEmail,
+          passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+          role: 'DISPATCHER',
+          jurisdictionType: 'city',
+          jurisdictionId: city.id,
+        },
+        {
+          name: `Filtered Editor ${unique}`,
+          email: editorEmail,
+          passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+          role: 'CITY_CONTENT_EDITOR',
+          jurisdictionType: 'city',
+          jurisdictionId: city.id,
+        },
+      ],
+    });
+
+    const filters = encodeURIComponent(
+      JSON.stringify([
+        { field: 'role', operator: 'equals', value: 'DISPATCHER' },
+        { field: 'jurisdictionType', operator: 'equals', value: 'city' },
+        { field: 'jurisdictionId', operator: 'equals', value: city.id },
+      ]),
+    );
+
+    const res = await request(app)
+      .get(`${USERS}?filters=${filters}`)
+      .set('Authorization', `Bearer ${cityAdminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBeGreaterThan(0);
+    expect(res.body.some((user: { email: string }) => user.email === dispatcherEmail)).toBe(true);
+    expect(res.body.some((user: { email: string }) => user.email === editorEmail)).toBe(false);
+    expect(
+      res.body.every(
+        (user: { role: string; jurisdictionType: string | null; jurisdictionId: string | null }) =>
+          user.role === 'DISPATCHER' &&
+          user.jurisdictionType === 'city' &&
+          user.jurisdictionId === city.id,
+      ),
+    ).toBe(true);
+  });
+
+  it('should allow PROVINCIAL_ADMIN to list manageable Roxas users and exclude out-of-province users', async () => {
+    const { province, city } = await ensureRoxasMunicipalityScope();
+    const { city: outsideCity } = await ensureOutsideProvinceMunicipalityScope();
+
+    await prisma.user.update({
+      where: { email: 'supervisor@xypes.local' },
+      data: {
+        jurisdictionType: 'province',
+        jurisdictionId: province.id,
+      },
+    });
+
+    const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+    const inProvinceCityAdminEmail = `roxas.city.admin.${unique}@xypes.local`;
+    const inProvinceDispatcherEmail = `roxas.province.dispatcher.${unique}@xypes.local`;
+    const outOfProvinceDispatcherEmail = `tuguegarao.dispatcher.${unique}@xypes.local`;
+
+    await prisma.user.createMany({
+      data: [
+        {
+          name: `Roxas City Admin ${unique}`,
+          email: inProvinceCityAdminEmail,
+          passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+          role: 'CITY_ADMIN',
+          jurisdictionType: 'city',
+          jurisdictionId: city.id,
+        },
+        {
+          name: `Roxas Dispatcher ${unique}`,
+          email: inProvinceDispatcherEmail,
+          passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+          role: 'DISPATCHER',
+          jurisdictionType: 'city',
+          jurisdictionId: city.id,
+        },
+        {
+          name: `Tuguegarao Dispatcher ${unique}`,
+          email: outOfProvinceDispatcherEmail,
+          passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+          role: 'DISPATCHER',
+          jurisdictionType: 'city',
+          jurisdictionId: outsideCity.id,
+        },
+      ],
+    });
+
+    const res = await request(app)
+      .get(USERS)
+      .set('Authorization', `Bearer ${provincialAdminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(
+      res.body.some((user: { email: string }) => user.email === 'supervisor@xypes.local'),
+    ).toBe(true);
+    expect(
+      res.body.some(
+        (user: { email: string; role: string }) =>
+          user.email === inProvinceCityAdminEmail && user.role === 'CITY_ADMIN',
+      ),
+    ).toBe(true);
+    expect(
+      res.body.some(
+        (user: { email: string; role: string }) =>
+          user.email === inProvinceDispatcherEmail && user.role === 'DISPATCHER',
+      ),
+    ).toBe(true);
+    expect(
+      res.body.some((user: { email: string }) => user.email === outOfProvinceDispatcherEmail),
+    ).toBe(false);
+  });
+
+  it('should allow REGIONAL_DIRECTOR to list manageable Region II users across provinces and exclude out-of-region users', async () => {
+    const { region, city: roxasCity } = await ensureRoxasMunicipalityScope();
+    const { city: tuguegaraoCity } = await ensureOutsideProvinceMunicipalityScope();
+    const { city: outsideRegionCity } = await ensureOutsideRegionMunicipalityScope();
+
+    await prisma.user.update({
+      where: { email: 'regional.director@xypes.local' },
+      data: {
+        jurisdictionType: 'region',
+        jurisdictionId: region.id,
+      },
+    });
+
+    const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+    const roxasCityAdminEmail = `region.roxas.city.admin.${unique}@xypes.local`;
+    const tuguegaraoDispatcherEmail = `region.tuguegarao.dispatcher.${unique}@xypes.local`;
+    const outsideRegionDispatcherEmail = `region.malolos.dispatcher.${unique}@xypes.local`;
+
+    await prisma.user.createMany({
+      data: [
+        {
+          name: `Region Roxas City Admin ${unique}`,
+          email: roxasCityAdminEmail,
+          passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+          role: 'CITY_ADMIN',
+          jurisdictionType: 'city',
+          jurisdictionId: roxasCity.id,
+        },
+        {
+          name: `Region Tuguegarao Dispatcher ${unique}`,
+          email: tuguegaraoDispatcherEmail,
+          passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+          role: 'DISPATCHER',
+          jurisdictionType: 'city',
+          jurisdictionId: tuguegaraoCity.id,
+        },
+        {
+          name: `Region Malolos Dispatcher ${unique}`,
+          email: outsideRegionDispatcherEmail,
+          passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+          role: 'DISPATCHER',
+          jurisdictionType: 'city',
+          jurisdictionId: outsideRegionCity.id,
+        },
+      ],
+    });
+
+    const res = await request(app)
+      .get(USERS)
+      .set('Authorization', `Bearer ${regionalDirectorToken}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(
+      res.body.some((user: { email: string }) => user.email === 'regional.director@xypes.local'),
+    ).toBe(true);
+    expect(
+      res.body.some(
+        (user: { email: string; role: string }) =>
+          user.email === roxasCityAdminEmail && user.role === 'CITY_ADMIN',
+      ),
+    ).toBe(true);
+    expect(
+      res.body.some(
+        (user: { email: string; role: string }) =>
+          user.email === tuguegaraoDispatcherEmail && user.role === 'DISPATCHER',
+      ),
+    ).toBe(true);
+    expect(
+      res.body.some((user: { email: string }) => user.email === outsideRegionDispatcherEmail),
+    ).toBe(false);
   });
 });
 
@@ -205,7 +1017,40 @@ describe(`GET ${USERS}/:id`, () => {
     expect(res.body).toHaveProperty('email', 'admin@xypes.local');
   });
 
-  it('should return 403 for CITY_ADMIN when requesting a known existing user', async () => {
+  it('should return a scoped municipal user for CITY_ADMIN and reject out-of-scope detail reads', async () => {
+    const { city } = await ensureRoxasMunicipalityScope();
+    await prisma.user.update({
+      where: { email: 'ops.lead@xypes.local' },
+      data: {
+        jurisdictionType: 'city',
+        jurisdictionId: city.id,
+      },
+    });
+
+    const localUser = await prisma.user.create({
+      data: {
+        name: `Scoped User ${Date.now()}`,
+        email: `scoped.user.${Date.now()}@xypes.local`,
+        passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+        role: 'DISPATCHER',
+        jurisdictionType: 'city',
+        jurisdictionId: city.id,
+      },
+      select: { id: true, email: true },
+    });
+
+    const localRes = await request(app)
+      .get(`${USERS}/${localUser.id}`)
+      .set('Authorization', `Bearer ${cityAdminToken}`);
+
+    expect(localRes.status).toBe(200);
+    expect(localRes.body).toMatchObject({
+      id: localUser.id,
+      email: localUser.email,
+      jurisdictionType: 'city',
+      jurisdictionId: city.id,
+    });
+
     const adminUser = await prisma.user.findUnique({
       where: { email: 'admin@xypes.local' },
       select: { id: true },
@@ -213,11 +1058,125 @@ describe(`GET ${USERS}/:id`, () => {
 
     expect(adminUser).not.toBeNull();
 
-    const res = await request(app)
+    const blockedRes = await request(app)
       .get(`${USERS}/${adminUser!.id}`)
       .set('Authorization', `Bearer ${cityAdminToken}`);
 
-    expect(res.status).toBe(403);
+    expect(blockedRes.status).toBe(403);
+  });
+
+  it('should allow PROVINCIAL_ADMIN to read in-province city users and reject out-of-province detail reads', async () => {
+    const { province, city } = await ensureRoxasMunicipalityScope();
+    const { city: outsideCity } = await ensureOutsideProvinceMunicipalityScope();
+
+    await prisma.user.update({
+      where: { email: 'supervisor@xypes.local' },
+      data: {
+        jurisdictionType: 'province',
+        jurisdictionId: province.id,
+      },
+    });
+
+    const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+    const inProvinceCityAdmin = await prisma.user.create({
+      data: {
+        name: `Province Scoped City Admin ${unique}`,
+        email: `province.city.admin.${unique}@xypes.local`,
+        passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+        role: 'CITY_ADMIN',
+        jurisdictionType: 'city',
+        jurisdictionId: city.id,
+      },
+      select: { id: true, email: true },
+    });
+
+    const outOfProvinceDispatcher = await prisma.user.create({
+      data: {
+        name: `Outside Province Dispatcher ${unique}`,
+        email: `outside.province.dispatcher.${unique}@xypes.local`,
+        passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+        role: 'DISPATCHER',
+        jurisdictionType: 'city',
+        jurisdictionId: outsideCity.id,
+      },
+      select: { id: true },
+    });
+
+    const localRes = await request(app)
+      .get(`${USERS}/${inProvinceCityAdmin.id}`)
+      .set('Authorization', `Bearer ${provincialAdminToken}`);
+
+    expect(localRes.status).toBe(200);
+    expect(localRes.body).toMatchObject({
+      id: inProvinceCityAdmin.id,
+      email: inProvinceCityAdmin.email,
+      role: 'CITY_ADMIN',
+      jurisdictionType: 'city',
+      jurisdictionId: city.id,
+    });
+
+    const blockedRes = await request(app)
+      .get(`${USERS}/${outOfProvinceDispatcher.id}`)
+      .set('Authorization', `Bearer ${provincialAdminToken}`);
+
+    expect(blockedRes.status).toBe(403);
+  });
+
+  it('should allow REGIONAL_DIRECTOR to read in-region users and reject out-of-region detail reads', async () => {
+    const { region, city: roxasCity } = await ensureRoxasMunicipalityScope();
+    const { city: outsideRegionCity } = await ensureOutsideRegionMunicipalityScope();
+
+    await prisma.user.update({
+      where: { email: 'regional.director@xypes.local' },
+      data: {
+        jurisdictionType: 'region',
+        jurisdictionId: region.id,
+      },
+    });
+
+    const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+    const inRegionCityAdmin = await prisma.user.create({
+      data: {
+        name: `Region Scoped City Admin ${unique}`,
+        email: `region.city.admin.${unique}@xypes.local`,
+        passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+        role: 'CITY_ADMIN',
+        jurisdictionType: 'city',
+        jurisdictionId: roxasCity.id,
+      },
+      select: { id: true, email: true },
+    });
+
+    const outOfRegionDispatcher = await prisma.user.create({
+      data: {
+        name: `Outside Region Dispatcher ${unique}`,
+        email: `outside.region.dispatcher.${unique}@xypes.local`,
+        passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+        role: 'DISPATCHER',
+        jurisdictionType: 'city',
+        jurisdictionId: outsideRegionCity.id,
+      },
+      select: { id: true },
+    });
+
+    const localRes = await request(app)
+      .get(`${USERS}/${inRegionCityAdmin.id}`)
+      .set('Authorization', `Bearer ${regionalDirectorToken}`);
+
+    expect(localRes.status).toBe(200);
+    expect(localRes.body).toMatchObject({
+      id: inRegionCityAdmin.id,
+      email: inRegionCityAdmin.email,
+      role: 'CITY_ADMIN',
+      jurisdictionType: 'city',
+      jurisdictionId: roxasCity.id,
+    });
+
+    const blockedRes = await request(app)
+      .get(`${USERS}/${outOfRegionDispatcher.id}`)
+      .set('Authorization', `Bearer ${regionalDirectorToken}`);
+
+    expect(blockedRes.status).toBe(403);
   });
 });
 
@@ -333,5 +1292,161 @@ describe(`POST ${USERS}/:id/restore`, () => {
     }
 
     expect(restoreRes.status).toBe(403);
+  });
+
+  it('should allow PROVINCIAL_ADMIN to delete and restore in-province users but reject out-of-province lifecycle actions', async () => {
+    const { province, city: roxasCity } = await ensureRoxasMunicipalityScope();
+    const { city: outsideProvinceCity } = await ensureOutsideProvinceMunicipalityScope();
+
+    await prisma.user.update({
+      where: { email: 'supervisor@xypes.local' },
+      data: {
+        jurisdictionType: 'province',
+        jurisdictionId: province.id,
+      },
+    });
+
+    const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+    const inProvinceUser = await prisma.user.create({
+      data: {
+        name: `Province Lifecycle User ${unique}`,
+        email: `province.lifecycle.${unique}@xypes.local`,
+        passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+        role: 'DISPATCHER',
+        jurisdictionType: 'city',
+        jurisdictionId: roxasCity.id,
+      },
+      select: { id: true },
+    });
+
+    const outOfProvinceUser = await prisma.user.create({
+      data: {
+        name: `Province Outside User ${unique}`,
+        email: `province.outside.${unique}@xypes.local`,
+        passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+        role: 'DISPATCHER',
+        jurisdictionType: 'city',
+        jurisdictionId: outsideProvinceCity.id,
+      },
+      select: { id: true },
+    });
+
+    const allowedDeleteRes = await request(app)
+      .delete(`${USERS}/${inProvinceUser.id}`)
+      .set('Authorization', `Bearer ${provincialAdminToken}`);
+
+    expect(allowedDeleteRes.status).toBe(204);
+
+    const blockedDeleteRes = await request(app)
+      .delete(`${USERS}/${outOfProvinceUser.id}`)
+      .set('Authorization', `Bearer ${provincialAdminToken}`);
+
+    expect(blockedDeleteRes.status).toBe(403);
+
+    const allowedRestoreRes = await request(app)
+      .post(`${USERS}/${inProvinceUser.id}/restore`)
+      .set('Authorization', `Bearer ${provincialAdminToken}`);
+
+    if (!archiveEnabled) {
+      expect(allowedRestoreRes.status).toBe(404);
+      return;
+    }
+
+    expect(allowedRestoreRes.status).toBe(200);
+    expect(allowedRestoreRes.body).toMatchObject({
+      id: inProvinceUser.id,
+      jurisdictionType: 'city',
+      jurisdictionId: roxasCity.id,
+    });
+
+    const adminDeleteRes = await request(app)
+      .delete(`${USERS}/${outOfProvinceUser.id}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(adminDeleteRes.status).toBe(204);
+
+    const blockedRestoreRes = await request(app)
+      .post(`${USERS}/${outOfProvinceUser.id}/restore`)
+      .set('Authorization', `Bearer ${provincialAdminToken}`);
+
+    expect(blockedRestoreRes.status).toBe(403);
+  });
+
+  it('should allow REGIONAL_DIRECTOR to delete and restore in-region users but reject out-of-region lifecycle actions', async () => {
+    const { region, city: roxasCity } = await ensureRoxasMunicipalityScope();
+    const { city: outsideRegionCity } = await ensureOutsideRegionMunicipalityScope();
+
+    await prisma.user.update({
+      where: { email: 'regional.director@xypes.local' },
+      data: {
+        jurisdictionType: 'region',
+        jurisdictionId: region.id,
+      },
+    });
+
+    const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+    const inRegionUser = await prisma.user.create({
+      data: {
+        name: `Region Lifecycle User ${unique}`,
+        email: `region.lifecycle.${unique}@xypes.local`,
+        passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+        role: 'DISPATCHER',
+        jurisdictionType: 'city',
+        jurisdictionId: roxasCity.id,
+      },
+      select: { id: true },
+    });
+
+    const outOfRegionUser = await prisma.user.create({
+      data: {
+        name: `Region Outside User ${unique}`,
+        email: `region.outside.${unique}@xypes.local`,
+        passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+        role: 'DISPATCHER',
+        jurisdictionType: 'city',
+        jurisdictionId: outsideRegionCity.id,
+      },
+      select: { id: true },
+    });
+
+    const allowedDeleteRes = await request(app)
+      .delete(`${USERS}/${inRegionUser.id}`)
+      .set('Authorization', `Bearer ${regionalDirectorToken}`);
+
+    expect(allowedDeleteRes.status).toBe(204);
+
+    const blockedDeleteRes = await request(app)
+      .delete(`${USERS}/${outOfRegionUser.id}`)
+      .set('Authorization', `Bearer ${regionalDirectorToken}`);
+
+    expect(blockedDeleteRes.status).toBe(403);
+
+    const allowedRestoreRes = await request(app)
+      .post(`${USERS}/${inRegionUser.id}/restore`)
+      .set('Authorization', `Bearer ${regionalDirectorToken}`);
+
+    if (!archiveEnabled) {
+      expect(allowedRestoreRes.status).toBe(404);
+      return;
+    }
+
+    expect(allowedRestoreRes.status).toBe(200);
+    expect(allowedRestoreRes.body).toMatchObject({
+      id: inRegionUser.id,
+      jurisdictionType: 'city',
+      jurisdictionId: roxasCity.id,
+    });
+
+    const adminDeleteRes = await request(app)
+      .delete(`${USERS}/${outOfRegionUser.id}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(adminDeleteRes.status).toBe(204);
+
+    const blockedRestoreRes = await request(app)
+      .post(`${USERS}/${outOfRegionUser.id}/restore`)
+      .set('Authorization', `Bearer ${regionalDirectorToken}`);
+
+    expect(blockedRestoreRes.status).toBe(403);
   });
 });
