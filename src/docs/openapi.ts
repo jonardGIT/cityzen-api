@@ -6,6 +6,10 @@ const CONDITIONAL_SESSION_PATHS = ['/auth/sessions', '/auth/sessions/{id}'] as c
 const CONDITIONAL_MEDIA_PATHS = ['/incidents/media/upload'] as const;
 const CONDITIONAL_RESTORE_PATHS = [
   '/citizens/{id}/restore',
+  '/regions/{id}/restore',
+  '/provinces/{id}/restore',
+  '/cities-municipalities/{id}/restore',
+  '/barangays/{id}/restore',
   '/agencies/{id}/restore',
   '/responders/{id}/restore',
   '/statuses/{id}/restore',
@@ -18,6 +22,13 @@ const CONDITIONAL_RESTORE_PATHS = [
 ] as const;
 const HARD_DELETE_PATH_METADATA = {
   '/citizens/{id}': { summary: 'Delete citizen', responseDescription: 'Citizen deleted.' },
+  '/regions/{id}': { summary: 'Delete region', responseDescription: 'Region deleted.' },
+  '/provinces/{id}': { summary: 'Delete province', responseDescription: 'Province deleted.' },
+  '/cities-municipalities/{id}': {
+    summary: 'Delete city or municipality',
+    responseDescription: 'City or municipality deleted.',
+  },
+  '/barangays/{id}': { summary: 'Delete barangay', responseDescription: 'Barangay deleted.' },
   '/agencies/{id}': { summary: 'Delete agency', responseDescription: 'Agency deleted.' },
   '/responders/{id}': { summary: 'Delete responder', responseDescription: 'Responder deleted.' },
   '/statuses/{id}': { summary: 'Delete status', responseDescription: 'Status deleted.' },
@@ -214,6 +225,7 @@ const cityAdminCapabilitiesExample: OpenAPIV3.ExampleObject = {
       'user:read:city',
       'user:update:city',
       'user:reset_password:city',
+      'geo:manage:city',
       'reference:manage:city',
       'incident:read:city',
       'agency:manage:city',
@@ -580,6 +592,26 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
     { name: 'Admin' },
     { name: 'AuditLog' },
     { name: 'Citizen' },
+    {
+      name: 'Region',
+      description:
+        'Philippine region reference data. Writes are limited to NATIONAL_ADMIN and REGIONAL_DIRECTOR.',
+    },
+    {
+      name: 'Province',
+      description:
+        'Province reference data under a region. Writes are limited to NATIONAL_ADMIN and REGIONAL_DIRECTOR.',
+    },
+    {
+      name: 'CityMunicipality',
+      description:
+        "City and municipality reference data. PROVINCIAL_ADMIN writes are limited to records inside the actor's province.",
+    },
+    {
+      name: 'Barangay',
+      description:
+        "Barangay reference data. PROVINCIAL_ADMIN writes are limited to the actor's province and CITY_ADMIN writes are limited to the actor's city.",
+    },
     { name: 'Agency' },
     { name: 'Responder' },
     { name: 'Status' },
@@ -626,6 +658,38 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
       'Citizen',
       'CreateCitizenRequest',
       'UpdateCitizenRequest',
+      apiKeyAndBearerSecurity,
+      apiKeyAndBearerSecurity,
+    ),
+    ...resourcePath(
+      'regions',
+      'Region',
+      'CreateRegionRequest',
+      'UpdateRegionRequest',
+      apiKeyAndBearerSecurity,
+      apiKeyAndBearerSecurity,
+    ),
+    ...resourcePath(
+      'provinces',
+      'Province',
+      'CreateProvinceRequest',
+      'UpdateProvinceRequest',
+      apiKeyAndBearerSecurity,
+      apiKeyAndBearerSecurity,
+    ),
+    ...resourcePath(
+      'cities-municipalities',
+      'CityMunicipality',
+      'CreateCityMunicipalityRequest',
+      'UpdateCityMunicipalityRequest',
+      apiKeyAndBearerSecurity,
+      apiKeyAndBearerSecurity,
+    ),
+    ...resourcePath(
+      'barangays',
+      'Barangay',
+      'CreateBarangayRequest',
+      'UpdateBarangayRequest',
       apiKeyAndBearerSecurity,
       apiKeyAndBearerSecurity,
     ),
@@ -2543,6 +2607,55 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         },
         required: ['id', 'createdAt', 'updatedAt', 'name', 'contactInfo', 'preferredChannel'],
       },
+      Region: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' },
+          code: { type: 'string' },
+          name: { type: 'string' },
+          designation: { type: 'string', nullable: true },
+        },
+        required: ['id', 'createdAt', 'updatedAt', 'code', 'name', 'designation'],
+      },
+      Province: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' },
+          code: { type: 'string' },
+          name: { type: 'string' },
+          regionId: { type: 'string', format: 'uuid' },
+        },
+        required: ['id', 'createdAt', 'updatedAt', 'code', 'name', 'regionId'],
+      },
+      CityMunicipality: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' },
+          code: { type: 'string' },
+          name: { type: 'string' },
+          type: { type: 'string', enum: ['CITY', 'MUNICIPALITY'] },
+          provinceId: { type: 'string', format: 'uuid' },
+        },
+        required: ['id', 'createdAt', 'updatedAt', 'code', 'name', 'type', 'provinceId'],
+      },
+      Barangay: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' },
+          code: { type: 'string' },
+          name: { type: 'string' },
+          cityMunicipalityId: { type: 'string', format: 'uuid' },
+        },
+        required: ['id', 'createdAt', 'updatedAt', 'code', 'name', 'cityMunicipalityId'],
+      },
       Agency: {
         type: 'object',
         properties: {
@@ -2948,6 +3061,76 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
           preferredChannel: { type: 'string' },
         },
         required: ['name', 'contactInfo', 'preferredChannel'],
+      },
+      CreateRegionRequest: {
+        type: 'object',
+        properties: {
+          code: { type: 'string' },
+          name: { type: 'string' },
+          designation: { type: 'string' },
+        },
+        required: ['code', 'name'],
+      },
+      UpdateRegionRequest: {
+        type: 'object',
+        properties: {
+          code: { type: 'string' },
+          name: { type: 'string' },
+          designation: { type: 'string', nullable: true },
+        },
+      },
+      CreateProvinceRequest: {
+        type: 'object',
+        properties: {
+          code: { type: 'string' },
+          name: { type: 'string' },
+          regionId: { type: 'string', format: 'uuid' },
+        },
+        required: ['code', 'name', 'regionId'],
+      },
+      UpdateProvinceRequest: {
+        type: 'object',
+        properties: {
+          code: { type: 'string' },
+          name: { type: 'string' },
+          regionId: { type: 'string', format: 'uuid' },
+        },
+      },
+      CreateCityMunicipalityRequest: {
+        type: 'object',
+        properties: {
+          code: { type: 'string' },
+          name: { type: 'string' },
+          type: { type: 'string', enum: ['CITY', 'MUNICIPALITY'] },
+          provinceId: { type: 'string', format: 'uuid' },
+        },
+        required: ['code', 'name', 'type', 'provinceId'],
+      },
+      UpdateCityMunicipalityRequest: {
+        type: 'object',
+        properties: {
+          code: { type: 'string' },
+          name: { type: 'string' },
+          type: { type: 'string', enum: ['CITY', 'MUNICIPALITY'] },
+          provinceId: { type: 'string', format: 'uuid' },
+        },
+      },
+      CreateBarangayRequest: {
+        type: 'object',
+        properties: {
+          code: { type: 'string' },
+          name: { type: 'string' },
+          cityMunicipalityId: { type: 'string', format: 'uuid' },
+        },
+        required: ['code', 'name', 'cityMunicipalityId'],
+      },
+      UpdateBarangayRequest: {
+        type: 'object',
+        properties: {
+          code: { type: 'string' },
+          name: { type: 'string' },
+          cityMunicipalityId: { type: 'string', format: 'uuid' },
+        },
       },
       UpdateCitizenRequest: {
         type: 'object',
@@ -3661,6 +3844,38 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         type: 'object',
         properties: {
           data: { type: 'array', items: { $ref: '#/components/schemas/Citizen' } },
+          pagination: { $ref: '#/components/schemas/PaginationMeta' },
+        },
+        required: ['data', 'pagination'],
+      },
+      PaginatedRegionList: {
+        type: 'object',
+        properties: {
+          data: { type: 'array', items: { $ref: '#/components/schemas/Region' } },
+          pagination: { $ref: '#/components/schemas/PaginationMeta' },
+        },
+        required: ['data', 'pagination'],
+      },
+      PaginatedProvinceList: {
+        type: 'object',
+        properties: {
+          data: { type: 'array', items: { $ref: '#/components/schemas/Province' } },
+          pagination: { $ref: '#/components/schemas/PaginationMeta' },
+        },
+        required: ['data', 'pagination'],
+      },
+      PaginatedCityMunicipalityList: {
+        type: 'object',
+        properties: {
+          data: { type: 'array', items: { $ref: '#/components/schemas/CityMunicipality' } },
+          pagination: { $ref: '#/components/schemas/PaginationMeta' },
+        },
+        required: ['data', 'pagination'],
+      },
+      PaginatedBarangayList: {
+        type: 'object',
+        properties: {
+          data: { type: 'array', items: { $ref: '#/components/schemas/Barangay' } },
           pagination: { $ref: '#/components/schemas/PaginationMeta' },
         },
         required: ['data', 'pagination'],

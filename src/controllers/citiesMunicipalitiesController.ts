@@ -3,6 +3,10 @@ import { createBodyValidators } from '../engine/validatorFactory.js';
 import { citiesMunicipalitiesListQueryConfig } from '../utils/listQueryConfig.js';
 import type { ContentTypeConfig } from '../engine/types.js';
 import { withActiveRecords } from '../utils/archive.js';
+import {
+  buildCityMunicipalityScopeWhere,
+  validateCityMunicipalityMutationScope,
+} from '../utils/geographyScope.js';
 
 const config: ContentTypeConfig = {
   modelName: 'cityMunicipality',
@@ -44,6 +48,12 @@ const config: ContentTypeConfig = {
       message: 'Conflict: city/municipality cannot be restored while its province is archived',
     },
   ],
+  hooks: {
+    buildScopeWhere: buildCityMunicipalityScopeWhere,
+    beforeCreate: validateCityMunicipalityMutationScope,
+    beforeUpdate: async (req, res, body, existing) =>
+      validateCityMunicipalityMutationScope(req, res, body, existing),
+  },
 };
 
 const handlers = createCrudController(config);

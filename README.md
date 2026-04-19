@@ -364,6 +364,13 @@ If you are rolling out the narrower city communications publisher role on an exi
 
 If you still rely on the legacy hierarchy conversion script, note that `prisma/migrate-roles.sql` now includes `CITY_CONTENT_EDITOR` in the rebuilt `users_role_check` constraint, but existing databases that already ran an older copy still need the additive patch above.
 
+If you are enabling the LGU geography hierarchy on an existing database that predates the geography rollout, also run:
+
+1. `prisma/add-geography-foundation.sql`
+2. `prisma/add-province-expansion.sql`
+
+`prisma/add-geography-foundation.sql` creates the core `regions`, `provinces`, `cities_municipalities`, and `barangays` tables plus their baseline indexes and update triggers. `prisma/add-province-expansion.sql` still assumes those tables already exist and only adds follow-on constraints, jurisdiction checks, and cross-resource indexes.
+
 ### 4. Start development server
 
 ```bash
@@ -432,6 +439,10 @@ Health check: `GET /api/v1/health`
 Resources:
 
 - `/api/v1/citizens`
+- `/api/v1/regions`
+- `/api/v1/provinces`
+- `/api/v1/cities-municipalities`
+- `/api/v1/barangays`
 - `/api/v1/agencies`
 - `/api/v1/responders`
 - `/api/v1/statuses`
@@ -477,6 +488,8 @@ Notes:
 - Restore endpoints return `409` when archive mode is disabled or the archived record still depends on other archived parent records.
 - When incident media is replaced, Supabase-hosted files are archived under the configured archive prefix by default instead of being left in place.
 - When an incident itself is archived, its media objects remain in place so the incident can be restored later.
+- Geography CRUD returns generated UUID identifiers for newly created regions, provinces, cities or municipalities, and barangays.
+- Geography write scope is tiered: `NATIONAL_ADMIN` and `REGIONAL_DIRECTOR` can manage all geography levels, `PROVINCIAL_ADMIN` can manage cities or municipalities and barangays inside its province scope, and `CITY_ADMIN` can manage barangays inside its city scope.
 - Validation failures return HTTP 422.
 - Role requirements differ by route and are documented in OpenAPI.
 
@@ -667,6 +680,10 @@ The table below summarizes the current route protection model. When `API_KEYS` o
 | `/api/v1/auth/sessions/:id`                                                                                                                         | N/A                                                                                                                     | Any authenticated JWT user, limited to own session                                                                     |
 | `/api/v1/auth/mfa/setup`, `/api/v1/auth/mfa/enable`, `/api/v1/auth/mfa/disable`                                                                     | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `CITY_CONTENT_EDITOR`, `DISPATCHER`, `AUDITOR` | Current session only                                                                                                   |
 | `/api/v1/citizens`                                                                                                                                  | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`                                                 | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`                                                |
+| `/api/v1/regions`                                                                                                                                   | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `DISPATCHER`, `AUDITOR`                        | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`                                                                                  |
+| `/api/v1/provinces`                                                                                                                                 | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `DISPATCHER`, `AUDITOR`                        | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`                                                                                  |
+| `/api/v1/cities-municipalities`                                                                                                                     | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `DISPATCHER`, `AUDITOR`                        | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`                                                              |
+| `/api/v1/barangays`                                                                                                                                 | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `DISPATCHER`, `AUDITOR`                        | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`                                                |
 | `/api/v1/citizens/link-me`                                                                                                                          | N/A                                                                                                                     | `CITIZEN_REPORTER`                                                                                                     |
 | `/api/v1/agencies`                                                                                                                                  | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `DISPATCHER`                                   | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`                                                |
 | `/api/v1/responders`                                                                                                                                | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `DISPATCHER`                                   | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`                                                |

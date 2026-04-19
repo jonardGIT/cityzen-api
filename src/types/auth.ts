@@ -81,6 +81,7 @@ export const ROLE_PROFILES: Record<UserRole, RoleProfile> = {
     label: 'Regional Director',
     permissions: [
       'user:manage:region',
+      'geo:manage:region',
       'incident:read:region',
       'incident:reassign:region',
       'incident:close:region',
@@ -94,6 +95,7 @@ export const ROLE_PROFILES: Record<UserRole, RoleProfile> = {
     label: 'Provincial Admin',
     permissions: [
       'user:manage:province',
+      'geo:manage:province',
       'incident:read:province',
       'incident:escalate:province',
       'agency:manage:province',
@@ -109,6 +111,7 @@ export const ROLE_PROFILES: Record<UserRole, RoleProfile> = {
       'user:read:city',
       'user:update:city',
       'user:reset_password:city',
+      'geo:manage:city',
       'reference:manage:city',
       'incident:read:city',
       'agency:manage:city',
@@ -216,6 +219,12 @@ export const AUDIT_READ_ROLES: UserRole[] = ['NATIONAL_ADMIN', 'AUDITOR'];
 
 // Geographic management roles (for CRUD on regions/provinces/cities/barangays)
 export const GEO_ADMIN_ROLES: UserRole[] = ['NATIONAL_ADMIN', 'REGIONAL_DIRECTOR'];
+export const LOCAL_GEO_ADMIN_ROLES: UserRole[] = [
+  'NATIONAL_ADMIN',
+  'REGIONAL_DIRECTOR',
+  'PROVINCIAL_ADMIN',
+];
+export const BARANGAY_GEO_ADMIN_ROLES: UserRole[] = [...LOCAL_GEO_ADMIN_ROLES, 'CITY_ADMIN'];
 export const GEO_READ_ROLES: UserRole[] = [...CITY_ROLES, 'DISPATCHER', 'AUDITOR'];
 
 // Escalation roles

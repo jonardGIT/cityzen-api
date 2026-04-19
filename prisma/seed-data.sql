@@ -58,6 +58,14 @@ INSERT INTO cities_municipalities (id, code, name, type, "provinceId", "createdA
   ('14000000-0000-0000-0000-000000000003', '023101000', 'Ilagan City', 'CITY', '13000000-0000-0000-0000-000000000001', NOW() - INTERVAL '12 days', NOW() - INTERVAL '20 hours'),
   ('14000000-0000-0000-0000-000000000004', '023108000', 'Cauayan City', 'CITY', '13000000-0000-0000-0000-000000000001', NOW() - INTERVAL '12 days', NOW() - INTERVAL '18 hours');
 
+INSERT INTO barangays (id, code, name, "cityMunicipalityId", "createdAt", "updatedAt") VALUES
+  ('15000000-0000-0000-0000-000000000001', '021529001', 'Bagay', '14000000-0000-0000-0000-000000000002', NOW() - INTERVAL '11 days', NOW() - INTERVAL '18 hours'),
+  ('15000000-0000-0000-0000-000000000002', '021529002', 'Carig Sur', '14000000-0000-0000-0000-000000000002', NOW() - INTERVAL '11 days', NOW() - INTERVAL '17 hours'),
+  ('15000000-0000-0000-0000-000000000003', '021529003', 'Centro 10', '14000000-0000-0000-0000-000000000002', NOW() - INTERVAL '11 days', NOW() - INTERVAL '16 hours'),
+  ('15000000-0000-0000-0000-000000000004', '023101001', 'Alibagu', '14000000-0000-0000-0000-000000000003', NOW() - INTERVAL '11 days', NOW() - INTERVAL '15 hours'),
+  ('15000000-0000-0000-0000-000000000005', '023101002', 'San Vicente', '14000000-0000-0000-0000-000000000003', NOW() - INTERVAL '11 days', NOW() - INTERVAL '14 hours'),
+  ('15000000-0000-0000-0000-000000000006', '023126001', 'Munumun', '14000000-0000-0000-0000-000000000001', NOW() - INTERVAL '11 days', NOW() - INTERVAL '13 hours');
+
 INSERT INTO mobile_app_content (
   id,
   "createdAt",
@@ -140,7 +148,7 @@ INSERT INTO mobile_app_content (
     NOW() - INTERVAL '30 minutes',
     'barangay-cleanup-campaign-preview',
     'Barangay Cleanup Campaign Preview',
-    'Draft copy for next week\'s community cleanup drive.',
+    'Draft copy for next week''s community cleanup drive.',
     'Draft community cleanup campaign content pending final approval from the city communications team.',
     'campaign',
     'home',
@@ -175,11 +183,7 @@ INSERT INTO severities (id, "createdAt", "updatedAt", level, definition) VALUES
   ('40000000-0000-0000-0000-000000000004', NOW() - INTERVAL '15 days', NOW() - INTERVAL '12 days', 'Critical', 'Immediate intervention required.');
 
 INSERT INTO citizens (id, "createdAt", "updatedAt", name, "contactInfo", "preferredChannel") VALUES
-  ('60000000-0000-0000-0000-000000000001', NOW() - INTERVAL '9 days', NOW() - INTERVAL '18 hours', 'Grace Dela Rosa', 'grace.delarosa@example.com', 'SMS'),
-  ('60000000-0000-0000-0000-000000000002', NOW() - INTERVAL '8 days', NOW() - INTERVAL '16 hours', 'Carlo Fernandez', 'carlo.fernandez@example.com', 'Call'),
-  ('60000000-0000-0000-0000-000000000003', NOW() - INTERVAL '7 days', NOW() - INTERVAL '14 hours', 'Jenny Mae Padilla', 'jennymae.padilla@example.com', 'Email'),
-  ('60000000-0000-0000-0000-000000000004', NOW() - INTERVAL '6 days', NOW() - INTERVAL '12 hours', 'Roberto Manabat', 'roberto.manabat@example.com', 'SMS'),
-  ('60000000-0000-0000-0000-000000000005', NOW() - INTERVAL '5 days', NOW() - INTERVAL '10 hours', 'Maricel Aquino', 'maricel.aquino@example.com', 'Call');
+  ('60000000-0000-0000-0000-000000000001', NOW() - INTERVAL '9 days', NOW() - INTERVAL '18 hours', 'Grace Dela Rosa', 'grace.delarosa@example.com', 'SMS');
 
 INSERT INTO agencies (id, "createdAt", "updatedAt", name, "contactNumber") VALUES
   ('70000000-0000-0000-0000-000000000001', NOW() - INTERVAL '14 days', NOW() - INTERVAL '3 days', 'Tuguegarao City Fire Station', '+63-78-844-1180'),
@@ -218,10 +222,10 @@ INSERT INTO incidents (
   "severityId"
 ) VALUES
   ('90000000-0000-0000-0000-000000000001', NOW() - INTERVAL '36 hours', NOW() - INTERVAL '34 hours', 'Kitchen fire triggered by a faulty extension cord in a boarding house.', 'https://example.com/media/tuguegarao-incident-001.jpg', NOW() - INTERVAL '36 hours', 17.6153000, 121.7270000, '18 Mabini Street', NULL, 'Centro 10', NULL, 'Tuguegarao City', 'Cagayan', 'Cagayan Valley', '3500', 'Across Tuguegarao City West Central School', '20000000-0000-0000-0000-000000000003', '60000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000004'),
-  ('90000000-0000-0000-0000-000000000002', NOW() - INTERVAL '30 hours', NOW() - INTERVAL '28 hours', 'Senior citizen experienced shortness of breath during heavy rain and needed transport.', 'https://example.com/media/tuguegarao-incident-002.jpg', NOW() - INTERVAL '30 hours', 17.6411000, 121.7312000, '26 Carig Sur Road', 'House near chapel', 'Carig Sur', NULL, 'Tuguegarao City', 'Cagayan', 'Cagayan Valley', '3500', 'Near Carig barangay hall', '20000000-0000-0000-0000-000000000002', '60000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000002', '40000000-0000-0000-0000-000000000003'),
-  ('90000000-0000-0000-0000-000000000003', NOW() - INTERVAL '22 hours', NOW() - INTERVAL '16 hours', 'Floodwater from an overflowed drainage canal blocked the school access road.', 'https://example.com/media/ilagan-incident-003.jpg', NOW() - INTERVAL '22 hours', 17.1495000, 121.8897000, 'Purok 3, Alibagu', NULL, 'Alibagu', NULL, 'Ilagan City', 'Isabela', 'Cagayan Valley', '3300', 'Beside Alibagu National High School gate', '20000000-0000-0000-0000-000000000002', '60000000-0000-0000-0000-000000000003', '30000000-0000-0000-0000-000000000004', '40000000-0000-0000-0000-000000000004'),
-  ('90000000-0000-0000-0000-000000000004', NOW() - INTERVAL '4 hours', NOW() - INTERVAL '3 hours', 'Two motorcycles collided near the public market and traffic built up quickly.', 'https://example.com/media/ilagan-incident-004.jpg', NOW() - INTERVAL '4 hours', 17.1489000, 121.8890000, 'Maharlika Highway', 'Front of public market entrance', 'San Vicente', NULL, 'Ilagan City', 'Isabela', 'Cagayan Valley', '3300', 'Near pedestrian crossing', '20000000-0000-0000-0000-000000000005', '60000000-0000-0000-0000-000000000004', '30000000-0000-0000-0000-000000000003', '40000000-0000-0000-0000-000000000002'),
-  ('90000000-0000-0000-0000-000000000005', NOW() - INTERVAL '90 minutes', NOW() - INTERVAL '45 minutes', 'Fallen acacia tree blocked one lane after strong winds overnight.', 'https://example.com/media/tuguegarao-incident-005.jpg', NOW() - INTERVAL '90 minutes', 17.6209000, 121.7236000, 'Bagay Road', NULL, 'Bagay', NULL, 'Tuguegarao City', 'Cagayan', 'Cagayan Valley', '3500', 'Near tricycle terminal', '20000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000005', '30000000-0000-0000-0000-000000000005', '40000000-0000-0000-0000-000000000002');
+  ('90000000-0000-0000-0000-000000000002', NOW() - INTERVAL '30 hours', NOW() - INTERVAL '28 hours', 'Senior citizen experienced shortness of breath during heavy rain and needed transport.', 'https://example.com/media/tuguegarao-incident-002.jpg', NOW() - INTERVAL '30 hours', 17.6411000, 121.7312000, '26 Carig Sur Road', 'House near chapel', 'Carig Sur', NULL, 'Tuguegarao City', 'Cagayan', 'Cagayan Valley', '3500', 'Near Carig barangay hall', '20000000-0000-0000-0000-000000000002', '60000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000002', '40000000-0000-0000-0000-000000000003'),
+  ('90000000-0000-0000-0000-000000000003', NOW() - INTERVAL '22 hours', NOW() - INTERVAL '16 hours', 'Floodwater from an overflowed drainage canal blocked the school access road.', 'https://example.com/media/ilagan-incident-003.jpg', NOW() - INTERVAL '22 hours', 17.1495000, 121.8897000, 'Purok 3, Alibagu', NULL, 'Alibagu', NULL, 'Ilagan City', 'Isabela', 'Cagayan Valley', '3300', 'Beside Alibagu National High School gate', '20000000-0000-0000-0000-000000000002', '60000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000004', '40000000-0000-0000-0000-000000000004'),
+  ('90000000-0000-0000-0000-000000000004', NOW() - INTERVAL '4 hours', NOW() - INTERVAL '3 hours', 'Two motorcycles collided near the public market and traffic built up quickly.', 'https://example.com/media/ilagan-incident-004.jpg', NOW() - INTERVAL '4 hours', 17.1489000, 121.8890000, 'Maharlika Highway', 'Front of public market entrance', 'San Vicente', NULL, 'Ilagan City', 'Isabela', 'Cagayan Valley', '3300', 'Near pedestrian crossing', '20000000-0000-0000-0000-000000000005', '60000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000003', '40000000-0000-0000-0000-000000000002'),
+  ('90000000-0000-0000-0000-000000000005', NOW() - INTERVAL '90 minutes', NOW() - INTERVAL '45 minutes', 'Fallen acacia tree blocked one lane after strong winds overnight.', 'https://example.com/media/tuguegarao-incident-005.jpg', NOW() - INTERVAL '90 minutes', 17.6209000, 121.7236000, 'Bagay Road', NULL, 'Bagay', NULL, 'Tuguegarao City', 'Cagayan', 'Cagayan Valley', '3500', 'Near tricycle terminal', '20000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000005', '40000000-0000-0000-0000-000000000002');
 
 INSERT INTO assignments (
   id,

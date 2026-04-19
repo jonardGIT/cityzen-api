@@ -8,7 +8,7 @@ import {
   restoreCityMunicipality,
   validators,
 } from '../controllers/citiesMunicipalitiesController.js';
-import { GEO_READ_ROLES, GEO_ADMIN_ROLES } from '../types/auth.js';
+import { GEO_READ_ROLES, LOCAL_GEO_ADMIN_ROLES } from '../types/auth.js';
 
 export default createCrudRouter({
   handlers: {
@@ -20,7 +20,7 @@ export default createCrudRouter({
     restore: restoreCityMunicipality,
   },
   readRoles: [...GEO_READ_ROLES],
-  writeRoles: [...GEO_ADMIN_ROLES],
+  writeRoles: [...LOCAL_GEO_ADMIN_ROLES],
   createValidator: validators.create,
   updateValidator: validators.update,
 });

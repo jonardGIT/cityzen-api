@@ -2,6 +2,7 @@ import { createCrudController } from '../engine/crudControllerFactory.js';
 import { createBodyValidators } from '../engine/validatorFactory.js';
 import { barangaysListQueryConfig } from '../utils/listQueryConfig.js';
 import type { ContentTypeConfig } from '../engine/types.js';
+import { buildBarangayScopeWhere, validateBarangayMutationScope } from '../utils/geographyScope.js';
 
 const config: ContentTypeConfig = {
   modelName: 'barangay',
@@ -36,6 +37,12 @@ const config: ContentTypeConfig = {
       message: 'Conflict: barangay cannot be restored while its city/municipality is archived',
     },
   ],
+  hooks: {
+    buildScopeWhere: buildBarangayScopeWhere,
+    beforeCreate: validateBarangayMutationScope,
+    beforeUpdate: async (req, res, body, existing) =>
+      validateBarangayMutationScope(req, res, body, existing),
+  },
 };
 
 const handlers = createCrudController(config);

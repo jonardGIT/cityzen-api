@@ -148,6 +148,330 @@
     },
 
     {
+      "resource": "regions",
+      "label": "Regions",
+      "operation": "list",
+      "method": "GET",
+      "path": "/regions",
+      "fullPath": "/api/v1/regions",
+      "authRequired": true,
+      "allowedRoles": [
+        "NATIONAL_ADMIN",
+        "REGIONAL_DIRECTOR",
+        "PROVINCIAL_ADMIN",
+        "CITY_ADMIN",
+        "DISPATCHER",
+        "AUDITOR"
+      ]
+    },
+    {
+      "resource": "regions",
+      "label": "Regions",
+      "operation": "get",
+      "method": "GET",
+      "path": "/regions/{id}",
+      "fullPath": "/api/v1/regions/{id}",
+      "authRequired": true,
+      "allowedRoles": [
+        "NATIONAL_ADMIN",
+        "REGIONAL_DIRECTOR",
+        "PROVINCIAL_ADMIN",
+        "CITY_ADMIN",
+        "DISPATCHER",
+        "AUDITOR"
+      ]
+    },
+    {
+      "resource": "regions",
+      "label": "Regions",
+      "operation": "create",
+      "method": "POST",
+      "path": "/regions",
+      "fullPath": "/api/v1/regions",
+      "authRequired": true,
+      "allowedRoles": ["NATIONAL_ADMIN", "REGIONAL_DIRECTOR"]
+    },
+    {
+      "resource": "regions",
+      "label": "Regions",
+      "operation": "update",
+      "method": "PATCH",
+      "path": "/regions/{id}",
+      "fullPath": "/api/v1/regions/{id}",
+      "authRequired": true,
+      "allowedRoles": ["NATIONAL_ADMIN", "REGIONAL_DIRECTOR"]
+    },
+    {
+      "resource": "regions",
+      "label": "Regions",
+      "operation": "delete",
+      "method": "DELETE",
+      "path": "/regions/{id}",
+      "fullPath": "/api/v1/regions/{id}",
+      "authRequired": true,
+      "allowedRoles": ["NATIONAL_ADMIN", "REGIONAL_DIRECTOR"]
+    },
+    {
+      "resource": "regions",
+      "label": "Regions",
+      "operation": "restore",
+      "method": "POST",
+      "path": "/regions/{id}/restore",
+      "fullPath": "/api/v1/regions/{id}/restore",
+      "authRequired": true,
+      "featureGate": {
+        "feature": "recordDeletion",
+        "requires": "archive"
+      },
+      "allowedRoles": ["NATIONAL_ADMIN", "REGIONAL_DIRECTOR"]
+    },
+
+    {
+      "resource": "provinces",
+      "label": "Provinces",
+      "operation": "list",
+      "method": "GET",
+      "path": "/provinces",
+      "fullPath": "/api/v1/provinces",
+      "authRequired": true,
+      "allowedRoles": [
+        "NATIONAL_ADMIN",
+        "REGIONAL_DIRECTOR",
+        "PROVINCIAL_ADMIN",
+        "CITY_ADMIN",
+        "DISPATCHER",
+        "AUDITOR"
+      ]
+    },
+    {
+      "resource": "provinces",
+      "label": "Provinces",
+      "operation": "get",
+      "method": "GET",
+      "path": "/provinces/{id}",
+      "fullPath": "/api/v1/provinces/{id}",
+      "authRequired": true,
+      "allowedRoles": [
+        "NATIONAL_ADMIN",
+        "REGIONAL_DIRECTOR",
+        "PROVINCIAL_ADMIN",
+        "CITY_ADMIN",
+        "DISPATCHER",
+        "AUDITOR"
+      ]
+    },
+    {
+      "resource": "provinces",
+      "label": "Provinces",
+      "operation": "create",
+      "method": "POST",
+      "path": "/provinces",
+      "fullPath": "/api/v1/provinces",
+      "authRequired": true,
+      "allowedRoles": ["NATIONAL_ADMIN", "REGIONAL_DIRECTOR"]
+    },
+    {
+      "resource": "provinces",
+      "label": "Provinces",
+      "operation": "update",
+      "method": "PATCH",
+      "path": "/provinces/{id}",
+      "fullPath": "/api/v1/provinces/{id}",
+      "authRequired": true,
+      "allowedRoles": ["NATIONAL_ADMIN", "REGIONAL_DIRECTOR"]
+    },
+    {
+      "resource": "provinces",
+      "label": "Provinces",
+      "operation": "delete",
+      "method": "DELETE",
+      "path": "/provinces/{id}",
+      "fullPath": "/api/v1/provinces/{id}",
+      "authRequired": true,
+      "allowedRoles": ["NATIONAL_ADMIN", "REGIONAL_DIRECTOR"]
+    },
+    {
+      "resource": "provinces",
+      "label": "Provinces",
+      "operation": "restore",
+      "method": "POST",
+      "path": "/provinces/{id}/restore",
+      "fullPath": "/api/v1/provinces/{id}/restore",
+      "authRequired": true,
+      "featureGate": {
+        "feature": "recordDeletion",
+        "requires": "archive"
+      },
+      "allowedRoles": ["NATIONAL_ADMIN", "REGIONAL_DIRECTOR"]
+    },
+
+    {
+      "resource": "cities-municipalities",
+      "label": "Cities and Municipalities",
+      "operation": "list",
+      "method": "GET",
+      "path": "/cities-municipalities",
+      "fullPath": "/api/v1/cities-municipalities",
+      "authRequired": true,
+      "allowedRoles": [
+        "NATIONAL_ADMIN",
+        "REGIONAL_DIRECTOR",
+        "PROVINCIAL_ADMIN",
+        "CITY_ADMIN",
+        "DISPATCHER",
+        "AUDITOR"
+      ]
+    },
+    {
+      "resource": "cities-municipalities",
+      "label": "Cities and Municipalities",
+      "operation": "get",
+      "method": "GET",
+      "path": "/cities-municipalities/{id}",
+      "fullPath": "/api/v1/cities-municipalities/{id}",
+      "authRequired": true,
+      "allowedRoles": [
+        "NATIONAL_ADMIN",
+        "REGIONAL_DIRECTOR",
+        "PROVINCIAL_ADMIN",
+        "CITY_ADMIN",
+        "DISPATCHER",
+        "AUDITOR"
+      ]
+    },
+    {
+      "resource": "cities-municipalities",
+      "label": "Cities and Municipalities",
+      "operation": "create",
+      "method": "POST",
+      "path": "/cities-municipalities",
+      "fullPath": "/api/v1/cities-municipalities",
+      "authRequired": true,
+      "allowedRoles": ["NATIONAL_ADMIN", "REGIONAL_DIRECTOR", "PROVINCIAL_ADMIN"],
+      "notes": "PROVINCIAL_ADMIN writes are limited by the backend to cities or municipalities inside the actor's province scope. CITY_ADMIN remains read-only for this resource."
+    },
+    {
+      "resource": "cities-municipalities",
+      "label": "Cities and Municipalities",
+      "operation": "update",
+      "method": "PATCH",
+      "path": "/cities-municipalities/{id}",
+      "fullPath": "/api/v1/cities-municipalities/{id}",
+      "authRequired": true,
+      "allowedRoles": ["NATIONAL_ADMIN", "REGIONAL_DIRECTOR", "PROVINCIAL_ADMIN"],
+      "notes": "PROVINCIAL_ADMIN writes are limited by the backend to cities or municipalities inside the actor's province scope."
+    },
+    {
+      "resource": "cities-municipalities",
+      "label": "Cities and Municipalities",
+      "operation": "delete",
+      "method": "DELETE",
+      "path": "/cities-municipalities/{id}",
+      "fullPath": "/api/v1/cities-municipalities/{id}",
+      "authRequired": true,
+      "allowedRoles": ["NATIONAL_ADMIN", "REGIONAL_DIRECTOR", "PROVINCIAL_ADMIN"],
+      "notes": "Delete archives the record when archive mode is enabled. PROVINCIAL_ADMIN archive access is limited to the actor's province scope."
+    },
+    {
+      "resource": "cities-municipalities",
+      "label": "Cities and Municipalities",
+      "operation": "restore",
+      "method": "POST",
+      "path": "/cities-municipalities/{id}/restore",
+      "fullPath": "/api/v1/cities-municipalities/{id}/restore",
+      "authRequired": true,
+      "featureGate": {
+        "feature": "recordDeletion",
+        "requires": "archive"
+      },
+      "allowedRoles": ["NATIONAL_ADMIN", "REGIONAL_DIRECTOR", "PROVINCIAL_ADMIN"],
+      "notes": "PROVINCIAL_ADMIN restore access is limited to archived records inside the actor's province scope."
+    },
+
+    {
+      "resource": "barangays",
+      "label": "Barangays",
+      "operation": "list",
+      "method": "GET",
+      "path": "/barangays",
+      "fullPath": "/api/v1/barangays",
+      "authRequired": true,
+      "allowedRoles": [
+        "NATIONAL_ADMIN",
+        "REGIONAL_DIRECTOR",
+        "PROVINCIAL_ADMIN",
+        "CITY_ADMIN",
+        "DISPATCHER",
+        "AUDITOR"
+      ]
+    },
+    {
+      "resource": "barangays",
+      "label": "Barangays",
+      "operation": "get",
+      "method": "GET",
+      "path": "/barangays/{id}",
+      "fullPath": "/api/v1/barangays/{id}",
+      "authRequired": true,
+      "allowedRoles": [
+        "NATIONAL_ADMIN",
+        "REGIONAL_DIRECTOR",
+        "PROVINCIAL_ADMIN",
+        "CITY_ADMIN",
+        "DISPATCHER",
+        "AUDITOR"
+      ]
+    },
+    {
+      "resource": "barangays",
+      "label": "Barangays",
+      "operation": "create",
+      "method": "POST",
+      "path": "/barangays",
+      "fullPath": "/api/v1/barangays",
+      "authRequired": true,
+      "allowedRoles": ["NATIONAL_ADMIN", "REGIONAL_DIRECTOR", "PROVINCIAL_ADMIN", "CITY_ADMIN"],
+      "notes": "PROVINCIAL_ADMIN writes are limited by the backend to barangays inside the actor's province scope. CITY_ADMIN writes are limited to barangays inside the actor's city scope."
+    },
+    {
+      "resource": "barangays",
+      "label": "Barangays",
+      "operation": "update",
+      "method": "PATCH",
+      "path": "/barangays/{id}",
+      "fullPath": "/api/v1/barangays/{id}",
+      "authRequired": true,
+      "allowedRoles": ["NATIONAL_ADMIN", "REGIONAL_DIRECTOR", "PROVINCIAL_ADMIN", "CITY_ADMIN"],
+      "notes": "PROVINCIAL_ADMIN writes are limited by the backend to barangays inside the actor's province scope. CITY_ADMIN writes are limited to barangays inside the actor's city scope."
+    },
+    {
+      "resource": "barangays",
+      "label": "Barangays",
+      "operation": "delete",
+      "method": "DELETE",
+      "path": "/barangays/{id}",
+      "fullPath": "/api/v1/barangays/{id}",
+      "authRequired": true,
+      "allowedRoles": ["NATIONAL_ADMIN", "REGIONAL_DIRECTOR", "PROVINCIAL_ADMIN", "CITY_ADMIN"],
+      "notes": "Delete archives the record when archive mode is enabled. PROVINCIAL_ADMIN and CITY_ADMIN archive access remain scope-limited by the backend."
+    },
+    {
+      "resource": "barangays",
+      "label": "Barangays",
+      "operation": "restore",
+      "method": "POST",
+      "path": "/barangays/{id}/restore",
+      "fullPath": "/api/v1/barangays/{id}/restore",
+      "authRequired": true,
+      "featureGate": {
+        "feature": "recordDeletion",
+        "requires": "archive"
+      },
+      "allowedRoles": ["NATIONAL_ADMIN", "REGIONAL_DIRECTOR", "PROVINCIAL_ADMIN", "CITY_ADMIN"],
+      "notes": "PROVINCIAL_ADMIN and CITY_ADMIN restore access remain scope-limited by the backend."
+    },
+
+    {
       "resource": "agencies",
       "label": "Agencies",
       "operation": "list",

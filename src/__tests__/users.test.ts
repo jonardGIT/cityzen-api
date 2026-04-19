@@ -180,6 +180,7 @@ describe(`GET ${CAPABILITIES}`, () => {
     expect(res.body.permissions).toEqual(
       expect.arrayContaining([
         'user:manage:global',
+        'geo:manage:global',
         'role:manage:global',
         'settings:manage:global',
         'incident:manage:global',
@@ -251,7 +252,7 @@ describe(`GET ${CAPABILITIES}`, () => {
       label: 'City/Municipal Admin',
       scope: 'city',
       canUpdateUser: true,
-      canDeleteUser: true,
+      canDeleteUser: false,
     });
     expect(res.body.permissions).toEqual(
       expect.arrayContaining([
@@ -259,6 +260,7 @@ describe(`GET ${CAPABILITIES}`, () => {
         'user:read:city',
         'user:update:city',
         'user:reset_password:city',
+        'geo:manage:city',
       ]),
     );
   });
@@ -274,11 +276,12 @@ describe(`GET ${CAPABILITIES}`, () => {
       label: 'Provincial Admin',
       scope: 'province',
       canUpdateUser: true,
-      canDeleteUser: true,
+      canDeleteUser: false,
     });
     expect(res.body.permissions).toEqual(
       expect.arrayContaining([
         'user:manage:province',
+        'geo:manage:province',
         'incident:read:province',
         'agency:manage:province',
       ]),
@@ -296,11 +299,12 @@ describe(`GET ${CAPABILITIES}`, () => {
       label: 'Regional Director',
       scope: 'region',
       canUpdateUser: true,
-      canDeleteUser: true,
+      canDeleteUser: false,
     });
     expect(res.body.permissions).toEqual(
       expect.arrayContaining([
         'user:manage:region',
+        'geo:manage:region',
         'incident:read:region',
         'agency:manage:region',
       ]),

@@ -461,7 +461,7 @@ export async function getUserCapabilities(req: Request, res: Response): Promise<
     'user:manage:global',
   ].some((permission) => profile.permissions.includes(permission));
 
-  const canDeleteUser = canUpdateUser;
+  const canDeleteUser = profile.permissions.includes('user:manage:global');
 
   res.json({
     role: authUser.role,
