@@ -1280,7 +1280,7 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
         tags: ['User'],
         summary: 'Archive user',
         description:
-          'Available to LGU admin roles only: NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, and CITY_ADMIN. The backend enforces both manageable-role rules and jurisdiction scope, so scoped admins can archive only users inside their own region, province, or municipality.',
+          'Available to LGU admin roles only: NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, and CITY_ADMIN. The backend enforces both manageable-role rules and jurisdiction scope, so scoped admins can archive only users inside their own region, province, or city.',
         security: apiKeyAndBearerSecurity,
         parameters: [idParameter],
         responses: {
@@ -2733,12 +2733,13 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
             type: 'array',
             items: { type: 'string' },
             description:
-              'Normalized scoped permission keys exposed to clients for feature gating, for example `incident:read:city` or `audit:export:global`.',
+              'Normalized scoped permission keys exposed to clients for feature gating, for example `incident:read:city` or `audit:export:global`. The historical `:city` suffix is retained for compatibility and represents the city-or-municipality LGU tier.',
           },
           scope: {
             type: 'string',
             enum: ['own', 'assigned', 'city', 'province', 'region', 'national', 'global'],
-            description: 'Highest operational scope granted by the role.',
+            description:
+              'Highest operational scope granted by the role. The `city` value represents the city-or-municipality LGU tier.',
           },
           canUpdateUser: {
             type: 'boolean',
@@ -3630,8 +3631,10 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
           role: { $ref: '#/components/schemas/UserRole' },
           jurisdictionType: {
             type: 'string',
-            enum: ['region', 'province', 'city', 'municipality', 'barangay'],
+            enum: ['region', 'province', 'city', 'barangay'],
             nullable: true,
+            description:
+              'Jurisdiction binding for the user. Only region, province, city, and barangay bindings are accepted by the API.',
           },
           jurisdictionId: { type: 'string', format: 'uuid', nullable: true },
         },
@@ -3646,8 +3649,10 @@ const baseOpenApiDocument: OpenAPIV3.Document = {
           role: { $ref: '#/components/schemas/UserRole' },
           jurisdictionType: {
             type: 'string',
-            enum: ['region', 'province', 'city', 'municipality', 'barangay'],
+            enum: ['region', 'province', 'city', 'barangay'],
             nullable: true,
+            description:
+              'Jurisdiction binding for the user. Only region, province, city, and barangay bindings are accepted by the API.',
           },
           jurisdictionId: { type: 'string', format: 'uuid', nullable: true },
         },

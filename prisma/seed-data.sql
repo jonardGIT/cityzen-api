@@ -22,11 +22,11 @@ INSERT INTO users (id, "createdAt", "updatedAt", name, email, "passwordHash", ro
   ('10000000-0000-0000-0000-000000000001', NOW() - INTERVAL '14 days', NOW() - INTERVAL '2 days', 'National Admin', 'admin@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'NATIONAL_ADMIN', NULL, NULL),
   ('10000000-0000-0000-0000-000000000002', NOW() - INTERVAL '13 days', NOW() - INTERVAL '3 days', 'Regional Director', 'regional.director@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'REGIONAL_DIRECTOR', 'region', '12000000-0000-0000-0000-000000000001'),
   ('10000000-0000-0000-0000-000000000003', NOW() - INTERVAL '12 days', NOW() - INTERVAL '2 days', 'Provincial Admin', 'supervisor@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'PROVINCIAL_ADMIN', 'province', '13000000-0000-0000-0000-000000000001'),
-  ('10000000-0000-0000-0000-000000000004', NOW() - INTERVAL '11 days', NOW() - INTERVAL '36 hours', 'City Admin', 'ops.lead@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'CITY_ADMIN', NULL, NULL),
-  ('10000000-0000-0000-0000-000000000005', NOW() - INTERVAL '10 days', NOW() - INTERVAL '24 hours', 'City Content Editor', 'content.editor@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'CITY_CONTENT_EDITOR', NULL, NULL),
-  ('10000000-0000-0000-0000-000000000006', NOW() - INTERVAL '9 days', NOW() - INTERVAL '18 hours', 'Dispatcher', 'dispatcher@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'DISPATCHER', NULL, NULL),
+  ('10000000-0000-0000-0000-000000000004', NOW() - INTERVAL '11 days', NOW() - INTERVAL '36 hours', 'City Admin', 'ops.lead@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'CITY_ADMIN', 'city', '14000000-0000-0000-0000-000000000001'),
+  ('10000000-0000-0000-0000-000000000005', NOW() - INTERVAL '10 days', NOW() - INTERVAL '24 hours', 'City Content Editor', 'content.editor@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'CITY_CONTENT_EDITOR', 'city', '14000000-0000-0000-0000-000000000001'),
+  ('10000000-0000-0000-0000-000000000006', NOW() - INTERVAL '9 days', NOW() - INTERVAL '18 hours', 'Dispatcher', 'dispatcher@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'DISPATCHER', 'city', '14000000-0000-0000-0000-000000000001'),
   ('10000000-0000-0000-0000-000000000007', NOW() - INTERVAL '8 days', NOW() - INTERVAL '12 hours', 'Citizen Reporter', 'analyst@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'CITIZEN_REPORTER', NULL, NULL),
-  ('10000000-0000-0000-0000-000000000008', NOW() - INTERVAL '7 days', NOW() - INTERVAL '10 hours', 'Responder', 'responder@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'RESPONDER', NULL, NULL),
+  ('10000000-0000-0000-0000-000000000008', NOW() - INTERVAL '7 days', NOW() - INTERVAL '10 hours', 'Responder', 'responder@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'RESPONDER', 'city', '14000000-0000-0000-0000-000000000001'),
   ('10000000-0000-0000-0000-000000000009', NOW() - INTERVAL '6 days', NOW() - INTERVAL '8 hours', 'Auditor', 'auditor@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'AUDITOR', NULL, NULL),
   ('10000000-0000-0000-0000-000000000010', NOW() - INTERVAL '5 days', NOW() - INTERVAL '6 hours', 'Roxas Municipal Admin', 'roxas.municipal.admin@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'CITY_ADMIN', 'city', '14000000-0000-0000-0000-000000000001'),
   ('10000000-0000-0000-0000-000000000011', NOW() - INTERVAL '5 days', NOW() - INTERVAL '5 hours', 'Roxas Content Editor', 'roxas.content.editor@xypes.local', '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK', 'CITY_CONTENT_EDITOR', 'city', '14000000-0000-0000-0000-000000000001'),
@@ -37,10 +37,12 @@ INSERT INTO regions (id, code, name, designation, "createdAt", "updatedAt") VALU
   ('12000000-0000-0000-0000-000000000001', '020000000', 'Cagayan Valley', 'Region II', NOW() - INTERVAL '14 days', NOW() - INTERVAL '2 days');
 
 INSERT INTO provinces (id, code, name, "regionId", "createdAt", "updatedAt") VALUES
-  ('13000000-0000-0000-0000-000000000001', '023100000', 'Isabela', '12000000-0000-0000-0000-000000000001', NOW() - INTERVAL '13 days', NOW() - INTERVAL '2 days');
+  ('13000000-0000-0000-0000-000000000001', '023100000', 'Isabela', '12000000-0000-0000-0000-000000000001', NOW() - INTERVAL '13 days', NOW() - INTERVAL '2 days'),
+  ('13000000-0000-0000-0000-000000000002', '021500000', 'Cagayan', '12000000-0000-0000-0000-000000000001', NOW() - INTERVAL '13 days', NOW() - INTERVAL '30 hours');
 
 INSERT INTO cities_municipalities (id, code, name, type, "provinceId", "createdAt", "updatedAt") VALUES
-  ('14000000-0000-0000-0000-000000000001', '023126000', 'Roxas', 'MUNICIPALITY', '13000000-0000-0000-0000-000000000001', NOW() - INTERVAL '12 days', NOW() - INTERVAL '36 hours');
+  ('14000000-0000-0000-0000-000000000001', '023126000', 'Roxas', 'MUNICIPALITY', '13000000-0000-0000-0000-000000000001', NOW() - INTERVAL '12 days', NOW() - INTERVAL '36 hours'),
+  ('14000000-0000-0000-0000-000000000002', '021529000', 'Tuguegarao City', 'CITY', '13000000-0000-0000-0000-000000000002', NOW() - INTERVAL '12 days', NOW() - INTERVAL '24 hours');
 
 INSERT INTO mobile_app_content (
   id,

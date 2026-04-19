@@ -1,4 +1,5 @@
 import request from 'supertest';
+import prisma from '../lib/prisma.js';
 import app, { API_V1 } from '../app.js';
 import { getAdminToken, getTokenForRole } from './helpers/auth.js';
 
@@ -8,13 +9,37 @@ let adminToken = '';
 let dispatcherToken = '';
 let validAgencyId = '';
 
+async function ensureRoxasMunicipalityScope() {
+  const region = await prisma.region.upsert({
+    where: { code: '020000000' },
+    update: { name: 'Cagayan Valley', designation: 'Region II', archivedAt: null },
+    create: { code: '020000000', name: 'Cagayan Valley', designation: 'Region II' },
+  });
+
+  const province = await prisma.province.upsert({
+    where: { code: '023100000' },
+    update: { name: 'Isabela', regionId: region.id, archivedAt: null },
+    create: { code: '023100000', name: 'Isabela', regionId: region.id },
+  });
+
+  return prisma.cityMunicipality.upsert({
+    where: { code: '023101000' },
+    update: { name: 'Ilagan City', type: 'CITY', provinceId: province.id, archivedAt: null },
+    create: { code: '023101000', name: 'Ilagan City', type: 'CITY', provinceId: province.id },
+  });
+}
+
 async function createAgency() {
+  const city = await ensureRoxasMunicipalityScope();
   const response = await request(app)
     .post(`${API_V1}/agencies`)
     .set('Authorization', `Bearer ${adminToken}`)
     .send({
       name: `Responder Test Agency ${Date.now()}-${Math.random()}`,
       contactNumber: '09171234567',
+      jurisdictionType: 'city',
+      jurisdictionId: city.id,
+      cityMunicipalityId: city.id,
     });
 
   expect(response.status).toBe(201);
@@ -39,6 +64,12 @@ async function createResponder(
 }
 
 beforeAll(async () => {
+  const city = await ensureRoxasMunicipalityScope();
+  await prisma.user.updateMany({
+    where: { email: 'dispatcher@xypes.local' },
+    data: { jurisdictionType: 'city', jurisdictionId: city.id },
+  });
+
   adminToken = await getAdminToken();
   dispatcherToken = await getTokenForRole('dispatcher@xypes.local');
   validAgencyId = await createAgency();
@@ -59,6 +90,31 @@ describe(`GET ${BASE}`, () => {
   it('should return 403 for VIEWER role', async () => {
     const viewerToken = await getTokenForRole('analyst@xypes.local');
     const res = await request(app).get(BASE).set('Authorization', `Bearer ${viewerToken}`);
+    expect(res.status).toBe(403);
+  });
+
+  it('should return 403 when trying to assign a responder to an out-of-scope agency', async () => {
+    const outOfScopeAgencyRes = await request(app)
+      .post(`${API_V1}/agencies`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: `Responder OutOfScope Agency ${Date.now()}-${Math.random()}`,
+        contactNumber: '09179999999',
+      });
+
+    expect(outOfScopeAgencyRes.status).toBe(201);
+
+    const cityAdminToken = await getTokenForRole('ops.lead@xypes.local');
+    const res = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${cityAdminToken}`)
+      .send({
+        name: 'Out Of Scope Responder',
+        agencyId: outOfScopeAgencyRes.body.id,
+        role: 'Medic',
+        contactInfo: 'out-of-scope@gov.com',
+      });
+
     expect(res.status).toBe(403);
   });
 });

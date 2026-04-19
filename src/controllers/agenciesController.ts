@@ -3,6 +3,7 @@ import { createBodyValidators } from '../engine/validatorFactory.js';
 import { agenciesListQueryConfig } from '../utils/listQueryConfig.js';
 import type { ContentTypeConfig } from '../engine/types.js';
 import { withActiveRecords } from '../utils/archive.js';
+import { buildAgencyScopeWhere, validateAgencyMutationScope } from '../utils/operationalScope.js';
 
 const config: ContentTypeConfig = {
   modelName: 'agency',
@@ -60,6 +61,12 @@ const config: ContentTypeConfig = {
       message: 'Conflict: agency still has active responders',
     },
   ],
+  hooks: {
+    buildScopeWhere: buildAgencyScopeWhere,
+    beforeCreate: validateAgencyMutationScope,
+    beforeUpdate: async (req, res, body, existing) =>
+      validateAgencyMutationScope(req, res, body, existing),
+  },
 };
 
 const handlers = createCrudController(config);

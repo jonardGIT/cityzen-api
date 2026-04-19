@@ -97,8 +97,12 @@ export async function resolveJurisdictionScope(
     // Get parent chain
     const city = await prisma.cityMunicipality.findUnique({
       where: { id: jurisdictionId },
-      select: { provinceId: true, province: { select: { regionId: true } } },
+      select: { type: true, provinceId: true, province: { select: { regionId: true } } },
     });
+
+    if (!city || city.type !== 'CITY') {
+      return { type: 'own' };
+    }
 
     // Get all barangays in this city
     const barangays = await prisma.barangay.findMany({

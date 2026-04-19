@@ -73,11 +73,12 @@ type ManagedJurisdictionAssignment = {
   jurisdictionId: string | null;
 };
 
+const JURISDICTION_REQUIRED_SCOPES = new Set(['region', 'province', 'city']);
+
 const JURISDICTION_TYPE_ALIASES: Record<string, 'region' | 'province' | 'city' | 'barangay'> = {
   region: 'region',
   province: 'province',
   city: 'city',
-  municipality: 'city',
   barangay: 'barangay',
 };
 
@@ -114,6 +115,22 @@ function normalizeJurisdictionTypeInput(
   return JURISDICTION_TYPE_ALIASES[normalized] ?? null;
 }
 
+function roleRequiresJurisdictionBinding(role: string | null | undefined): boolean {
+  const normalizedRole = normalizeUserRoleInput(role);
+  if (!normalizedRole) {
+    return false;
+  }
+
+  return JURISDICTION_REQUIRED_SCOPES.has(ROLE_PROFILES[normalizedRole].scope);
+}
+
+function hasJurisdictionBinding(
+  jurisdictionType: string | null | undefined,
+  jurisdictionId: string | null | undefined,
+): boolean {
+  return normalizeJurisdictionTypeInput(jurisdictionType) !== null && Boolean(jurisdictionId);
+}
+
 async function getStoredUserJurisdiction(userId: string): Promise<ManagedJurisdictionAssignment> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -142,7 +159,7 @@ async function jurisdictionExists(type: string, id: string): Promise<boolean> {
   if (type === 'city') {
     return Boolean(
       await prisma.cityMunicipality.findFirst({
-        where: withActiveRecords({ id }),
+        where: withActiveRecords({ id, type: 'CITY' }),
         select: { id: true },
       }),
     );
@@ -347,7 +364,7 @@ async function resolveManagedJurisdictionAssignment(input: {
   const normalizedType = normalizeJurisdictionTypeInput(input.jurisdictionType);
   if (!normalizedType) {
     input.res.status(422).json({
-      message: 'jurisdictionType must be one of region, province, city, municipality, or barangay',
+      message: 'jurisdictionType must be one of region, province, city, or barangay',
     });
     return undefined;
   }
@@ -376,8 +393,7 @@ async function resolveManagedJurisdictionAssignment(input: {
       normalizedType !== 'city'
     ) {
       input.res.status(403).json({
-        message:
-          'Forbidden: city or municipal admins can only manage users inside their own municipality',
+        message: 'Forbidden: city admins can only manage users inside their own city',
       });
       return undefined;
     }
@@ -590,6 +606,20 @@ export async function createUser(req: Request, res: Response): Promise<void> {
     return;
   }
 
+  if (
+    roleRequiresJurisdictionBinding(normalizedRole) &&
+    !hasJurisdictionBinding(
+      managedJurisdiction?.jurisdictionType ?? null,
+      managedJurisdiction?.jurisdictionId ?? null,
+    )
+  ) {
+    res.status(422).json({
+      message:
+        'jurisdictionType and jurisdictionId are required for region-, province-, and city-scoped roles',
+    });
+    return;
+  }
+
   let passwordHash: string | null = null;
   let supabaseAuthUserId: string | null = null;
 
@@ -729,6 +759,26 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
     res,
   });
   if (res.headersSent) {
+    return;
+  }
+
+  const targetRole = normalizedRole ?? existingUserRole;
+  const effectiveJurisdictionType = managedJurisdiction
+    ? managedJurisdiction.jurisdictionType
+    : existingUser.jurisdictionType;
+  const effectiveJurisdictionId = managedJurisdiction
+    ? managedJurisdiction.jurisdictionId
+    : existingUser.jurisdictionId;
+
+  if (
+    roleRequiresJurisdictionBinding(targetRole) &&
+    (normalizedRole !== null || jurisdictionType !== undefined || jurisdictionId !== undefined) &&
+    !hasJurisdictionBinding(effectiveJurisdictionType, effectiveJurisdictionId)
+  ) {
+    res.status(422).json({
+      message:
+        'jurisdictionType and jurisdictionId are required for region-, province-, and city-scoped roles',
+    });
     return;
   }
 

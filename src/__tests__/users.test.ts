@@ -31,9 +31,9 @@ async function ensureRoxasMunicipalityScope() {
   });
 
   const city = await prisma.cityMunicipality.upsert({
-    where: { code: '023126000' },
-    update: { name: 'Roxas', type: 'MUNICIPALITY', provinceId: province.id, archivedAt: null },
-    create: { code: '023126000', name: 'Roxas', type: 'MUNICIPALITY', provinceId: province.id },
+    where: { code: '023101000' },
+    update: { name: 'Ilagan City', type: 'CITY', provinceId: province.id, archivedAt: null },
+    create: { code: '023101000', name: 'Ilagan City', type: 'CITY', provinceId: province.id },
   });
 
   return { region, province, city };
@@ -309,7 +309,7 @@ describe(`GET ${CAPABILITIES}`, () => {
 });
 
 describe(`POST ${USERS}`, () => {
-  it('should allow NATIONAL_ADMIN to create a Roxas municipal admin with city jurisdiction', async () => {
+  it('should reject municipality jurisdiction input for NATIONAL_ADMIN user creation', async () => {
     const { city } = await ensureRoxasMunicipalityScope();
     const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
     const email = `roxas.municipal.admin.${unique}@xypes.local`;
@@ -326,13 +326,8 @@ describe(`POST ${USERS}`, () => {
         jurisdictionId: city.id,
       });
 
-    expect(res.status).toBe(201);
-    expect(res.body).toMatchObject({
-      email,
-      role: 'CITY_ADMIN',
-      jurisdictionType: 'city',
-      jurisdictionId: city.id,
-    });
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty('errors');
   });
 
   it('should allow CITY_ADMIN to create CITY_CONTENT_EDITOR users', async () => {
@@ -505,6 +500,26 @@ describe(`POST ${USERS}`, () => {
 
     expect(blockedRes.status).toBe(403);
   });
+
+  it('should reject creating a city-scoped user without jurisdiction when no inherited scope applies', async () => {
+    const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+
+    const res = await request(app)
+      .post(USERS)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: `Unscoped City Admin ${unique}`,
+        email: `unscoped.city.admin.${unique}@xypes.local`,
+        password: 'Password123!',
+        role: 'CITY_ADMIN',
+      });
+
+    expect(res.status).toBe(422);
+    expect(res.body).toHaveProperty(
+      'message',
+      'jurisdictionType and jurisdictionId are required for region-, province-, and city-scoped roles',
+    );
+  });
 });
 
 describe(`PATCH ${USERS}/:id`, () => {
@@ -668,6 +683,32 @@ describe(`PATCH ${USERS}/:id`, () => {
 
     expect(blockedRes.status).toBe(403);
   });
+
+  it('should reject retargeting an unscoped user into a city-scoped role without jurisdiction', async () => {
+    const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+    const unscopedUser = await prisma.user.create({
+      data: {
+        name: `Unscoped Retarget User ${unique}`,
+        email: `unscoped.retarget.${unique}@xypes.local`,
+        passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+        role: 'CITIZEN_REPORTER',
+      },
+      select: { id: true },
+    });
+
+    const res = await request(app)
+      .patch(`${USERS}/${unscopedUser.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        role: 'CITY_CONTENT_EDITOR',
+      });
+
+    expect(res.status).toBe(422);
+    expect(res.body).toHaveProperty(
+      'message',
+      'jurisdictionType and jurisdictionId are required for region-, province-, and city-scoped roles',
+    );
+  });
 });
 
 describe(`GET ${USERS}`, () => {
@@ -764,7 +805,7 @@ describe(`GET ${USERS}`, () => {
           data: {
             code: `TMP-${unique}`,
             name: `Outside City ${unique}`,
-            type: 'MUNICIPALITY',
+            type: 'CITY',
             provinceId: (await ensureRoxasMunicipalityScope()).province.id,
           },
         });

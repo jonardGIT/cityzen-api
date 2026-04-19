@@ -3,6 +3,10 @@ import { createBodyValidators } from '../engine/validatorFactory.js';
 import { respondersListQueryConfig } from '../utils/listQueryConfig.js';
 import type { ContentTypeConfig } from '../engine/types.js';
 import { withActiveRecords } from '../utils/archive.js';
+import {
+  buildResponderScopeWhere,
+  validateResponderAgencyScope,
+} from '../utils/operationalScope.js';
 
 const config: ContentTypeConfig = {
   modelName: 'responder',
@@ -42,6 +46,12 @@ const config: ContentTypeConfig = {
       message: 'Conflict: responder cannot be restored while its agency is archived',
     },
   ],
+  hooks: {
+    buildScopeWhere: buildResponderScopeWhere,
+    beforeCreate: validateResponderAgencyScope,
+    beforeUpdate: async (req, res, body, existing) =>
+      validateResponderAgencyScope(req, res, body, existing),
+  },
 };
 
 const handlers = createCrudController(config);
