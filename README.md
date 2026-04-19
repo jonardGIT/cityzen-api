@@ -91,6 +91,36 @@ Recommended infrastructure extensions for the current architecture:
   - Inserts realistic sample data.
   - Provides at least 10 rows for core domain tables and a smaller user set.
 
+### Seeded account map
+
+The default seed keeps the core fixture emails stable for automated tests, but the names and jurisdiction bindings are now readable enough for operator review.
+
+Default seeded operator accounts:
+
+- `admin@xypes.local`: `NATIONAL_ADMIN`, global or unscoped
+- `regional.director@xypes.local`: `REGIONAL_DIRECTOR`, Region II or Cagayan Valley
+- `supervisor@xypes.local`: `PROVINCIAL_ADMIN`, Isabela province
+- `ops.lead@xypes.local`: `CITY_ADMIN`, Ilagan City
+- `content.editor@xypes.local`: `CITY_CONTENT_EDITOR`, Ilagan City
+- `dispatcher@xypes.local`: `DISPATCHER`, Ilagan City
+- `responder@xypes.local`: `RESPONDER`, Ilagan City
+- `tuguegarao.city.admin@xypes.local`: `CITY_ADMIN`, Tuguegarao City
+- `tuguegarao.content.editor@xypes.local`: `CITY_CONTENT_EDITOR`, Tuguegarao City
+- `tuguegarao.dispatcher@xypes.local`: `DISPATCHER`, Tuguegarao City
+- `tuguegarao.responder@xypes.local`: `RESPONDER`, Tuguegarao City
+- `auditor@xypes.local`: `AUDITOR`, global read-only
+- `analyst@xypes.local`: `CITIZEN_REPORTER`, citizen self-service sample account
+
+Seeded geography currently includes:
+
+- Region II or Cagayan Valley
+- Isabela province
+- Cagayan province
+- Ilagan City
+- Cauayan City
+- Tuguegarao City
+- Roxas municipality
+
 - `prisma/elgu-admin.schema.prisma`, `prisma/elgu-admin-reset-schema.sql`, `prisma/elgu-admin-seed-data.sql`: legacy scaffolding for a separate eLGU mobile-admin domain.
   - These files are not wired to the current API routes, controllers, or runtime startup.
   - Treat them as archived reference material unless that separate domain is revived intentionally.

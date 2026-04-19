@@ -14,13 +14,13 @@ const DEFAULT_SEED_EMAILS = [
   'supervisor@xypes.local',
   'ops.lead@xypes.local',
   'content.editor@xypes.local',
-  'roxas.municipal.admin@xypes.local',
-  'roxas.content.editor@xypes.local',
   'dispatcher@xypes.local',
-  'roxas.dispatcher@xypes.local',
+  'tuguegarao.city.admin@xypes.local',
+  'tuguegarao.content.editor@xypes.local',
+  'tuguegarao.dispatcher@xypes.local',
   'analyst@xypes.local',
   'responder@xypes.local',
-  'roxas.responder@xypes.local',
+  'tuguegarao.responder@xypes.local',
   'auditor@xypes.local',
 ];
 
