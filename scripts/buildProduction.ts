@@ -84,8 +84,7 @@ function writeProductionFeatureProfile(selection: FeatureSelectionCore): void {
   mkdirSync(path.dirname(outputPath), { recursive: true });
 
   const profileName = process.env.FEATURE_PROFILE_NAME?.trim() || 'production';
-  const builtAt = new Date().toISOString();
-  const content = `import type { LockedProductionFeatureProfile } from '../featureSelection.js';\n\nexport const productionFeatureProfile: LockedProductionFeatureProfile = {\n  locked: true,\n  profileName: ${JSON.stringify(profileName)},\n  builtAt: ${JSON.stringify(builtAt)},\n  selection: ${JSON.stringify(selection, null, 2)},\n};\n`;
+  const content = `import type { LockedProductionFeatureProfile } from '../featureSelection.js';\n\nexport const productionFeatureProfile: LockedProductionFeatureProfile = {\n  locked: true,\n  profileName: ${JSON.stringify(profileName)},\n  builtAt: null,\n  selection: ${JSON.stringify(selection, null, 2)},\n};\n`;
 
   writeFileSync(outputPath, content, 'utf8');
 }
