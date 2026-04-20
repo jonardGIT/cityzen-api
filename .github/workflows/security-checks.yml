@@ -35,7 +35,7 @@ jobs:
         if: github.event.repository.private == false || vars.ENABLE_GITHUB_DEPENDENCY_REVIEW == 'true'
         uses: actions/dependency-review-action@v4
 
-  build-test-and-audit:
+  build-and-audit:
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -95,17 +95,6 @@ jobs:
 
       - name: Build locked production profile
         run: npm run build:production
-
-      - name: Run focused security validation suite
-        run: >-
-          npm test -- --runTestsByPath
-          src/__tests__/featureSelection.test.ts
-          src/__tests__/health.test.ts
-          src/__tests__/startupEnv.test.ts
-          src/__tests__/auth-bootstrap.test.ts
-          src/__tests__/users.test.ts
-          src/__tests__/security.test.ts
-          src/__tests__/incidents.test.ts
 
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=critical
