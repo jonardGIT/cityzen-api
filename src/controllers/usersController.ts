@@ -312,6 +312,14 @@ function canReadUserRecord(
     return false;
   }
 
+  // For PROVINCIAL_ADMIN, enforce that they can only read users in cities within their province
+  if (authUser.role === 'PROVINCIAL_ADMIN' && normalizedType === 'city') {
+    const provinceCities = scope.jurisdictionScope.cityMunicipalityIds || [];
+    if (!provinceCities.includes(candidate.jurisdictionId)) {
+      return false;
+    }
+  }
+
   return isJurisdictionWithinScope(
     scope.jurisdictionScope,
     normalizedType,
