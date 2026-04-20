@@ -30,6 +30,9 @@ jobs:
       MFA_ENCRYPTION_KEY: test-mfa-value-for-ci-builds-only
       API_KEYS: test-client-placeholder
       TRUST_PROXY: false
+      PUBLIC_CASE_LOOKUP_RATE_LIMIT_ENABLED: true
+      PUBLIC_CASE_LOOKUP_RATE_LIMIT_WINDOW_MS: 60000
+      PUBLIC_CASE_LOOKUP_RATE_LIMIT_MAX_REQUESTS: 1
       FEATURE_AUTH_PROVIDER: local
       FEATURE_TOKEN_MODE: app-jwt
       FEATURE_MFA_MODE: local-totp
