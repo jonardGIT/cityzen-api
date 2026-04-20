@@ -1,9 +1,11 @@
 import './instrument.js';
 import * as Sentry from '@sentry/node';
-import app from './app.js';
+import app, { validateAppStartup } from './app.js';
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 const HOST = process.env.HOST ?? '0.0.0.0';
+
+validateAppStartup();
 
 const server = app.listen(PORT, HOST, () => {
   console.log(`Server running at http://${HOST}:${PORT}`);

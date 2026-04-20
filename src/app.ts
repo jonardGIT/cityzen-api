@@ -107,8 +107,11 @@ const allowedCorsOrigins = corsOriginConfig
   .map((origin) => origin.trim())
   .filter((origin) => origin.length > 0);
 
-requireJwtSecretForSelection();
-validateStartupEnvironment({ env: process.env, selection: featureSelection });
+export function validateAppStartup(): void {
+  requireJwtSecretForSelection();
+  validateStartupEnvironment({ env: process.env, selection: featureSelection });
+}
+
 app.set('trust proxy', parseBooleanEnv(process.env.TRUST_PROXY, false));
 
 if (!isProduction) {

@@ -623,7 +623,7 @@ describe('Public case lookup rate limiting', () => {
     expect(secondLookup.headers['x-ratelimit-remaining']).toBe('0');
   });
 
-  it('fails app bootstrap in production when the public case lookup limiter is disabled', async () => {
+  it('fails app bootstrap validation in production when the public case lookup limiter is disabled', async () => {
     jest.resetModules();
     process.env = { ...originalEnv };
     delete process.env.API_KEYS;
@@ -646,7 +646,9 @@ describe('Public case lookup rate limiting', () => {
     process.env.INCIDENT_CASE_TOKEN_TTL_DAYS = '30';
     process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL = 'https://example.test/password-reset';
 
-    await expect(import('../app.js')).rejects.toThrow(
+    const { validateAppStartup } = await import('../app.js');
+
+    expect(() => validateAppStartup()).toThrow(
       'PUBLIC_CASE_LOOKUP_RATE_LIMIT_ENABLED must remain enabled in production for the public case lookup trust-layer endpoint',
     );
   });
