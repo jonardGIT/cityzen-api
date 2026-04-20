@@ -241,7 +241,11 @@ async function requireLocalJwtAuth(
       },
     });
 
-    if (!session || session.userId !== String(payload.sub)) {
+    if (!session) {
+      return { success: false, revoked: true };
+    }
+
+    if (session.userId !== String(payload.sub)) {
       return { success: false };
     }
 
