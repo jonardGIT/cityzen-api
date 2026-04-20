@@ -36,6 +36,20 @@ async function ensureRoxasMunicipalityScope() {
     create: { code: '023101000', name: 'Ilagan City', type: 'CITY', provinceId: province.id },
   });
 
+  await prisma.barangay.upsert({
+    where: { code: '023101000-001' },
+    update: {
+      name: 'Centro',
+      cityMunicipalityId: city.id,
+      archivedAt: null,
+    },
+    create: {
+      code: '023101000-001',
+      name: 'Centro',
+      cityMunicipalityId: city.id,
+    },
+  });
+
   return { region, province, city };
 }
 
@@ -56,6 +70,20 @@ async function ensureOutsideProvinceMunicipalityScope() {
     where: { code: '021527000' },
     update: { name: 'Tuguegarao City', type: 'CITY', provinceId: province.id, archivedAt: null },
     create: { code: '021527000', name: 'Tuguegarao City', type: 'CITY', provinceId: province.id },
+  });
+
+  await prisma.barangay.upsert({
+    where: { code: '021527000-001' },
+    update: {
+      name: 'Centro',
+      cityMunicipalityId: city.id,
+      archivedAt: null,
+    },
+    create: {
+      code: '021527000-001',
+      name: 'Centro',
+      cityMunicipalityId: city.id,
+    },
   });
 
   return { region, province, city };
@@ -80,6 +108,20 @@ async function ensureSecondIsabelaCityScope() {
     create: { code: '023108000', name: 'Cauayan City', type: 'CITY', provinceId: province.id },
   });
 
+  await prisma.barangay.upsert({
+    where: { code: '023108000-001' },
+    update: {
+      name: 'Centro',
+      cityMunicipalityId: city.id,
+      archivedAt: null,
+    },
+    create: {
+      code: '023108000-001',
+      name: 'Centro',
+      cityMunicipalityId: city.id,
+    },
+  });
+
   return { region, province, city };
 }
 
@@ -100,6 +142,20 @@ async function ensureOutsideRegionMunicipalityScope() {
     where: { code: '031410000' },
     update: { name: 'Malolos City', type: 'CITY', provinceId: province.id, archivedAt: null },
     create: { code: '031410000', name: 'Malolos City', type: 'CITY', provinceId: province.id },
+  });
+
+  await prisma.barangay.upsert({
+    where: { code: '031410000-001' },
+    update: {
+      name: 'Centro',
+      cityMunicipalityId: city.id,
+      archivedAt: null,
+    },
+    create: {
+      code: '031410000-001',
+      name: 'Centro',
+      cityMunicipalityId: city.id,
+    },
   });
 
   return { region, province, city };

@@ -150,6 +150,20 @@ async function ensurePartnerCityScope() {
     },
   });
 
+  await prisma.barangay.upsert({
+    where: { code: 'PH-021518-001' },
+    update: {
+      name: 'Centro',
+      cityMunicipalityId: city.id,
+      archivedAt: null,
+    },
+    create: {
+      code: 'PH-021518-001',
+      name: 'Centro',
+      cityMunicipalityId: city.id,
+    },
+  });
+
   return city;
 }
 
@@ -175,6 +189,20 @@ async function ensureSameRegionDifferentProvinceCityScope() {
       name: 'Ilagan City',
       type: 'CITY',
       provinceId: province.id,
+    },
+  });
+
+  await prisma.barangay.upsert({
+    where: { code: 'PH-023101-001' },
+    update: {
+      name: 'Centro',
+      cityMunicipalityId: city.id,
+      archivedAt: null,
+    },
+    create: {
+      code: 'PH-023101-001',
+      name: 'Centro',
+      cityMunicipalityId: city.id,
     },
   });
 
