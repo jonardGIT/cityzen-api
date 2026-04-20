@@ -1037,6 +1037,14 @@ describe(`GET ${BASE}/:id/timeline`, () => {
     expect(reportRes.status).toBe(201);
 
     const responderToken = await getTokenForRole('responder@xypes.local');
+
+    // Archive any pre-existing active responders for this contact before testing
+    // unassigned access, so stale records from prior runs don't affect the result.
+    await prisma.responder.updateMany({
+      where: { contactInfo: 'responder@xypes.local', archivedAt: null },
+      data: { archivedAt: new Date() },
+    });
+
     const unassignedTimelineRes = await request(app)
       .get(`${BASE}/${reportRes.body.id}/timeline`)
       .set('Authorization', `Bearer ${responderToken}`);
@@ -1044,10 +1052,6 @@ describe(`GET ${BASE}/:id/timeline`, () => {
     expect(unassignedTimelineRes.status).toBe(404);
 
     const { city } = await ensureTuguegaraoCityScope();
-    await prisma.responder.updateMany({
-      where: { contactInfo: 'responder@xypes.local' },
-      data: { archivedAt: new Date() },
-    });
 
     const agency = await prisma.agency.create({
       data: {
@@ -1096,6 +1100,14 @@ describe(`GET ${BASE}/:id/timeline`, () => {
       });
 
     expect(reportRes.status).toBe(201);
+
+    // Clear the explicit citizenId link so the system falls back to email-based
+    // citizen resolution. This ensures two citizens with the same email trigger
+    // the ambiguous-profile (409) path rather than the explicit-link (200) path.
+    await prisma.user.updateMany({
+      where: { email: owner.email },
+      data: { citizenId: null },
+    });
 
     await prisma.citizen.create({
       data: {
