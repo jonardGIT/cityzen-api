@@ -334,7 +334,7 @@ curl -X POST http://localhost:3000/api/v1/auth/login \
 ```bash
 curl http://localhost:3000/api/v1/auth/me \
   -H "Authorization: Bearer <token-from-login>" \
-  -H "x-api-key: your-api-key"
+  -H "x-api-key: <your-api-key>"
 ```
 
 ## 13. Managing Users in Supabase Dashboard

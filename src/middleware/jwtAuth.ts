@@ -218,11 +218,11 @@ async function requireLocalJwtAuth(
   res: Response,
   next: NextFunction,
   token: string,
-): Promise<boolean> {
+): Promise<{ success: boolean; revoked?: boolean }> {
   try {
     const decoded = jwt.verify(token, getJwtSecret());
     if (!isTokenPayload(decoded)) {
-      return false;
+      return { success: false };
     }
 
     const payload = decoded;
@@ -241,20 +241,25 @@ async function requireLocalJwtAuth(
       },
     });
 
+    if (!session || session.userId !== String(payload.sub)) {
+      return { success: false };
+    }
+
+    if (session.revokedAt) {
+      return { success: false, revoked: true };
+    }
+
     if (
-      !session ||
-      session.userId !== String(payload.sub) ||
-      session.revokedAt ||
       session.expiresAt.getTime() <= Date.now() ||
       (isArchiveEnabled() && session.user.archivedAt !== null)
     ) {
-      return false;
+      return { success: false };
     }
 
     const normalizedRole = normalizeUserRoleInput(session.user.role);
     if (!normalizedRole || !isUserRole(normalizedRole)) {
       res.status(500).json({ message: 'Invalid stored user role' });
-      return true;
+      return { success: true };
     }
 
     if (isPrivilegedMfaFeatureMisconfigured(normalizedRole)) {
@@ -262,7 +267,7 @@ async function requireLocalJwtAuth(
         message:
           'Privileged MFA enforcement is enabled in production but MFA is disabled for this build',
       });
-      return true;
+      return { success: true };
     }
 
     if (
@@ -273,7 +278,7 @@ async function requireLocalJwtAuth(
         message: 'Privileged MFA enrollment is required before accessing this route',
         mfaEnrollmentRequired: true,
       });
-      return true;
+      return { success: true };
     }
 
     (req as AuthenticatedRequest).authUser = {
@@ -294,9 +299,9 @@ async function requireLocalJwtAuth(
       .catch(() => undefined);
 
     next();
-    return true;
+    return { success: true };
   } catch {
-    return false;
+    return { success: false };
   }
 }
 
@@ -313,7 +318,13 @@ export async function requireJwtAuth(
   }
 
   if (isSupabaseJwtEnabled()) {
-    if (await requireLocalJwtAuth(req, res, next, token)) {
+    const localResult = await requireLocalJwtAuth(req, res, next, token);
+    if (localResult.success) {
+      return;
+    }
+
+    if (localResult.revoked) {
+      res.status(401).json({ message: 'Unauthorized: invalid or revoked session' });
       return;
     }
 
@@ -321,8 +332,12 @@ export async function requireJwtAuth(
     return;
   }
 
-  if (!(await requireLocalJwtAuth(req, res, next, token))) {
-    res.status(401).json({ message: 'Unauthorized: invalid or expired token' });
+  const localResult = await requireLocalJwtAuth(req, res, next, token);
+  if (!localResult.success) {
+    const errorMessage = localResult.revoked
+      ? 'Unauthorized: invalid or revoked session'
+      : 'Unauthorized: invalid or expired token';
+    res.status(401).json({ message: errorMessage });
   }
 }
 
