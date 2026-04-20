@@ -55,11 +55,18 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
+      - name: Initialize CI database schema
+        env:
+          PGPASSWORD: postgres
+        run: psql -h localhost -U postgres -d xypes_test -f prisma/reset-prisma-schema.sql
+
+      - name: Seed CI database
+        env:
+          PGPASSWORD: postgres
+        run: psql -h localhost -U postgres -d xypes_test -f prisma/seed-data.sql
+
       - name: Build TypeScript
         run: npm run build
-
-      - name: Build locked production profile
-        run: npm run build:production
 
       - name: Run focused pre-deploy security validation
         run: >-
@@ -71,6 +78,9 @@ jobs:
           src/__tests__/users.test.ts
           src/__tests__/security.test.ts
           src/__tests__/incidents.test.ts
+
+      - name: Build locked production profile
+        run: npm run build:production
 
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=critical
