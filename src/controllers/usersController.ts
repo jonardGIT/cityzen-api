@@ -39,9 +39,9 @@ const userSyncSelect = {
   supabaseAuthUserId: true,
 } as const;
 
-// Accept any valid UUID version for compatibility with varying DB defaults.
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// Accept any Postgres UUID-shaped value, including seeded fixtures that do not
+// encode an RFC version nibble.
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function getUserId(req: Request, res?: Response): string | null {
   const id = req.params.id;
   if (typeof id !== 'string' || !UUID_REGEX.test(id)) {

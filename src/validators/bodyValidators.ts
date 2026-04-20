@@ -1,6 +1,12 @@
 import { body } from 'express-validator';
 import { USER_ROLES } from '../types/auth.js';
 
+const POSTGRES_UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isPostgresUuid(value: unknown): boolean {
+  return typeof value === 'string' && POSTGRES_UUID_REGEX.test(value.trim());
+}
+
 const INCIDENT_LOCATION_SNAPSHOT_FIELDS = [
   'latitude',
   'longitude',
@@ -620,7 +626,10 @@ export const createUserValidator = [
       ['region', 'province', 'city', 'barangay'].includes(value.trim().toLowerCase()),
     )
     .withMessage('jurisdictionType must be one of region, province, city, or barangay'),
-  body('jurisdictionId').optional().isUUID().withMessage('jurisdictionId must be a valid UUID'),
+  body('jurisdictionId')
+    .optional()
+    .custom((value) => isPostgresUuid(value))
+    .withMessage('jurisdictionId must be a valid UUID'),
   body().custom((value) => {
     const hasJurisdictionType = value?.jurisdictionType !== undefined;
     const hasJurisdictionId = value?.jurisdictionId !== undefined;
@@ -684,7 +693,10 @@ export const updateUserValidator = [
       ['region', 'province', 'city', 'barangay'].includes(value.trim().toLowerCase()),
     )
     .withMessage('jurisdictionType must be one of region, province, city, or barangay'),
-  body('jurisdictionId').optional().isUUID().withMessage('jurisdictionId must be a valid UUID'),
+  body('jurisdictionId')
+    .optional()
+    .custom((value) => isPostgresUuid(value))
+    .withMessage('jurisdictionId must be a valid UUID'),
   body().custom((value) => {
     const hasJurisdictionType = value?.jurisdictionType !== undefined;
     const hasJurisdictionId = value?.jurisdictionId !== undefined;
