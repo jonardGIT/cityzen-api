@@ -106,6 +106,20 @@ async function ensureTuguegaraoCityScope() {
     },
   });
 
+  await prisma.barangay.upsert({
+    where: { code: 'PH-021517-001' },
+    update: {
+      name: 'Centro 10',
+      cityMunicipalityId: city.id,
+      archivedAt: null,
+    },
+    create: {
+      code: 'PH-021517-001',
+      name: 'Centro 10',
+      cityMunicipalityId: city.id,
+    },
+  });
+
   await prisma.user.updateMany({
     where: { email: { in: ['ops.lead@xypes.local', 'dispatcher@xypes.local'] } },
     data: {
