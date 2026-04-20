@@ -71,6 +71,52 @@ async function ensureSecurityTestUsers(): Promise<void> {
   }
 }
 
+async function ensureTuguegaraoLocalityScope(): Promise<void> {
+  const { default: prisma } = await import('../lib/prisma.js');
+
+  const region = await prisma.region.upsert({
+    where: { code: 'PH-02' },
+    update: { name: 'Cagayan Valley', archivedAt: null },
+    create: { code: 'PH-02', name: 'Cagayan Valley' },
+  });
+
+  const province = await prisma.province.upsert({
+    where: { code: 'PH-0215' },
+    update: { name: 'Cagayan', regionId: region.id, archivedAt: null },
+    create: { code: 'PH-0215', name: 'Cagayan', regionId: region.id },
+  });
+
+  const city = await prisma.cityMunicipality.upsert({
+    where: { code: 'PH-021517' },
+    update: {
+      name: 'Tuguegarao City',
+      type: 'CITY',
+      provinceId: province.id,
+      archivedAt: null,
+    },
+    create: {
+      code: 'PH-021517',
+      name: 'Tuguegarao City',
+      type: 'CITY',
+      provinceId: province.id,
+    },
+  });
+
+  await prisma.barangay.upsert({
+    where: { code: 'PH-021517-001' },
+    update: {
+      name: 'Centro 10',
+      cityMunicipalityId: city.id,
+      archivedAt: null,
+    },
+    create: {
+      code: 'PH-021517-001',
+      name: 'Centro 10',
+      cityMunicipalityId: city.id,
+    },
+  });
+}
+
 describe('API key authentication', () => {
   const originalEnv = createSecurityTestEnv();
 
@@ -409,6 +455,7 @@ describe('Public case lookup rate limiting', () => {
 
   it('keeps public case lookup limited when the global limiter is disabled', async () => {
     const { default: app, API_V1 } = await import('../app.js');
+    await ensureTuguegaraoLocalityScope();
 
     const adminLogin = await request(app).post(`${API_V1}/auth/login`).send({
       email: 'admin@xypes.local',
@@ -632,11 +679,22 @@ describe('Shared-store rate limiting', () => {
     delete process.env.API_KEYS;
     delete process.env.API_KEY;
     process.env.NODE_ENV = 'production';
-    process.env.JWT_SECRET = process.env.JWT_SECRET ?? 'test-jwt-secret';
+    process.env.FEATURE_AUTH_PROVIDER = 'local';
+    process.env.FEATURE_TOKEN_MODE = 'app-jwt';
+    process.env.FEATURE_MFA_MODE = 'local-totp';
+    process.env.FEATURE_MEDIA_STORAGE = 'disabled';
+    process.env.FEATURE_RECORD_DELETION = 'archive';
+    process.env.JWT_SECRET = 'prod-jwt-secret-0123456789-abcdef-uvwxyz';
+    process.env.MFA_ENCRYPTION_KEY = 'prod-mfa-secret-0123456789-abcdef-uvwxyz';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'prod-service-role-key-0123456789-abcdef-uvwxyz';
     process.env.RATE_LIMIT_ENABLED = 'true';
     process.env.RATE_LIMIT_STORE = 'database';
     process.env.RATE_LIMIT_WINDOW_MS = '60000';
     process.env.RATE_LIMIT_MAX_REQUESTS = '100';
+    process.env.PUBLIC_CASE_LOOKUP_RATE_LIMIT_WINDOW_MS = '600000';
+    process.env.PUBLIC_CASE_LOOKUP_RATE_LIMIT_MAX_REQUESTS = '20';
+    process.env.INCIDENT_CASE_TOKEN_TTL_DAYS = '30';
+    process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL = 'https://example.test/password-reset';
 
     const { default: prisma } = await import('../lib/prisma.js');
     const querySpy = jest

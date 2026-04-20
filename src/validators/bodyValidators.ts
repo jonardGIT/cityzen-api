@@ -620,7 +620,7 @@ export const createUserValidator = [
       ['region', 'province', 'city', 'barangay'].includes(value.trim().toLowerCase()),
     )
     .withMessage('jurisdictionType must be one of region, province, city, or barangay'),
-  body('jurisdictionId').optional().isUUID(4).withMessage('jurisdictionId must be a valid UUID v4'),
+  body('jurisdictionId').optional().isUUID().withMessage('jurisdictionId must be a valid UUID'),
   body().custom((value) => {
     const hasJurisdictionType = value?.jurisdictionType !== undefined;
     const hasJurisdictionId = value?.jurisdictionId !== undefined;
@@ -684,7 +684,7 @@ export const updateUserValidator = [
       ['region', 'province', 'city', 'barangay'].includes(value.trim().toLowerCase()),
     )
     .withMessage('jurisdictionType must be one of region, province, city, or barangay'),
-  body('jurisdictionId').optional().isUUID(4).withMessage('jurisdictionId must be a valid UUID v4'),
+  body('jurisdictionId').optional().isUUID().withMessage('jurisdictionId must be a valid UUID'),
   body().custom((value) => {
     const hasJurisdictionType = value?.jurisdictionType !== undefined;
     const hasJurisdictionId = value?.jurisdictionId !== undefined;

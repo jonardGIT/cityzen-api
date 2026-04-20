@@ -39,13 +39,14 @@ const userSyncSelect = {
   supabaseAuthUserId: true,
 } as const;
 
-// UUID v4 validation regex
-const UUID_V4_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// Accept any valid UUID version for compatibility with varying DB defaults.
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function getUserId(req: Request, res?: Response): string | null {
   const id = req.params.id;
-  if (typeof id !== 'string' || !UUID_V4_REGEX.test(id)) {
+  if (typeof id !== 'string' || !UUID_REGEX.test(id)) {
     if (res) {
-      res.status(400).json({ message: 'Invalid id parameter (must be a valid UUID v4)' });
+      res.status(400).json({ message: 'Invalid id parameter (must be a valid UUID)' });
     }
     return null;
   }
@@ -378,9 +379,9 @@ async function resolveManagedJurisdictionAssignment(input: {
   }
 
   const jurisdictionId = input.jurisdictionId.trim();
-  if (!UUID_V4_REGEX.test(jurisdictionId)) {
+  if (!UUID_REGEX.test(jurisdictionId)) {
     input.res.status(422).json({
-      message: 'jurisdictionId must be a valid UUID v4',
+      message: 'jurisdictionId must be a valid UUID',
     });
     return undefined;
   }
