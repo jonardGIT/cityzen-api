@@ -105,6 +105,10 @@ jobs:
             set -e
             cd /var/www/xypes-cirs-api
             test -f ecosystem.config.cjs
+            if ! git diff --quiet -- src/generated/productionFeatureProfile.ts; then
+              git restore --source=HEAD --worktree --staged -- src/generated/productionFeatureProfile.ts 2>/dev/null || \
+                git checkout -- src/generated/productionFeatureProfile.ts
+            fi
             git pull --ff-only origin main
             npm ci
             node <<'NODE'
@@ -125,4 +129,6 @@ jobs:
 
             process.exit(result.status ?? 1);
             NODE
+            git restore --source=HEAD --worktree --staged -- src/generated/productionFeatureProfile.ts 2>/dev/null || \
+              git checkout -- src/generated/productionFeatureProfile.ts
             pm2 startOrRestart ecosystem.config.cjs --env production
