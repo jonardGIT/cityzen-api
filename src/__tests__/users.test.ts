@@ -799,6 +799,23 @@ describe(`GET ${USERS}`, () => {
     expect(res.body.data.length).toBeLessThanOrEqual(2);
   });
 
+  it('should return 422 for disallowed sort fields', async () => {
+    const res = await request(app)
+      .get(`${USERS}?sortBy=passwordHash`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(422);
+    expect(res.body).toMatchObject({
+      message: 'Invalid list query parameters',
+      errors: [
+        expect.objectContaining({
+          field: 'sortBy',
+          message: 'passwordHash is not sortable for users',
+        }),
+      ],
+    });
+  });
+
   it('should support updatedAt sorting and range filters', async () => {
     const updatedFrom = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
 
