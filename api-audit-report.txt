@@ -1,0 +1,997 @@
+================================================================================
+              XYPES CIRS API — STRUCTURED AUDIT REPORT
+              Generated: April 20, 2026
+================================================================================
+
+TABLE OF CONTENTS
+  1. Executive Summary
+  2. Route-by-Route Audit
+     2.1  Authentication Routes (/api/v1/auth/*)
+     2.2  Users Routes (/api/v1/users/*)
+     2.3  Incidents Routes (/api/v1/incidents/*)
+     2.4  Public Cases Route (/api/v1/cases/*)
+     2.5  Citizens Routes (/api/v1/citizens/*)
+     2.6  Assignments Routes (/api/v1/assignments/*)
+     2.7  Agencies Routes (/api/v1/agencies/*)
+     2.8  Responders Routes (/api/v1/responders/*)
+     2.9  Incident Escalations Routes (/api/v1/incident-escalations/*)
+     2.10 Mutual Aid Requests Routes (/api/v1/mutual-aid-requests/*)
+     2.11 Admin Routes (/api/v1/admin/*)
+     2.12 Audit Log Routes (/api/v1/audit-logs/*)
+     2.13 Mobile Routes (/api/v1/mobile/*)
+     2.14 Mobile Content Routes (/api/v1/mobile-content/*)
+     2.15 Geography CRUD Routes (regions, provinces, cities, barangays)
+     2.16 Reference Data CRUD Routes (statuses, categories, severities)
+  3. Cross-Cutting Findings
+  4. Security Assessment
+  5. Prioritized Recommendations
+
+
+================================================================================
+1. EXECUTIVE SUMMARY
+================================================================================
+
+Architecture: Express + TypeScript + Prisma (PostgreSQL)
+Auth: Dual-mode JWT (local app-jwt / Supabase-jwt), MFA (local-totp / Supabase-totp)
+Role Model: 9 roles in Philippine LGU hierarchy (NATIONAL_ADMIN > REGIONAL_DIRECTOR
+            > PROVINCIAL_ADMIN > CITY_ADMIN > DISPATCHER > RESPONDER > CITIZEN_REPORTER
+            + lateral AUDITOR + CITY_CONTENT_EDITOR)
+Routes: 21 route files, ~80+ endpoints
+Feature Flags: FEATURE_AUTH_PROVIDER, FEATURE_TOKEN_MODE, FEATURE_MFA_MODE,
+               FEATURE_MEDIA_STORAGE, FEATURE_RECORD_DELETION
+
+Overall Assessment: The API is well-structured with consistent patterns. The CRUD
+factory engine provides good uniformity. However, there are several validation
+inconsistencies, scope enforcement gaps, and error format divergences that need
+attention. The most critical issues are in the assignments controller (missing
+jurisdiction scope enforcement) and UUID validation inconsistencies.
+
+
+================================================================================
+2. ROUTE-BY-ROUTE AUDIT
+================================================================================
+
+--------------------------------------------------------------------------------
+2.1  AUTHENTICATION ROUTES — /api/v1/auth/*
+--------------------------------------------------------------------------------
+
+  Route:     POST /api/v1/auth/register
+  Expected:  Public self-registration. Validate name/email/password. Return 201
+             with JWT token + user object. Enforce password strength.
+  API State: Controller validates name/email/password as strings and enforces
+             isStrongPassword() (12+ chars, upper, lower, digit, special).
+             Returns 201 + token + user on success.
+  Mismatch:  NONE — No route-level validator applied, and none needed since it's
+             a public endpoint. Controller handles all validation internally.
+  Note:      register endpoint omits rate limiting. Only login has loginRateLimit.
+  Suggested: Consider adding registration rate limiting to prevent abuse.
+
+  ----
+
+  Route:     POST /api/v1/auth/mobile/register
+  Expected:  Mobile citizen self-registration via mobile number. Rate-limited.
+  API State: Rate-limited via mobileRegisterRateLimit. Validates
+             name/mobileNumber/password. Enforces isStrongPassword(). Creates
+             citizen profile + user in a transaction.
+  Mismatch:  NONE — Properly guards against Supabase auth mode (501).
+  Note:      Returns 501 if Supabase auth/JWT enabled — correct boundary.
+
+  ----
+
+  Route:     POST /api/v1/auth/login
+  Expected:  Email + password authentication. Returns JWT. Rate-limited.
+  API State: Rate-limited via loginRateLimit (keyed on IP:email). Validates
+             email/password. Handles local + Supabase dual-mode. MFA challenge
+             flow integrated.
+  Mismatch:  NONE — Comprehensive dual-provider support.
+  Note:      Login returns 200 on success (not 201). Register returns 201.
+             This is correct REST semantics.
+
+  ----
+
+  Route:     POST /api/v1/auth/mobile/login
+  Expected:  Mobile number + password authentication. Rate-limited.
+  API State: Rate-limited via mobileLoginRateLimit. Returns 501 when Supabase
+             enabled. Otherwise local auth via normalized mobile number.
+  Mismatch:  NONE
+
+  ----
+
+  Route:     POST /api/v1/auth/password-reset/request
+  Expected:  Initiate password reset. Always return 202 to prevent user
+             enumeration. Rate-limited.
+  API State: Rate-limited via passwordResetRequestRateLimit (1h window, 5 max).
+             Always returns 202. Conditionally includes resetToken in response
+             body (gated by delivery mode). Checks production delivery config.
+  Mismatch:  MINOR — The resetToken field is conditionally included in the 202
+             response when delivery mode is "response" (non-production). API
+             consumers may rely on this field being present or absent.
+  Suggested: Document the response shape variation based on delivery mode.
+
+  ----
+
+  Route:     POST /api/v1/auth/password-reset/confirm
+  Expected:  Consume reset token, validate new password, revoke sessions.
+  API State: Validates token + password strength. Revokes all user sessions.
+             Returns 200 on success with confirmation message.
+  Mismatch:  NONE
+
+  ----
+
+  Route:     POST /api/v1/auth/refresh
+  Expected:  Rotate refresh token. Return new access + refresh tokens.
+  API State: Rate-limited via refreshRateLimit. Tries local session refresh
+             first, then Supabase fallback if enabled.
+  Mismatch:  NONE
+
+  ----
+
+  Route:     GET /api/v1/auth/me
+  Expected:  Return current authenticated user profile.
+  API State: Requires JWT. Returns user payload from DB (not just JWT claims).
+  Mismatch:  NONE
+
+  ----
+
+  Route:     GET /api/v1/auth/sessions
+  Expected:  List user's active sessions. Feature-gated (app-jwt only).
+  API State: Conditionally registered only when isSessionInventoryFeatureEnabled().
+             Returns 501 when auth provider is Supabase.
+  Mismatch:  NONE — Correctly feature-gated.
+
+  ----
+
+  Route:     DELETE /api/v1/auth/sessions/:id
+  Expected:  Revoke a specific session by ID. Feature-gated.
+  API State: Conditionally registered. Validates sessionId presence.
+             Returns 204 on success, 404 if not found.
+  Mismatch:  MINOR — No UUID format validation on :id param. A malformed ID
+             will cause a DB query with an invalid string instead of a 400.
+  Suggested: Add param('id').isUUID() validator.
+
+  ----
+
+  Route:     POST /api/v1/auth/logout
+  Expected:  Revoke current session. Return 204.
+  API State: Handles both local (revoke authSession) and Supabase
+             (revoke access token). Returns 204.
+  Mismatch:  NONE
+
+  ----
+
+  Route:     POST /api/v1/auth/mfa/setup
+  Expected:  Create MFA seed. Requires privileged role. Rate-limited.
+  API State: Feature-gated via isAnyMfaFeatureEnabled(). Rate-limited. Requires
+             MFA_REQUIRED_ROLES. Handles both local TOTP and Supabase TOTP.
+  Mismatch:  NONE
+
+  ----
+
+  Route:     POST /api/v1/auth/mfa/enable
+  Expected:  Verify TOTP code and enable MFA. Rate-limited.
+  API State: Validates code + optional refreshToken (for Supabase). Returns
+             confirmation or new JWT session on Supabase TOTP.
+  Mismatch:  NONE
+
+  ----
+
+  Route:     POST /api/v1/auth/mfa/disable
+  Expected:  Verify TOTP code and disable MFA. Rate-limited.
+  API State: Validates code. Deletes Supabase TOTP factor or clears local MFA
+             secret. Revokes all sessions.
+  Mismatch:  NONE
+
+
+--------------------------------------------------------------------------------
+2.2  USERS ROUTES — /api/v1/users/*
+--------------------------------------------------------------------------------
+
+  Route:     GET /api/v1/users/capabilities
+  Expected:  Return role capabilities for authenticated user. Any role allowed.
+  API State: Requires JWT only (no role restriction). Returns role profile
+             metadata including permissions, scope, canUpdateUser, canDeleteUser.
+  Mismatch:  NONE — Correctly accessible to all authenticated users.
+
+  ----
+
+  Route:     GET /api/v1/users
+  Expected:  List users visible to admin. Jurisdiction-scoped.
+  API State: Requires JWT + ADMIN_ROLES (CITY_ADMIN+). Applies jurisdiction
+             scope filtering. Supports pagination + archive scope.
+  Mismatch:  NONE
+
+  ----
+
+  Route:     GET /api/v1/users/:id
+  Expected:  Get user by ID. Admin only. Jurisdiction-scoped.
+  API State: Requires JWT + ADMIN_ROLES. Validates UUID via controller regex.
+             Checks canReadUserRecord() for jurisdiction scope.
+  Mismatch:  ISSUE — Controller uses UUID_REGEX which accepts UUID versions 1-8.
+             The route-level validator (from bodyValidators) uses .isUUID() which
+             also accepts any version. These are now consistent (both broad).
+             However, the :id param has NO route-level UUID validator. UUID
+             validation happens only in the controller's getUserId() function.
+  Suggested: Add param('id').isUUID() to the route definition for consistency
+             with other routes that use incidentTimelineParamValidator.
+
+  ----
+
+  Route:     POST /api/v1/users
+  Expected:  Create user. Admin only. Validate body fields.
+  API State: Route applies createUserValidator (name, email, password strength,
+             role enum, jurisdictionType/jurisdictionId pair). Controller
+             duplicates name/email/password presence check (422 vs 400).
+  Mismatch:  ISSUE — Duplicate validation between route validator and controller:
+             - Route validator: password 12+ chars with regex pattern → 400
+             - Controller: name/email/password presence → 422
+             - Route validator runs first. If it passes, controller checks pass.
+             - But if route validator fails, it returns 400 with {message:
+               'Validation failed', errors: [...]} format.
+             - Controller failures return 422 with {message: '...'} format.
+             The status code difference (400 vs 422) creates ambiguity.
+  Suggested: Remove the controller's redundant field-presence checks and rely
+             solely on the route validator. Or standardize both to the same
+             status code.
+
+  ----
+
+  Route:     PATCH /api/v1/users/:id
+  Expected:  Update user. Admin only. Enforce hierarchy rules.
+  API State: Route applies updateUserValidator. Controller enforces hierarchy:
+             canManageRole(), self-update restrictions, jurisdiction scope.
+  Mismatch:  SAME STATUS CODE ISSUE — Route validator returns 400, controller
+             returns 422 for similar validation failures. No :id param
+             validator at route level.
+
+  ----
+
+  Route:     DELETE /api/v1/users/:id
+  Expected:  Delete/archive user. Admin only. Prevent self-deletion.
+  API State: Requires JWT + ADMIN_ROLES. Prevents self-deletion. Checks
+             canManageRole() + canReadUserRecord() for scope. Revokes sessions.
+  Mismatch:  NONE — No :id param validator but handled in controller.
+
+  ----
+
+  Route:     POST /api/v1/users/:id/restore
+  Expected:  Restore archived user. Feature-gated (archive mode).
+  API State: Conditionally registered via isArchiveEnabled(). Checks hierarchy
+             and scope.
+  Mismatch:  NONE
+
+
+--------------------------------------------------------------------------------
+2.3  INCIDENTS ROUTES — /api/v1/incidents/*
+--------------------------------------------------------------------------------
+
+  Route:     GET /api/v1/incidents
+  Expected:  List incidents scoped by role. Paginated.
+  API State: Requires JWT + STANDARD_INCIDENT_READ_ROLES (all non-AUDITOR roles).
+             Applies resolveIncidentReadScope() for role-based filtering.
+  Mismatch:  NONE
+
+  ----
+
+  Route:     GET /api/v1/incidents/audit
+  Expected:  AUDITOR-only incident list. Redacted data.
+  API State: Requires JWT + AUDITOR role. Uses auditorIncidentSelect to exclude
+             sensitive fields. Returns redacted incident objects.
+  Mismatch:  NONE
+
+  ----
+
+  Route:     GET /api/v1/incidents/audit/:id/timeline
+  Expected:  AUDITOR-only timeline view. Redacted (no changedByUser, no notes).
+  API State: Requires JWT + AUDITOR. Validates :id UUID param. Returns timeline
+             entries without changedByUser or note fields.
+  Mismatch:  NONE
+
+  ----
+
+  Route:     GET /api/v1/incidents/audit/:id
+  Expected:  AUDITOR-only single incident view. Redacted.
+  API State: Requires JWT + AUDITOR. Returns auditor-serialized incident.
+  Mismatch:  ISSUE — No :id UUID param validator applied to this route. The
+             audit timeline route has incidentTimelineParamValidator but the
+             single audit incident route does not.
+  Suggested: Add incidentTimelineParamValidator (or equivalent :id validator)
+             to GET /audit/:id.
+
+  ----
+
+  Route:     POST /api/v1/incidents/media/upload
+  Expected:  Upload incident media. Feature-gated (supabase-storage).
+  API State: Conditionally registered via isIncidentMediaUploadFeatureEnabled().
+             Rate-limited. Requires MEDIA_UPLOAD_ROLES. Validates body structure.
+  Mismatch:  NONE — Correctly feature-gated.
+
+  ----
+
+  Route:     GET /api/v1/incidents/:id/media/:mediaId
+  Expected:  Get signed media access URL. Scoped.
+  API State: Requires JWT + STANDARD_INCIDENT_READ_ROLES. Internal authorization
+             via getAuthorizedIncidentWithMedia().
+  Mismatch:  ISSUE — No UUID param validators for :id or :mediaId at route level.
+             The controller's getAuthorizedIncidentWithMedia() relies on Prisma
+             findFirst with the raw param string, which may cause a DB error
+             on malformed UUID rather than a clean 400.
+  Suggested: Add param validators for both :id and :mediaId.
+
+  ----
+
+  Route:     GET /api/v1/incidents/:id/timeline
+  Expected:  Get incident timeline. Role-scoped. 404 for unauthorized.
+  API State: Requires JWT + PHASE_ONE_TRUST_TIMELINE_READ_ROLES. Validates :id
+             via incidentTimelineParamValidator. Controller applies
+             getTimelineAccess() with resolveIncidentReadScope().
+  Mismatch:  NONE — Returns 404 for both not-found and unauthorized (deliberate
+             information hiding). This is correct for the security model.
+
+  ----
+
+  Route:     GET /api/v1/incidents/:id
+  Expected:  Get single incident. Role-scoped.
+  API State: Requires JWT + STANDARD_INCIDENT_READ_ROLES. Uses
+             getAuthorizedIncidentWithMedia() for scope check.
+  Mismatch:  ISSUE — No :id param UUID validator at route level. Route ordering
+             matters: /audit, /audit/:id/timeline, /audit/:id, /media/upload,
+             /:id/media/:mediaId, /:id/timeline, /:id — correct ordering to
+             avoid param conflicts.
+
+  ----
+
+  Route:     POST /api/v1/incidents/report
+  Expected:  Citizen incident report. Auto-set citizenId + statusId.
+  API State: Requires JWT + CITIZEN_REPORTER. Validates body via
+             createCitizenIncidentReportValidator. Forbids citizenId/statusId
+             in body. Resolves citizen from auth. Resolves locality IDs from
+             snapshot names. Issues trust artifacts (publicReference, caseToken).
+  Mismatch:  NONE — Well-designed citizen-facing endpoint.
+
+  ----
+
+  Route:     POST /api/v1/incidents
+  Expected:  Admin incident creation. Requires statusId + citizenId.
+  API State: Requires JWT + INCIDENT_WRITE_ROLES. Validates body via
+             createIncidentValidator. Resolves locality. Checks
+             authorizeIncidentCreate() for scope.
+  Mismatch:  ISSUE — createIncidentValidator validates statusId/citizenId as
+             .isString().trim().notEmpty() but does NOT validate UUID format.
+             Controller then does Prisma findFirst which will fail with a DB
+             error if the string is not a valid UUID.
+  Suggested: Add .isUUID() to statusId, citizenId, categoryId, severityId in
+             createIncidentValidator.
+
+  ----
+
+  Route:     PATCH /api/v1/incidents/:id
+  Expected:  Update incident. Scoped. Status history appended on statusId change.
+  API State: Requires JWT + INCIDENT_WRITE_ROLES. Validates body via
+             updateIncidentValidator. Checks authorizeIncidentMutation().
+             Handles locality re-resolution on location field changes.
+  Mismatch:  NONE — updateIncidentValidator correctly uses .isUUID() for
+             optional FK fields (statusId, citizenId, categoryId, severityId).
+             GOOD: Consistent with the body validation level.
+
+  ----
+
+  Route:     DELETE /api/v1/incidents/:id
+  Expected:  Delete/archive incident. Scoped.
+  API State: Requires JWT + INCIDENT_WRITE_ROLES. Checks
+             authorizeIncidentMutation(). Archives assignments in transaction.
+  Mismatch:  NONE
+
+  ----
+
+  Route:     POST /api/v1/incidents/:id/restore
+  Expected:  Restore archived incident. Feature-gated.
+  API State: Conditionally registered. Validates FK references (status, citizen,
+             category, severity) are still active. Restores restorable
+             assignments.
+  Mismatch:  NONE
+
+
+--------------------------------------------------------------------------------
+2.4  PUBLIC CASES ROUTE — /api/v1/cases/*
+--------------------------------------------------------------------------------
+
+  Route:     GET /api/v1/cases/:caseToken
+  Expected:  Public case lookup by token. Rate-limited. No auth required.
+  API State: Rate-limited. Validates :caseToken format (16-128 chars,
+             alphanumeric + dash + underscore). Returns public case data
+             including status, location, timeline (no sensitive data).
+  Mismatch:  NONE — Clean public endpoint with proper rate limiting and
+             validation. Token is hashed before DB lookup (no plain-text
+             storage vulnerability).
+
+
+--------------------------------------------------------------------------------
+2.5  CITIZENS ROUTES — /api/v1/citizens/*
+--------------------------------------------------------------------------------
+
+  Route:     GET /api/v1/citizens
+  Expected:  List citizens. Admin only.
+  API State: CRUD factory with ADMIN_ROLES for both read and write. Paginated.
+  Mismatch:  NONE
+
+  ----
+
+  Route:     POST /api/v1/citizens/link-me
+  Expected:  Citizen self-link. CITIZEN_REPORTER only.
+  API State: Requires JWT + CITIZEN_REPORTER. Validates body via
+             linkMyCitizenProfileValidator. Creates or updates citizen profile
+             linked to auth user.
+  Mismatch:  MINOR — Duplicate "at least one of name/preferredChannel" check
+             exists in both the validator and controller. No functional impact
+             since the validator runs first.
+  Suggested: Remove the redundant check from the controller.
+
+  ----
+
+  Route:     PATCH /api/v1/citizens/link-me
+  Expected:  This route does NOT exist in the citizens route file.
+  API State: link-me is POST only. The mobile router has PATCH /profile which
+             calls linkMyCitizenProfile.
+  Mismatch:  ISSUE — HTTP method inconsistency: dashboard citizens routes only
+             allow POST /link-me; mobile routes allow PATCH /profile for the
+             same operation. Both call linkMyCitizenProfile(). The mobile PATCH
+             is the idempotent update form; the POST creates-then-updates.
+  Suggested: Consider adding PATCH /link-me to citizens routes or documenting
+             the intentional difference.
+
+
+--------------------------------------------------------------------------------
+2.6  ASSIGNMENTS ROUTES — /api/v1/assignments/*
+--------------------------------------------------------------------------------
+
+  Route:     POST /api/v1/assignments
+  Expected:  Create assignment. ASSIGNMENT_MANAGEMENT_ROLES.
+  API State: Requires JWT + ASSIGNMENT_MANAGEMENT_ROLES. Validates body via
+             createAssignmentValidator.
+  Mismatch:  HIGH — createAssignmentValidator uses .isString().trim().notEmpty()
+             for incidentId and responderId but does NOT validate UUID format.
+             The controller's own UUID regex check may not run because the
+             controller does prisma.findFirst() directly. Malformed UUIDs will
+             cause Prisma/PostgreSQL errors instead of clean 400 responses.
+  Suggested: Add .isUUID() to incidentId and responderId in
+             createAssignmentValidator and updateAssignmentValidator.
+
+  ----
+
+  Route:     PATCH /api/v1/assignments/:id
+  Expected:  Update assignment. Scoped.
+  API State: No :id param UUID validator. updateAssignmentValidator also lacks
+             UUID validation for FK fields.
+  Mismatch:  SAME AS CREATE — Missing UUID validation.
+
+  ----
+
+  Route:     ALL ASSIGNMENT ROUTES
+  Expected:  Jurisdiction-scoped. CITY_ADMIN should only manage assignments
+             for incidents/responders in their city.
+  API State: No jurisdiction scope enforcement. Any user with
+             ASSIGNMENT_MANAGEMENT_ROLES can create/update/delete any assignment
+             in the system regardless of their jurisdiction.
+  Mismatch:  HIGH — No scope enforcement. A CITY_ADMIN bound to City A can
+             create assignments for incidents in City B. This contradicts the
+             security model.
+  Suggested: Add scope validation similar to incidents controller. Check that
+             the incident's cityMunicipalityId is within the actor's jurisdiction
+             scope before allowing assignment CRUD.
+
+
+--------------------------------------------------------------------------------
+2.7  AGENCIES ROUTES — /api/v1/agencies/*
+--------------------------------------------------------------------------------
+
+  Route:     ALL (CRUD via factory)
+  Expected:  DISPATCH_ROLES read, ADMIN_ROLES write. Scoped.
+  API State: Factory pattern with scope hooks (buildAgencyScopeWhere,
+             validateAgencyMutationScope). Includes responders in response.
+  Mismatch:  NONE — Well-scoped via factory hooks.
+
+
+--------------------------------------------------------------------------------
+2.8  RESPONDERS ROUTES — /api/v1/responders/*
+--------------------------------------------------------------------------------
+
+  Route:     ALL (CRUD via factory)
+  Expected:  DISPATCH_ROLES read, ADMIN_ROLES write. Scoped by agency.
+  API State: Factory pattern with scope hooks (buildResponderScopeWhere,
+             validateResponderAgencyScope). Delete guard on active assignments.
+  Mismatch:  NONE
+
+
+--------------------------------------------------------------------------------
+2.9  INCIDENT ESCALATIONS — /api/v1/incident-escalations/*
+--------------------------------------------------------------------------------
+
+  Route:     POST /api/v1/incident-escalations
+  Expected:  City-to-province escalation. CITY_ADMIN/DISPATCHER create.
+  API State: Validates body (incidentId UUID, reason string). Advisory lock
+             for race condition prevention. Validates incident exists, has
+             cityMunicipalityId, is within actor's scope.
+  Mismatch:  NONE — Well-implemented workflow.
+
+  ----
+
+  Route:     PATCH /api/v1/incident-escalations/:id
+  Expected:  Province-level status update (accept/decline).
+  API State: PROVINCIAL_ADMIN only. Validates status in PATCHABLE_STATUSES.
+             Checks workflow integrity.
+  Mismatch:  NONE
+
+  ----
+
+  Route:     DELETE /api/v1/incident-escalations/:id
+  Expected:  Archive/delete escalation.
+  API State: readMiddleware roles (CITY_ADMIN, DISPATCHER, PROVINCIAL_ADMIN).
+             UUID param validation applied.
+  Mismatch:  ISSUE — delete uses readMiddleware (3 roles) instead of write-
+             specific middleware. This means PROVINCIAL_ADMIN can delete
+             escalations, which may be intentional but is inconsistent with
+             the create-only-by-city pattern.
+  Suggested: Review whether PROVINCIAL_ADMIN should be able to delete
+             escalations, or restrict to CITY_ADMIN/DISPATCHER.
+
+  ----
+
+  Route:     POST /api/v1/incident-escalations/:id/restore
+  Expected:  Restore archived escalation.
+  API State: Uses readMiddleware (3 roles). Unconditionally registered (not
+             gated by isArchiveEnabled()).
+  Mismatch:  ISSUE — Restore route is always registered regardless of archive
+             mode. Other CRUD routes conditionally register restore. The
+             controller should check isArchiveEnabled() and return 409 if
+             disabled, but this check may be missing.
+  Suggested: Gate restore registration behind isArchiveEnabled() or add a
+             controller-level check.
+
+
+--------------------------------------------------------------------------------
+2.10 MUTUAL AID REQUESTS — /api/v1/mutual-aid-requests/*
+--------------------------------------------------------------------------------
+
+  Route:     ALL
+  Expected:  City-to-city aid requests within same province.
+  API State: Read: CITY_ADMIN, DISPATCHER, PROVINCIAL_ADMIN. Create: CITY_ADMIN,
+             DISPATCHER. Patch: CITY_ADMIN, DISPATCHER.
+  Mismatch:  ISSUE — Restore route is always registered (not gated by
+             isArchiveEnabled()), same as escalations.
+  Suggested: Gate behind isArchiveEnabled() or add controller check.
+
+  ----
+
+  Route:     GET /api/v1/mutual-aid-requests
+  Expected:  Scoped list (requester city, target city, or province view).
+  API State: Complex dual-scoped read with async filtering for province scope.
+  Mismatch:  MINOR — Async filtering via filterSameProvinceWorkflowRecords()
+             happens AFTER pagination. This means page sizes may be inconsistent
+             (e.g., request page=1&limit=10 but get back 7 results because 3
+             were filtered out).
+  Suggested: Move filtering to the database query level or document the
+             pagination inconsistency.
+
+
+--------------------------------------------------------------------------------
+2.11 ADMIN ROUTES — /api/v1/admin/*
+--------------------------------------------------------------------------------
+
+  Route:     GET /api/v1/admin/users/mfa-compliance
+  Expected:  MFA compliance report. NATIONAL_ADMIN only.
+  API State: Requires JWT + NATIONAL_ADMIN. Returns summary + per-user
+             compliance data.
+  Mismatch:  NONE
+
+  ----
+
+  Route:     GET /api/v1/admin/users/access-review
+  Expected:  Privileged access review report. NATIONAL_ADMIN only.
+  API State: Returns review data for privileged roles.
+  Mismatch:  NONE
+
+  ----
+
+  Route:     GET /api/v1/admin/security/data-governance
+  Expected:  Data governance summary. ADMIN_ROLES + AUDITOR.
+  API State: Requires JWT + ADMIN_ROLES or AUDITOR. Returns governance metrics.
+  Mismatch:  NONE
+
+  ----
+
+  Route:     GET /api/v1/admin/users
+  Expected:  Full user list for admin. NATIONAL_ADMIN only.
+  API State: Returns all users with pagination + archive scope. Uses same
+             listQuery engine as /users but without jurisdiction scoping.
+  Mismatch:  ISSUE — This route duplicates GET /api/v1/users but without
+             jurisdiction scoping. The /users endpoint already handles
+             NATIONAL_ADMIN users seeing all records. This admin/users route
+             bypasses the jurisdiction scope enforcement.
+  Suggested: Deprecate GET /admin/users or ensure it's intentionally different
+             (e.g., for a specific admin panel use case). Document the
+             difference between /users and /admin/users.
+
+
+--------------------------------------------------------------------------------
+2.12 AUDIT LOG ROUTES — /api/v1/audit-logs/*
+--------------------------------------------------------------------------------
+
+  Route:     GET /api/v1/audit-logs
+  Expected:  List audit logs. AUDIT_READ_ROLES (NATIONAL_ADMIN, AUDITOR).
+  API State: Role-based serialization: AUDITOR sees redacted logs (no
+             ipAddress, userAgent, requestId, metadata). Paginated.
+  Mismatch:  NONE — Good role-based data filtering.
+
+  ----
+
+  Route:     GET /api/v1/audit-logs/:id
+  Expected:  Get single audit log.
+  API State: Returns serialized log or 404.
+  Mismatch:  MINOR — No :id param UUID validator.
+
+
+--------------------------------------------------------------------------------
+2.13 MOBILE ROUTES — /api/v1/mobile/*
+--------------------------------------------------------------------------------
+
+  Route:     GET /api/v1/mobile/content
+  Expected:  Public mobile app content. No auth required.
+  API State: No auth. Returns published, non-expired content.
+  Mismatch:  NONE
+
+  ----
+
+  Route:     GET /api/v1/mobile/profile
+  Expected:  Citizen's own profile. CITIZEN_REPORTER only.
+  API State: Requires JWT + CITIZEN_REPORTER. Returns linked citizen profile.
+  Mismatch:  NONE
+
+  ----
+
+  Route:     PATCH /api/v1/mobile/profile
+  Expected:  Update citizen profile. CITIZEN_REPORTER only.
+  API State: Uses linkMyCitizenProfileValidator. Calls linkMyCitizenProfile().
+  Mismatch:  MINOR — POST /citizens/link-me and PATCH /mobile/profile call the
+             same handler but accept different HTTP methods. See 2.5 citizens
+             section.
+
+  ----
+
+  Route:     GET /api/v1/mobile/incidents
+  Expected:  Citizen's own incidents. CITIZEN_REPORTER only.
+  API State: Uses getIncidents() which applies citizen owner scope internally.
+  Mismatch:  NONE
+
+  ----
+
+  Route:     GET /api/v1/mobile/incidents/:id
+  Expected:  Citizen's single incident.
+  API State: Uses getIncidentById() with internal scope check.
+  Mismatch:  NONE
+
+  ----
+
+  Route:     GET /api/v1/mobile/incidents/:id/timeline
+  Expected:  Citizen's incident timeline.
+  API State: Validates :id UUID param. Uses getIncidentTimeline().
+  Mismatch:  NONE
+
+  ----
+
+  Route:     POST /api/v1/mobile/incidents/report
+  Expected:  Mobile incident report.
+  API State: Same handler as POST /incidents/report. Same validators.
+  Mismatch:  NONE
+
+
+--------------------------------------------------------------------------------
+2.14 MOBILE CONTENT ROUTES — /api/v1/mobile-content/*
+--------------------------------------------------------------------------------
+
+  Route:     ALL (CRUD via factory)
+  Expected:  MOBILE_CONTENT_ROLES (CITY_ADMIN+, CITY_CONTENT_EDITOR).
+  API State: Factory pattern. Custom validators for slug/title/body required
+             on create.
+  Mismatch:  NONE
+
+
+--------------------------------------------------------------------------------
+2.15 GEOGRAPHY CRUD ROUTES
+--------------------------------------------------------------------------------
+
+  Regions:    /api/v1/regions/*
+  Provinces:  /api/v1/provinces/*
+  Cities:     /api/v1/cities-municipalities/*
+  Barangays:  /api/v1/barangays/*
+
+  Expected:  Hierarchical CRUD. GEO_READ_ROLES read, GEO_ADMIN_ROLES write.
+             Scoped by jurisdiction.
+  API State: All use factory pattern with appropriate scope hooks.
+             Regions: GEO_ADMIN_ROLES write. Delete guarded by provinces.
+             Provinces: GEO_ADMIN_ROLES write. Delete guarded by cities.
+             Cities: LOCAL_GEO_ADMIN_ROLES write. Delete guarded by barangays.
+             Barangays: BARANGAY_GEO_ADMIN_ROLES write. Scoped.
+  Mismatch:  NONE — Clean hierarchical pattern.
+
+
+--------------------------------------------------------------------------------
+2.16 REFERENCE DATA CRUD ROUTES
+--------------------------------------------------------------------------------
+
+  Statuses:   /api/v1/statuses/*
+  Categories: /api/v1/categories/*
+  Severities: /api/v1/severities/*
+
+  Expected:  CRUD with ADMIN_ROLES write. Public read (any authenticated user).
+  API State: Factory pattern. No readRoles specified → all authenticated users
+             can read. ADMIN_ROLES for write. Delete guarded by incident
+             references.
+  Mismatch:  NONE — Correct open-read, admin-write pattern.
+
+
+================================================================================
+3. CROSS-CUTTING FINDINGS
+================================================================================
+
+3.1  UUID VALIDATION INCONSISTENCY
+     ─────────────────────────────
+     Location:    Multiple controllers and validators
+     Severity:    MEDIUM
+
+     The codebase has three different UUID validation approaches:
+
+     a) usersController.ts — UUID_REGEX:
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+        Accepts versions 1-8, requires RFC variant bits [89ab].
+
+     b) assignmentsController.ts — UUID_REGEX:
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+        Accepts ANY format matching the UUID structure (no version/variant check).
+
+     c) bodyValidators.ts — express-validator .isUUID() (no version):
+        Accepts any UUID version recognized by the validator library.
+
+     d) incidentTrustValidators.ts — express-validator .isUUID():
+        Same as (c).
+
+     e) incidentEscalations / mutualAidRequests routes — .isUUID():
+        Same as (c).
+
+     Recommendation: Standardize on .isUUID() (no version) at the route level
+     for all :id params and body UUID fields. Remove controller-level UUID
+     regex checks that duplicate route validation. The broad .isUUID() approach
+     is the correct choice since PostgreSQL gen_random_uuid() produces v4 UUIDs
+     but Prisma @default(uuid()) may produce others in edge cases.
+
+
+3.2  ERROR RESPONSE FORMAT INCONSISTENCY
+     ────────────────────────────────────
+     Location:    All controllers
+     Severity:    LOW-MEDIUM
+
+     Three distinct error response shapes exist:
+
+     a) Validation middleware (validateRequest):
+        Status 400: { message: 'Validation failed', errors: [{ field, message }] }
+
+     b) Controller-level validation:
+        Status 422: { message: 'specific error message' }
+
+     c) Special flags in auth responses:
+        { message: '...', mfaRequired: true }
+        { message: '...', emailConfirmationRequired: true }
+        { message: '...', mfaEnrollmentRequired: true }
+
+     d) mutualAidRequests structured validation:
+        { message: 'Validation failed', errors: [{ field, message }] }
+
+     e) Global error handler:
+        { message: 'Internal server error' } (500)
+        { message: 'Conflict: resource is still referenced...' } (409)
+
+     Recommendation: Document the error response contract. Consider evolving
+     all error responses to a standard envelope:
+        { message: string, errors?: Array<{field, message}>, metadata?: object }
+
+
+3.3  PARAM :id VALIDATION GAPS
+     ──────────────────────────
+     Location:    Multiple routes
+     Severity:    MEDIUM
+
+     Routes that validate :id as UUID at route level:
+       ✓ GET /incidents/:id/timeline (via incidentTimelineParamValidator)
+       ✓ GET /incidents/audit/:id/timeline
+       ✓ GET/PATCH/DELETE /incident-escalations/:id
+       ✓ GET/PATCH/DELETE /mutual-aid-requests/:id
+
+     Routes that do NOT validate :id at route level:
+       ✗ GET/PATCH/DELETE /users/:id
+       ✗ GET/PATCH/DELETE /incidents/:id
+       ✗ GET /incidents/audit/:id
+       ✗ GET /incidents/:id/media/:mediaId
+       ✗ GET/PATCH/DELETE /assignments/:id
+       ✗ DELETE /auth/sessions/:id
+       ✗ GET /audit-logs/:id
+       ✗ All CRUD factory routes (/:id on all resource types)
+
+     For CRUD factory routes, the getParamId() utility handles validation.
+     For custom routes, some controllers validate in-handler (usersController
+     getUserId), others don't (auth sessions).
+
+     Recommendation: Add param('id').isUUID() to the CRUD factory's
+     GET/:id, PATCH/:id, DELETE/:id, POST/:id/restore routes. This provides
+     uniform 400 responses for malformed IDs before hitting the database.
+
+
+3.4  RATE LIMITING GAPS
+     ───────────────────
+     Location:    Route definitions
+     Severity:    LOW-MEDIUM
+
+     Endpoints with rate limiting:
+       ✓ POST /auth/login (email-scoped)
+       ✓ POST /auth/mobile/register
+       ✓ POST /auth/mobile/login
+       ✓ POST /auth/refresh (IP-scoped)
+       ✓ POST /auth/password-reset/request (email-scoped)
+       ✓ POST /auth/password-reset/confirm (IP-scoped)
+       ✓ POST /auth/mfa/setup (user-scoped)
+       ✓ POST /auth/mfa/enable (user-scoped)
+       ✓ POST /auth/mfa/disable (user-scoped)
+       ✓ POST /incidents/media/upload (user-scoped)
+       ✓ GET /cases/:caseToken (IP-scoped)
+       ✓ All /api/v1/* routes (global rate limit)
+
+     Endpoints without dedicated rate limiting:
+       ✗ POST /auth/register (no registration rate limit)
+
+     Recommendation: Add registration rate limiting to prevent automated
+     account creation. Use IP-scoped limiting similar to login.
+
+
+3.5  MIDDLEWARE ORDERING IN CRUD FACTORY
+     ────────────────────────────────────
+     Location:    src/engine/routeFactory.ts
+     Severity:    LOW
+
+     Current order: [requireJwtAuth, requireRole, ...validators, validateRequest, handler]
+
+     This is the correct order: authenticate → authorize → validate → execute.
+     No issues found.
+
+
+3.6  FEATURE FLAG CONDITIONAL ROUTE REGISTRATION
+     ────────────────────────────────────────────
+     Location:    Multiple route files
+     Severity:    INFORMATIONAL
+
+     Conditionally registered routes:
+       - MFA routes (isAnyMfaFeatureEnabled)
+       - Session routes (isSessionInventoryFeatureEnabled)
+       - Media upload route (isIncidentMediaUploadFeatureEnabled)
+       - Restore routes (isArchiveEnabled)
+
+     ISSUE: Escalation and mutual-aid restore routes are always registered
+     regardless of isArchiveEnabled(). The CRUD factory's restore routes are
+     properly gated.
+
+     Recommendation: Gate escalation/mutual-aid restore routes behind
+     isArchiveEnabled() for consistency.
+
+
+3.7  CORS CONFIGURATION
+     ───────────────────
+     Location:    src/app.ts
+     Severity:    LOW
+
+     The CORS origin parsing splits on comma and defaults to '*'. This is
+     acceptable for development but should be explicitly restricted in
+     production.
+
+     Current behavior: If CORS_ORIGIN is unset, '*' is used (allow all).
+     If set, only listed origins are allowed.
+
+     Recommendation: Consider making CORS_ORIGIN required in production via
+     validateStartupEnvironment().
+
+
+================================================================================
+4. SECURITY ASSESSMENT
+================================================================================
+
+4.1  STRONG POINTS
+     ─────────────
+     ✓ Password strength enforcement: 12+ chars, upper/lower/digit/special
+     ✓ bcrypt hashing with cost factor 10
+     ✓ Rate limiting on all auth endpoints with scoped key generation
+     ✓ Session management with revocation capability
+     ✓ MFA enforcement for privileged roles
+     ✓ Case token hashing (never stored in plain text)
+     ✓ Production startup validation (secret strength, HTTPS URLs, feature
+       consistency)
+     ✓ helmet() for security headers
+     ✓ Audit logging middleware
+     ✓ Archive (soft-delete) mode preventing data loss
+     ✓ JWT session validation checks revocation + expiry on every request
+     ✓ Jurisdiction scope enforcement on most resources
+     ✓ Information hiding: 404 for both not-found and unauthorized on incidents
+     ✓ Advisory locks for workflow race condition prevention
+
+4.2  AREAS REQUIRING ATTENTION
+     ─────────────────────────
+     ! Assignments: No jurisdiction scope enforcement (see 2.6)
+     ! No registration rate limiting (see 3.4)
+     ! CORS_ORIGIN defaults to '*' (see 3.7)
+     ! auth/sessions/:id revoke has no UUID param validation
+     ! Global error handler may leak error messages for non-500 errors
+       (statusCode < 500 uses err.message directly)
+
+4.3  INFORMATION DISCLOSURE RISKS
+     ─────────────────────────────
+     - POST /auth/register: Returns 409 "Email already registered" — confirms
+       email existence. This is acceptable for registration flows but contrasts
+       with the password-reset endpoint's non-disclosing 202.
+     - The notFound handler includes the full request method + URL in the 404
+       response message. This could leak internal route structure to attackers.
+
+
+================================================================================
+5. PRIORITIZED RECOMMENDATIONS
+================================================================================
+
+  PRIORITY 1 — HIGH (Security/Correctness)
+  ─────────────────────────────────────────
+  [H1] Add jurisdiction scope enforcement to assignments controller.
+       Currently any ASSIGNMENT_MANAGEMENT_ROLES user can create assignments
+       for any incident/responder regardless of their jurisdiction.
+
+  [H2] Add .isUUID() validation to createAssignmentValidator and
+       updateAssignmentValidator for incidentId and responderId fields.
+
+  [H3] Add .isUUID() to createIncidentValidator for statusId, citizenId,
+       categoryId, and severityId fields. These currently only validate
+       .isString().trim().notEmpty().
+
+  PRIORITY 2 — MEDIUM (Consistency/Robustness)
+  ─────────────────────────────────────────────
+  [M1] Standardize :id param UUID validation across all routes. Either:
+       a) Add param('id').isUUID() to the CRUD factory for all /:id routes, or
+       b) Ensure getParamId() in the factory reliably returns 400 for non-UUIDs.
+
+  [M2] Standardize error response status codes between route validators (400)
+       and controller validation (422). Pick one convention and apply it
+       consistently.
+
+  [M3] Add registration rate limiting to POST /auth/register.
+
+  [M4] Gate escalation and mutual-aid restore routes behind isArchiveEnabled().
+
+  [M5] Add :id UUID param validation to DELETE /auth/sessions/:id.
+
+  PRIORITY 3 — LOW (Polish/Documentation)
+  ────────────────────────────────────────
+  [L1] Remove duplicate field-presence validation in controllers where route
+       validators already cover the same checks (users create, citizens link-me).
+
+  [L2] Document the error response contract (envelope format, field names,
+       special metadata flags like mfaRequired).
+
+  [L3] Document the difference between GET /api/v1/users and
+       GET /api/v1/admin/users (scoped vs unscoped).
+
+  [L4] Consider standardizing HTTP method for citizen profile link
+       (POST /citizens/link-me vs PATCH /mobile/profile).
+
+  [L5] Consider redacting the route path from the notFound handler response
+       in production to avoid information disclosure.
+
+  [L6] Add CORS_ORIGIN to production startup validation requirements.
+
+  [L7] Address pagination inconsistency in mutual-aid-requests where
+       async filtering occurs after pagination query.
+
+
+================================================================================
+                          END OF AUDIT REPORT
+================================================================================
