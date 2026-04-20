@@ -67,9 +67,9 @@ async function ensureOutsideProvinceMunicipalityScope() {
   });
 
   const city = await prisma.cityMunicipality.upsert({
-    where: { code: '021527000' },
+    where: { code: '021529000' },
     update: { name: 'Tuguegarao City', type: 'CITY', provinceId: province.id, archivedAt: null },
-    create: { code: '021527000', name: 'Tuguegarao City', type: 'CITY', provinceId: province.id },
+    create: { code: '021529000', name: 'Tuguegarao City', type: 'CITY', provinceId: province.id },
   });
 
   await prisma.barangay.upsert({

@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import app, { API_V1 } from '../app.js';
 import prisma from '../lib/prisma.js';
 import { getAdminToken, getTokenForRole } from './helpers/auth.js';
@@ -78,20 +78,49 @@ function buildTuguegaraoLocationSnapshot() {
 }
 
 async function ensureTuguegaraoCityScope() {
+  const archivedAt = new Date();
+
+  await prisma.region.updateMany({
+    where: {
+      name: 'Cagayan Valley',
+      code: { not: '020000000' },
+      archivedAt: null,
+    },
+    data: { archivedAt },
+  });
+
   const region = await prisma.region.upsert({
-    where: { code: 'PH-02' },
+    where: { code: '020000000' },
     update: { name: 'Cagayan Valley', archivedAt: null },
-    create: { code: 'PH-02', name: 'Cagayan Valley' },
+    create: { code: '020000000', name: 'Cagayan Valley', designation: 'Region II' },
+  });
+
+  await prisma.province.updateMany({
+    where: {
+      name: 'Cagayan',
+      code: { not: '021500000' },
+      archivedAt: null,
+    },
+    data: { archivedAt },
   });
 
   const province = await prisma.province.upsert({
-    where: { code: 'PH-0215' },
+    where: { code: '021500000' },
     update: { name: 'Cagayan', regionId: region.id, archivedAt: null },
-    create: { code: 'PH-0215', name: 'Cagayan', regionId: region.id },
+    create: { code: '021500000', name: 'Cagayan', regionId: region.id },
+  });
+
+  await prisma.cityMunicipality.updateMany({
+    where: {
+      name: 'Tuguegarao City',
+      code: { not: '021529000' },
+      archivedAt: null,
+    },
+    data: { archivedAt },
   });
 
   const city = await prisma.cityMunicipality.upsert({
-    where: { code: 'PH-021517' },
+    where: { code: '021529000' },
     update: {
       name: 'Tuguegarao City',
       type: 'CITY',
@@ -99,22 +128,32 @@ async function ensureTuguegaraoCityScope() {
       archivedAt: null,
     },
     create: {
-      code: 'PH-021517',
+      code: '021529000',
       name: 'Tuguegarao City',
       type: 'CITY',
       provinceId: province.id,
     },
   });
 
+  await prisma.barangay.updateMany({
+    where: {
+      name: 'Centro 10',
+      cityMunicipalityId: city.id,
+      code: { not: '021529003' },
+      archivedAt: null,
+    },
+    data: { archivedAt },
+  });
+
   await prisma.barangay.upsert({
-    where: { code: 'PH-021517-001' },
+    where: { code: '021529003' },
     update: {
       name: 'Centro 10',
       cityMunicipalityId: city.id,
       archivedAt: null,
     },
     create: {
-      code: 'PH-021517-001',
+      code: '021529003',
       name: 'Centro 10',
       cityMunicipalityId: city.id,
     },
@@ -125,6 +164,14 @@ async function ensureTuguegaraoCityScope() {
     data: {
       jurisdictionType: 'city',
       jurisdictionId: city.id,
+    },
+  });
+
+  await prisma.user.updateMany({
+    where: { email: 'supervisor@xypes.local' },
+    data: {
+      jurisdictionType: 'province',
+      jurisdictionId: province.id,
     },
   });
 
@@ -171,13 +218,13 @@ async function ensureSameRegionDifferentProvinceCityScope() {
   const { region } = await ensureTuguegaraoCityScope();
 
   const province = await prisma.province.upsert({
-    where: { code: 'PH-0231' },
+    where: { code: '023100000' },
     update: { name: 'Isabela', regionId: region.id, archivedAt: null },
-    create: { code: 'PH-0231', name: 'Isabela', regionId: region.id },
+    create: { code: '023100000', name: 'Isabela', regionId: region.id },
   });
 
   const city = await prisma.cityMunicipality.upsert({
-    where: { code: 'PH-023101' },
+    where: { code: '023101000' },
     update: {
       name: 'Ilagan City',
       type: 'CITY',
@@ -185,7 +232,7 @@ async function ensureSameRegionDifferentProvinceCityScope() {
       archivedAt: null,
     },
     create: {
-      code: 'PH-023101',
+      code: '023101000',
       name: 'Ilagan City',
       type: 'CITY',
       provinceId: province.id,
@@ -318,6 +365,10 @@ async function assignResponderToIncident(input: {
 
 beforeAll(async () => {
   adminToken = await getAdminToken();
+});
+
+beforeEach(async () => {
+  await ensureTuguegaraoCityScope();
 });
 
 describe(`GET ${BASE}`, () => {

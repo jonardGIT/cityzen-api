@@ -1,5 +1,6 @@
 import request from 'supertest';
 import bcrypt from 'bcryptjs';
+import { normalizeMobileNumber } from '../utils/mobileAuth.js';
 
 jest.setTimeout(60000);
 
@@ -71,23 +72,81 @@ async function ensureSecurityTestUsers(): Promise<void> {
   }
 }
 
+async function clearMobileAuthTestFixtures(): Promise<void> {
+  const { default: prisma } = await import('../lib/prisma.js');
+  const mobileNumbers = ['09170001001', '09170001002', '09170002001', '09170002002']
+    .map((value) => normalizeMobileNumber(value))
+    .filter((value): value is string => Boolean(value));
+
+  const linkedUsers = await prisma.user.findMany({
+    where: { mobileNumber: { in: mobileNumbers } },
+    select: { citizenId: true },
+  });
+
+  await prisma.user.deleteMany({
+    where: { mobileNumber: { in: mobileNumbers } },
+  });
+
+  const citizenIds = linkedUsers
+    .map((user) => user.citizenId)
+    .filter((citizenId): citizenId is string => Boolean(citizenId));
+
+  if (citizenIds.length > 0) {
+    await prisma.citizen.deleteMany({
+      where: { id: { in: citizenIds } },
+    });
+  }
+
+  await prisma.citizen.deleteMany({
+    where: { contactInfo: { in: mobileNumbers } },
+  });
+}
+
 async function ensureTuguegaraoLocalityScope(): Promise<void> {
   const { default: prisma } = await import('../lib/prisma.js');
+  const archivedAt = new Date();
+
+  await prisma.region.updateMany({
+    where: {
+      name: 'Cagayan Valley',
+      code: { not: '020000000' },
+      archivedAt: null,
+    },
+    data: { archivedAt },
+  });
 
   const region = await prisma.region.upsert({
-    where: { code: 'PH-02' },
+    where: { code: '020000000' },
     update: { name: 'Cagayan Valley', archivedAt: null },
-    create: { code: 'PH-02', name: 'Cagayan Valley' },
+    create: { code: '020000000', name: 'Cagayan Valley', designation: 'Region II' },
+  });
+
+  await prisma.province.updateMany({
+    where: {
+      name: 'Cagayan',
+      code: { not: '021500000' },
+      archivedAt: null,
+    },
+    data: { archivedAt },
   });
 
   const province = await prisma.province.upsert({
-    where: { code: 'PH-0215' },
+    where: { code: '021500000' },
     update: { name: 'Cagayan', regionId: region.id, archivedAt: null },
-    create: { code: 'PH-0215', name: 'Cagayan', regionId: region.id },
+    create: { code: '021500000', name: 'Cagayan', regionId: region.id },
+  });
+
+  await prisma.cityMunicipality.updateMany({
+    where: {
+      name: 'Tuguegarao City',
+      code: { not: '021529000' },
+      archivedAt: null,
+    },
+    data: { archivedAt },
   });
 
   const city = await prisma.cityMunicipality.upsert({
-    where: { code: 'PH-021517' },
+    where: { code: '021529000' },
     update: {
       name: 'Tuguegarao City',
       type: 'CITY',
@@ -95,22 +154,32 @@ async function ensureTuguegaraoLocalityScope(): Promise<void> {
       archivedAt: null,
     },
     create: {
-      code: 'PH-021517',
+      code: '021529000',
       name: 'Tuguegarao City',
       type: 'CITY',
       provinceId: province.id,
     },
   });
 
+  await prisma.barangay.updateMany({
+    where: {
+      name: 'Centro 10',
+      cityMunicipalityId: city.id,
+      code: { not: '021529003' },
+      archivedAt: null,
+    },
+    data: { archivedAt },
+  });
+
   await prisma.barangay.upsert({
-    where: { code: 'PH-021517-001' },
+    where: { code: '021529003' },
     update: {
       name: 'Centro 10',
       cityMunicipalityId: city.id,
       archivedAt: null,
     },
     create: {
-      code: 'PH-021517-001',
+      code: '021529003',
       name: 'Centro 10',
       cityMunicipalityId: city.id,
     },
@@ -126,6 +195,8 @@ describe('API key authentication', () => {
     process.env.TEST_API_KEYS_ENABLED = 'true';
     process.env.API_KEYS = 'test-key';
     process.env.RATE_LIMIT_ENABLED = 'false';
+    const { resetFeatureSelectionCache } = await import('../featureSelection.js');
+    resetFeatureSelectionCache();
     await ensureSecurityTestUsers();
   });
 
@@ -242,17 +313,33 @@ describe('Rate limiting', () => {
 describe('Endpoint-specific rate limiting', () => {
   const originalEnv = createSecurityTestEnv();
 
-  beforeEach(() => {
+  beforeEach(async () => {
     jest.resetModules();
+    jest.doMock('../services/supabaseAuthService.js', () => {
+      const actual = jest.requireActual(
+        '../services/supabaseAuthService.js',
+      ) as typeof import('../services/supabaseAuthService.js');
+
+      return {
+        ...actual,
+        isSupabaseAuthEnabled: () => false,
+        isSupabaseJwtEnabled: () => false,
+        isSupabaseTotpEnabled: () => false,
+      };
+    });
     process.env = { ...originalEnv };
     delete process.env.API_KEYS;
     delete process.env.API_KEY;
     process.env.RATE_LIMIT_ENABLED = 'true';
     process.env.RATE_LIMIT_WINDOW_MS = '60000';
     process.env.RATE_LIMIT_MAX_REQUESTS = '100';
+    const { resetFeatureSelectionCache } = await import('../featureSelection.js');
+    resetFeatureSelectionCache();
+    await clearMobileAuthTestFixtures();
   });
 
   afterEach(() => {
+    jest.dontMock('../services/supabaseAuthService.js');
     process.env = originalEnv;
   });
 
@@ -446,6 +533,8 @@ describe('Public case lookup rate limiting', () => {
     process.env.RATE_LIMIT_ENABLED = 'false';
     process.env.PUBLIC_CASE_LOOKUP_RATE_LIMIT_WINDOW_MS = '60000';
     process.env.PUBLIC_CASE_LOOKUP_RATE_LIMIT_MAX_REQUESTS = '1';
+    const { resetFeatureSelectionCache } = await import('../featureSelection.js');
+    resetFeatureSelectionCache();
     await ensureSecurityTestUsers();
   });
 
@@ -577,6 +666,8 @@ describe('Shared-store rate limiting', () => {
     process.env.RATE_LIMIT_MAX_REQUESTS = '100';
     process.env.AUTH_LOGIN_RATE_LIMIT_WINDOW_MS = '60000';
     process.env.AUTH_LOGIN_RATE_LIMIT_MAX_REQUESTS = '2';
+    const { resetFeatureSelectionCache } = await import('../featureSelection.js');
+    resetFeatureSelectionCache();
 
     const { default: prisma } = await import('../lib/prisma.js');
     await prisma.$executeRawUnsafe('TRUNCATE TABLE rate_limit_buckets');
@@ -728,6 +819,18 @@ describe('Production privileged MFA enforcement', () => {
 
   beforeEach(async () => {
     jest.resetModules();
+    jest.doMock('../services/supabaseAuthService.js', () => {
+      const actual = jest.requireActual(
+        '../services/supabaseAuthService.js',
+      ) as typeof import('../services/supabaseAuthService.js');
+
+      return {
+        ...actual,
+        isSupabaseAuthEnabled: () => false,
+        isSupabaseJwtEnabled: () => false,
+        isSupabaseTotpEnabled: () => false,
+      };
+    });
     process.env = { ...originalEnv };
     delete process.env.API_KEYS;
     delete process.env.API_KEY;
@@ -749,10 +852,13 @@ describe('Production privileged MFA enforcement', () => {
     process.env.INCIDENT_CASE_TOKEN_TTL_DAYS = '30';
     process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL = passwordResetWebhookUrl;
     process.env.SECURITY_ALERT_WEBHOOK_URL = securityAlertWebhookUrl;
+    const { resetFeatureSelectionCache } = await import('../featureSelection.js');
+    resetFeatureSelectionCache();
     await ensureSecurityTestUsers();
   });
 
   afterEach(() => {
+    jest.dontMock('../services/supabaseAuthService.js');
     jest.dontMock('../featureSelection.js');
     jest.dontMock('../generated/productionFeatureProfile.js');
     process.env = originalEnv;
