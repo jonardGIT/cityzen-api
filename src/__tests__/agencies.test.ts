@@ -2,13 +2,53 @@ import request from 'supertest';
 import app, { API_V1 } from '../app.js';
 import { getAdminToken, getTokenForRole } from './helpers/auth.js';
 import { isArchiveEnabled } from '../utils/archive.js';
+import prisma from '../lib/prisma.js';
 
 const BASE = `${API_V1}/agencies`;
 let adminToken = '';
 let dispatcherToken = '';
 const archiveEnabled = isArchiveEnabled();
 
+async function ensureRoxasMunicipalityScope() {
+  const region = await prisma.region.upsert({
+    where: { code: '020000000' },
+    update: { name: 'Cagayan Valley', designation: 'Region II', archivedAt: null },
+    create: { code: '020000000', name: 'Cagayan Valley', designation: 'Region II' },
+  });
+
+  const province = await prisma.province.upsert({
+    where: { code: '023100000' },
+    update: { name: 'Isabela', regionId: region.id, archivedAt: null },
+    create: { code: '023100000', name: 'Isabela', regionId: region.id },
+  });
+
+  return prisma.cityMunicipality.upsert({
+    where: { code: '023101000' },
+    update: { name: 'Ilagan City', type: 'CITY', provinceId: province.id, archivedAt: null },
+    create: { code: '023101000', name: 'Ilagan City', type: 'CITY', provinceId: province.id },
+  });
+}
+
+async function createScopedAgency(name: string) {
+  const city = await ensureRoxasMunicipalityScope();
+  const res = await request(app).post(BASE).set('Authorization', `Bearer ${adminToken}`).send({
+    name,
+    jurisdictionType: 'city',
+    jurisdictionId: city.id,
+    cityMunicipalityId: city.id,
+  });
+
+  expect(res.status).toBe(201);
+  return res.body.id as string;
+}
+
 beforeAll(async () => {
+  const city = await ensureRoxasMunicipalityScope();
+  await prisma.user.updateMany({
+    where: { email: 'dispatcher@xypes.local' },
+    data: { jurisdictionType: 'city', jurisdictionId: city.id },
+  });
+
   adminToken = await getAdminToken();
   dispatcherToken = await getTokenForRole('dispatcher@xypes.local');
 });
@@ -45,11 +85,7 @@ describe(`GET ${BASE}/:id`, () => {
 
   beforeAll(async () => {
     // Create an agency to get a valid UUID
-    const res = await request(app)
-      .post(BASE)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: `TestAgency-${Date.now()}` });
-    createdId = res.body.id;
+    createdId = await createScopedAgency(`TestAgency-${Date.now()}`);
   });
 
   it('should return 200 for valid id', async () => {
@@ -165,7 +201,12 @@ describe(`POST ${BASE}`, () => {
     const res = await request(app)
       .post(BASE)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: `Agency-${Date.now()}` });
+      .send({
+        name: `Agency-${Date.now()}`,
+        jurisdictionType: 'city',
+        jurisdictionId: (await ensureRoxasMunicipalityScope()).id,
+        cityMunicipalityId: (await ensureRoxasMunicipalityScope()).id,
+      });
     expect(res.status).toBe(201);
     expect(res.body.name).toContain('Agency-');
   });
@@ -174,7 +215,13 @@ describe(`POST ${BASE}`, () => {
     const res = await request(app)
       .post(BASE)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: `Agency-${Date.now()}`, contactNumber: '+1-555-0100' });
+      .send({
+        name: `Agency-${Date.now()}`,
+        contactNumber: '+1-555-0100',
+        jurisdictionType: 'city',
+        jurisdictionId: (await ensureRoxasMunicipalityScope()).id,
+        cityMunicipalityId: (await ensureRoxasMunicipalityScope()).id,
+      });
     expect(res.status).toBe(201);
     expect(res.body).toHaveProperty('contactNumber', '+1-555-0100');
   });
@@ -183,7 +230,13 @@ describe(`POST ${BASE}`, () => {
     const res = await request(app)
       .post(BASE)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: `Agency-${Date.now()}`, contactNumber: '+1-555-01001234567890extra' });
+      .send({
+        name: `Agency-${Date.now()}`,
+        contactNumber: '+1-555-01001234567890extra',
+        jurisdictionType: 'city',
+        jurisdictionId: (await ensureRoxasMunicipalityScope()).id,
+        cityMunicipalityId: (await ensureRoxasMunicipalityScope()).id,
+      });
     expect(res.status).toBe(400);
     expect(res.body).toHaveProperty('errors');
   });
@@ -196,14 +249,10 @@ describe(`POST ${BASE}`, () => {
 });
 
 describe(`PATCH ${BASE}/:id`, () => {
-  let testAgencyId: number;
+  let testAgencyId = '';
 
   beforeAll(async () => {
-    const createRes = await request(app)
-      .post(BASE)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: `TestAgency-${Date.now()}`, contactNumber: '+1-555-0100' });
-    testAgencyId = createRes.body.id;
+    testAgencyId = await createScopedAgency(`TestAgency-${Date.now()}`);
   });
 
   it('should update contactNumber', async () => {
@@ -261,6 +310,21 @@ describe(`POST ${BASE} (auth)`, () => {
       .send({ name: 'ViewerCreate' });
     expect(res.status).toBe(403);
   });
+
+  it('should hide out-of-scope agencies from city-scoped dispatcher reads', async () => {
+    const outOfScopeAgencyRes = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: `OutOfScopeAgency-${Date.now()}` });
+
+    expect(outOfScopeAgencyRes.status).toBe(201);
+
+    const res = await request(app)
+      .get(`${BASE}/${outOfScopeAgencyRes.body.id}`)
+      .set('Authorization', `Bearer ${dispatcherToken}`);
+
+    expect(res.status).toBe(404);
+  });
 });
 
 describe(`GET ${BASE} (pagination)`, () => {
@@ -311,12 +375,7 @@ describe(`POST ${BASE}/:id/restore`, () => {
   let archivedId: string;
 
   beforeAll(async () => {
-    const createRes = await request(app)
-      .post(BASE)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: `RestoreAgency-${Date.now()}` });
-
-    archivedId = createRes.body.id;
+    archivedId = await createScopedAgency(`RestoreAgency-${Date.now()}`);
 
     const deleteRes = await request(app)
       .delete(`${BASE}/${archivedId}`)
@@ -351,19 +410,8 @@ describe(`GET ${BASE} (archive scope)`, () => {
   let archivedId = '';
 
   beforeAll(async () => {
-    const activeRes = await request(app)
-      .post(BASE)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: `ArchiveScopeActive-${Date.now()}` });
-    expect(activeRes.status).toBe(201);
-    activeId = activeRes.body.id;
-
-    const archivedRes = await request(app)
-      .post(BASE)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: `ArchiveScopeArchived-${Date.now()}` });
-    expect(archivedRes.status).toBe(201);
-    archivedId = archivedRes.body.id;
+    activeId = await createScopedAgency(`ArchiveScopeActive-${Date.now()}`);
+    archivedId = await createScopedAgency(`ArchiveScopeArchived-${Date.now()}`);
 
     const deleteRes = await request(app)
       .delete(`${BASE}/${archivedId}`)

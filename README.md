@@ -91,6 +91,36 @@ Recommended infrastructure extensions for the current architecture:
   - Inserts realistic sample data.
   - Provides at least 10 rows for core domain tables and a smaller user set.
 
+### Seeded account map
+
+The default seed keeps the core fixture emails stable for automated tests, but the names and jurisdiction bindings are now readable enough for operator review.
+
+Default seeded operator accounts:
+
+- `admin@xypes.local`: `NATIONAL_ADMIN`, global or unscoped
+- `regional.director@xypes.local`: `REGIONAL_DIRECTOR`, Region II or Cagayan Valley
+- `supervisor@xypes.local`: `PROVINCIAL_ADMIN`, Isabela province
+- `ops.lead@xypes.local`: `CITY_ADMIN`, Ilagan City
+- `content.editor@xypes.local`: `CITY_CONTENT_EDITOR`, Ilagan City
+- `dispatcher@xypes.local`: `DISPATCHER`, Ilagan City
+- `responder@xypes.local`: `RESPONDER`, Ilagan City
+- `tuguegarao.city.admin@xypes.local`: `CITY_ADMIN`, Tuguegarao City
+- `tuguegarao.content.editor@xypes.local`: `CITY_CONTENT_EDITOR`, Tuguegarao City
+- `tuguegarao.dispatcher@xypes.local`: `DISPATCHER`, Tuguegarao City
+- `tuguegarao.responder@xypes.local`: `RESPONDER`, Tuguegarao City
+- `auditor@xypes.local`: `AUDITOR`, global read-only
+- `analyst@xypes.local`: `CITIZEN_REPORTER`, citizen self-service sample account
+
+Seeded geography currently includes:
+
+- Region II or Cagayan Valley
+- Isabela province
+- Cagayan province
+- Ilagan City
+- Cauayan City
+- Tuguegarao City
+- Roxas municipality
+
 - `prisma/elgu-admin.schema.prisma`, `prisma/elgu-admin-reset-schema.sql`, `prisma/elgu-admin-seed-data.sql`: legacy scaffolding for a separate eLGU mobile-admin domain.
   - These files are not wired to the current API routes, controllers, or runtime startup.
   - Treat them as archived reference material unless that separate domain is revived intentionally.
@@ -121,6 +151,10 @@ RATE_LIMIT_ENABLED=true
 RATE_LIMIT_STORE=memory
 RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX_REQUESTS=100
+PUBLIC_CASE_LOOKUP_RATE_LIMIT_ENABLED=true
+PUBLIC_CASE_LOOKUP_RATE_LIMIT_WINDOW_MS=600000
+PUBLIC_CASE_LOOKUP_RATE_LIMIT_MAX_REQUESTS=20
+INCIDENT_CASE_TOKEN_TTL_DAYS=30
 JWT_SECRET=replace-with-a-long-random-secret
 MFA_ENCRYPTION_KEY=replace-with-a-separate-long-random-secret
 SUPABASE_AUTH_ENABLED=false
@@ -133,7 +167,8 @@ SUPABASE_AUTH_AUTO_CONFIRM_EMAIL=true
 SUPABASE_PASSWORD_RESET_REDIRECT_URL=http://localhost:5173/reset-password
 SUPABASE_STORAGE_ENABLED=false
 SUPABASE_STORAGE_BUCKET=incident-media
-SUPABASE_STORAGE_ACCESS_MODE=public
+SUPABASE_STORAGE_ACCESS_MODE=signed
+SUPABASE_STORAGE_SCAN_WEBHOOK_URL=https://scanner.example.gov/hooks/supabase-storage
 SUPABASE_STORAGE_SIGNED_URL_TTL_SECONDS=900
 SUPABASE_STORAGE_MAX_UPLOAD_BYTES=10485760
 SUPABASE_STORAGE_ALLOWED_MIME_TYPES=image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/quicktime,application/pdf
@@ -168,12 +203,13 @@ Important variables:
 - `SUPABASE_AUTH_ENABLED`: set to `true` to validate email/password credentials against Supabase Auth while the API continues issuing its own JWT/session tokens.
 - `SUPABASE_JWT_ENABLED`: optional. Set to `true` to accept and return Supabase access tokens for protected API routes. Requires `SUPABASE_AUTH_ENABLED=true`.
 - `SUPABASE_TOTP_ENABLED`: optional. Set to `true` to back privileged-user TOTP enrollment and verification with Supabase MFA instead of the local encrypted secret store. Requires `SUPABASE_JWT_ENABLED=true`.
-- `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`: required when `SUPABASE_AUTH_ENABLED=true`.
+- `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`: required based on the selected production feature profile. `SUPABASE_SERVICE_ROLE_KEY` is required for any Supabase-backed auth or media storage selection, `SUPABASE_URL` is also required for Supabase media storage selections, and `SUPABASE_ANON_KEY` remains required only for Supabase auth, JWT, or TOTP selections.
 - `SUPABASE_AUTH_AUTO_CONFIRM_EMAIL`: optional. Defaults to `true` so backend-created users can sign in immediately; set to `false` if you require email confirmation.
 - `SUPABASE_PASSWORD_RESET_REDIRECT_URL`: optional frontend reset route used by Supabase password recovery emails if you later call the hosted reset flow.
 - `SUPABASE_STORAGE_ENABLED`: optional. Set to `true` to enable `POST /incidents/media/upload` backed by Supabase Storage.
 - `SUPABASE_STORAGE_BUCKET`: required when `SUPABASE_STORAGE_ENABLED=true`.
-- `SUPABASE_STORAGE_ACCESS_MODE`: optional. Defaults to `public`. Set to `signed` to store stable managed media references and return short-lived access URLs so the backing bucket can stay private.
+- `SUPABASE_STORAGE_ACCESS_MODE`: optional. Defaults to `public`. Set this to `signed` for production Supabase media storage so the backend can store stable managed media references and return short-lived access URLs while the backing bucket stays private. Production startup fails closed when `FEATURE_MEDIA_STORAGE=supabase-storage` and this value is not `signed`.
+- `SUPABASE_STORAGE_SCAN_WEBHOOK_URL`: required in production when `FEATURE_MEDIA_STORAGE=supabase-storage`. Configure an absolute `https://` webhook URL for the media-scan service the API calls after storing incident media in Supabase Storage.
 - `SUPABASE_STORAGE_SIGNED_URL_TTL_SECONDS`: optional signed-access lifetime in seconds when `SUPABASE_STORAGE_ACCESS_MODE=signed`. Defaults to `900`.
 - `SUPABASE_STORAGE_MAX_UPLOAD_BYTES`: optional max upload size in bytes. Defaults to `10485760` (10 MB).
 - `SUPABASE_STORAGE_ALLOWED_MIME_TYPES`: optional comma-separated allowlist for incident media uploads.
@@ -184,13 +220,16 @@ Important variables:
 - `API_KEYS`: comma-separated allowed API keys.
 - `API_KEY`: optional single-key fallback if `API_KEYS` is not set.
 - `RATE_LIMIT_ENABLED`, `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX_REQUESTS`: request throttling controls.
+- `PUBLIC_CASE_LOOKUP_RATE_LIMIT_ENABLED`: public case-lookup limiter switch for the trust-layer endpoint. Keep this enabled for any deployment that exposes `/api/v1/cases/:caseToken`. In production, startup now fails closed if this is explicitly set to `false`.
+- `PUBLIC_CASE_LOOKUP_RATE_LIMIT_WINDOW_MS`, `PUBLIC_CASE_LOOKUP_RATE_LIMIT_MAX_REQUESTS`: public case-lookup throttle for trust-layer reads. In production, explicit overrides are recommended and the current partner-LGU baseline remains `600000` ms and `20` requests when these variables are omitted. Startup still rejects explicit values outside `60000` to `3600000` ms and `1` to `30` requests.
+- `INCIDENT_CASE_TOKEN_TTL_DAYS`: public case-token lifetime. In production, an explicit override is recommended and omission falls back to the current partner-LGU baseline of `30` days. Startup still rejects explicit values outside `1` to `30` days.
 - `RATE_LIMIT_STORE`: optional rate-limit backend. Use `database` for shared counters across multiple API instances. Defaults to `database` in production and `memory` elsewhere. In production, the API now fails closed with `503` responses if the shared limiter store is unavailable.
 - `AUTH_LOGIN_RATE_LIMIT_WINDOW_MS`, `AUTH_LOGIN_RATE_LIMIT_MAX_REQUESTS`: optional tighter login throttle. Defaults to 60 seconds and 5 attempts per client-plus-email.
 - `AUTH_REFRESH_RATE_LIMIT_WINDOW_MS`, `AUTH_REFRESH_RATE_LIMIT_MAX_REQUESTS`: optional tighter refresh throttle. Defaults to 60 seconds and 10 attempts per client.
 - `AUTH_PASSWORD_RESET_REQUEST_RATE_LIMIT_WINDOW_MS`, `AUTH_PASSWORD_RESET_REQUEST_RATE_LIMIT_MAX_REQUESTS`: optional tighter password reset request throttle. Defaults to 1 hour and 5 attempts per client-plus-email.
 - `AUTH_PASSWORD_RESET_CONFIRM_RATE_LIMIT_WINDOW_MS`, `AUTH_PASSWORD_RESET_CONFIRM_RATE_LIMIT_MAX_REQUESTS`: optional tighter password reset confirmation throttle. Defaults to 15 minutes and 10 attempts per client.
-- `PASSWORD_RESET_DELIVERY_WEBHOOK_URL`: optional generic webhook target for production password reset delivery. When set, the backend posts password reset delivery payloads to this URL instead of exposing tokens in API responses.
-- `PASSWORD_RESET_DELIVERY_WEBHOOK_URL` must be an absolute `https://` URL in production.
+- `PASSWORD_RESET_DELIVERY_WEBHOOK_URL`: required in production. Configure an absolute `https://` webhook URL that receives password reset delivery payloads so the backend can keep raw reset tokens out of production API responses.
+- `PASSWORD_RESET_DELIVERY_WEBHOOK_URL` is part of the fail-closed production env contract; startup rejects production rollouts where it is missing or not `https://`.
 - `AUTH_MFA_SETUP_RATE_LIMIT_WINDOW_MS`, `AUTH_MFA_SETUP_RATE_LIMIT_MAX_REQUESTS`: optional tighter MFA setup throttle. Defaults to 10 minutes and 5 attempts per authenticated user.
 - `AUTH_MFA_ENABLE_RATE_LIMIT_WINDOW_MS`, `AUTH_MFA_ENABLE_RATE_LIMIT_MAX_REQUESTS`: optional tighter MFA enable throttle. Defaults to 10 minutes and 10 attempts per authenticated user.
 - `AUTH_MFA_DISABLE_RATE_LIMIT_WINDOW_MS`, `AUTH_MFA_DISABLE_RATE_LIMIT_MAX_REQUESTS`: optional tighter MFA disable throttle. Defaults to 10 minutes and 10 attempts per authenticated user.
@@ -223,7 +262,7 @@ Feature-selection constraints:
 
 - `FEATURE_TOKEN_MODE=supabase-jwt` requires `FEATURE_AUTH_PROVIDER=supabase`.
 - `FEATURE_MFA_MODE=supabase-totp` requires `FEATURE_TOKEN_MODE=supabase-jwt`.
-- `FEATURE_MFA_MODE=disabled` is not valid for production builds when privileged roles are present; production startup now fails closed if MFA is disabled.
+- `FEATURE_MFA_MODE=disabled` is not valid for production rollouts; production startup now fails closed if MFA is disabled.
 - `FEATURE_MEDIA_STORAGE=supabase-storage` should be paired with signed/private media access and a configured media-scan webhook in production.
 
 `npm run build:production` requires one explicit selection per feature group and locks those selections into the production build. Unselected feature routes and behaviors are not mounted in the running production app, and the generated OpenAPI document hides those disabled routes as well. This is a fail-closed production profile, not a tree-shaking or code-stripping build.
@@ -236,7 +275,7 @@ When `SUPABASE_TOTP_ENABLED=true`, privileged-role MFA uses Supabase Auth's TOTP
 - `POST /auth/mfa/setup`, `POST /auth/mfa/enable`, and `POST /auth/mfa/disable` require the caller's current Supabase `refreshToken` in the request body so the backend can perform session-scoped MFA operations against Supabase.
 - Protected routes reject privileged users who only have an `aal1` Supabase session after first-factor sign-in.
 
-When `NODE_ENV=production`, privileged roles (`SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`) are now treated as MFA-required operationally:
+When `NODE_ENV=production`, privileged roles (`NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `CITY_CONTENT_EDITOR`, `DISPATCHER`, `AUDITOR`) are now treated as MFA-required operationally:
 
 - If the selected production feature profile disables MFA entirely, privileged login fails closed with a `503` configuration error.
 - If MFA is enabled in the build but the privileged account is not enrolled yet, login still succeeds but returns `mfaEnrollmentRequired=true` and the resulting session is limited to MFA enrollment routes until setup is completed.
@@ -248,8 +287,8 @@ Password reset recovery behavior:
 
 - `POST /auth/password-reset/request` always returns a generic acceptance response.
 - In non-production environments, the backend still returns `resetToken` and `resetExpiresAt` in the API response for local end-to-end testing.
-- In production, raw reset tokens are never returned in the API response. If `PASSWORD_RESET_DELIVERY_WEBHOOK_URL` is configured, the backend sends a generic password-reset delivery payload to that webhook.
-- In production, privileged roles (`SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`) are blocked from public self-service password reset and require an admin-assisted recovery workflow.
+- In production, raw reset tokens are never returned in the API response. The backend sends the generic password-reset delivery payload to `PASSWORD_RESET_DELIVERY_WEBHOOK_URL`, which must be configured for a valid production rollout.
+- In production, privileged roles (`NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `CITY_CONTENT_EDITOR`, `DISPATCHER`, `AUDITOR`) are blocked from public self-service password reset and require an admin-assisted recovery workflow.
 - Password reset request and confirm events remain auditable, and audit metadata records the delivery mode and privileged-recovery policy outcome without storing the reset token itself.
 
 Centralized security alerting:
@@ -319,6 +358,19 @@ If you are enabling Supabase-managed email/password auth on an existing database
 
 1. `prisma/add-supabase-auth.sql`
 
+If you are rolling out the narrower city communications publisher role on an existing database, also run:
+
+1. `prisma/add-city-content-editor-role.sql`
+
+If you still rely on the legacy hierarchy conversion script, note that `prisma/migrate-roles.sql` now includes `CITY_CONTENT_EDITOR` in the rebuilt `users_role_check` constraint, but existing databases that already ran an older copy still need the additive patch above.
+
+If you are enabling the LGU geography hierarchy on an existing database that predates the geography rollout, also run:
+
+1. `prisma/add-geography-foundation.sql`
+2. `prisma/add-province-expansion.sql`
+
+`prisma/add-geography-foundation.sql` creates the core `regions`, `provinces`, `cities_municipalities`, and `barangays` tables plus their baseline indexes and update triggers. `prisma/add-province-expansion.sql` still assumes those tables already exist and only adds follow-on constraints, jurisdiction checks, and cross-resource indexes.
+
 ### 4. Start development server
 
 ```bash
@@ -387,6 +439,10 @@ Health check: `GET /api/v1/health`
 Resources:
 
 - `/api/v1/citizens`
+- `/api/v1/regions`
+- `/api/v1/provinces`
+- `/api/v1/cities-municipalities`
+- `/api/v1/barangays`
 - `/api/v1/agencies`
 - `/api/v1/responders`
 - `/api/v1/statuses`
@@ -411,10 +467,14 @@ Auth and admin routes:
 - `GET /api/v1/auth/sessions`
 - `POST /api/v1/auth/logout`
 - `DELETE /api/v1/auth/sessions/:id`
+- `GET /api/v1/users/capabilities`
 - `POST /api/v1/citizens/link-me`
 - `POST /api/v1/incidents/media/upload`
 - `POST /api/v1/incidents/report`
 - `GET /api/v1/admin/users` (admin roles only)
+- `GET /api/v1/admin/users/mfa-compliance` (national admin only)
+- `GET /api/v1/admin/users/access-review` (national admin only)
+- `GET /api/v1/admin/security/data-governance` (LGU admin roles and auditor)
 - `GET /api/v1/audit-logs` and `GET /api/v1/audit-logs/:id` (admin roles only)
 
 Notes:
@@ -428,6 +488,8 @@ Notes:
 - Restore endpoints return `409` when archive mode is disabled or the archived record still depends on other archived parent records.
 - When incident media is replaced, Supabase-hosted files are archived under the configured archive prefix by default instead of being left in place.
 - When an incident itself is archived, its media objects remain in place so the incident can be restored later.
+- Geography CRUD returns generated UUID identifiers for newly created regions, provinces, cities or municipalities, and barangays.
+- Geography write scope is tiered: `NATIONAL_ADMIN` and `REGIONAL_DIRECTOR` can manage all geography levels, `PROVINCIAL_ADMIN` can manage cities or municipalities and barangays inside its province scope, and `CITY_ADMIN` can manage barangays inside its city scope.
 - Validation failures return HTTP 422.
 - Role requirements differ by route and are documented in OpenAPI.
 
@@ -543,13 +605,14 @@ JWT auth is used for human users and role-aware dashboard/mobile access.
 - Refresh tokens are one-time rotation tokens bound to the same server-side auth session.
 - `GET /api/v1/auth/sessions` returns the caller's session inventory for account security UI, including `isCurrent`, expiry timestamps, revocation state, user agent, and IP address metadata.
 - `DELETE /api/v1/auth/sessions/:id` revokes one owned session by id and is intended for targeted sign-out from other devices.
-- `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, and `DISPATCHER` accounts can enable TOTP MFA. Once enabled, login requires `mfaCode` in addition to email and password.
+- `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `CITY_CONTENT_EDITOR`, `DISPATCHER`, and `AUDITOR` accounts can enable TOTP MFA. Once enabled, login requires `mfaCode` in addition to email and password.
 - Enabling or disabling MFA revokes all active sessions for that user.
 - Password changes and role changes revoke all active sessions for the affected user.
 - Archived users are excluded from login, token resolution, MFA operations, and password reset flows.
 - Elevated JWT routes include:
-  - `GET /api/v1/admin/users` for `SYSTEM_ADMIN` and `DEPARTMENT_MANAGER`
-  - `GET /api/v1/audit-logs` and `GET /api/v1/audit-logs/:id` for `SYSTEM_ADMIN` and `AUDITOR`
+  - `GET /api/v1/admin/users`, `GET /api/v1/admin/users/mfa-compliance`, and `GET /api/v1/admin/users/access-review` for `NATIONAL_ADMIN`
+  - `GET /api/v1/admin/security/data-governance` for LGU admin roles and `AUDITOR`
+  - `GET /api/v1/audit-logs` and `GET /api/v1/audit-logs/:id` for `NATIONAL_ADMIN` and `AUDITOR`
   - citizen create/list/get/update/delete for admin roles
   - user CRUD for admin roles
   - agency/responder/status/category/severity writes for admin roles
@@ -557,22 +620,50 @@ JWT auth is used for human users and role-aware dashboard/mobile access.
 - Incident access uses JWT for all list/get/write operations:
   - `CITIZEN_REPORTER` can use `/api/v1/incidents/report`
   - `CITIZEN_REPORTER` incident list/get is scoped by backend logic to that user's own incidents
-  - `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`, and `RESPONDER` can access broader incident operations based on route requirements
+  - `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `DISPATCHER`, and `RESPONDER` can access broader incident operations based on route requirements
 - `POST /api/v1/citizens/link-me` requires a `CITIZEN_REPORTER` JWT and links the citizen profile to the authenticated email.
 
 Password policy:
 
 - Passwords must be at least 12 characters and include uppercase, lowercase, number, and special character.
 
-Seeded development login:
+Seeded development logins:
 
-- `admin@xypes.local` / `Password123!` (role: `SYSTEM_ADMIN`)
+- `admin@xypes.local` / `Password123!` (role: `NATIONAL_ADMIN`)
+- `regional.director@xypes.local` / `Password123!` (role: `REGIONAL_DIRECTOR`)
+- `supervisor@xypes.local` / `Password123!` (role: `PROVINCIAL_ADMIN`)
+- `ops.lead@xypes.local` / `Password123!` (role: `CITY_ADMIN`)
+- `content.editor@xypes.local` / `Password123!` (role: `CITY_CONTENT_EDITOR`)
+- `dispatcher@xypes.local` / `Password123!` (role: `DISPATCHER`)
+- `responder@xypes.local` / `Password123!` (role: `RESPONDER`)
+- `analyst@xypes.local` / `Password123!` (role: `CITIZEN_REPORTER`)
+- `auditor@xypes.local` / `Password123!` (role: `AUDITOR`)
+- `roxas.municipal.admin@xypes.local` / `Password123!` (role: `CITY_ADMIN`, jurisdiction: Roxas, Isabela)
+- `roxas.content.editor@xypes.local` / `Password123!` (role: `CITY_CONTENT_EDITOR`, jurisdiction: Roxas, Isabela)
+- `roxas.dispatcher@xypes.local` / `Password123!` (role: `DISPATCHER`, jurisdiction: Roxas, Isabela)
+- `roxas.responder@xypes.local` / `Password123!` (role: `RESPONDER`, jurisdiction: Roxas, Isabela)
+
+Seeded mobile content baseline:
+
+- `tuguegarao-summer-water-advisory` is a published `home` advisory for the public mobile feed.
+- `mytuguegarao-digital-permit-week` is a published `news` item for city-service communications.
+- `cagayan-river-watch-alerts` is a published `alerts` item for urgent public updates.
+- `barangay-cleanup-campaign-preview` is an unpublished draft that gives `CITY_CONTENT_EDITOR` and `CITY_ADMIN` a safe approval workflow example.
+
+Seeded locality baseline:
+
+- Region II `Cagayan Valley` is available in the default seed set.
+- Province `Isabela` is seeded under Region II.
+- `Roxas` is seeded under Isabela using PSGC code `023126000` and type `MUNICIPALITY`.
+- `regional.director@xypes.local` is scoped to Region II, `supervisor@xypes.local` is scoped to Isabela, and the Roxas municipal staff accounts are scoped to the Roxas municipality record.
 
 Role values:
 
-- `SYSTEM_ADMIN`
-- `DEPARTMENT_MANAGER`
-- `SUPERVISOR`
+- `NATIONAL_ADMIN`
+- `REGIONAL_DIRECTOR`
+- `PROVINCIAL_ADMIN`
+- `CITY_ADMIN`
+- `CITY_CONTENT_EDITOR`
 - `DISPATCHER`
 - `RESPONDER`
 - `CITIZEN_REPORTER`
@@ -582,27 +673,33 @@ Role values:
 
 The table below summarizes the current route protection model. When `API_KEYS` or `API_KEY` is configured, assume `x-api-key` is also required for every versioned route except the explicit public bypasses under `/health`, `/openapi.json`, `/docs`, and `/auth/*`.
 
-| Route Group                                                                                                                                         | Read Access                                                                     | Write Access                                                                                      |
-| --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `/api/v1/auth/register`, `/api/v1/auth/login`, `/api/v1/auth/refresh`, `/api/v1/auth/password-reset/request`, `/api/v1/auth/password-reset/confirm` | Public                                                                          | Public                                                                                            |
-| `/api/v1/auth/me`, `/api/v1/auth/sessions`, `/api/v1/auth/logout`                                                                                   | Any authenticated JWT user                                                      | Current session only                                                                              |
-| `/api/v1/auth/sessions/:id`                                                                                                                         | N/A                                                                             | Any authenticated JWT user, limited to own session                                                |
-| `/api/v1/auth/mfa/setup`, `/api/v1/auth/mfa/enable`, `/api/v1/auth/mfa/disable`                                                                     | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`                | Current session only                                                                              |
-| `/api/v1/citizens`                                                                                                                                  | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                            | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                                              |
-| `/api/v1/citizens/link-me`                                                                                                                          | N/A                                                                             | `CITIZEN_REPORTER`                                                                                |
-| `/api/v1/agencies`                                                                                                                                  | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`                | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                                              |
-| `/api/v1/responders`                                                                                                                                | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`                | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                                              |
-| `/api/v1/statuses`                                                                                                                                  | Any authenticated JWT user                                                      | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                                              |
-| `/api/v1/categories`                                                                                                                                | Any authenticated JWT user                                                      | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                                              |
-| `/api/v1/severities`                                                                                                                                | Any authenticated JWT user                                                      | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                                              |
-| `/api/v1/incidents`                                                                                                                                 | Any authenticated JWT user. `CITIZEN_REPORTER` is scoped to own incidents only. | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`, `RESPONDER`                     |
-| `/api/v1/incidents/media/upload`                                                                                                                    | N/A                                                                             | `CITIZEN_REPORTER`, `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`, `RESPONDER` |
-| `/api/v1/incidents/report`                                                                                                                          | N/A                                                                             | `CITIZEN_REPORTER`                                                                                |
-| `/api/v1/assignments`                                                                                                                               | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`                | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`                                  |
-| `/api/v1/users`                                                                                                                                     | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                            | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                                              |
-| `/api/v1/users/capabilities`                                                                                                                        | Any authenticated JWT user                                                      | N/A                                                                                               |
-| `/api/v1/admin/users`                                                                                                                               | `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`                                            | N/A                                                                                               |
-| `/api/v1/audit-logs`                                                                                                                                | `SYSTEM_ADMIN`, `AUDITOR`                                                       | Read-only                                                                                         |
+| Route Group                                                                                                                                         | Read Access                                                                                                             | Write Access                                                                                                           |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `/api/v1/auth/register`, `/api/v1/auth/login`, `/api/v1/auth/refresh`, `/api/v1/auth/password-reset/request`, `/api/v1/auth/password-reset/confirm` | Public                                                                                                                  | Public                                                                                                                 |
+| `/api/v1/auth/me`, `/api/v1/auth/sessions`, `/api/v1/auth/logout`                                                                                   | Any authenticated JWT user                                                                                              | Current session only                                                                                                   |
+| `/api/v1/auth/sessions/:id`                                                                                                                         | N/A                                                                                                                     | Any authenticated JWT user, limited to own session                                                                     |
+| `/api/v1/auth/mfa/setup`, `/api/v1/auth/mfa/enable`, `/api/v1/auth/mfa/disable`                                                                     | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `CITY_CONTENT_EDITOR`, `DISPATCHER`, `AUDITOR` | Current session only                                                                                                   |
+| `/api/v1/citizens`                                                                                                                                  | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`                                                 | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`                                                |
+| `/api/v1/regions`                                                                                                                                   | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `DISPATCHER`, `AUDITOR`                        | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`                                                                                  |
+| `/api/v1/provinces`                                                                                                                                 | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `DISPATCHER`, `AUDITOR`                        | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`                                                                                  |
+| `/api/v1/cities-municipalities`                                                                                                                     | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `DISPATCHER`, `AUDITOR`                        | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`                                                              |
+| `/api/v1/barangays`                                                                                                                                 | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `DISPATCHER`, `AUDITOR`                        | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`                                                |
+| `/api/v1/citizens/link-me`                                                                                                                          | N/A                                                                                                                     | `CITIZEN_REPORTER`                                                                                                     |
+| `/api/v1/agencies`                                                                                                                                  | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `DISPATCHER`                                   | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`                                                |
+| `/api/v1/responders`                                                                                                                                | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `DISPATCHER`                                   | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`                                                |
+| `/api/v1/statuses`                                                                                                                                  | Any authenticated JWT user                                                                                              | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`                                                |
+| `/api/v1/categories`                                                                                                                                | Any authenticated JWT user                                                                                              | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`                                                |
+| `/api/v1/severities`                                                                                                                                | Any authenticated JWT user                                                                                              | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`                                                |
+| `/api/v1/incidents`                                                                                                                                 | Any authenticated JWT user. `CITIZEN_REPORTER` is scoped to own incidents only.                                         | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `DISPATCHER`, `RESPONDER`                     |
+| `/api/v1/incidents/media/upload`                                                                                                                    | N/A                                                                                                                     | `CITIZEN_REPORTER`, `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `DISPATCHER`, `RESPONDER` |
+| `/api/v1/incidents/report`                                                                                                                          | N/A                                                                                                                     | `CITIZEN_REPORTER`                                                                                                     |
+| `/api/v1/assignments`                                                                                                                               | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `DISPATCHER`                                   | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `DISPATCHER`                                  |
+| `/api/v1/users`                                                                                                                                     | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`                                                 | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`                                                |
+| `/api/v1/users/capabilities`                                                                                                                        | Any authenticated JWT user                                                                                              | N/A                                                                                                                    |
+| `/api/v1/admin/users`                                                                                                                               | `NATIONAL_ADMIN`                                                                                                        | N/A                                                                                                                    |
+| `/api/v1/admin/users/mfa-compliance`, `/api/v1/admin/users/access-review`                                                                           | `NATIONAL_ADMIN`                                                                                                        | N/A                                                                                                                    |
+| `/api/v1/admin/security/data-governance`                                                                                                            | `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `AUDITOR`                                      | Read-only                                                                                                              |
+| `/api/v1/audit-logs`                                                                                                                                | `NATIONAL_ADMIN`, `AUDITOR`                                                                                             | Read-only                                                                                                              |
 
 Notes:
 
@@ -619,7 +716,7 @@ Persistent audit logging is enabled through the API layer and stored in the `aud
 - Audit log read routes:
   - `GET /api/v1/audit-logs`
   - `GET /api/v1/audit-logs/:id`
-- Audit log reads require both a valid API key when configured and a JWT for `SYSTEM_ADMIN` or `AUDITOR`.
+- Audit log reads require both a valid API key when configured and a JWT for `NATIONAL_ADMIN` or `AUDITOR`.
 - The backend records selected auth and mutation events, including:
   - `POST /api/v1/auth/login`
   - `POST /api/v1/auth/register`
@@ -653,6 +750,8 @@ Run:
 npm test
 ```
 
+`npm test` invokes `scripts/runJestWithTestDb.js`, which first checks the `.env.test` `DATABASE_URL` and then auto-starts the bundled local test database when the target is the default local harness and it is not reachable yet.
+
 Coverage includes route behavior, validation, security middleware, and health/docs endpoints.
 
 For a local test database that matches CI, use the bundled Postgres container workflow:
@@ -664,13 +763,13 @@ npm run test:db:seed
 npm test
 ```
 
-This starts PostgreSQL 16 on `localhost:5432` with the same defaults used by `.env.test` and CI:
+This uses the bundled PostgreSQL 16 test database on `localhost:55432` with the same local defaults used by `.env.test`:
 
 - database: `xypes_test`
 - username: `postgres`
 - password: `postgres`
 
-When `npm test` runs locally, it now tries to connect to the `.env.test` database first and, if that target is the bundled local test database and it is not reachable yet, it starts the bundled container automatically before invoking Jest.
+When `npm test` runs locally, the wrapper first tries the configured `.env.test` database. If that target is the bundled local harness on `localhost:55432` and it is not reachable yet, the wrapper starts the local test DB automatically before invoking Jest. It prefers `docker compose` through `scripts/runTestDbCompose.sh` and falls back to `embedded-postgres` when compose is unavailable.
 
 By default the bundled local container is exposed on `localhost:55432` so it does not conflict with an existing PostgreSQL instance on `5432`. CI still injects its own database on `5432` through environment variables, so the automated workflows are unchanged.
 
@@ -686,12 +785,12 @@ Notes:
 - Do not point local tests at the droplet or production database.
 - If you want a different local port, set `TEST_DB_PORT=<port>` before `npm run test:db:up` and update `.env.test` or your shell overrides to match.
 - The npm scripts support both `docker compose` and the older `docker-compose` binary.
-- `npm run test:local` brings the container up, resets the test schema, seeds it, and then runs Jest.
+- `npm run test:local` is the explicit reset-and-seed path: it brings the container up, resets the test schema, seeds it, and then runs Jest.
 
 If `.env.test` points to a local placeholder database, provide a reachable `DATABASE_URL` and `JWT_SECRET` at command time, for example:
 
 ```bash
-DATABASE_URL=postgresql://postgres:<password>@<host>:5432/postgres JWT_SECRET=<test-secret> npm test
+DATABASE_URL=postgresql://postgres:<password>@localhost:55432/xypes_test JWT_SECRET=<test-secret> npm test
 ```
 
 ## Build and Run (Production)

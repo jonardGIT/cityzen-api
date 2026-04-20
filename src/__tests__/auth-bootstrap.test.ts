@@ -17,6 +17,20 @@ describe('Auth bootstrap endpoints', () => {
         mfaEnabledAt: null,
       },
     });
+
+    await prisma.passwordResetToken.updateMany({
+      where: {
+        user: {
+          email: {
+            in: ['admin@xypes.local', 'auditor@xypes.local'],
+          },
+        },
+        usedAt: null,
+      },
+      data: {
+        usedAt: new Date(),
+      },
+    });
   });
 
   it('POST /auth/register should create a CITIZEN_REPORTER account and return token', async () => {
@@ -58,6 +72,117 @@ describe('Auth bootstrap endpoints', () => {
     expect(res.body).toHaveProperty('user');
     expect(res.body.user).toHaveProperty('createdAt');
     expect(res.body.user).toHaveProperty('updatedAt');
+  });
+
+  it('POST /auth/mobile/register should create a linked citizen reporter account and return token', async () => {
+    const stamp = Date.now();
+    const mobileNumber = '09171234567';
+
+    const res = await request(app)
+      .post(`${API_V1}/auth/mobile/register`)
+      .send({
+        name: `Mobile User ${stamp}`,
+        mobileNumber,
+        password: 'Password123!',
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty('token');
+    expect(res.body).toHaveProperty('accessToken', res.body.token);
+    expect(res.body).toHaveProperty('refreshToken');
+    expect(res.body).toHaveProperty('sessionId');
+    expect(res.body).toHaveProperty('user.role', 'CITIZEN_REPORTER');
+    expect(res.body).toHaveProperty('user.mobileNumber', '+639171234567');
+    expect(res.body.user).toHaveProperty('citizenId');
+
+    const createdUser = await prisma.user.findUnique({
+      where: { mobileNumber: '+639171234567' },
+      select: {
+        email: true,
+        mobileNumber: true,
+        mobileNumberVerifiedAt: true,
+        role: true,
+        citizenId: true,
+        passwordHash: true,
+      },
+    });
+
+    expect(createdUser).not.toBeNull();
+    expect(createdUser?.email).toBe('citizen.mobile.639171234567@cirs.mobile.invalid');
+    expect(createdUser?.role).toBe('CITIZEN_REPORTER');
+    expect(createdUser?.mobileNumberVerifiedAt).not.toBeNull();
+    expect(createdUser?.passwordHash).not.toBeNull();
+
+    const citizen = await prisma.citizen.findUnique({
+      where: { id: createdUser!.citizenId! },
+      select: {
+        name: true,
+        contactInfo: true,
+        preferredChannel: true,
+      },
+    });
+
+    expect(citizen).toMatchObject({
+      name: `Mobile User ${stamp}`,
+      contactInfo: '+639171234567',
+      preferredChannel: 'mobile',
+    });
+  });
+
+  it('POST /auth/mobile/register should return 409 for duplicate mobile number', async () => {
+    const payload = {
+      name: 'Duplicate Mobile User',
+      mobileNumber: '09179998888',
+      password: 'Password123!',
+    };
+
+    const first = await request(app).post(`${API_V1}/auth/mobile/register`).send(payload);
+    const second = await request(app)
+      .post(`${API_V1}/auth/mobile/register`)
+      .send({ ...payload, name: 'Second Attempt' });
+
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(409);
+    expect(second.body).toHaveProperty('message', 'Mobile number already registered');
+  });
+
+  it('POST /auth/mobile/login should authenticate by normalized mobile number and password', async () => {
+    await request(app).post(`${API_V1}/auth/mobile/register`).send({
+      name: 'Citizen Mobile Login',
+      mobileNumber: '09175554444',
+      password: 'Password123!',
+    });
+
+    const res = await request(app).post(`${API_V1}/auth/mobile/login`).send({
+      mobileNumber: '+63 917 555 4444',
+      password: 'Password123!',
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('token');
+    expect(res.body).toHaveProperty('user.mobileNumber', '+639175554444');
+    expect(res.body).toHaveProperty('user.role', 'CITIZEN_REPORTER');
+  });
+
+  it('POST /auth/mobile/login should reject non-citizen accounts even if a mobile number is present', async () => {
+    await prisma.user.update({
+      where: { email: 'admin@xypes.local' },
+      data: {
+        mobileNumber: '+639199887766',
+        mobileNumberVerifiedAt: new Date(),
+      },
+    });
+
+    const res = await request(app).post(`${API_V1}/auth/mobile/login`).send({
+      mobileNumber: '09199887766',
+      password: 'Password123!',
+    });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toHaveProperty(
+      'message',
+      'Mobile auth is only available for citizen accounts',
+    );
   });
 
   it('should enforce MFA for privileged users after setup and enablement', async () => {
@@ -158,6 +283,45 @@ describe('Auth bootstrap endpoints', () => {
     }
   });
 
+  it('POST /auth/password-reset/request should block public password recovery for auditor accounts in production', async () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalWebhookUrl = process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL;
+    process.env.NODE_ENV = 'production';
+    process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL = 'https://example.test/password-reset';
+
+    try {
+      const res = await request(app)
+        .post(`${API_V1}/auth/password-reset/request`)
+        .send({ email: 'auditor@xypes.local' });
+
+      expect(res.status).toBe(202);
+      expect(res.body).toMatchObject({
+        message: 'If an account with that email exists, a password reset token has been created.',
+      });
+      expect(res.body).not.toHaveProperty('resetToken');
+      expect(res.body).not.toHaveProperty('resetExpiresAt');
+
+      const auditor = await prisma.user.findUnique({
+        where: { email: 'auditor@xypes.local' },
+        select: { id: true },
+      });
+
+      expect(auditor).not.toBeNull();
+
+      const activeTokens = await prisma.passwordResetToken.count({
+        where: {
+          userId: auditor!.id,
+          usedAt: null,
+        },
+      });
+
+      expect(activeTokens).toBe(0);
+    } finally {
+      process.env.NODE_ENV = originalNodeEnv;
+      process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL = originalWebhookUrl;
+    }
+  });
+
   it('POST /auth/login should return 401 for wrong password', async () => {
     const res = await request(app).post(`${API_V1}/auth/login`).send({
       email: 'admin@xypes.local',
@@ -171,8 +335,31 @@ describe('Auth bootstrap endpoints', () => {
     expect(res.status).toBe(422);
   });
 
+  it('POST /auth/login should return 422 for non-string email payloads', async () => {
+    const res = await request(app)
+      .post(`${API_V1}/auth/login`)
+      .send({
+        email: { value: 'admin@xypes.local' },
+        password: 'Password123!',
+      });
+
+    expect(res.status).toBe(422);
+  });
+
   it('POST /auth/register should return 422 for missing fields', async () => {
     const res = await request(app).post(`${API_V1}/auth/register`).send({ name: 'Incomplete' });
+    expect(res.status).toBe(422);
+  });
+
+  it('POST /auth/register should return 422 for non-string email payloads', async () => {
+    const res = await request(app)
+      .post(`${API_V1}/auth/register`)
+      .send({
+        name: 'Malformed Email',
+        email: ['broken@example.test'],
+        password: 'Password123!',
+      });
+
     expect(res.status).toBe(422);
   });
 

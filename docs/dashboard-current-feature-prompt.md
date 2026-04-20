@@ -77,17 +77,37 @@ The backend no longer uses the old separate `locations` CRUD surface for inciden
 
 The role model is:
 
-- `SYSTEM_ADMIN`
-- `DEPARTMENT_MANAGER`
-- `SUPERVISOR`
+- `NATIONAL_ADMIN`
+- `REGIONAL_DIRECTOR`
+- `PROVINCIAL_ADMIN`
+- `CITY_ADMIN`
+- `CITY_CONTENT_EDITOR`
 - `DISPATCHER`
 - `RESPONDER`
 - `CITIZEN_REPORTER`
 - `AUDITOR`
 
-Legacy labels such as `SUPER_ADMIN`, `ADMIN`, and `VIEWER` are not the canonical contract.
+Legacy labels are backward-compatibility aliases only, not the canonical contract.
 
-If older frontend code still uses those names, normalize them before applying permission logic.
+Normalize them to the live backend roles before applying permission logic:
+
+- `SUPER_ADMIN` and `SYSTEM_ADMIN` -> `NATIONAL_ADMIN`
+- `DEPARTMENT_MANAGER` and `ADMIN` -> `CITY_ADMIN`
+- `SUPERVISOR` -> `PROVINCIAL_ADMIN`
+- `VIEWER` -> `CITIZEN_REPORTER`
+
+Do not build new dashboard logic around the legacy labels.
+
+## Current Jurisdiction Limitation
+
+The backend still uses the historical `city` scope and permission suffix for the local LGU tier.
+
+For the current rollout, the dashboard must treat local user-management jurisdiction as city-only:
+
+- `jurisdictionType` input accepts only `region`, `province`, `city`, and `barangay`
+- do not send `jurisdictionType = municipality`
+- when sending `jurisdictionType = city`, the `jurisdictionId` must reference a real `CITY` row, not a `MUNICIPALITY` row
+- treat municipality support as future work, not as a compatibility path the current UI should preserve
 
 ## Feature Gates You Must Respect
 
@@ -148,6 +168,10 @@ Do not assume MFA endpoints exist in environments where MFA is disabled.
 ### 2. Permission gating
 
 - hide or disable actions when the user role is not in `allowedRoles`
+- use `GET /users/capabilities` for any authenticated user when capability metadata is needed
+- trust backend `permissions`, `scope`, `canUpdateUser`, and `canDeleteUser` over a frontend-only role ladder
+- treat user-management actions as both role-gated and jurisdiction-scoped for `CITY_ADMIN`, `PROVINCIAL_ADMIN`, `REGIONAL_DIRECTOR`, and `NATIONAL_ADMIN`
+- fail closed for user-management navigation, route access, and lifecycle actions until capability data has loaded and positively allows the action
 - for `CITIZEN_REPORTER`, enforce self-service behavior on citizen linking and incident visibility
 - do not expose admin-only actions to non-admin roles
 
@@ -175,6 +199,8 @@ Do not assume MFA endpoints exist in environments where MFA is disabled.
 - prefer a config-driven dashboard over hardcoded per-resource pages
 - do not add routes or forms that are not present in config or active OpenAPI
 - do not hardcode old role names
+- do not assume user management is national-only; LGU admin roles can read and manage users within backend-enforced scope
+- do not preserve municipality alias behavior in create or edit forms for the current rollout
 - do not assume all optional auth endpoints exist in every deployment
 - preserve backend validation behavior, especially `401`, `403`, `409`, `422`, and `429`
 

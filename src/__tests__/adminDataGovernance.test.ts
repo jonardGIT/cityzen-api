@@ -42,7 +42,7 @@ describe('admin data governance summary', () => {
     delete process.env.DATA_LEGAL_HOLD_CONTACT;
   });
 
-  it('allows SYSTEM_ADMIN to read the data governance summary', async () => {
+  it('allows NATIONAL_ADMIN to read the data governance summary', async () => {
     process.env.DATA_RETENTION_AUDIT_LOG_DAYS = '730';
     process.env.DATA_LEGAL_HOLD_ENABLED = 'true';
     process.env.DATA_LEGAL_HOLD_CONTACT = 'records@example.gov';
@@ -76,7 +76,7 @@ describe('admin data governance summary', () => {
         expect.objectContaining({
           domain: 'audit-logs',
           retentionDays: 730,
-          purgeAuthority: 'SYSTEM_ADMIN',
+          purgeAuthority: 'NATIONAL_ADMIN',
         }),
       ]),
     );

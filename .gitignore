@@ -45,5 +45,9 @@ scripts/*
 !scripts/runTestDbCompose.sh
 postman/
 prisma/
-docs/
+docs/*
+!docs/dashboard-*.md
+!docs/dashboard-crud-config.json
+!docs/dashboard-crud-config.flat.json
 .vscode/
+.github/agents/

@@ -3,8 +3,12 @@ import {
   createCitizenIncidentReport,
   createIncident,
   deleteIncident,
+  getAuditorIncidentById,
+  getAuditorIncidents,
+  getAuditorIncidentTimeline,
   getIncidentById,
   getIncidentMediaAccess,
+  getIncidentTimeline,
   getIncidents,
   restoreIncident,
   uploadIncidentMedia,
@@ -24,6 +28,7 @@ import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
 import { INCIDENT_WRITE_ROLES, MEDIA_UPLOAD_ROLES } from '../types/auth.js';
 import { isArchiveEnabled } from '../utils/archive.js';
+import { incidentTimelineParamValidator } from '../validators/incidentTrustValidators.js';
 
 const router = Router();
 
@@ -42,7 +47,49 @@ const incidentMediaUploadRateLimit = createEnvRateLimitMiddleware({
   keyGenerator: buildAuthenticatedUserScopedKey,
 });
 
-router.get('/', requireJwtAuth, asyncHandler(getIncidents));
+const STANDARD_INCIDENT_READ_ROLES = [
+  'CITIZEN_REPORTER',
+  'CITY_ADMIN',
+  'DISPATCHER',
+  'RESPONDER',
+  'REGIONAL_DIRECTOR',
+  'PROVINCIAL_ADMIN',
+  'NATIONAL_ADMIN',
+] as const;
+const PHASE_ONE_TRUST_TIMELINE_READ_ROLES = [
+  'CITIZEN_REPORTER',
+  'CITY_ADMIN',
+  'DISPATCHER',
+  'RESPONDER',
+  'REGIONAL_DIRECTOR',
+  'PROVINCIAL_ADMIN',
+  'NATIONAL_ADMIN',
+] as const;
+
+router.get(
+  '/',
+  requireJwtAuth,
+  requireRole(...STANDARD_INCIDENT_READ_ROLES),
+  asyncHandler(getIncidents),
+);
+
+router.get('/audit', requireJwtAuth, requireRole('AUDITOR'), asyncHandler(getAuditorIncidents));
+
+router.get(
+  '/audit/:id/timeline',
+  requireJwtAuth,
+  requireRole('AUDITOR'),
+  incidentTimelineParamValidator,
+  validateRequest,
+  asyncHandler(getAuditorIncidentTimeline),
+);
+
+router.get(
+  '/audit/:id',
+  requireJwtAuth,
+  requireRole('AUDITOR'),
+  asyncHandler(getAuditorIncidentById),
+);
 
 if (isIncidentMediaUploadFeatureEnabled()) {
   router.post(
@@ -56,8 +103,26 @@ if (isIncidentMediaUploadFeatureEnabled()) {
   );
 }
 
-router.get('/:id/media/:mediaId', requireJwtAuth, asyncHandler(getIncidentMediaAccess));
-router.get('/:id', requireJwtAuth, asyncHandler(getIncidentById));
+router.get(
+  '/:id/media/:mediaId',
+  requireJwtAuth,
+  requireRole(...STANDARD_INCIDENT_READ_ROLES),
+  asyncHandler(getIncidentMediaAccess),
+);
+router.get(
+  '/:id/timeline',
+  requireJwtAuth,
+  requireRole(...PHASE_ONE_TRUST_TIMELINE_READ_ROLES),
+  incidentTimelineParamValidator,
+  validateRequest,
+  asyncHandler(getIncidentTimeline),
+);
+router.get(
+  '/:id',
+  requireJwtAuth,
+  requireRole(...STANDARD_INCIDENT_READ_ROLES),
+  asyncHandler(getIncidentById),
+);
 router.post(
   '/report',
   requireJwtAuth,

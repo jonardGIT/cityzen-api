@@ -42,6 +42,10 @@ const embeddedDatabaseDir = path.join(
   'embedded-postgres-test-db',
 );
 
+let embeddedPostgresInstance = null;
+let embeddedPostgresShutdownPromise = null;
+let embeddedPostgresSignalHandlersRegistered = false;
+
 async function canConnectToDatabase() {
   const sql = postgres({
     connect_timeout: 2,
@@ -63,6 +67,34 @@ async function canConnectToDatabase() {
   } finally {
     await sql.end({ timeout: 1 }).catch(() => undefined);
   }
+}
+
+async function hasStableDatabaseConnection({
+  pollIntervalMs = 250,
+  requiredConsecutiveSuccesses = 3,
+  timeoutAt = Date.now(),
+} = {}) {
+  let consecutiveSuccesses = 0;
+
+  while (Date.now() <= timeoutAt) {
+    if (await canConnectToDatabase()) {
+      consecutiveSuccesses += 1;
+
+      if (consecutiveSuccesses >= requiredConsecutiveSuccesses) {
+        return true;
+      }
+    } else {
+      consecutiveSuccesses = 0;
+    }
+
+    if (Date.now() >= timeoutAt) {
+      break;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+  }
+
+  return false;
 }
 
 function runCompose(args) {
@@ -94,31 +126,45 @@ function canRunCompose() {
 async function ensureEmbeddedDatabase() {
   fs.mkdirSync(path.dirname(embeddedDatabaseDir), { recursive: true });
 
-  const embeddedPostgres = new EmbeddedPostgres({
-    authMethod: 'password',
-    databaseDir: embeddedDatabaseDir,
-    onError: (message) => {
-      const text = String(message).trim();
+  if (!embeddedPostgresInstance) {
+    embeddedPostgresInstance = new EmbeddedPostgres({
+      authMethod: 'password',
+      databaseDir: embeddedDatabaseDir,
+      onError: (message) => {
+        const text = String(message).trim();
 
-      if (text) {
-        console.error(text);
-      }
-    },
-    onLog: () => undefined,
-    password: databaseTarget.password || 'postgres',
-    persistent: true,
-    port: Number(databaseTarget.port),
-    user: databaseTarget.username || 'postgres',
-  });
-
-  if (!fs.existsSync(path.join(embeddedDatabaseDir, 'PG_VERSION'))) {
-    await embeddedPostgres.initialise();
+        if (text) {
+          console.error(text);
+        }
+      },
+      onLog: () => undefined,
+      password: databaseTarget.password || 'postgres',
+      persistent: true,
+      port: Number(databaseTarget.port),
+      user: databaseTarget.username || 'postgres',
+    });
   }
 
-  await embeddedPostgres.start();
+  if (!fs.existsSync(path.join(embeddedDatabaseDir, 'PG_VERSION'))) {
+    await embeddedPostgresInstance.initialise();
+  }
+
+  await embeddedPostgresInstance.start();
+
+  if (!embeddedPostgresSignalHandlersRegistered) {
+    const handleSignal = (signal) => {
+      void shutdownEmbeddedDatabase(signal).finally(() => {
+        process.exit(128 + signal);
+      });
+    };
+
+    process.once('SIGINT', () => handleSignal(2));
+    process.once('SIGTERM', () => handleSignal(15));
+    embeddedPostgresSignalHandlersRegistered = true;
+  }
 
   try {
-    await embeddedPostgres.createDatabase(requestedDatabaseName);
+    await embeddedPostgresInstance.createDatabase(requestedDatabaseName);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
@@ -128,8 +174,33 @@ async function ensureEmbeddedDatabase() {
   }
 }
 
+async function shutdownEmbeddedDatabase() {
+  if (!embeddedPostgresInstance) {
+    return;
+  }
+
+  if (!embeddedPostgresShutdownPromise) {
+    embeddedPostgresShutdownPromise = embeddedPostgresInstance
+      .stop()
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(message);
+      })
+      .finally(() => {
+        embeddedPostgresInstance = null;
+        embeddedPostgresShutdownPromise = null;
+      });
+  }
+
+  await embeddedPostgresShutdownPromise;
+}
+
 async function ensureLocalTestDatabase() {
-  if (await canConnectToDatabase()) {
+  if (
+    await hasStableDatabaseConnection({
+      timeoutAt: Date.now() + 1_000,
+    })
+  ) {
     return;
   }
 
@@ -144,14 +215,13 @@ async function ensureLocalTestDatabase() {
     await ensureEmbeddedDatabase();
   }
 
-  const timeoutAt = Date.now() + 60_000;
-
-  while (Date.now() < timeoutAt) {
-    if (await canConnectToDatabase()) {
-      return;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  if (
+    await hasStableDatabaseConnection({
+      pollIntervalMs: 1_000,
+      timeoutAt: Date.now() + 60_000,
+    })
+  ) {
+    return;
   }
 
   console.error(`Timed out waiting for the local test database at ${databaseTarget.host}.`);
@@ -176,12 +246,17 @@ async function main() {
     throw result.error;
   }
 
-  process.exit(result.status ?? 1);
+  return result.status ?? 1;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
-  main().catch((error) => {
-    console.error(error instanceof Error ? error.message : error);
-    process.exit(1);
-  });
+  main()
+    .then((statusCode) => {
+      process.exit(statusCode);
+    })
+    .catch(async (error) => {
+      console.error(error instanceof Error ? error.message : error);
+      await shutdownEmbeddedDatabase();
+      process.exit(1);
+    });
 }

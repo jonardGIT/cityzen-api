@@ -28,11 +28,14 @@ Functional requirements:
 
 2. Authorization and UI gating
 
-- Assume current user role is available from auth state (`SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`, `RESPONDER`, `CITIZEN_REPORTER`, `AUDITOR`).
+- Assume current user role is available from auth state (`NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `CITY_CONTENT_EDITOR`, `DISPATCHER`, `RESPONDER`, `CITIZEN_REPORTER`, `AUDITOR`).
 - Hide or disable action buttons (Create, Edit, Delete) if current role is not included in allowedRoles.
 - Treat `authRequired` in the config files as authoritative; the current dashboard resource routes are authenticated.
 - Respect `featureGate` metadata in the config files. Do not render or call feature-gated operations when the current deployment does not expose them.
 - Add a reusable hasPermission(endpoint, role) helper.
+- Use `GET /api/v1/users/capabilities` for any authenticated user when capability-aware UI behavior is needed.
+- For user management, combine `allowedRoles` checks with backend capability flags and jurisdiction-aware target validation instead of a global admin ladder.
+- For user management, fail closed until capability data has loaded; do not show the page or actions on an optimistic role-only fallback.
 - For incident list/get when role is `CITIZEN_REPORTER`, show only the logged-in user's own incidents.
 - Citizens list/get/create/update/delete are admin-only; keep `citizens/link-me` as a dedicated citizen self-service action rather than a normal admin CRUD form.
 
@@ -70,7 +73,7 @@ Functional requirements:
 
 - Build schema-driven forms with resource-specific field configs.
 - Start with these default field mappings:
-  - users: name, email, password, role
+  - users: name, email, password, role, jurisdictionType, jurisdictionId
   - citizens: name, contactInfo, preferredChannel
   - agencies: name
   - responders: name, agencyId, role, contactInfo
@@ -80,6 +83,9 @@ Functional requirements:
   - incidents: description, statusId, citizenId, categoryId, severityId, latitude, longitude, addressLine1, addressLine2, barangay, districtName, cityName, provinceName, regionName, postalCode, landmark
   - assignments: incidentId, responderId, responseStart, responseEnd, outcome, notes
 - Support partial payload on update.
+- For users, `jurisdictionType` must currently be limited to `region`, `province`, `city`, and `barangay`.
+- Do not send `jurisdictionType = municipality` from the dashboard in the current rollout.
+- When a scoped user is bound to `jurisdictionType = city`, the selected `jurisdictionId` must be a real city-level LGU record.
 - For citizens linkMe operation, use payload fields:
   - name, preferredChannel
   - Do not send contactInfo for linkMe; backend binds it to authenticated user email.
@@ -163,12 +169,21 @@ Security alignment notes:
 - `/api/v1/auth/sessions` and `/api/v1/auth/sessions/{id}` are optional and exist only when the active feature selection uses `tokenMode=app-jwt`.
 - `/api/v1/auth/mfa/setup`, `/api/v1/auth/mfa/enable`, and `/api/v1/auth/mfa/disable` are optional and exist only when the active feature selection enables MFA.
 - `/api/v1/auth/me` and `/api/v1/auth/logout` require JWT bearer auth.
+- `/api/v1/users/capabilities` is available to any authenticated user and returns role, label, permissions, scope, `canUpdateUser`, and `canDeleteUser`.
 - Login/register/refresh responses now include `sessionId`, `expiresAt`, `refreshExpiresAt`, and a rotated `refreshToken`; use the metadata for session handling, not as a replacement for the bearer token.
 - Every successful refresh invalidates the previous refresh token, so the dashboard must replace stored refresh state atomically.
 - Privileged accounts may be challenged for TOTP MFA at login; the dashboard should render a second-step MFA form instead of treating the first `401` as a generic failure.
 - Password or role changes revoke existing backend sessions, so handle a follow-up `401` by clearing client auth state and forcing a fresh login.
 - Most non-auth API routes also require `x-api-key` when the backend is configured with API keys.
+- `/api/v1/users` is not national-only; `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, and `CITY_ADMIN` can manage users within backend-enforced jurisdiction scope.
+- The current rollout no longer accepts municipality user bindings. Preserve the historical `city` permission suffix for capability checks, but keep the outbound user-management payload city-only.
 - Audit logs are admin-only and are handled separately by `docs/dashboard-audit-log-implementation-prompt.md`.
+
+Additional dashboard alignment requirements:
+
+- restore jurisdiction fields in the production user-management UI for scoped roles
+- update the user-management proxy layer to prefer `/users` before legacy `/admin/users` fallbacks and preserve list query strings
+- remove municipality alias assumptions from dashboard tests that cover user create, edit, and scope summaries
 
 5. Deliverables
 

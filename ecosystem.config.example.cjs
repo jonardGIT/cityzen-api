@@ -2,6 +2,12 @@ const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
 
+// Production env files should keep these trust-layer baseline defaults visible for partner-LGU rollout:
+// PUBLIC_CASE_LOOKUP_RATE_LIMIT_WINDOW_MS=600000
+// PUBLIC_CASE_LOOKUP_RATE_LIMIT_MAX_REQUESTS=20
+// INCIDENT_CASE_TOKEN_TTL_DAYS=30
+// PUBLIC_CASE_LOOKUP_RATE_LIMIT_ENABLED=true
+// PM2 production env files must also provide PASSWORD_RESET_DELIVERY_WEBHOOK_URL=https://... because startup requires it for production password-reset delivery.
 const envFile = process.env.PM2_ENV_FILE || '.env';
 const envPath = path.resolve(__dirname, envFile);
 const fileEnv = fs.existsSync(envPath) ? dotenv.parse(fs.readFileSync(envPath, 'utf8')) : {};

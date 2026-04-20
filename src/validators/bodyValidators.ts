@@ -10,6 +10,13 @@ const INCIDENT_LOCATION_SNAPSHOT_FIELDS = [
   'regionName',
 ] as const;
 
+const INCIDENT_LOCALITY_ID_FIELDS = [
+  'regionId',
+  'provinceId',
+  'cityMunicipalityId',
+  'barangayId',
+] as const;
+
 function hasIncidentLocationSnapshot(value: Record<string, unknown> | undefined): boolean {
   return INCIDENT_LOCATION_SNAPSHOT_FIELDS.some((field) => value?.[field] !== undefined);
 }
@@ -81,6 +88,21 @@ const incidentLocationFieldsValidator = [
     return true;
   }),
 ];
+
+const incidentCanonicalLocalityIdFieldsValidator = INCIDENT_LOCALITY_ID_FIELDS.map((field) =>
+  body(field).optional({ nullable: true }).isUUID().withMessage(`${field} must be a valid UUID`),
+);
+
+const forbiddenIncidentCanonicalLocalityIdFieldsValidator = INCIDENT_LOCALITY_ID_FIELDS.map(
+  (field) =>
+    body(field).custom((_, { req }) => {
+      if (Object.prototype.hasOwnProperty.call(req.body ?? {}, field)) {
+        throw new Error(`${field} is derived from the incident location snapshot`);
+      }
+
+      return true;
+    }),
+);
 
 const updateIncidentLocationFieldsValidator = [
   body('latitude')
@@ -176,6 +198,115 @@ export const linkMyCitizenProfileValidator = [
     .withMessage('preferredChannel must be a non-empty string'),
 ];
 
+const MOBILE_APP_CONTENT_FIELDS = [
+  'slug',
+  'title',
+  'summary',
+  'body',
+  'contentType',
+  'placement',
+  'audience',
+  'imageUrl',
+  'ctaLabel',
+  'ctaUrl',
+  'sortOrder',
+  'isPublished',
+  'publishedAt',
+  'startsAt',
+  'endsAt',
+  'metadata',
+] as const;
+
+const mobileAppContentFieldValidators = [
+  body('slug')
+    .optional()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('slug must be a non-empty string'),
+  body('title')
+    .optional()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('title must be a non-empty string'),
+  body('summary').optional({ nullable: true }).isString().withMessage('summary must be a string'),
+  body('body')
+    .optional()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('body must be a non-empty string'),
+  body('contentType')
+    .optional()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('contentType must be a non-empty string'),
+  body('placement')
+    .optional()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('placement must be a non-empty string'),
+  body('audience').optional({ nullable: true }).isString().withMessage('audience must be a string'),
+  body('imageUrl').optional({ nullable: true }).isString().withMessage('imageUrl must be a string'),
+  body('ctaLabel').optional({ nullable: true }).isString().withMessage('ctaLabel must be a string'),
+  body('ctaUrl').optional({ nullable: true }).isString().withMessage('ctaUrl must be a string'),
+  body('sortOrder').optional().isInt().withMessage('sortOrder must be an integer'),
+  body('isPublished').optional().isBoolean().withMessage('isPublished must be a boolean'),
+  body('publishedAt')
+    .optional({ nullable: true })
+    .isISO8601()
+    .withMessage('publishedAt must be a valid ISO 8601 datetime'),
+  body('startsAt')
+    .optional({ nullable: true })
+    .isISO8601()
+    .withMessage('startsAt must be a valid ISO 8601 datetime'),
+  body('endsAt')
+    .optional({ nullable: true })
+    .isISO8601()
+    .withMessage('endsAt must be a valid ISO 8601 datetime'),
+  body('metadata')
+    .optional({ nullable: true })
+    .custom((value) => value === null || (typeof value === 'object' && !Array.isArray(value)))
+    .withMessage('metadata must be an object'),
+];
+
+export const createMobileAppContentValidator = [
+  body('slug')
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('slug is required and must be a non-empty string'),
+  body('title')
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('title is required and must be a non-empty string'),
+  body('body')
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('body is required and must be a non-empty string'),
+  ...mobileAppContentFieldValidators,
+];
+
+export const updateMobileAppContentValidator = [
+  body().custom((value) => {
+    const hasUpdatableField = MOBILE_APP_CONTENT_FIELDS.some(
+      (field) => value?.[field] !== undefined,
+    );
+    if (!hasUpdatableField) {
+      throw new Error(
+        'at least one of slug, title, summary, body, contentType, placement, audience, imageUrl, ctaLabel, ctaUrl, sortOrder, isPublished, publishedAt, startsAt, endsAt, or metadata is required',
+      );
+    }
+    return true;
+  }),
+  ...mobileAppContentFieldValidators,
+];
+
 export const createLocationValidator = [
   body('district').isString().trim().notEmpty().withMessage('district is required'),
   body('city').isString().trim().notEmpty().withMessage('city is required'),
@@ -253,6 +384,7 @@ export const createIncidentValidator = [
     .trim()
     .notEmpty()
     .withMessage('severityId is required and must be a string'),
+  ...incidentCanonicalLocalityIdFieldsValidator,
   ...incidentLocationFieldsValidator,
 ];
 
@@ -285,6 +417,7 @@ export const createCitizenIncidentReportValidator = [
     .trim()
     .notEmpty()
     .withMessage('severityId is required and must be a string'),
+  ...forbiddenIncidentCanonicalLocalityIdFieldsValidator,
   ...incidentLocationFieldsValidator,
 ];
 
@@ -345,7 +478,9 @@ export const updateIncidentValidator = [
       'citizenId',
       'categoryId',
       'severityId',
+      'barangay',
       ...INCIDENT_LOCATION_SNAPSHOT_FIELDS,
+      ...INCIDENT_LOCALITY_ID_FIELDS,
     ].some((field) => value?.[field] !== undefined);
     if (!hasUpdatableField) {
       throw new Error('at least one updatable incident field is required');
@@ -394,6 +529,7 @@ export const updateIncidentValidator = [
     .trim()
     .isUUID()
     .withMessage('severityId must be a valid UUID'),
+  ...incidentCanonicalLocalityIdFieldsValidator,
   ...updateIncidentLocationFieldsValidator,
 ];
 
@@ -475,17 +611,40 @@ export const createUserValidator = [
       ),
     )
     .withMessage(
-      'role must be one of SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
+      'role must be one of NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, CITY_ADMIN, CITY_CONTENT_EDITOR, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
     ),
+  body('jurisdictionType')
+    .optional()
+    .isString()
+    .custom((value) =>
+      ['region', 'province', 'city', 'barangay'].includes(value.trim().toLowerCase()),
+    )
+    .withMessage('jurisdictionType must be one of region, province, city, or barangay'),
+  body('jurisdictionId').optional().isUUID(4).withMessage('jurisdictionId must be a valid UUID v4'),
+  body().custom((value) => {
+    const hasJurisdictionType = value?.jurisdictionType !== undefined;
+    const hasJurisdictionId = value?.jurisdictionId !== undefined;
+    if (hasJurisdictionType !== hasJurisdictionId) {
+      throw new Error('jurisdictionType and jurisdictionId must be provided together');
+    }
+    return true;
+  }),
 ];
 
 export const updateUserValidator = [
   body().custom((value) => {
-    const hasUpdatableField = ['name', 'email', 'password', 'role'].some(
-      (field) => value?.[field] !== undefined,
-    );
+    const hasUpdatableField = [
+      'name',
+      'email',
+      'password',
+      'role',
+      'jurisdictionType',
+      'jurisdictionId',
+    ].some((field) => value?.[field] !== undefined);
     if (!hasUpdatableField) {
-      throw new Error('at least one of name, email, password, or role is required');
+      throw new Error(
+        'at least one of name, email, password, role, jurisdictionType, or jurisdictionId is required',
+      );
     }
     return true;
   }),
@@ -516,6 +675,22 @@ export const updateUserValidator = [
       ),
     )
     .withMessage(
-      'role must be one of SYSTEM_ADMIN, DEPARTMENT_MANAGER, SUPERVISOR, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
+      'role must be one of NATIONAL_ADMIN, REGIONAL_DIRECTOR, PROVINCIAL_ADMIN, CITY_ADMIN, CITY_CONTENT_EDITOR, DISPATCHER, RESPONDER, CITIZEN_REPORTER, AUDITOR',
     ),
+  body('jurisdictionType')
+    .optional()
+    .isString()
+    .custom((value) =>
+      ['region', 'province', 'city', 'barangay'].includes(value.trim().toLowerCase()),
+    )
+    .withMessage('jurisdictionType must be one of region, province, city, or barangay'),
+  body('jurisdictionId').optional().isUUID(4).withMessage('jurisdictionId must be a valid UUID v4'),
+  body().custom((value) => {
+    const hasJurisdictionType = value?.jurisdictionType !== undefined;
+    const hasJurisdictionId = value?.jurisdictionId !== undefined;
+    if (hasJurisdictionType !== hasJurisdictionId) {
+      throw new Error('jurisdictionType and jurisdictionId must be provided together');
+    }
+    return true;
+  }),
 ];

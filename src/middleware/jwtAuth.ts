@@ -213,28 +213,16 @@ async function requireSupabaseJwtAuth(
   }
 }
 
-// Verifies JWT token and attaches authenticated user context to request.
-export async function requireJwtAuth(
+async function requireLocalJwtAuth(
   req: Request,
   res: Response,
   next: NextFunction,
-): Promise<void> {
-  const token = parseBearerToken(req);
-  if (!token) {
-    res.status(401).json({ message: 'Unauthorized: bearer token required' });
-    return;
-  }
-
-  if (isSupabaseJwtEnabled()) {
-    await requireSupabaseJwtAuth(req, res, next, token);
-    return;
-  }
-
+  token: string,
+): Promise<boolean> {
   try {
     const decoded = jwt.verify(token, getJwtSecret());
     if (!isTokenPayload(decoded)) {
-      res.status(401).json({ message: 'Unauthorized: invalid token payload' });
-      return;
+      return false;
     }
 
     const payload = decoded;
@@ -260,14 +248,13 @@ export async function requireJwtAuth(
       session.expiresAt.getTime() <= Date.now() ||
       (isArchiveEnabled() && session.user.archivedAt !== null)
     ) {
-      res.status(401).json({ message: 'Unauthorized: invalid or revoked session' });
-      return;
+      return false;
     }
 
     const normalizedRole = normalizeUserRoleInput(session.user.role);
     if (!normalizedRole || !isUserRole(normalizedRole)) {
       res.status(500).json({ message: 'Invalid stored user role' });
-      return;
+      return true;
     }
 
     if (isPrivilegedMfaFeatureMisconfigured(normalizedRole)) {
@@ -275,7 +262,7 @@ export async function requireJwtAuth(
         message:
           'Privileged MFA enforcement is enabled in production but MFA is disabled for this build',
       });
-      return;
+      return true;
     }
 
     if (
@@ -286,7 +273,7 @@ export async function requireJwtAuth(
         message: 'Privileged MFA enrollment is required before accessing this route',
         mfaEnrollmentRequired: true,
       });
-      return;
+      return true;
     }
 
     (req as AuthenticatedRequest).authUser = {
@@ -307,7 +294,34 @@ export async function requireJwtAuth(
       .catch(() => undefined);
 
     next();
+    return true;
   } catch {
+    return false;
+  }
+}
+
+// Verifies JWT token and attaches authenticated user context to request.
+export async function requireJwtAuth(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const token = parseBearerToken(req);
+  if (!token) {
+    res.status(401).json({ message: 'Unauthorized: bearer token required' });
+    return;
+  }
+
+  if (isSupabaseJwtEnabled()) {
+    if (await requireLocalJwtAuth(req, res, next, token)) {
+      return;
+    }
+
+    await requireSupabaseJwtAuth(req, res, next, token);
+    return;
+  }
+
+  if (!(await requireLocalJwtAuth(req, res, next, token))) {
     res.status(401).json({ message: 'Unauthorized: invalid or expired token' });
   }
 }

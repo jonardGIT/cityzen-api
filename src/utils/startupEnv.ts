@@ -7,6 +7,26 @@ type StartupValidationOptions = {
 
 const MIN_SECRET_LENGTH = 32;
 const MIN_API_KEY_LENGTH = 16;
+const PUBLIC_CASE_LOOKUP_RATE_LIMIT_WINDOW_MS_BOUNDS = {
+  min: 60_000,
+  max: 3_600_000,
+  recommended: 600_000,
+} as const;
+const PUBLIC_CASE_LOOKUP_RATE_LIMIT_MAX_REQUESTS_BOUNDS = {
+  min: 1,
+  max: 30,
+  recommended: 20,
+} as const;
+const INCIDENT_CASE_TOKEN_TTL_DAYS_BOUNDS = {
+  min: 1,
+  max: 30,
+  recommended: 30,
+} as const;
+const PASSWORD_RESET_TOKEN_TTL_MINUTES_BOUNDS = {
+  min: 5,
+  max: 60,
+  recommended: 30,
+} as const;
 const WEAK_SECRET_VALUES = new Set([
   'change-me',
   'changeme',
@@ -32,8 +52,16 @@ function isTrue(value: string | undefined): boolean {
   return value?.trim().toLowerCase() === 'true';
 }
 
+function isFalse(value: string | undefined): boolean {
+  return value?.trim().toLowerCase() === 'false';
+}
+
 function shouldSkipStrictValidation(env: NodeJS.ProcessEnv): boolean {
-  return Boolean(env.JEST_WORKER_ID) && !isTrue(env.SECURITY_STRICT_ENV_VALIDATION);
+  return (
+    env.NODE_ENV !== 'production' &&
+    Boolean(env.JEST_WORKER_ID) &&
+    !isTrue(env.SECURITY_STRICT_ENV_VALIDATION)
+  );
 }
 
 function normalizeValue(value: string): string {
@@ -88,6 +116,20 @@ function requiresSupabaseServiceRoleKey(selection: FeatureSelection): boolean {
   );
 }
 
+function requiresSupabaseAuthPublicClient(selection: FeatureSelection): boolean {
+  return (
+    selection.authProvider === 'supabase' ||
+    selection.tokenMode === 'supabase-jwt' ||
+    selection.mfaMode === 'supabase-totp'
+  );
+}
+
+function requiresSupabaseUrl(selection: FeatureSelection): boolean {
+  return (
+    requiresSupabaseAuthPublicClient(selection) || selection.mediaStorage === 'supabase-storage'
+  );
+}
+
 function validateOptionalHttpsUrl(env: NodeJS.ProcessEnv, name: string): void {
   const value = env[name]?.trim();
   if (!value) {
@@ -113,6 +155,71 @@ function validateRequiredHttpsUrl(env: NodeJS.ProcessEnv, name: string): void {
   }
 
   validateOptionalHttpsUrl(env, name);
+}
+
+function validateRequiredProductionInteger(
+  env: NodeJS.ProcessEnv,
+  name: string,
+  bounds: { min: number; max: number; recommended: number },
+): void {
+  const value = env[name]?.trim();
+  if (!value) {
+    throw new Error(
+      `${name} must be explicitly configured in production; use ${bounds.recommended} for the current partner-rollout baseline`,
+    );
+  }
+
+  if (!/^\d+$/.test(value)) {
+    throw new Error(`${name} must be a positive integer in production`);
+  }
+
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < bounds.min || parsed > bounds.max) {
+    throw new Error(`${name} must be between ${bounds.min} and ${bounds.max} in production`);
+  }
+}
+
+function validateOptionalProductionInteger(
+  env: NodeJS.ProcessEnv,
+  name: string,
+  bounds: { min: number; max: number; recommended: number },
+): void {
+  const value = env[name]?.trim();
+  if (!value) {
+    return;
+  }
+
+  validateRequiredProductionInteger(env, name, bounds);
+}
+
+function validateIncidentTrustProductionEnv(env: NodeJS.ProcessEnv): void {
+  if (isFalse(env.RATE_LIMIT_ENABLED)) {
+    throw new Error(
+      'RATE_LIMIT_ENABLED must remain enabled in production so auth, recovery, and MFA throttles cannot be globally disabled',
+    );
+  }
+
+  if (isFalse(env.PUBLIC_CASE_LOOKUP_RATE_LIMIT_ENABLED)) {
+    throw new Error(
+      'PUBLIC_CASE_LOOKUP_RATE_LIMIT_ENABLED must remain enabled in production for the public case lookup trust-layer endpoint',
+    );
+  }
+
+  validateOptionalProductionInteger(
+    env,
+    'PUBLIC_CASE_LOOKUP_RATE_LIMIT_WINDOW_MS',
+    PUBLIC_CASE_LOOKUP_RATE_LIMIT_WINDOW_MS_BOUNDS,
+  );
+  validateOptionalProductionInteger(
+    env,
+    'PUBLIC_CASE_LOOKUP_RATE_LIMIT_MAX_REQUESTS',
+    PUBLIC_CASE_LOOKUP_RATE_LIMIT_MAX_REQUESTS_BOUNDS,
+  );
+  validateOptionalProductionInteger(
+    env,
+    'INCIDENT_CASE_TOKEN_TTL_DAYS',
+    INCIDENT_CASE_TOKEN_TTL_DAYS_BOUNDS,
+  );
 }
 
 function validateSupabaseStorageAccessMode(
@@ -153,6 +260,12 @@ export function validateStartupEnvironment({ env, selection }: StartupValidation
     return;
   }
 
+  validateIncidentTrustProductionEnv(env);
+  validateOptionalProductionInteger(
+    env,
+    'PASSWORD_RESET_TOKEN_TTL_MINUTES',
+    PASSWORD_RESET_TOKEN_TTL_MINUTES_BOUNDS,
+  );
   validateProductionMfaMode(selection);
 
   if (selection.tokenMode === 'app-jwt') {
@@ -167,6 +280,14 @@ export function validateStartupEnvironment({ env, selection }: StartupValidation
 
   if (requiresSupabaseServiceRoleKey(selection)) {
     validateRequiredSecret(env, 'SUPABASE_SERVICE_ROLE_KEY', MIN_SECRET_LENGTH);
+  }
+
+  if (requiresSupabaseUrl(selection)) {
+    validateRequiredHttpsUrl(env, 'SUPABASE_URL');
+  }
+
+  if (requiresSupabaseAuthPublicClient(selection)) {
+    validateRequiredSecret(env, 'SUPABASE_ANON_KEY', MIN_SECRET_LENGTH);
   }
 
   validateSupabaseStorageAccessMode(env, selection);

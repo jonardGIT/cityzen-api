@@ -1,4 +1,5 @@
 // Handles CRUD operations for citizen-reported incidents.
+import type { Prisma } from '@prisma/client';
 import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
 import {
@@ -7,10 +8,34 @@ import {
   getPaginationQuery,
   getParamId,
 } from '../utils/request.js';
-import { incidentsListQueryConfig } from '../utils/listQueryConfig.js';
+import {
+  incidentsAuditListQueryConfig,
+  incidentsListQueryConfig,
+} from '../utils/listQueryConfig.js';
 import type { CitizenIncident } from '../types/models.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
 import * as supabaseStorageService from '../services/supabaseStorageService.js';
+import {
+  buildPublicStatusMessage,
+  hashCaseToken,
+  issueIncidentTrustArtifacts,
+} from '../services/incidentTrustService.js';
+import {
+  IncidentLocalityResolutionError,
+  resolveIncidentLocalityIds,
+} from '../services/incidentLocalityResolutionService.js';
+import {
+  handleLinkedCitizenResolution,
+  type LinkedCitizenResolution,
+  resolveLinkedCitizenForAuthUser,
+} from '../services/userCitizenLinkService.js';
+import type {
+  IncidentTimelineEntry,
+  IncidentTrustInfo,
+  PublicCaseLookupResponse,
+  PublicIncidentTimelineEntry,
+} from '../types/incidentTrust.js';
+import { resolveJurisdictionScope } from '../middleware/jurisdiction.js';
 import {
   isArchiveEnabled,
   withActiveRecords,
@@ -41,6 +66,131 @@ type UploadMediaItem = {
   dataBase64: string;
 };
 
+type IncidentStatusHistoryRecord = {
+  id: string;
+  createdAt: Date;
+  note: string | null;
+  fromStatus: {
+    id: string;
+    name: string;
+  } | null;
+  toStatus: {
+    id: string;
+    name: string;
+  };
+  changedByUser: {
+    id: string;
+    email: string;
+    role: string;
+  } | null;
+};
+
+type PublicTimelineStatusRecord = {
+  name: string;
+};
+
+type PublicIncidentStatusHistoryRecord = Pick<IncidentStatusHistoryRecord, 'id' | 'createdAt'> & {
+  toStatus: PublicTimelineStatusRecord;
+};
+
+type AuditorIncidentTimelineEntry = Pick<
+  IncidentTimelineEntry,
+  'id' | 'changedAt' | 'fromStatus' | 'toStatus'
+>;
+
+type PublicCaseTokenRecord = {
+  id: string;
+  expiresAt: Date;
+  incident: {
+    publicReference: string | null;
+    status: {
+      name: string;
+    };
+    dateReported: Date;
+    updatedAt: Date;
+    barangay: string | null;
+    cityName: string | null;
+    provinceName: string | null;
+    category: {
+      name: string;
+      subCategory: string | null;
+    };
+    severity: {
+      level: string;
+      definition: string | null;
+    };
+    statusHistory: PublicIncidentStatusHistoryRecord[];
+  };
+};
+
+type TrustLayerPrismaDelegates = {
+  incidentStatusHistory: {
+    create(args: unknown): Promise<unknown>;
+    findMany(args: unknown): Promise<IncidentStatusHistoryRecord[]>;
+  };
+  caseToken: {
+    create(args: unknown): Promise<unknown>;
+    findFirst(args: unknown): Promise<PublicCaseTokenRecord | null>;
+    update(args: unknown): Promise<unknown>;
+  };
+};
+
+type TrustLayerTransactionClient = Prisma.TransactionClient & TrustLayerPrismaDelegates;
+
+type TimelineAccessResult = { allowed: true; audience: 'owner' | 'internal' } | { allowed: false };
+
+type IncidentReadScope =
+  | { kind: 'owner'; citizenId: string; audience: 'owner' }
+  | { kind: 'city'; cityMunicipalityIds: string[]; audience: 'internal' }
+  | { kind: 'region'; cityMunicipalityIds: string[]; audience: 'internal' }
+  | { kind: 'province'; cityMunicipalityIds: string[]; audience: 'internal' }
+  | { kind: 'global'; audience: 'internal' }
+  | { kind: 'assigned'; responderId: string; audience: 'internal' };
+
+type IncidentReadScopeOptions = {
+  allowNationalAdmin?: boolean;
+};
+
+type IncidentReadScopeResult =
+  | { status: 'scoped'; scope: IncidentReadScope }
+  | { status: 'denied' }
+  | { status: 'response-sent' };
+
+type TimelineIncidentRecord = {
+  id: string;
+  citizenId: string;
+  publicReference: string | null;
+  cityMunicipalityId: string | null;
+};
+
+type IncidentWritePayload = Partial<CitizenIncident> & { mediaUrls?: string[] };
+
+type IncidentLocalityInput = {
+  barangay?: string | null;
+  cityName?: string | null;
+  provinceName?: string | null;
+  regionName?: string | null;
+  barangayId?: string | null;
+  cityMunicipalityId?: string | null;
+  provinceId?: string | null;
+  regionId?: string | null;
+};
+
+const INCIDENT_LOCALITY_WRITE_FIELDS = [
+  'barangay',
+  'cityName',
+  'provinceName',
+  'regionName',
+  'barangayId',
+  'cityMunicipalityId',
+  'provinceId',
+  'regionId',
+] as const;
+
+type IncidentScopeRecord = Pick<TimelineIncidentRecord, 'id' | 'citizenId' | 'cityMunicipalityId'>;
+
+const trustPrisma = prisma as typeof prisma & TrustLayerPrismaDelegates;
+
 function buildIncidentLocationSnapshot(input: Partial<CitizenIncident>) {
   return {
     latitude: input.latitude,
@@ -57,12 +207,29 @@ function buildIncidentLocationSnapshot(input: Partial<CitizenIncident>) {
   };
 }
 
-async function getLinkedCitizenIdByAuthEmail(email: string): Promise<string | null> {
-  const citizen = await prisma.citizen.findFirst({
-    where: withActiveRecords({ contactInfo: email }),
-    select: { id: true },
-  });
-  return citizen?.id ?? null;
+function buildIncidentLocalityResolutionInput(input: IncidentLocalityInput) {
+  return {
+    barangay: input.barangay,
+    cityName: input.cityName,
+    provinceName: input.provinceName,
+    regionName: input.regionName,
+    barangayId: input.barangayId,
+    cityMunicipalityId: input.cityMunicipalityId,
+    provinceId: input.provinceId,
+    regionId: input.regionId,
+  };
+}
+
+function assertIncidentCityMunicipalityResolved(input: {
+  cityMunicipalityId: string | null;
+}): asserts input is {
+  cityMunicipalityId: string;
+} {
+  if (!input.cityMunicipalityId) {
+    throw new IncidentLocalityResolutionError(
+      'Incident locality must resolve to an active city or municipality',
+    );
+  }
 }
 
 function normalizeMediaUrls(
@@ -130,6 +297,141 @@ async function serializeIncidentCollection<T extends IncidentWithMediaFiles>(inc
   return Promise.all(incidents.map((incident) => serializeIncident(incident)));
 }
 
+function buildIncidentTrustResponse<T extends Record<string, unknown>>(
+  incident: T,
+  trust: IncidentTrustInfo,
+): T & { trust: IncidentTrustInfo } {
+  return {
+    ...incident,
+    trust,
+  };
+}
+
+const auditorIncidentSelect = {
+  id: true,
+  publicReference: true,
+  dateReported: true,
+  createdAt: true,
+  updatedAt: true,
+  barangay: true,
+  cityName: true,
+  provinceName: true,
+  regionName: true,
+  status: {
+    select: {
+      id: true,
+      name: true,
+    },
+  },
+  category: {
+    select: {
+      id: true,
+      name: true,
+      subCategory: true,
+    },
+  },
+  severity: {
+    select: {
+      id: true,
+      level: true,
+      definition: true,
+    },
+  },
+  _count: {
+    select: {
+      mediaFiles: true,
+      assignments: true,
+      statusHistory: true,
+    },
+  },
+} satisfies Prisma.CitizenIncidentSelect;
+
+type AuditorIncidentRecord = Prisma.CitizenIncidentGetPayload<{
+  select: typeof auditorIncidentSelect;
+}>;
+
+function serializeAuditorIncident(incident: AuditorIncidentRecord) {
+  return {
+    id: incident.id,
+    publicReference: incident.publicReference,
+    status: incident.status,
+    category: incident.category,
+    severity: incident.severity,
+    dateReported: incident.dateReported,
+    createdAt: incident.createdAt,
+    updatedAt: incident.updatedAt,
+    barangay: incident.barangay,
+    cityName: incident.cityName,
+    provinceName: incident.provinceName,
+    regionName: incident.regionName,
+    hasMedia: incident._count.mediaFiles > 0,
+    assignmentCount: incident._count.assignments,
+    statusHistoryCount: incident._count.statusHistory,
+  };
+}
+
+function serializeAuditorIncidentCollection(incidents: AuditorIncidentRecord[]) {
+  return incidents.map((incident) => serializeAuditorIncident(incident));
+}
+
+async function createIncidentStatusHistory(
+  transaction: Prisma.TransactionClient,
+  input: {
+    incidentId: string;
+    fromStatusId?: string | null;
+    toStatusId: string;
+    changedByUserId?: string | null;
+    note?: string | null;
+  },
+): Promise<void> {
+  const trustTransaction = transaction as TrustLayerTransactionClient;
+
+  await trustTransaction.incidentStatusHistory.create({
+    data: {
+      incidentId: input.incidentId,
+      fromStatusId: input.fromStatusId ?? null,
+      toStatusId: input.toStatusId,
+      changedByUserId: input.changedByUserId ?? null,
+      note: input.note ?? null,
+    },
+  });
+}
+
+function serializeInternalTimelineEntry(entry: IncidentStatusHistoryRecord): IncidentTimelineEntry {
+  return {
+    id: entry.id,
+    changedAt: entry.createdAt.toISOString(),
+    fromStatus: entry.fromStatus,
+    toStatus: entry.toStatus,
+    changedByUser: entry.changedByUser,
+    note: entry.note,
+  };
+}
+
+function serializePublicTimelineEntry(
+  entry: PublicIncidentStatusHistoryRecord,
+): PublicIncidentTimelineEntry {
+  return {
+    id: entry.id,
+    changedAt: entry.createdAt.toISOString(),
+    status: {
+      name: entry.toStatus.name,
+    },
+    publicStatusMessage: buildPublicStatusMessage(entry.toStatus.name),
+  };
+}
+
+function serializeAuditorTimelineEntry(
+  entry: IncidentStatusHistoryRecord,
+): AuditorIncidentTimelineEntry {
+  return {
+    id: entry.id,
+    changedAt: entry.createdAt.toISOString(),
+    fromStatus: entry.fromStatus,
+    toStatus: entry.toStatus,
+  };
+}
+
 function getUploadMediaItems(body: {
   fileName?: unknown;
   contentType?: unknown;
@@ -182,6 +484,399 @@ async function archiveIncidentMediaIfNeeded(mediaUrls: string[] | undefined): Pr
   await supabaseStorageService.archiveIncidentMediaUrls(mediaUrls);
 }
 
+async function resolveCityScopedIncidentReadScope(
+  authUserId: string,
+): Promise<Extract<IncidentReadScope, { kind: 'city' }> | null> {
+  const user = await prisma.user.findFirst({
+    where: withActiveRecords({ id: authUserId }),
+    select: { jurisdictionType: true, jurisdictionId: true },
+  });
+
+  if (!user || user.jurisdictionType !== 'city' || !user.jurisdictionId) {
+    return null;
+  }
+
+  const scope = await resolveJurisdictionScope(user.jurisdictionType, user.jurisdictionId);
+  if (scope.type !== 'city' || !scope.cityMunicipalityIds?.includes(user.jurisdictionId)) {
+    return null;
+  }
+
+  return {
+    kind: 'city',
+    cityMunicipalityIds: scope.cityMunicipalityIds,
+    audience: 'internal',
+  };
+}
+
+async function resolveProvinceScopedIncidentReadScope(
+  authUserId: string,
+): Promise<Extract<IncidentReadScope, { kind: 'province' }> | null> {
+  const user = await prisma.user.findFirst({
+    where: withActiveRecords({ id: authUserId }),
+    select: { jurisdictionType: true, jurisdictionId: true },
+  });
+
+  if (!user || user.jurisdictionType !== 'province' || !user.jurisdictionId) {
+    return null;
+  }
+
+  const scope = await resolveJurisdictionScope(user.jurisdictionType, user.jurisdictionId);
+  if (scope.type !== 'province' || !scope.cityMunicipalityIds?.length) {
+    return null;
+  }
+
+  return {
+    kind: 'province',
+    cityMunicipalityIds: scope.cityMunicipalityIds,
+    audience: 'internal',
+  };
+}
+
+async function resolveRegionScopedIncidentReadScope(
+  authUserId: string,
+): Promise<Extract<IncidentReadScope, { kind: 'region' }> | null> {
+  const user = await prisma.user.findFirst({
+    where: withActiveRecords({ id: authUserId }),
+    select: { jurisdictionType: true, jurisdictionId: true },
+  });
+
+  if (!user || user.jurisdictionType !== 'region' || !user.jurisdictionId) {
+    return null;
+  }
+
+  const scope = await resolveJurisdictionScope(user.jurisdictionType, user.jurisdictionId);
+  if (scope.type !== 'region' || !scope.cityMunicipalityIds?.length) {
+    return null;
+  }
+
+  return {
+    kind: 'region',
+    cityMunicipalityIds: scope.cityMunicipalityIds,
+    audience: 'internal',
+  };
+}
+
+async function resolveAssignedResponderId(authUserEmail: string): Promise<string | null> {
+  const responders = await prisma.responder.findMany({
+    where: withActiveRecords({ contactInfo: authUserEmail }),
+    select: { id: true },
+    take: 2,
+  });
+
+  if (responders.length !== 1) {
+    return null;
+  }
+
+  return responders[0].id;
+}
+
+async function resolveIncidentReadScope(
+  authUser: NonNullable<AuthenticatedRequest['authUser']>,
+  res: Response,
+  options: IncidentReadScopeOptions = {},
+): Promise<IncidentReadScopeResult> {
+  if (authUser.role === 'CITIZEN_REPORTER') {
+    const resolution = await resolveLinkedCitizenForAuthUser({
+      id: authUser.id,
+      email: authUser.email,
+    });
+    const citizenId = handleLinkedCitizenResolution(res, resolution);
+    if (!citizenId) {
+      return { status: 'response-sent' };
+    }
+
+    return {
+      status: 'scoped',
+      scope: {
+        kind: 'owner',
+        citizenId,
+        audience: 'owner',
+      },
+    };
+  }
+
+  if (options.allowNationalAdmin && authUser.role === 'NATIONAL_ADMIN') {
+    return {
+      status: 'scoped',
+      scope: {
+        kind: 'global',
+        audience: 'internal',
+      },
+    };
+  }
+
+  if (authUser.role === 'CITY_ADMIN' || authUser.role === 'DISPATCHER') {
+    const scope = await resolveCityScopedIncidentReadScope(authUser.id);
+    return scope ? { status: 'scoped', scope } : { status: 'denied' };
+  }
+
+  if (authUser.role === 'REGIONAL_DIRECTOR') {
+    const scope = await resolveRegionScopedIncidentReadScope(authUser.id);
+    return scope ? { status: 'scoped', scope } : { status: 'denied' };
+  }
+
+  if (authUser.role === 'PROVINCIAL_ADMIN') {
+    const scope = await resolveProvinceScopedIncidentReadScope(authUser.id);
+    return scope ? { status: 'scoped', scope } : { status: 'denied' };
+  }
+
+  if (authUser.role === 'RESPONDER') {
+    const responderId = await resolveAssignedResponderId(authUser.email);
+    return responderId
+      ? {
+          status: 'scoped',
+          scope: {
+            kind: 'assigned',
+            responderId,
+            audience: 'internal',
+          },
+        }
+      : { status: 'denied' };
+  }
+
+  return { status: 'denied' };
+}
+
+function buildIncidentReadScopeWhere(scope: IncidentReadScope): Prisma.CitizenIncidentWhereInput {
+  if (scope.kind === 'owner') {
+    return { citizenId: scope.citizenId };
+  }
+
+  if (scope.kind === 'global') {
+    return {};
+  }
+
+  if (scope.kind === 'city') {
+    return { cityMunicipalityId: { in: scope.cityMunicipalityIds } };
+  }
+
+  if (scope.kind === 'region') {
+    return { cityMunicipalityId: { in: scope.cityMunicipalityIds } };
+  }
+
+  if (scope.kind === 'province') {
+    return { cityMunicipalityId: { in: scope.cityMunicipalityIds } };
+  }
+
+  return {
+    assignments: {
+      some: withActiveRecords({ responderId: scope.responderId }),
+    },
+  };
+}
+
+function combineIncidentWhere(
+  baseWhere: Prisma.CitizenIncidentWhereInput,
+  scopeWhere: Prisma.CitizenIncidentWhereInput,
+): Prisma.CitizenIncidentWhereInput {
+  if (Object.keys(baseWhere).length === 0) {
+    return scopeWhere;
+  }
+
+  return {
+    AND: [baseWhere, scopeWhere],
+  };
+}
+
+async function canReadIncidentWithScope(
+  scope: IncidentReadScope,
+  incident: IncidentScopeRecord,
+): Promise<boolean> {
+  if (scope.kind === 'owner') {
+    return incident.citizenId === scope.citizenId;
+  }
+
+  if (scope.kind === 'global') {
+    return true;
+  }
+
+  if (scope.kind === 'city') {
+    return Boolean(
+      incident.cityMunicipalityId &&
+      scope.cityMunicipalityIds.includes(incident.cityMunicipalityId),
+    );
+  }
+
+  if (scope.kind === 'region') {
+    return Boolean(
+      incident.cityMunicipalityId &&
+      scope.cityMunicipalityIds.includes(incident.cityMunicipalityId),
+    );
+  }
+
+  if (scope.kind === 'province') {
+    return Boolean(
+      incident.cityMunicipalityId &&
+      scope.cityMunicipalityIds.includes(incident.cityMunicipalityId),
+    );
+  }
+
+  const assignment = await prisma.assignment.findFirst({
+    where: withActiveRecords({
+      incidentId: incident.id,
+      responderId: scope.responderId,
+    }),
+    select: { id: true },
+  });
+
+  return Boolean(assignment);
+}
+
+function denyIncidentWrite(res: Response, message: string): void {
+  res.status(403).json({ message });
+}
+
+async function authorizeIncidentDestinationScope(
+  authUser: NonNullable<AuthenticatedRequest['authUser']>,
+  res: Response,
+  cityMunicipalityId: string,
+  messages: {
+    responder: string;
+    outsideScope: string;
+  },
+): Promise<boolean> {
+  if (authUser.role === 'RESPONDER') {
+    denyIncidentWrite(res, messages.responder);
+    return false;
+  }
+
+  const scopeResult = await resolveIncidentReadScope(authUser, res, {
+    allowNationalAdmin: true,
+  });
+
+  if (scopeResult.status !== 'scoped') {
+    if (scopeResult.status === 'denied') {
+      denyIncidentWrite(res, messages.outsideScope);
+    }
+
+    return false;
+  }
+
+  if (scopeResult.scope.kind === 'global') {
+    return true;
+  }
+
+  if (
+    scopeResult.scope.kind === 'city' &&
+    scopeResult.scope.cityMunicipalityIds.includes(cityMunicipalityId)
+  ) {
+    return true;
+  }
+
+  if (
+    scopeResult.scope.kind === 'region' &&
+    scopeResult.scope.cityMunicipalityIds.includes(cityMunicipalityId)
+  ) {
+    return true;
+  }
+
+  if (
+    scopeResult.scope.kind === 'province' &&
+    scopeResult.scope.cityMunicipalityIds.includes(cityMunicipalityId)
+  ) {
+    return true;
+  }
+
+  denyIncidentWrite(res, messages.outsideScope);
+  return false;
+}
+
+async function authorizeIncidentCreate(
+  authUser: NonNullable<AuthenticatedRequest['authUser']>,
+  res: Response,
+  cityMunicipalityId: string,
+): Promise<boolean> {
+  return authorizeIncidentDestinationScope(authUser, res, cityMunicipalityId, {
+    responder: 'Forbidden: responders cannot create incidents through this route',
+    outsideScope: 'Forbidden: incident creation is outside your allowed scope',
+  });
+}
+
+async function authorizeIncidentLocalityMutation(
+  authUser: NonNullable<AuthenticatedRequest['authUser']>,
+  res: Response,
+  cityMunicipalityId: string,
+): Promise<boolean> {
+  return authorizeIncidentDestinationScope(authUser, res, cityMunicipalityId, {
+    responder: 'Forbidden: incident mutation is outside your allowed scope',
+    outsideScope: 'Forbidden: incident mutation is outside your allowed scope',
+  });
+}
+
+async function authorizeIncidentMutation(
+  authUser: NonNullable<AuthenticatedRequest['authUser']>,
+  res: Response,
+  incident: IncidentScopeRecord,
+): Promise<boolean> {
+  const scopeResult = await resolveIncidentReadScope(authUser, res, {
+    allowNationalAdmin: true,
+  });
+
+  if (scopeResult.status !== 'scoped') {
+    if (scopeResult.status === 'denied') {
+      denyIncidentWrite(res, 'Forbidden: incident mutation is outside your allowed scope');
+    }
+
+    return false;
+  }
+
+  if (await canReadIncidentWithScope(scopeResult.scope, incident)) {
+    return true;
+  }
+
+  denyIncidentWrite(res, 'Forbidden: incident mutation is outside your allowed scope');
+  return false;
+}
+
+async function getTimelineAccess(
+  authUser: NonNullable<AuthenticatedRequest['authUser']>,
+  incident: TimelineIncidentRecord,
+  res: Response,
+): Promise<TimelineAccessResult> {
+  const scopeResult = await resolveIncidentReadScope(authUser, res, {
+    allowNationalAdmin: true,
+  });
+  if (scopeResult.status !== 'scoped') {
+    return { allowed: false };
+  }
+
+  return (await canReadIncidentWithScope(scopeResult.scope, incident))
+    ? { allowed: true, audience: scopeResult.scope.audience }
+    : { allowed: false };
+}
+
+async function getTimelineIncidentById(incidentId: string): Promise<TimelineIncidentRecord | null> {
+  return prisma.citizenIncident.findFirst({
+    where: withActiveRecords({ id: incidentId }),
+    select: {
+      id: true,
+      citizenId: true,
+      publicReference: true,
+      cityMunicipalityId: true,
+    },
+  });
+}
+
+async function getIncidentTimelineEntries(
+  incidentId: string,
+): Promise<IncidentStatusHistoryRecord[]> {
+  return trustPrisma.incidentStatusHistory.findMany({
+    where: withActiveRecords({ incidentId }),
+    orderBy: { createdAt: 'asc' },
+    include: {
+      fromStatus: {
+        select: { id: true, name: true },
+      },
+      toStatus: {
+        select: { id: true, name: true },
+      },
+      changedByUser: {
+        select: { id: true, email: true, role: true },
+      },
+    },
+  });
+}
+
 async function getAuthorizedIncidentWithMedia(
   req: Request,
   res: Response,
@@ -207,20 +902,21 @@ async function getAuthorizedIncidentWithMedia(
     return null;
   }
 
-  if (authUser.role === 'CITIZEN_REPORTER') {
-    const citizenId = await getLinkedCitizenIdByAuthEmail(authUser.email);
-    if (!citizenId) {
-      res.status(422).json({
-        message:
-          'No citizen profile is linked to this account email. Create a citizen profile first.',
-      });
-      return null;
-    }
+  const scopeResult = await resolveIncidentReadScope(authUser, res, {
+    allowNationalAdmin: true,
+  });
+  if (scopeResult.status === 'response-sent') {
+    return null;
+  }
 
-    if (incident.citizenId !== citizenId) {
-      res.status(404).json({ message: 'CitizenIncident not found' });
-      return null;
-    }
+  if (scopeResult.status === 'denied') {
+    res.status(404).json({ message: 'CitizenIncident not found' });
+    return null;
+  }
+
+  if (!(await canReadIncidentWithScope(scopeResult.scope, incident))) {
+    res.status(404).json({ message: 'CitizenIncident not found' });
+    return null;
   }
 
   return incident;
@@ -292,26 +988,28 @@ export async function getIncidents(req: Request, res: Response): Promise<void> {
 
   let where = (listQuery.where ?? {}) as Record<string, unknown>;
 
-  let incidents;
-  if (authUser.role === 'CITIZEN_REPORTER') {
-    const citizenId = await getLinkedCitizenIdByAuthEmail(authUser.email);
-    if (!citizenId) {
-      res.status(422).json({
-        message:
-          'No citizen profile is linked to this account email. Create a citizen profile first.',
-      });
+  const scopeResult = await resolveIncidentReadScope(authUser, res, {
+    allowNationalAdmin: true,
+  });
+  if (scopeResult.status === 'response-sent') {
+    return;
+  }
+
+  if (scopeResult.status === 'denied') {
+    if (pagination.enabled) {
+      res.json(buildPaginatedResponse([], 0, pagination));
       return;
     }
 
-    const scopedWhereClauses =
-      where.AND && Array.isArray(where.AND)
-        ? [...(where.AND as Record<string, unknown>[]), { citizenId }]
-        : [{ citizenId }];
-
-    where = {
-      AND: scopedWhereClauses,
-    };
+    res.json([]);
+    return;
   }
+
+  let incidents;
+  where = combineIncidentWhere(
+    where as Prisma.CitizenIncidentWhereInput,
+    buildIncidentReadScopeWhere(scopeResult.scope),
+  );
 
   const scopedWhere = withArchiveScope(where, listQuery.archiveScope);
 
@@ -353,6 +1051,51 @@ export async function getIncidents(req: Request, res: Response): Promise<void> {
   res.json(await serializeIncidentCollection(incidents));
 }
 
+export async function getAuditorIncidents(req: Request, res: Response): Promise<void> {
+  const { authUser } = req as AuthenticatedRequest;
+  if (!authUser) {
+    res.status(401).json({ message: 'Unauthorized: missing authentication context' });
+    return;
+  }
+
+  const pagination = getPaginationQuery(req);
+  const listQuery = getListQuery(req, res, incidentsAuditListQueryConfig);
+  if (!listQuery) {
+    return;
+  }
+
+  const scopedWhere = withArchiveScope(
+    (listQuery.where ?? {}) as Prisma.CitizenIncidentWhereInput,
+    listQuery.archiveScope,
+  );
+
+  if (pagination.enabled) {
+    const [incidents, total] = await Promise.all([
+      prisma.citizenIncident.findMany({
+        where: scopedWhere,
+        select: auditorIncidentSelect,
+        orderBy: listQuery.orderBy,
+        skip: pagination.skip,
+        take: pagination.take,
+      }),
+      prisma.citizenIncident.count({ where: scopedWhere }),
+    ]);
+
+    res.json(
+      buildPaginatedResponse(serializeAuditorIncidentCollection(incidents), total, pagination),
+    );
+    return;
+  }
+
+  const incidents = await prisma.citizenIncident.findMany({
+    where: scopedWhere,
+    select: auditorIncidentSelect,
+    orderBy: listQuery.orderBy,
+  });
+
+  res.json(serializeAuditorIncidentCollection(incidents));
+}
+
 // Returns a single incident by UUID. Responds 404 if not found.
 export async function getIncidentById(req: Request, res: Response): Promise<void> {
   const id = getParamId(req, res) as string | null;
@@ -366,6 +1109,171 @@ export async function getIncidentById(req: Request, res: Response): Promise<void
   }
 
   res.json(await serializeIncident(incident));
+}
+
+export async function getAuditorIncidentById(req: Request, res: Response): Promise<void> {
+  const id = getParamId(req, res) as string | null;
+  if (id === null) {
+    return;
+  }
+
+  const incident = await prisma.citizenIncident.findFirst({
+    where: withActiveRecords({ id }),
+    select: auditorIncidentSelect,
+  });
+
+  if (!incident) {
+    res.status(404).json({ message: 'CitizenIncident not found' });
+    return;
+  }
+
+  res.json(serializeAuditorIncident(incident));
+}
+
+export async function getAuditorIncidentTimeline(req: Request, res: Response): Promise<void> {
+  const id = getParamId(req, res) as string | null;
+  if (id === null) {
+    return;
+  }
+
+  const { authUser } = req as AuthenticatedRequest;
+  if (!authUser) {
+    res.status(401).json({ message: 'Unauthorized: missing authentication context' });
+    return;
+  }
+
+  const incident = await getTimelineIncidentById(id);
+  if (!incident) {
+    res.status(404).json({ message: 'CitizenIncident not found' });
+    return;
+  }
+
+  const timeline = await getIncidentTimelineEntries(id);
+
+  res.json({
+    incidentId: id,
+    publicReference: incident.publicReference ?? null,
+    timeline: timeline.map((entry) => serializeAuditorTimelineEntry(entry)),
+  });
+}
+
+export async function getIncidentTimeline(req: Request, res: Response): Promise<void> {
+  const id = getParamId(req, res) as string | null;
+  if (id === null) {
+    return;
+  }
+
+  const { authUser } = req as AuthenticatedRequest;
+  if (!authUser) {
+    res.status(401).json({ message: 'Unauthorized: missing authentication context' });
+    return;
+  }
+
+  const incident = await getTimelineIncidentById(id);
+  if (!incident) {
+    res.status(404).json({ message: 'CitizenIncident not found' });
+    return;
+  }
+
+  const access = await getTimelineAccess(authUser, incident, res);
+  if (!access.allowed) {
+    if (!res.headersSent) {
+      res.status(404).json({ message: 'CitizenIncident not found' });
+    }
+    return;
+  }
+
+  const timeline = await getIncidentTimelineEntries(id);
+
+  res.json({
+    incidentId: id,
+    publicReference: incident.publicReference ?? null,
+    timeline:
+      access.audience === 'owner'
+        ? timeline.map((entry: PublicIncidentStatusHistoryRecord) =>
+            serializePublicTimelineEntry(entry),
+          )
+        : timeline.map((entry: IncidentStatusHistoryRecord) =>
+            serializeInternalTimelineEntry(entry),
+          ),
+  });
+}
+
+export async function getPublicCaseByToken(req: Request, res: Response): Promise<void> {
+  const caseTokenParam =
+    typeof req.params.caseToken === 'string' ? req.params.caseToken.trim() : '';
+  if (!caseTokenParam) {
+    res.status(400).json({ message: 'caseToken is required' });
+    return;
+  }
+
+  const tokenHash = hashCaseToken(caseTokenParam);
+  const now = new Date();
+
+  const caseToken = await trustPrisma.caseToken.findFirst({
+    where: {
+      tokenHash,
+      archivedAt: null,
+      revokedAt: null,
+      expiresAt: { gt: now },
+      incident: {
+        archivedAt: null,
+      },
+    },
+    include: {
+      incident: {
+        include: {
+          status: {
+            select: { name: true },
+          },
+          category: {
+            select: { name: true, subCategory: true },
+          },
+          severity: {
+            select: { level: true, definition: true },
+          },
+          statusHistory: {
+            where: { archivedAt: null },
+            orderBy: { createdAt: 'asc' },
+            include: {
+              toStatus: {
+                select: { name: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!caseToken) {
+    res.status(404).json({ message: 'Case not found or token is invalid' });
+    return;
+  }
+
+  await trustPrisma.caseToken.update({
+    where: { id: caseToken.id },
+    data: { lastUsedAt: now },
+  });
+
+  const responseBody: PublicCaseLookupResponse = {
+    publicReference: caseToken.incident.publicReference ?? null,
+    status: caseToken.incident.status,
+    publicStatusMessage: buildPublicStatusMessage(caseToken.incident.status.name),
+    caseTokenExpiresAt: caseToken.expiresAt.toISOString(),
+    reportedAt: caseToken.incident.dateReported.toISOString(),
+    lastUpdatedAt: caseToken.incident.updatedAt.toISOString(),
+    barangay: caseToken.incident.barangay ?? null,
+    cityName: caseToken.incident.cityName ?? null,
+    provinceName: caseToken.incident.provinceName ?? null,
+    category: caseToken.incident.category,
+    severity: caseToken.incident.severity,
+    timeline: caseToken.incident.statusHistory.map((entry: PublicIncidentStatusHistoryRecord) =>
+      serializePublicTimelineEntry(entry),
+    ),
+  };
+
+  res.json(responseBody);
 }
 
 export async function getIncidentMediaAccess(req: Request, res: Response): Promise<void> {
@@ -413,6 +1321,13 @@ export async function getIncidentMediaAccess(req: Request, res: Response): Promi
 
 // Creates a new incident. Validates all FK references before persisting to the database.
 export async function createIncident(req: Request, res: Response): Promise<void> {
+  const { authUser } = req as AuthenticatedRequest;
+  if (!authUser) {
+    res.status(401).json({ message: 'Unauthorized: missing authentication context' });
+    return;
+  }
+
+  const actorUserId = authUser.id;
   const {
     description,
     mediaUrl,
@@ -433,7 +1348,11 @@ export async function createIncident(req: Request, res: Response): Promise<void>
     citizenId,
     categoryId,
     severityId,
-  } = req.body as Partial<CitizenIncident> & { mediaUrls?: string[] };
+    regionId,
+    provinceId,
+    cityMunicipalityId,
+    barangayId,
+  } = req.body as IncidentWritePayload;
 
   const normalizedMediaUrls = normalizeMediaUrls({ mediaUrl, mediaUrls });
 
@@ -452,50 +1371,81 @@ export async function createIncident(req: Request, res: Response): Promise<void>
       res.status(400).json({ message: 'citizenId does not reference a valid Citizen' });
       return;
     }
-    if (
-      !(await prisma.category.findFirst({ where: withActiveRecords({ id: categoryId }) }))
-    ) {
+    if (!(await prisma.category.findFirst({ where: withActiveRecords({ id: categoryId }) }))) {
       res.status(400).json({ message: 'categoryId does not reference a valid Category' });
       return;
     }
-    if (
-      !(await prisma.severity.findFirst({ where: withActiveRecords({ id: severityId }) }))
-    ) {
+    if (!(await prisma.severity.findFirst({ where: withActiveRecords({ id: severityId }) }))) {
       res.status(400).json({ message: 'severityId does not reference a valid Severity' });
       return;
     }
-    const incident = await prisma.citizenIncident.create({
-      data: {
-        description,
-        mediaUrl: normalizedMediaUrls?.[0],
-        dateReported: dateReported ? new Date(dateReported) : new Date(),
-        ...buildIncidentLocationSnapshot({
-          latitude,
-          longitude,
-          addressLine1,
-          addressLine2,
-          barangay,
-          districtName,
-          cityName,
-          provinceName,
-          regionName,
-          postalCode,
-          landmark,
-        }),
-        statusId,
-        citizenId,
-        categoryId,
-        severityId,
-        mediaFiles: buildIncidentMediaCreateMany(normalizedMediaUrls),
-      },
-      include: {
-        mediaFiles: {
-          orderBy: { displayOrder: 'asc' },
+
+    const resolvedLocalityIds = await resolveIncidentLocalityIds({
+      barangay,
+      cityName,
+      provinceName,
+      regionName,
+      regionId,
+      provinceId,
+      cityMunicipalityId,
+      barangayId,
+    });
+    assertIncidentCityMunicipalityResolved(resolvedLocalityIds);
+
+    if (!(await authorizeIncidentCreate(authUser, res, resolvedLocalityIds.cityMunicipalityId))) {
+      return;
+    }
+
+    const incident = await prisma.$transaction(async (transaction) => {
+      const trustTransaction = transaction as TrustLayerTransactionClient;
+
+      const createdIncident = await transaction.citizenIncident.create({
+        data: {
+          description,
+          mediaUrl: normalizedMediaUrls?.[0],
+          dateReported: dateReported ? new Date(dateReported) : new Date(),
+          ...buildIncidentLocationSnapshot({
+            latitude,
+            longitude,
+            addressLine1,
+            addressLine2,
+            barangay,
+            districtName,
+            cityName,
+            provinceName,
+            regionName,
+            postalCode,
+            landmark,
+          }),
+          ...resolvedLocalityIds,
+          statusId,
+          citizenId,
+          categoryId,
+          severityId,
+          mediaFiles: buildIncidentMediaCreateMany(normalizedMediaUrls),
         },
-      },
+        include: {
+          mediaFiles: {
+            orderBy: { displayOrder: 'asc' },
+          },
+        },
+      });
+
+      await createIncidentStatusHistory(transaction, {
+        incidentId: createdIncident.id,
+        toStatusId: statusId,
+        changedByUserId: actorUserId,
+      });
+
+      return createdIncident;
     });
     res.status(201).json(await serializeIncident(incident));
   } catch (err) {
+    if (err instanceof IncidentLocalityResolutionError) {
+      res.status(400).json({ message: err.message });
+      return;
+    }
+
     res
       .status(400)
       .json({ message: 'Invalid input or foreign key reference', error: (err as Error)?.message });
@@ -528,7 +1478,7 @@ export async function createCitizenIncidentReport(req: Request, res: Response): 
     landmark,
     categoryId,
     severityId,
-  } = req.body as Partial<CitizenIncident> & { mediaUrls?: string[] };
+  } = req.body as IncidentWritePayload;
 
   const normalizedMediaUrls = normalizeMediaUrls({ mediaUrl, mediaUrls });
 
@@ -539,12 +1489,12 @@ export async function createCitizenIncidentReport(req: Request, res: Response): 
     return;
   }
   try {
-    const citizenId = await getLinkedCitizenIdByAuthEmail(authUser.email);
+    const resolution = await resolveLinkedCitizenForAuthUser({
+      id: authUser.id,
+      email: authUser.email,
+    });
+    const citizenId = handleLinkedCitizenResolution(res, resolution);
     if (!citizenId) {
-      res.status(422).json({
-        message:
-          'No citizen profile is linked to this account email. Create a citizen profile first.',
-      });
       return;
     }
     const reportedStatus = await prisma.status.findFirst({
@@ -557,50 +1507,94 @@ export async function createCitizenIncidentReport(req: Request, res: Response): 
       return;
     }
     const statusId = reportedStatus.id;
-    if (
-      !(await prisma.category.findFirst({ where: withActiveRecords({ id: categoryId }) }))
-    ) {
+    const trustArtifacts = issueIncidentTrustArtifacts(reportedStatus.name);
+    if (!(await prisma.category.findFirst({ where: withActiveRecords({ id: categoryId }) }))) {
       res.status(400).json({ message: 'categoryId does not reference a valid Category' });
       return;
     }
-    if (
-      !(await prisma.severity.findFirst({ where: withActiveRecords({ id: severityId }) }))
-    ) {
+    if (!(await prisma.severity.findFirst({ where: withActiveRecords({ id: severityId }) }))) {
       res.status(400).json({ message: 'severityId does not reference a valid Severity' });
       return;
     }
-    const incident = await prisma.citizenIncident.create({
-      data: {
-        description,
-        mediaUrl: normalizedMediaUrls?.[0],
-        dateReported: dateReported ? new Date(dateReported) : new Date(),
-        ...buildIncidentLocationSnapshot({
-          latitude,
-          longitude,
-          addressLine1,
-          addressLine2,
-          barangay,
-          districtName,
-          cityName,
-          provinceName,
-          regionName,
-          postalCode,
-          landmark,
-        }),
-        statusId,
-        citizenId,
-        categoryId,
-        severityId,
-        mediaFiles: buildIncidentMediaCreateMany(normalizedMediaUrls),
-      },
-      include: {
-        mediaFiles: {
-          orderBy: { displayOrder: 'asc' },
+
+    const resolvedLocalityIds = await resolveIncidentLocalityIds(
+      buildIncidentLocalityResolutionInput({
+        barangay,
+        cityName,
+        provinceName,
+        regionName,
+      }),
+    );
+    assertIncidentCityMunicipalityResolved(resolvedLocalityIds);
+
+    const incident = await prisma.$transaction(async (transaction) => {
+      const trustTransaction = transaction as TrustLayerTransactionClient;
+
+      const createdIncident = await transaction.citizenIncident.create({
+        data: {
+          publicReference: trustArtifacts.publicReference,
+          description,
+          mediaUrl: normalizedMediaUrls?.[0],
+          dateReported: dateReported ? new Date(dateReported) : new Date(),
+          ...buildIncidentLocationSnapshot({
+            latitude,
+            longitude,
+            addressLine1,
+            addressLine2,
+            barangay,
+            districtName,
+            cityName,
+            provinceName,
+            regionName,
+            postalCode,
+            landmark,
+          }),
+          ...resolvedLocalityIds,
+          statusId,
+          citizenId,
+          categoryId,
+          severityId,
+          mediaFiles: buildIncidentMediaCreateMany(normalizedMediaUrls),
         },
-      },
+        include: {
+          mediaFiles: {
+            orderBy: { displayOrder: 'asc' },
+          },
+        },
+      });
+
+      await trustTransaction.caseToken.create({
+        data: {
+          incidentId: createdIncident.id,
+          tokenHash: trustArtifacts.tokenHash,
+          expiresAt: trustArtifacts.expiresAt,
+        },
+      });
+
+      await createIncidentStatusHistory(transaction, {
+        incidentId: createdIncident.id,
+        toStatusId: statusId,
+        changedByUserId: authUser.id,
+      });
+
+      return createdIncident;
     });
-    res.status(201).json(await serializeIncident(incident));
+
+    const serializedIncident = await serializeIncident(incident);
+    res.status(201).json(
+      buildIncidentTrustResponse(serializedIncident, {
+        caseToken: trustArtifacts.caseToken,
+        caseLookupPath: trustArtifacts.caseLookupPath,
+        caseTokenExpiresAt: trustArtifacts.expiresAt.toISOString(),
+        publicStatusMessage: trustArtifacts.publicStatusMessage,
+      }),
+    );
   } catch (err) {
+    if (err instanceof IncidentLocalityResolutionError) {
+      res.status(400).json({ message: err.message });
+      return;
+    }
+
     res.status(400).json({
       message: 'Invalid input or foreign key reference',
       errors: [
@@ -615,6 +1609,13 @@ export async function createCitizenIncidentReport(req: Request, res: Response): 
 
 // Updates an existing incident and validates any provided foreign keys.
 export async function updateIncident(req: Request, res: Response): Promise<void> {
+  const { authUser } = req as AuthenticatedRequest;
+  if (!authUser) {
+    res.status(401).json({ message: 'Unauthorized: missing authentication context' });
+    return;
+  }
+
+  const actorUserId = authUser.id;
   const id = getParamId(req, res) as string | null;
   if (id === null) {
     return;
@@ -640,7 +1641,11 @@ export async function updateIncident(req: Request, res: Response): Promise<void>
     citizenId,
     categoryId,
     severityId,
-  } = req.body as Partial<CitizenIncident> & { mediaUrls?: string[] };
+    regionId,
+    provinceId,
+    cityMunicipalityId,
+    barangayId,
+  } = req.body as IncidentWritePayload;
 
   const normalizedMediaUrls = normalizeMediaUrls({ mediaUrl, mediaUrls });
 
@@ -654,6 +1659,10 @@ export async function updateIncident(req: Request, res: Response): Promise<void>
   });
   if (!existingIncident) {
     res.status(404).json({ message: 'CitizenIncident not found' });
+    return;
+  }
+
+  if (!(await authorizeIncidentMutation(authUser, res, existingIncident))) {
     return;
   }
 
@@ -688,12 +1697,90 @@ export async function updateIncident(req: Request, res: Response): Promise<void>
     return;
   }
 
+  const shouldAppendStatusHistory =
+    statusId !== undefined && statusId !== existingIncident.statusId;
+  const hasExplicitBarangayUpdate = Object.prototype.hasOwnProperty.call(req.body, 'barangay');
+
+  const shouldResolveLocality = INCIDENT_LOCALITY_WRITE_FIELDS.some(
+    (field) => (req.body as Record<string, unknown>)[field] !== undefined,
+  );
+
+  let resolvedLocalityIds:
+    | {
+        regionId: string | null;
+        provinceId: string | null;
+        cityMunicipalityId: string | null;
+        barangayId: string | null;
+      }
+    | undefined;
+
+  if (shouldResolveLocality) {
+    try {
+      resolvedLocalityIds = await resolveIncidentLocalityIds(
+        buildIncidentLocalityResolutionInput({
+          barangay: hasExplicitBarangayUpdate ? barangay : existingIncident.barangay,
+          cityName: cityName ?? existingIncident.cityName,
+          provinceName: provinceName ?? existingIncident.provinceName,
+          regionName: regionName ?? existingIncident.regionName,
+          barangayId,
+          cityMunicipalityId,
+          provinceId,
+          regionId,
+        }),
+      );
+      assertIncidentCityMunicipalityResolved(resolvedLocalityIds);
+    } catch (err) {
+      if (err instanceof IncidentLocalityResolutionError) {
+        res.status(400).json({ message: err.message });
+        return;
+      }
+
+      throw err;
+    }
+  }
+
+  const hasCanonicalLocalityChange =
+    resolvedLocalityIds !== undefined &&
+    (resolvedLocalityIds.regionId !== existingIncident.regionId ||
+      resolvedLocalityIds.provinceId !== existingIncident.provinceId ||
+      resolvedLocalityIds.cityMunicipalityId !== existingIncident.cityMunicipalityId ||
+      resolvedLocalityIds.barangayId !== existingIncident.barangayId);
+
+  if (hasCanonicalLocalityChange) {
+    if (
+      resolvedLocalityIds?.cityMunicipalityId &&
+      !(await authorizeIncidentLocalityMutation(
+        authUser,
+        res,
+        resolvedLocalityIds.cityMunicipalityId,
+      ))
+    ) {
+      return;
+    }
+
+    const supportedEscalationCount = await prisma.incidentEscalation.count({
+      where: {
+        incidentId: id,
+        fromLevel: 'city',
+        toLevel: 'province',
+      },
+    });
+
+    if (supportedEscalationCount > 0) {
+      res.status(409).json({
+        message:
+          'Incident locality cannot be changed after a city-to-province escalation has been created',
+      });
+      return;
+    }
+  }
+
   const incident = await prisma.$transaction(async (transaction) => {
     if (normalizedMediaUrls !== undefined) {
       await transaction.incidentMedia.deleteMany({ where: { incidentId: id } });
     }
 
-    return transaction.citizenIncident.update({
+    const updatedIncident = await transaction.citizenIncident.update({
       where: { id },
       data: {
         description,
@@ -712,6 +1799,7 @@ export async function updateIncident(req: Request, res: Response): Promise<void>
           postalCode,
           landmark,
         }),
+        ...(resolvedLocalityIds ?? {}),
         statusId,
         citizenId,
         categoryId,
@@ -726,6 +1814,17 @@ export async function updateIncident(req: Request, res: Response): Promise<void>
         },
       },
     });
+
+    if (shouldAppendStatusHistory && statusId) {
+      await createIncidentStatusHistory(transaction, {
+        incidentId: id,
+        fromStatusId: existingIncident.statusId,
+        toStatusId: statusId,
+        changedByUserId: actorUserId,
+      });
+    }
+
+    return updatedIncident;
   });
 
   if (normalizedMediaUrls !== undefined) {
@@ -740,6 +1839,12 @@ export async function updateIncident(req: Request, res: Response): Promise<void>
 
 // Deletes an existing incident.
 export async function deleteIncident(req: Request, res: Response): Promise<void> {
+  const { authUser } = req as AuthenticatedRequest;
+  if (!authUser) {
+    res.status(401).json({ message: 'Unauthorized: missing authentication context' });
+    return;
+  }
+
   const id = getParamId(req, res) as string | null;
   if (id === null) {
     return;
@@ -755,6 +1860,10 @@ export async function deleteIncident(req: Request, res: Response): Promise<void>
   });
   if (!existingIncident) {
     res.status(404).json({ message: 'CitizenIncident not found' });
+    return;
+  }
+
+  if (!(await authorizeIncidentMutation(authUser, res, existingIncident))) {
     return;
   }
 
@@ -780,6 +1889,12 @@ export async function deleteIncident(req: Request, res: Response): Promise<void>
 }
 
 export async function restoreIncident(req: Request, res: Response): Promise<void> {
+  const { authUser } = req as AuthenticatedRequest;
+  if (!authUser) {
+    res.status(401).json({ message: 'Unauthorized: missing authentication context' });
+    return;
+  }
+
   const id = getParamId(req, res) as string | null;
   if (id === null) {
     return;
@@ -800,6 +1915,10 @@ export async function restoreIncident(req: Request, res: Response): Promise<void
   });
   if (!existingIncident) {
     res.status(404).json({ message: 'Archived CitizenIncident not found' });
+    return;
+  }
+
+  if (!(await authorizeIncidentMutation(authUser, res, existingIncident))) {
     return;
   }
 

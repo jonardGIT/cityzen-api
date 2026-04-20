@@ -1,16 +1,43 @@
 import type { Request, Response } from 'express';
+import type { AuditLog } from '@prisma/client';
 import prisma from '../lib/prisma.js';
+import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
 import {
   buildPaginatedResponse,
   getListQuery,
   getPaginationQuery,
   getParamId,
 } from '../utils/request.js';
-import { auditLogsListQueryConfig } from '../utils/listQueryConfig.js';
+import {
+  auditLogsListQueryConfig,
+  auditorAuditLogsListQueryConfig,
+} from '../utils/listQueryConfig.js';
+
+function serializeAuditLog(auditLog: AuditLog, req: AuthenticatedRequest): AuditLog {
+  if (req.authUser?.role !== 'AUDITOR' || auditLog.resource !== 'auth') {
+    return auditLog;
+  }
+
+  return {
+    ...auditLog,
+    ipAddress: null,
+    userAgent: null,
+    requestId: null,
+    metadata: null,
+  };
+}
+
+function serializeAuditLogs(auditLogs: AuditLog[], req: AuthenticatedRequest): AuditLog[] {
+  return auditLogs.map((auditLog) => serializeAuditLog(auditLog, req));
+}
 
 export async function getAuditLogs(req: Request, res: Response): Promise<void> {
   const pagination = getPaginationQuery(req);
-  const listQuery = getListQuery(req, res, auditLogsListQueryConfig);
+  const listQueryConfig =
+    (req as AuthenticatedRequest).authUser?.role === 'AUDITOR'
+      ? auditorAuditLogsListQueryConfig
+      : auditLogsListQueryConfig;
+  const listQuery = getListQuery(req, res, listQueryConfig);
   if (!listQuery) {
     return;
   }
@@ -26,7 +53,13 @@ export async function getAuditLogs(req: Request, res: Response): Promise<void> {
       prisma.auditLog.count({ where: listQuery.where }),
     ]);
 
-    res.json(buildPaginatedResponse(auditLogs, total, pagination));
+    res.json(
+      buildPaginatedResponse(
+        serializeAuditLogs(auditLogs, req as AuthenticatedRequest),
+        total,
+        pagination,
+      ),
+    );
     return;
   }
 
@@ -35,7 +68,7 @@ export async function getAuditLogs(req: Request, res: Response): Promise<void> {
     orderBy: listQuery.orderBy,
   });
 
-  res.json(auditLogs);
+  res.json(serializeAuditLogs(auditLogs, req as AuthenticatedRequest));
 }
 
 export async function getAuditLogById(req: Request, res: Response): Promise<void> {
@@ -50,5 +83,5 @@ export async function getAuditLogById(req: Request, res: Response): Promise<void
     return;
   }
 
-  res.json(auditLog);
+  res.json(serializeAuditLog(auditLog, req as AuthenticatedRequest));
 }

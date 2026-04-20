@@ -39,6 +39,23 @@ function getValidatedParamId(req: Request, res: Response, displayName: string): 
   return id;
 }
 
+function mergeWhereClauses(
+  baseWhere: Record<string, unknown> | undefined,
+  scopedWhere: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!baseWhere || Object.keys(baseWhere).length === 0) {
+    return scopedWhere;
+  }
+
+  if (!scopedWhere || Object.keys(scopedWhere).length === 0) {
+    return baseWhere;
+  }
+
+  return {
+    AND: [baseWhere, scopedWhere],
+  };
+}
+
 function extractFieldData(
   body: Record<string, unknown>,
   fields: FieldConfig[],
@@ -195,7 +212,15 @@ export function createCrudController(config: ContentTypeConfig): CrudHandlers {
     const listQuery = getListQuery(req, res, config.listQueryConfig);
     if (!listQuery) return;
 
-    const scopedWhere = withArchiveScope(listQuery.where, listQuery.archiveScope);
+    const scopeWhere = config.hooks?.buildScopeWhere
+      ? await config.hooks.buildScopeWhere(req, res)
+      : undefined;
+    if (scopeWhere === null) return;
+
+    const scopedWhere = mergeWhereClauses(
+      withArchiveScope(listQuery.where, listQuery.archiveScope),
+      scopeWhere,
+    );
 
     if (pagination.enabled) {
       const [records, total] = await Promise.all([
@@ -227,8 +252,13 @@ export function createCrudController(config: ContentTypeConfig): CrudHandlers {
     const id = getValidatedParamId(req, res, config.displayName);
     if (id === null) return;
 
+    const scopeWhere = config.hooks?.buildScopeWhere
+      ? await config.hooks.buildScopeWhere(req, res)
+      : undefined;
+    if (scopeWhere === null) return;
+
     const record = await model.findFirst({
-      where: withActiveRecords({ id }),
+      where: mergeWhereClauses(withActiveRecords({ id }), scopeWhere),
       ...includeOption,
     });
 
@@ -275,7 +305,15 @@ export function createCrudController(config: ContentTypeConfig): CrudHandlers {
       }
     }
 
-    const data = extractFieldData(body, config.fields);
+    const hookResult = config.hooks?.beforeCreate
+      ? await config.hooks.beforeCreate(req, res, body)
+      : undefined;
+    if (hookResult === null) return;
+
+    const data = {
+      ...extractFieldData(body, config.fields),
+      ...(hookResult?.data ?? {}),
+    };
     const record = await model.create({
       data,
       ...defaultInclude,
@@ -289,8 +327,13 @@ export function createCrudController(config: ContentTypeConfig): CrudHandlers {
 
     const body = req.body as Record<string, unknown>;
 
+    const scopeWhere = config.hooks?.buildScopeWhere
+      ? await config.hooks.buildScopeWhere(req, res)
+      : undefined;
+    if (scopeWhere === null) return;
+
     const existing = await model.findFirst({
-      where: withActiveRecords({ id }),
+      where: mergeWhereClauses(withActiveRecords({ id }), scopeWhere),
     });
 
     if (!existing) {
@@ -313,7 +356,15 @@ export function createCrudController(config: ContentTypeConfig): CrudHandlers {
       }
     }
 
-    const data = extractFieldData(body, config.fields);
+    const hookResult = config.hooks?.beforeUpdate
+      ? await config.hooks.beforeUpdate(req, res, body, existing as Record<string, unknown>)
+      : undefined;
+    if (hookResult === null) return;
+
+    const data = {
+      ...extractFieldData(body, config.fields),
+      ...(hookResult?.data ?? {}),
+    };
     const record = await model.update({
       where: { id },
       data,
@@ -326,8 +377,13 @@ export function createCrudController(config: ContentTypeConfig): CrudHandlers {
     const id = getValidatedParamId(req, res, config.displayName);
     if (id === null) return;
 
+    const scopeWhere = config.hooks?.buildScopeWhere
+      ? await config.hooks.buildScopeWhere(req, res)
+      : undefined;
+    if (scopeWhere === null) return;
+
     const existing = await model.findFirst({
-      where: withActiveRecords({ id }),
+      where: mergeWhereClauses(withActiveRecords({ id }), scopeWhere),
     });
 
     if (!existing) {
@@ -364,8 +420,13 @@ export function createCrudController(config: ContentTypeConfig): CrudHandlers {
       return;
     }
 
+    const scopeWhere = config.hooks?.buildScopeWhere
+      ? await config.hooks.buildScopeWhere(req, res)
+      : undefined;
+    if (scopeWhere === null) return;
+
     const existing = await model.findFirst({
-      where: withArchivedRecords({ id }),
+      where: mergeWhereClauses(withArchivedRecords({ id }), scopeWhere),
       ...defaultInclude,
     });
 

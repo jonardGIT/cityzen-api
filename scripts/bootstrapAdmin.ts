@@ -25,6 +25,12 @@ type CliOptions = {
   help: boolean;
 };
 
+const LEGACY_STORAGE_ROLE_ALIASES: Partial<Record<UserRole, string>> = {
+  NATIONAL_ADMIN: 'SYSTEM_ADMIN',
+  CITY_ADMIN: 'DEPARTMENT_MANAGER',
+  PROVINCIAL_ADMIN: 'SUPERVISOR',
+};
+
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
@@ -43,11 +49,81 @@ function buildManagedPasswordHash(): Promise<string> {
   return bcrypt.hash(`supabase-managed:${randomUUID()}`, 10);
 }
 
+function isUsersRoleConstraintError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return error.message.includes('users_role_check');
+}
+
+function getStorageRoleCandidates(role: UserRole): string[] {
+  const legacyAlias = LEGACY_STORAGE_ROLE_ALIASES[role];
+  return legacyAlias ? [role, legacyAlias] : [role];
+}
+
+async function persistBootstrapUser(input: {
+  existingUserId: string | null;
+  name: string;
+  email: string;
+  role: UserRole;
+  supabaseAuthUserId: string | null;
+  passwordHash: string;
+}) {
+  const storageRoles = getStorageRoleCandidates(input.role);
+  let lastError: unknown;
+
+  for (const storageRole of storageRoles) {
+    try {
+      if (input.existingUserId) {
+        return await prisma.user.update({
+          where: { id: input.existingUserId },
+          data: {
+            name: input.name,
+            role: storageRole,
+            supabaseAuthUserId: input.supabaseAuthUserId ?? undefined,
+            passwordHash: input.passwordHash,
+          },
+          select: {
+            id: true,
+            email: true,
+            role: true,
+            supabaseAuthUserId: true,
+          },
+        });
+      }
+
+      return await prisma.user.create({
+        data: {
+          name: input.name,
+          email: input.email,
+          role: storageRole,
+          supabaseAuthUserId: input.supabaseAuthUserId ?? undefined,
+          passwordHash: input.passwordHash,
+        },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          supabaseAuthUserId: true,
+        },
+      });
+    } catch (error) {
+      lastError = error;
+      if (!isUsersRoleConstraintError(error) || storageRole === storageRoles.at(-1)) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('Failed to persist bootstrap user.');
+}
+
 function parseArgs(argv: string[]): CliOptions {
   let name = process.env.BOOTSTRAP_ADMIN_NAME?.trim() || null;
   let email = process.env.BOOTSTRAP_ADMIN_EMAIL?.trim() || null;
   let password = process.env.BOOTSTRAP_ADMIN_PASSWORD?.trim() || null;
-  let role = normalizeUserRoleInput(process.env.BOOTSTRAP_ADMIN_ROLE) ?? 'SYSTEM_ADMIN';
+  let role = normalizeUserRoleInput(process.env.BOOTSTRAP_ADMIN_ROLE) ?? 'NATIONAL_ADMIN';
   let help = false;
 
   for (const arg of argv) {
@@ -215,37 +291,14 @@ async function main(): Promise<void> {
       ? await buildManagedPasswordHash()
       : await bcrypt.hash(options.password, 10);
 
-    const user = existingUser
-      ? await prisma.user.update({
-          where: { id: existingUser.id },
-          data: {
-            name,
-            role: options.role,
-            supabaseAuthUserId: supabaseAuthUserId ?? undefined,
-            passwordHash,
-          },
-          select: {
-            id: true,
-            email: true,
-            role: true,
-            supabaseAuthUserId: true,
-          },
-        })
-      : await prisma.user.create({
-          data: {
-            name,
-            email,
-            role: options.role,
-            supabaseAuthUserId: supabaseAuthUserId ?? undefined,
-            passwordHash,
-          },
-          select: {
-            id: true,
-            email: true,
-            role: true,
-            supabaseAuthUserId: true,
-          },
-        });
+    const user = await persistBootstrapUser({
+      existingUserId: existingUser?.id ?? null,
+      name,
+      email,
+      role: options.role,
+      supabaseAuthUserId,
+      passwordHash,
+    });
 
     console.log(
       JSON.stringify(

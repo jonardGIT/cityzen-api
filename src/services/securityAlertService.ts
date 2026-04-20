@@ -23,8 +23,10 @@ type AlertWindow = {
 
 const alertWindows = new Map<string, AlertWindow>();
 
+const PRIVILEGED_ALERT_ROLES = [...MFA_REQUIRED_ROLES, 'AUDITOR'] as const;
+
 function isPrivilegedRoleValue(value: unknown): value is UserRole {
-  return typeof value === 'string' && MFA_REQUIRED_ROLES.includes(value as UserRole);
+  return typeof value === 'string' && PRIVILEGED_ALERT_ROLES.includes(value as UserRole);
 }
 
 function getSecurityAlertWebhookUrl(): string | null {

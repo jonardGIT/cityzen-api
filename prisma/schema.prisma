@@ -3,26 +3,34 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
 model User {
-  id                String               @id @default(uuid()) @db.Uuid
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
-  archivedAt        DateTime?
-  name              String
-  email             String               @unique
-  passwordHash      String?
-  supabaseAuthUserId String?             @unique @db.Uuid
-  role              String               @default("CITIZEN_REPORTER")
-  mfaEnabled        Boolean              @default(false)
-  mfaSecretEncrypted String?
-  mfaEnabledAt      DateTime?
-  authSessions      AuthSession[]
-  passwordResetTokens PasswordResetToken[]
+  id                    String                  @id @default(uuid()) @db.Uuid
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  archivedAt            DateTime?
+  name                  String
+  email                 String                  @unique
+  mobileNumber          String?                 @unique
+  mobileNumberVerifiedAt DateTime?
+  mobileAuthSubject     String?                 @unique
+  passwordHash          String?
+  supabaseAuthUserId    String?                 @unique @db.Uuid
+  role                  String                  @default("CITIZEN_REPORTER")
+  mfaEnabled            Boolean                 @default(false)
+  mfaSecretEncrypted    String?
+  mfaEnabledAt          DateTime?
+  jurisdictionType      String?
+  jurisdictionId        String?                 @db.Uuid
+  citizenId             String?                 @unique @db.Uuid
+  citizen               Citizen?                @relation(fields: [citizenId], references: [id], onDelete: SetNull)
+  authSessions          AuthSession[]
+  incidentStatusChanges IncidentStatusHistory[]
+  passwordResetTokens   PasswordResetToken[]
 
   @@map("users")
 }
@@ -50,14 +58,14 @@ model AuthSession {
 }
 
 model PasswordResetToken {
-  id        String   @id @default(uuid()) @db.Uuid
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  userId    String   @db.Uuid
-  tokenHash String   @unique
+  id        String    @id @default(uuid()) @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  userId    String    @db.Uuid
+  tokenHash String    @unique
   expiresAt DateTime
   usedAt    DateTime?
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([expiresAt])
@@ -117,20 +125,61 @@ model Citizen {
   name             String
   contactInfo      String
   preferredChannel String
+  user             User?
   incidents        CitizenIncident[]
 
   @@map("citizens")
 }
 
-model Agency {
-  id            String      @id @default(uuid()) @db.Uuid
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  archivedAt    DateTime?
-  name          String
-  contactNumber String?
-  responders    Responder[]
+model MobileAppContent {
+  id          String    @id @default(uuid()) @db.Uuid
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  archivedAt  DateTime?
+  slug        String    @unique
+  title       String
+  summary     String?
+  body        String
+  contentType String    @default("announcement")
+  placement   String    @default("home")
+  audience    String?
+  imageUrl    String?
+  ctaLabel    String?
+  ctaUrl      String?
+  sortOrder   Int       @default(0)
+  isPublished Boolean   @default(false)
+  publishedAt DateTime?
+  startsAt    DateTime?
+  endsAt      DateTime?
+  metadata    Json?
 
+  @@map("mobile_app_content")
+}
+
+model Agency {
+  id                  String            @id @default(uuid()) @db.Uuid
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  archivedAt          DateTime?
+  name                String
+  contactNumber       String?
+  jurisdictionType    String?
+  jurisdictionId      String?           @db.Uuid
+  agencyType          String?
+  regionId            String?           @db.Uuid
+  regionRef           Region?           @relation(fields: [regionId], references: [id])
+  provinceId          String?           @db.Uuid
+  provinceRef         Province?         @relation(fields: [provinceId], references: [id])
+  cityMunicipalityId  String?           @db.Uuid
+  cityMunicipalityRef CityMunicipality? @relation(fields: [cityMunicipalityId], references: [id])
+  barangayId          String?           @db.Uuid
+  barangayRef         Barangay?         @relation(fields: [barangayId], references: [id])
+  responders          Responder[]
+
+  @@index([regionId])
+  @@index([provinceId])
+  @@index([cityMunicipalityId])
+  @@index([barangayId])
   @@map("agencies")
 }
 
@@ -150,12 +199,14 @@ model Responder {
 }
 
 model Status {
-  id        String            @id @default(uuid()) @db.Uuid
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
-  archivedAt DateTime?
-  name      String
-  incidents CitizenIncident[]
+  id                String                  @id @default(uuid()) @db.Uuid
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  archivedAt        DateTime?
+  name              String
+  incidents         CitizenIncident[]
+  fromStatusHistory IncidentStatusHistory[] @relation("IncidentStatusHistoryFromStatus")
+  toStatusHistory   IncidentStatusHistory[] @relation("IncidentStatusHistoryToStatus")
 
   @@map("statuses")
 }
@@ -185,36 +236,93 @@ model Severity {
 }
 
 model CitizenIncident {
-  id           String       @id @default(uuid()) @db.Uuid
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  archivedAt   DateTime?
-  description  String
-  mediaUrl     String?
-  dateReported DateTime     @default(now())
-  latitude     Decimal?     @db.Decimal(10, 7)
-  longitude    Decimal?     @db.Decimal(10, 7)
-  addressLine1 String?
-  addressLine2 String?
-  barangay     String?
-  districtName String?
-  cityName     String?
-  provinceName String?
-  regionName   String?
-  postalCode   String?
-  landmark     String?
-  statusId     String       @db.Uuid
-  citizenId    String       @db.Uuid
-  categoryId   String       @db.Uuid
-  severityId   String       @db.Uuid
-  status       Status       @relation(fields: [statusId], references: [id])
-  citizen      Citizen      @relation(fields: [citizenId], references: [id])
-  category     Category     @relation(fields: [categoryId], references: [id])
-  severity     Severity     @relation(fields: [severityId], references: [id])
-  assignments  Assignment[]
-  mediaFiles   IncidentMedia[]
+  id                  String                  @id @default(uuid()) @db.Uuid
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  archivedAt          DateTime?
+  publicReference     String?                 @unique
+  description         String
+  mediaUrl            String?
+  dateReported        DateTime                @default(now())
+  latitude            Decimal?                @db.Decimal(10, 7)
+  longitude           Decimal?                @db.Decimal(10, 7)
+  addressLine1        String?
+  addressLine2        String?
+  barangay            String?
+  districtName        String?
+  cityName            String?
+  provinceName        String?
+  regionName          String?
+  postalCode          String?
+  landmark            String?
+  regionId            String?                 @db.Uuid
+  regionRef           Region?                 @relation(fields: [regionId], references: [id])
+  provinceId          String?                 @db.Uuid
+  provinceRef         Province?               @relation(fields: [provinceId], references: [id])
+  cityMunicipalityId  String?                 @db.Uuid
+  cityMunicipalityRef CityMunicipality?       @relation(fields: [cityMunicipalityId], references: [id])
+  barangayId          String?                 @db.Uuid
+  barangayRef         Barangay?               @relation(fields: [barangayId], references: [id])
+  statusId            String                  @db.Uuid
+  citizenId           String                  @db.Uuid
+  categoryId          String                  @db.Uuid
+  severityId          String                  @db.Uuid
+  status              Status                  @relation(fields: [statusId], references: [id])
+  citizen             Citizen                 @relation(fields: [citizenId], references: [id])
+  category            Category                @relation(fields: [categoryId], references: [id])
+  severity            Severity                @relation(fields: [severityId], references: [id])
+  assignments         Assignment[]
+  mediaFiles          IncidentMedia[]
+  escalations         IncidentEscalation[]
+  mutualAidRequests   MutualAidRequest[]
+  caseTokens          CaseToken[]
+  statusHistory       IncidentStatusHistory[]
 
+  @@index([regionId])
+  @@index([provinceId])
+  @@index([cityMunicipalityId])
+  @@index([barangayId])
   @@map("incidents")
+}
+
+model CaseToken {
+  id         String          @id @default(uuid()) @db.Uuid
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  archivedAt DateTime?
+  incidentId String          @db.Uuid
+  tokenHash  String          @unique
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  lastUsedAt DateTime?
+  incident   CitizenIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  @@index([incidentId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+  @@map("case_tokens")
+}
+
+model IncidentStatusHistory {
+  id              String          @id @default(uuid()) @db.Uuid
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  archivedAt      DateTime?
+  incidentId      String          @db.Uuid
+  fromStatusId    String?         @db.Uuid
+  toStatusId      String          @db.Uuid
+  changedByUserId String?         @db.Uuid
+  note            String?
+  incident        CitizenIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  changedByUser   User?           @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
+  fromStatus      Status?         @relation("IncidentStatusHistoryFromStatus", fields: [fromStatusId], references: [id])
+  toStatus        Status          @relation("IncidentStatusHistoryToStatus", fields: [toStatusId], references: [id])
+
+  @@index([incidentId, createdAt])
+  @@index([fromStatusId])
+  @@index([toStatusId])
+  @@index([changedByUserId])
+  @@map("incident_status_history")
 }
 
 model IncidentMedia {
@@ -229,6 +337,119 @@ model IncidentMedia {
   @@index([incidentId])
   @@index([incidentId, displayOrder])
   @@map("incident_media")
+}
+
+model Region {
+  id          String            @id @default(uuid()) @db.Uuid
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  archivedAt  DateTime?
+  code        String            @unique
+  name        String
+  designation String?
+  provinces   Province[]
+  incidents   CitizenIncident[]
+  agencies    Agency[]
+
+  @@map("regions")
+}
+
+model Province {
+  id         String             @id @default(uuid()) @db.Uuid
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  archivedAt DateTime?
+  code       String             @unique
+  name       String
+  regionId   String             @db.Uuid
+  region     Region             @relation(fields: [regionId], references: [id])
+  cities     CityMunicipality[]
+  incidents  CitizenIncident[]
+  targetIncidentEscalations IncidentEscalation[] @relation("IncidentEscalationTargetProvince")
+  agencies   Agency[]
+
+  @@index([regionId])
+  @@map("provinces")
+}
+
+model CityMunicipality {
+  id         String            @id @default(uuid()) @db.Uuid
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  archivedAt DateTime?
+  code       String            @unique
+  name       String
+  type       String
+  provinceId String            @db.Uuid
+  province   Province          @relation(fields: [provinceId], references: [id])
+  barangays  Barangay[]
+  incidents  CitizenIncident[]
+  sourceIncidentEscalations IncidentEscalation[] @relation("IncidentEscalationSourceCityMunicipality")
+  requestingMutualAidRequests MutualAidRequest[] @relation("MutualAidRequestRequestingJurisdiction")
+  targetMutualAidRequests MutualAidRequest[] @relation("MutualAidRequestTargetJurisdiction")
+  agencies   Agency[]
+
+  @@index([provinceId])
+  @@map("cities_municipalities")
+}
+
+model Barangay {
+  id                 String            @id @default(uuid()) @db.Uuid
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  archivedAt         DateTime?
+  code               String            @unique
+  name               String
+  cityMunicipalityId String            @db.Uuid
+  cityMunicipality   CityMunicipality  @relation(fields: [cityMunicipalityId], references: [id])
+  incidents          CitizenIncident[]
+  agencies           Agency[]
+
+  @@index([cityMunicipalityId])
+  @@map("barangays")
+}
+
+model IncidentEscalation {
+  id                     String            @id @default(uuid()) @db.Uuid
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  incidentId             String            @db.Uuid
+  sourceCityMunicipalityId String?         @db.Uuid
+  targetProvinceId       String?           @db.Uuid
+  incident               CitizenIncident   @relation(fields: [incidentId], references: [id])
+  sourceCityMunicipality CityMunicipality? @relation("IncidentEscalationSourceCityMunicipality", fields: [sourceCityMunicipalityId], references: [id])
+  targetProvince         Province?         @relation("IncidentEscalationTargetProvince", fields: [targetProvinceId], references: [id])
+  fromLevel              String
+  toLevel                String
+  escalatedById          String            @db.Uuid
+  reason                 String
+  status                 String
+
+  @@index([incidentId])
+  @@index([sourceCityMunicipalityId])
+  @@index([targetProvinceId])
+  @@index([escalatedById])
+  @@map("incident_escalations")
+}
+
+model MutualAidRequest {
+  id                       String            @id @default(uuid()) @db.Uuid
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @updatedAt
+  incidentId               String            @db.Uuid
+  incident                 CitizenIncident   @relation(fields: [incidentId], references: [id])
+  requestingJurisdictionId String            @db.Uuid
+  targetJurisdictionId     String            @db.Uuid
+  requestingJurisdiction   CityMunicipality  @relation("MutualAidRequestRequestingJurisdiction", fields: [requestingJurisdictionId], references: [id])
+  targetJurisdiction       CityMunicipality  @relation("MutualAidRequestTargetJurisdiction", fields: [targetJurisdictionId], references: [id])
+  requestedById            String            @db.Uuid
+  status                   String
+  notes                    String?
+
+  @@index([incidentId])
+  @@index([requestingJurisdictionId])
+  @@index([targetJurisdictionId])
+  @@map("mutual_aid_requests")
 }
 
 model Assignment {

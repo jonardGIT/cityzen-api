@@ -41,6 +41,25 @@ export interface AllowedIncludes {
   [key: string]: true | AllowedIncludeConfig;
 }
 
+export interface CrudHookResult {
+  data?: Record<string, unknown>;
+}
+
+export interface CrudControllerHooks {
+  buildScopeWhere?: (req: Request, res: Response) => Promise<Record<string, unknown> | null>;
+  beforeCreate?: (
+    req: Request,
+    res: Response,
+    body: Record<string, unknown>,
+  ) => Promise<CrudHookResult | null>;
+  beforeUpdate?: (
+    req: Request,
+    res: Response,
+    body: Record<string, unknown>,
+    existing: Record<string, unknown>,
+  ) => Promise<CrudHookResult | null>;
+}
+
 export interface ContentTypeConfig {
   modelName: string;
   displayName: string;
@@ -51,6 +70,7 @@ export interface ContentTypeConfig {
   foreignKeys?: ForeignKeyValidation[];
   deleteGuards?: DeleteGuard[];
   restoreGuards?: RestoreGuard[];
+  hooks?: CrudControllerHooks;
 }
 
 export interface CrudHandlers {
