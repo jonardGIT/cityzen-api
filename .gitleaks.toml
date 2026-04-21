@@ -1,0 +1,18 @@
+title = "xypes-cirs-api gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Allow known CI placeholder secrets in GitHub workflows"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "line"
+paths = [
+  '''^\.github/workflows/deploy\.yml$''',
+  '''^\.github/workflows/security-checks\.yml$''',
+]
+regexes = [
+  '''JWT_SECRET:\s+(?:ci-jwt-secret-0123456789-abcdef-uvwxyz|test-jwt-value-for-ci-builds-only)''',
+  '''MFA_ENCRYPTION_KEY:\s+(?:ci-mfa-secret-0123456789-abcdef-uvwxyz|test-mfa-value-for-ci-builds-only)''',
+]
