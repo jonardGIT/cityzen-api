@@ -1,0 +1,118 @@
+name: Publish Minified Mirror
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish-mirror:
+    if: github.repository == 'jonardGIT/cityzen-api'
+    runs-on: ubuntu-latest
+    env:
+      TARGET_REPO: Xypes13/xypes-cityzen-api
+
+    steps:
+      - name: Check out source repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Build TypeScript output
+        run: npm run build
+
+      - name: Assemble minified mirror tree
+        env:
+          STAGE_DIR: ${{ runner.temp }}/minified-mirror
+        run: |
+          set -e
+          rm -rf "$STAGE_DIR"
+          mkdir -p "$STAGE_DIR/dist"
+
+          git ls-files -z -- \
+            . \
+            ':(exclude).github/agents/**' \
+            ':(exclude).github/workflows/publish-minified-mirror.yml' \
+            ':(exclude)dist/**' \
+            ':(exclude)docs/private-local/**' \
+            ':(exclude)node_modules/**' \
+            ':(exclude)src/**' \
+            ':(exclude)coverage/**' \
+            ':(exclude)logs/**' \
+            ':(exclude)*.log' \
+            ':(exclude)**/__tests__/**' \
+            | while IFS= read -r -d '' file; do
+              mkdir -p "$STAGE_DIR/$(dirname "$file")"
+              cp "$file" "$STAGE_DIR/$file"
+            done
+
+          find dist -type f | while read -r file; do
+            relative_path="${file#dist/}"
+            output_path="$STAGE_DIR/dist/$relative_path"
+            mkdir -p "$(dirname "$output_path")"
+
+            if [[ "$file" == *.js ]]; then
+              npx terser "$file" --compress --mangle --module --output "$output_path"
+            else
+              cp "$file" "$output_path"
+            fi
+          done
+
+          cat <<'EOF' > "$STAGE_DIR/MIRROR-NOTES.md"
+          This repository is an automated minified mirror generated from jonardGIT/cityzen-api.
+
+          Included here:
+          - minified runtime output from dist/
+          - tracked files from the source repo that are not excluded by the current local-only rules
+          - runtime and support assets copied from the source repo during publish
+
+          Excluded here:
+          - source TypeScript files under src/
+          - local-only files still excluded by the source repository ignore rules
+          - CI, editor, coverage, and test-only working files
+          EOF
+
+      - name: Publish to Xypes13 mirror repository
+        env:
+          MIRROR_PUSH_TOKEN: ${{ secrets['XYPES_MIRROR_TOKEN'] }}
+          STAGE_DIR: ${{ runner.temp }}/minified-mirror
+          TARGET_BRANCH: ${{ github.ref_name }}
+        run: |
+          set -e
+
+          if [[ -z "$MIRROR_PUSH_TOKEN" ]]; then
+            echo "XYPES_MIRROR_TOKEN is required to publish the minified mirror."
+            exit 1
+          fi
+
+          cd "$STAGE_DIR"
+          git init
+          git checkout -b "$TARGET_BRANCH"
+          git config user.name "Xypes13"
+          git config user.email "tech@xypes.com"
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No mirror changes to publish."
+            exit 0
+          fi
+
+          git commit -m "Publish minified mirror from ${GITHUB_SHA}"
+          git remote add origin "https://x-access-token:${MIRROR_PUSH_TOKEN}@github.com/${TARGET_REPO}.git"
+          git push --force origin "$TARGET_BRANCH"

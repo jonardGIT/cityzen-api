@@ -20,7 +20,6 @@ logs/
 .env.example
 .env.test
 ecosystem.config.cjs
-ecosystem.config.example.cjs
 
 # OS files
 .DS_Store
@@ -41,17 +40,8 @@ Thumbs.db
 coverage/
 .nyc_output/
 
-# Unrelated/testing/dev files and folders
+# Local-only and generated files
 api-audit-report.txt
-src/__tests__/
-scripts/*
-!scripts/runJestWithTestDb.js
-!scripts/runTestDbCompose.sh
-postman/
-prisma/
-docs/*
 docs/private-local/
-!docs/dashboard-crud-config.json
-!docs/dashboard-crud-config.flat.json
 .vscode/
 .github/agents/

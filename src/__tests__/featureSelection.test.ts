@@ -1,4 +1,4 @@
-import { createOpenApiDocument } from '../docs/openapi.js';
+import { createOpenApiDocument } from '../docs/openapi';
 import { getFeatureSelectionForTests, type FeatureSelection } from '../featureSelection.js';
 
 function createSelection(overrides: Partial<FeatureSelection>): FeatureSelection {
