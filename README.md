@@ -14,3 +14,7 @@ Primary functional areas include:
 - audit-aware administrative operations
 - geography and reference-data resources
 - citizen and mobile-facing API support
+
+## Deployment
+
+Droplet deployment through GitHub Actions is documented in [docs/droplet-deploy-setup.md](docs/droplet-deploy-setup.md).
