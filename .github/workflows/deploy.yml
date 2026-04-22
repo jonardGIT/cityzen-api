@@ -70,7 +70,14 @@ jobs:
             if [[ ! -f ecosystem.config.cjs ]]; then
               cp ecosystem.config.example.cjs ecosystem.config.cjs
             fi
-            git pull --ff-only origin main
+            git fetch origin main
+            git checkout main
+            git reset --hard origin/main
+            git clean -fd \
+              --exclude=ecosystem.config.cjs \
+              --exclude=.env \
+              --exclude=.env.production \
+              --exclude=.env.local
             npm ci
             node --check dist/server.js
             pm2 startOrRestart ecosystem.config.cjs --env production
