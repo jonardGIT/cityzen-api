@@ -86,8 +86,11 @@ jobs:
           if git ls-remote --exit-code --heads "$MIRROR_REMOTE" "$TARGET_BRANCH" >/dev/null 2>&1; then
             git clone --branch "$TARGET_BRANCH" --single-branch "$MIRROR_REMOTE" "$PUBLISH_DIR"
           else
-            git clone "$MIRROR_REMOTE" "$PUBLISH_DIR"
+            git clone --no-checkout "$MIRROR_REMOTE" "$PUBLISH_DIR"
             cd "$PUBLISH_DIR"
+            if git show-ref --verify --quiet "refs/heads/$TARGET_BRANCH"; then
+              git branch -D "$TARGET_BRANCH"
+            fi
             git checkout --orphan "$TARGET_BRANCH"
             git rm -rf . >/dev/null 2>&1 || true
           fi

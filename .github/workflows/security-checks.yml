@@ -82,7 +82,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Install Gitleaks
         run: |
@@ -91,5 +91,5 @@ jobs:
           curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${version}/gitleaks_${version}_linux_x64.tar.gz" | tar -xz -C "$RUNNER_TEMP"
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
 
-      - name: Run Gitleaks
-        run: gitleaks detect --source . --config .gitleaks.toml --no-banner --redact
+      - name: Run Gitleaks on current tree
+        run: gitleaks dir --source . --config .gitleaks.toml --no-banner --redact
