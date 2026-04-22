@@ -7,7 +7,7 @@ on:
 
 jobs:
   verify:
-    if: github.repository == 'Xypes13/xypes-cirs-api'
+    if: github.repository == 'Xypes13/xypes-cityzen-api'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -87,7 +87,7 @@ jobs:
         run: npm audit --omit=dev --audit-level=critical
 
   deploy:
-    if: github.repository == 'Xypes13/xypes-cirs-api'
+    if: github.repository == 'Xypes13/xypes-cityzen-api'
     needs: verify
     runs-on: ubuntu-latest
     environment: production

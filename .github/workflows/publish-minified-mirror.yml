@@ -41,12 +41,15 @@ jobs:
         run: |
           set -e
           rm -rf "$STAGE_DIR"
-          mkdir -p "$STAGE_DIR/dist" "$STAGE_DIR/prisma"
+          mkdir -p "$STAGE_DIR/.github/workflows" "$STAGE_DIR/dist" "$STAGE_DIR/prisma"
 
           cp package.json "$STAGE_DIR/package.json"
           cp package-lock.json "$STAGE_DIR/package-lock.json"
           cp README.md "$STAGE_DIR/README.md"
           cp prisma/schema.prisma "$STAGE_DIR/prisma/schema.prisma"
+          cp .github/workflows/codeql-analysis.yml "$STAGE_DIR/.github/workflows/codeql-analysis.yml"
+          cp .github/workflows/security-checks.yml "$STAGE_DIR/.github/workflows/security-checks.yml"
+          cp .github/workflows/deploy.yml "$STAGE_DIR/.github/workflows/deploy.yml"
 
           npx esbuild src/server.ts \
             --bundle \

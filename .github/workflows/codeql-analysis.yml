@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   analyze:
-    if: github.repository == 'Xypes13/xypes-cirs-api'
+    if: github.repository == 'Xypes13/xypes-cityzen-api'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

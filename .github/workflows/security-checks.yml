@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   dependency-review:
-    if: github.repository == 'Xypes13/xypes-cirs-api' && github.event_name == 'pull_request'
+    if: github.repository == 'Xypes13/xypes-cityzen-api' && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Explain current dependency review mode
@@ -36,7 +36,7 @@ jobs:
         uses: actions/dependency-review-action@v4
 
   build-and-audit:
-    if: github.repository == 'Xypes13/xypes-cirs-api'
+    if: github.repository == 'Xypes13/xypes-cityzen-api'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -101,7 +101,7 @@ jobs:
         run: npm audit --omit=dev --audit-level=critical
 
   secret-scan:
-    if: github.repository == 'Xypes13/xypes-cirs-api'
+    if: github.repository == 'Xypes13/xypes-cityzen-api'
     runs-on: ubuntu-latest
     permissions:
       contents: read
