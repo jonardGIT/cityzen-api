@@ -68,6 +68,7 @@ jobs:
         env:
           COMMIT_MESSAGE_FILE: ${{ runner.temp }}/mirror-commit-message.txt
           MIRROR_PUSH_TOKEN: ${{ secrets['XYPES_MIRROR_TOKEN'] }}
+          PUBLISH_DIR: ${{ runner.temp }}/mirror-publish
           STAGE_DIR: ${{ runner.temp }}/minified-mirror
           TARGET_BRANCH: ${{ github.ref_name }}
         run: |
@@ -78,9 +79,22 @@ jobs:
             exit 1
           fi
 
-          cd "$STAGE_DIR"
-          git init
-          git checkout -b "$TARGET_BRANCH"
+          rm -rf "$PUBLISH_DIR"
+
+          MIRROR_REMOTE="https://x-access-token:${MIRROR_PUSH_TOKEN}@github.com/${TARGET_REPO}.git"
+
+          if git ls-remote --exit-code --heads "$MIRROR_REMOTE" "$TARGET_BRANCH" >/dev/null 2>&1; then
+            git clone --branch "$TARGET_BRANCH" --single-branch "$MIRROR_REMOTE" "$PUBLISH_DIR"
+          else
+            git clone "$MIRROR_REMOTE" "$PUBLISH_DIR"
+            cd "$PUBLISH_DIR"
+            git checkout --orphan "$TARGET_BRANCH"
+            git rm -rf . >/dev/null 2>&1 || true
+          fi
+
+          rsync -a --delete --exclude '.git/' "$STAGE_DIR/" "$PUBLISH_DIR/"
+
+          cd "$PUBLISH_DIR"
           git config user.name "Xypes13"
           git config user.email "tech@xypes.com"
           git add -A
@@ -91,5 +105,4 @@ jobs:
           fi
 
           git commit -F "$COMMIT_MESSAGE_FILE"
-          git remote add origin "https://x-access-token:${MIRROR_PUSH_TOKEN}@github.com/${TARGET_REPO}.git"
-          git push --force origin "$TARGET_BRANCH"
+          git push origin "$TARGET_BRANCH"
