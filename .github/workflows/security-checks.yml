@@ -35,6 +35,42 @@ jobs:
         if: github.event.repository.private == false || vars.ENABLE_GITHUB_DEPENDENCY_REVIEW == 'true'
         uses: actions/dependency-review-action@v4
 
+  source-tests:
+    if: github.repository == 'jonardGIT/cityzen-api'
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/xypes_test?schema=public
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/xypes_test?schema=public
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: xypes_test
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d xypes_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run source test suite
+        run: npm test
+
   build-and-audit:
     if: github.repository == 'Xypes13/xypes-cityzen-api' || github.repository == 'jonardGIT/cityzen-api'
     runs-on: ubuntu-latest
