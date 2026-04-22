@@ -88,6 +88,7 @@ jobs:
           else
             git clone --no-checkout "$MIRROR_REMOTE" "$PUBLISH_DIR"
             cd "$PUBLISH_DIR"
+            git checkout --detach
             if git show-ref --verify --quiet "refs/heads/$TARGET_BRANCH"; then
               git branch -D "$TARGET_BRANCH"
             fi

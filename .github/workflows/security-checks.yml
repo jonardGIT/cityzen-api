@@ -92,4 +92,4 @@ jobs:
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
 
       - name: Run Gitleaks on current tree
-        run: gitleaks dir --source . --config .gitleaks.toml --no-banner --redact
+        run: gitleaks dir . --config .gitleaks.toml --no-banner --redact
