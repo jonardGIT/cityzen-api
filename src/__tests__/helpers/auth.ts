@@ -42,14 +42,28 @@ export async function getAdminToken(): Promise<string> {
 }
 
 export async function getTokenForRole(email: string): Promise<string> {
-  const response = await request(app).post(`${API_V1}/auth/login`).send({
-    email,
-    password: 'Password123!',
-  });
+  let lastStatus: number | null = null;
+  let lastMessage = 'Unknown login failure';
 
-  if (response.status === 200 && response.body?.token) {
-    return response.body.token as string;
+  for (let attempt = 1; attempt <= MAX_LOGIN_ATTEMPTS; attempt += 1) {
+    const response = await request(app).post(`${API_V1}/auth/login`).send({
+      email,
+      password: 'Password123!',
+    });
+
+    if (response.status === 200 && response.body?.token) {
+      return response.body.token as string;
+    }
+
+    lastStatus = response.status;
+    lastMessage = response.body?.message ?? response.text ?? 'Login request failed';
+
+    if (attempt < MAX_LOGIN_ATTEMPTS) {
+      await wait(RETRY_DELAY_MS * attempt);
+    }
   }
 
-  throw new Error(`Login failed for ${email}: ${response.status} ${response.body?.message ?? ''}`);
+  throw new Error(
+    `Login failed for ${email} after ${MAX_LOGIN_ATTEMPTS} attempts: ${lastStatus ?? 'no status'} ${lastMessage}`,
+  );
 }

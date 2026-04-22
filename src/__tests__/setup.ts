@@ -25,19 +25,119 @@ clearAmbientFeatureFlags();
 
 const TEST_PASSWORD = 'Password123!';
 
+async function ensureDefaultGeographyFixtures() {
+  const { default: prisma } = await import('../lib/prisma.js');
+
+  const region = await prisma.region.upsert({
+    where: { code: '020000000' },
+    update: { name: 'Cagayan Valley', designation: 'Region II', archivedAt: null },
+    create: { code: '020000000', name: 'Cagayan Valley', designation: 'Region II' },
+    select: { id: true },
+  });
+
+  const [isabelaProvince, cagayanProvince] = await Promise.all([
+    prisma.province.upsert({
+      where: { code: '023100000' },
+      update: { name: 'Isabela', regionId: region.id, archivedAt: null },
+      create: { code: '023100000', name: 'Isabela', regionId: region.id },
+      select: { id: true },
+    }),
+    prisma.province.upsert({
+      where: { code: '021500000' },
+      update: { name: 'Cagayan', regionId: region.id, archivedAt: null },
+      create: { code: '021500000', name: 'Cagayan', regionId: region.id },
+      select: { id: true },
+    }),
+  ]);
+
+  const [ilaganCity, tuguegaraoCity] = await Promise.all([
+    prisma.cityMunicipality.upsert({
+      where: { code: '023101000' },
+      update: {
+        name: 'Ilagan City',
+        type: 'CITY',
+        provinceId: isabelaProvince.id,
+        archivedAt: null,
+      },
+      create: {
+        code: '023101000',
+        name: 'Ilagan City',
+        type: 'CITY',
+        provinceId: isabelaProvince.id,
+      },
+      select: { id: true },
+    }),
+    prisma.cityMunicipality.upsert({
+      where: { code: '021529000' },
+      update: {
+        name: 'Tuguegarao City',
+        type: 'CITY',
+        provinceId: cagayanProvince.id,
+        archivedAt: null,
+      },
+      create: {
+        code: '021529000',
+        name: 'Tuguegarao City',
+        type: 'CITY',
+        provinceId: cagayanProvince.id,
+      },
+      select: { id: true },
+    }),
+  ]);
+
+  await Promise.all([
+    prisma.barangay.upsert({
+      where: { code: '023101001' },
+      update: { name: 'San Felipe', cityMunicipalityId: ilaganCity.id, archivedAt: null },
+      create: { code: '023101001', name: 'San Felipe', cityMunicipalityId: ilaganCity.id },
+      select: { id: true },
+    }),
+    prisma.barangay.upsert({
+      where: { code: '021529001' },
+      update: { name: 'Centro 01', cityMunicipalityId: tuguegaraoCity.id, archivedAt: null },
+      create: { code: '021529001', name: 'Centro 01', cityMunicipalityId: tuguegaraoCity.id },
+      select: { id: true },
+    }),
+  ]);
+
+  return { ilaganCityId: ilaganCity.id, tuguegaraoCityId: tuguegaraoCity.id };
+}
+
 async function seedTestUsers(): Promise<void> {
   const { default: prisma } = await import('../lib/prisma.js');
   const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
+  const { ilaganCityId, tuguegaraoCityId } = await ensureDefaultGeographyFixtures();
 
   const users = [
     { name: 'System Admin', email: 'admin@xypes.local', role: 'NATIONAL_ADMIN' },
-    { name: 'Ops Lead', email: 'ops.lead@xypes.local', role: 'CITY_ADMIN' },
+    {
+      name: 'Ops Lead',
+      email: 'ops.lead@xypes.local',
+      role: 'CITY_ADMIN',
+      jurisdictionType: 'city',
+      jurisdictionId: ilaganCityId,
+    },
     {
       name: 'City Content Editor',
       email: 'content.editor@xypes.local',
       role: 'CITY_CONTENT_EDITOR',
+      jurisdictionType: 'city',
+      jurisdictionId: ilaganCityId,
     },
-    { name: 'Dispatcher', email: 'dispatcher@xypes.local', role: 'DISPATCHER' },
+    {
+      name: 'Dispatcher',
+      email: 'dispatcher@xypes.local',
+      role: 'DISPATCHER',
+      jurisdictionType: 'city',
+      jurisdictionId: ilaganCityId,
+    },
+    {
+      name: 'Tuguegarao City Admin',
+      email: 'tuguegarao.city.admin@xypes.local',
+      role: 'CITY_ADMIN',
+      jurisdictionType: 'city',
+      jurisdictionId: tuguegaraoCityId,
+    },
     { name: 'Supervisor', email: 'supervisor@xypes.local', role: 'PROVINCIAL_ADMIN' },
     { name: 'Responder', email: 'responder@xypes.local', role: 'RESPONDER' },
     { name: 'Analyst', email: 'analyst@xypes.local', role: 'CITIZEN_REPORTER' },
@@ -52,6 +152,8 @@ async function seedTestUsers(): Promise<void> {
         role: user.role,
         passwordHash,
         archivedAt: null,
+        jurisdictionType: user.jurisdictionType ?? null,
+        jurisdictionId: user.jurisdictionId ?? null,
         mfaEnabled: false,
         mfaSecretEncrypted: null,
         mfaEnabledAt: null,
@@ -61,6 +163,8 @@ async function seedTestUsers(): Promise<void> {
         email: user.email,
         role: user.role,
         passwordHash,
+        jurisdictionType: user.jurisdictionType ?? null,
+        jurisdictionId: user.jurisdictionId ?? null,
         mfaEnabled: false,
         mfaSecretEncrypted: null,
         mfaEnabledAt: null,
