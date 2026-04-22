@@ -17,6 +17,7 @@ logs/
 .env.production
 .env.local
 .env.*.local
+.env.example
 ecosystem.config.cjs
 
 # OS files
@@ -39,6 +40,7 @@ coverage/
 .nyc_output/
 
 # Unrelated/testing/dev files and folders
+api-audit-report.txt
 src/__tests__/
 scripts/*
 !scripts/runJestWithTestDb.js
@@ -46,7 +48,7 @@ scripts/*
 postman/
 prisma/
 docs/*
-!docs/dashboard-*.md
+docs/private-local/
 !docs/dashboard-crud-config.json
 !docs/dashboard-crud-config.flat.json
 .vscode/

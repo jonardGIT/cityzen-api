@@ -51,6 +51,28 @@ function buildIncidentLocationSnapshot() {
   };
 }
 
+async function ensureTuguegaraoCityScope() {
+  const region = await prisma.region.upsert({
+    where: { code: '020000000' },
+    update: { name: 'Cagayan Valley', designation: 'Region II', archivedAt: null },
+    create: { code: '020000000', name: 'Cagayan Valley', designation: 'Region II' },
+  });
+
+  const province = await prisma.province.upsert({
+    where: { code: '021500000' },
+    update: { name: 'Cagayan', regionId: region.id, archivedAt: null },
+    create: { code: '021500000', name: 'Cagayan', regionId: region.id },
+  });
+
+  const city = await prisma.cityMunicipality.upsert({
+    where: { code: '021529000' },
+    update: { name: 'Tuguegarao City', type: 'CITY', provinceId: province.id, archivedAt: null },
+    create: { code: '021529000', name: 'Tuguegarao City', type: 'CITY', provinceId: province.id },
+  });
+
+  return { city };
+}
+
 async function createCategory(adminToken: string) {
   const response = await request(app)
     .post(`${API_V1}/categories`)
@@ -321,6 +343,7 @@ describe('Audit log persistence', () => {
   });
 
   it('forwards a security alert when a privileged user account is created', async () => {
+    const { city } = await ensureTuguegaraoCityScope();
     process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
     const fetchMock = mockSecurityAlertFetch();
 
@@ -332,6 +355,8 @@ describe('Audit log persistence', () => {
         email: `alert.dispatcher.${Date.now()}@postman.local`,
         password: 'Password1234!@#',
         role: 'DISPATCHER',
+        jurisdictionType: 'city',
+        jurisdictionId: city.id,
       });
 
     expect(createRes.status).toBe(201);
@@ -803,6 +828,7 @@ describe('Audit log persistence', () => {
   });
 
   it('forwards critical alerts for privileged role changes and archives', async () => {
+    const { city } = await ensureTuguegaraoCityScope();
     process.env.SECURITY_ALERT_WEBHOOK_URL = 'https://monitoring.example.test/security-alerts';
     process.env.SECURITY_ALERT_PRIVILEGED_USER_CHANGE_THRESHOLD = '99';
     const fetchMock = mockSecurityAlertFetch();
@@ -815,6 +841,8 @@ describe('Audit log persistence', () => {
         email: `role.change.${Date.now()}@postman.local`,
         password: 'Password1234!@#',
         role: 'CITIZEN_REPORTER',
+        jurisdictionType: 'city',
+        jurisdictionId: city.id,
       });
 
     expect(createRes.status).toBe(201);
@@ -875,6 +903,7 @@ describe('Audit log persistence', () => {
       },
     });
 
+    const { city } = await ensureTuguegaraoCityScope();
     const fetchMock = mockSecurityAlertFetch();
 
     const restoreRes = await request(app)
@@ -924,6 +953,7 @@ describe('Audit log persistence', () => {
 
     const unique = Date.now();
     const actorEmail = `burst.manager.${unique}@postman.local`;
+    const { city } = await ensureTuguegaraoCityScope();
 
     await prisma.user.create({
       data: {
@@ -931,6 +961,8 @@ describe('Audit log persistence', () => {
         email: actorEmail,
         passwordHash: await bcrypt.hash('Password123!', 10),
         role: 'CITY_ADMIN',
+        jurisdictionType: 'city',
+        jurisdictionId: city.id,
         mfaEnabled: false,
         mfaSecretEncrypted: null,
         mfaEnabledAt: null,
@@ -954,6 +986,8 @@ describe('Audit log persistence', () => {
         email: `burst.dispatcher.a.${unique}@postman.local`,
         password: 'Password1234!@#',
         role: 'DISPATCHER',
+        jurisdictionType: 'city',
+        jurisdictionId: city.id,
       });
     const secondCreate = await request(app)
       .post(`${API_V1}/users`)
@@ -963,6 +997,8 @@ describe('Audit log persistence', () => {
         email: `burst.dispatcher.b.${unique}@postman.local`,
         password: 'Password1234!@#',
         role: 'DISPATCHER',
+        jurisdictionType: 'city',
+        jurisdictionId: city.id,
       });
     const thirdCreate = await request(app)
       .post(`${API_V1}/users`)
@@ -972,6 +1008,8 @@ describe('Audit log persistence', () => {
         email: `burst.dispatcher.c.${unique}@postman.local`,
         password: 'Password1234!@#',
         role: 'DISPATCHER',
+        jurisdictionType: 'city',
+        jurisdictionId: city.id,
       });
 
     expect(firstCreate.status).toBe(201);

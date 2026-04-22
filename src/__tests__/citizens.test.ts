@@ -157,7 +157,7 @@ describe(`PATCH ${BASE}/:id`, () => {
 
   it('should return 404 for non-existent id', async () => {
     const res = await request(app)
-      .patch(`${BASE}/00000000-0000-0000-0000-000000000099`)
+      .patch(`${BASE}/00000000-0000-4000-8000-000000000099`)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ name: 'Ghost' });
     expect(res.status).toBe(404);
@@ -202,7 +202,7 @@ describe(`DELETE ${BASE}/:id`, () => {
 
   it('should return 404 for non-existent id', async () => {
     const res = await request(app)
-      .delete(`${BASE}/00000000-0000-0000-0000-000000000099`)
+      .delete(`${BASE}/00000000-0000-4000-8000-000000000099`)
       .set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).toBe(404);
   });

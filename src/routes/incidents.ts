@@ -1,4 +1,5 @@
 import { Router, type Request } from 'express';
+import { param } from 'express-validator';
 import {
   createCitizenIncidentReport,
   createIncident,
@@ -19,6 +20,7 @@ import { validateRequest } from '../middleware/validateRequest.js';
 import {
   createCitizenIncidentReportValidator,
   createIncidentValidator,
+  isPostgresUuid,
   uploadIncidentMediaValidator,
   updateIncidentValidator,
 } from '../validators/bodyValidators.js';
@@ -65,6 +67,19 @@ const PHASE_ONE_TRUST_TIMELINE_READ_ROLES = [
   'PROVINCIAL_ADMIN',
   'NATIONAL_ADMIN',
 ] as const;
+const incidentIdValidators = [
+  param('id')
+    .custom((value) => isPostgresUuid(value))
+    .withMessage('id must be a valid UUID'),
+];
+const incidentMediaParamValidators = [
+  param('id')
+    .custom((value) => isPostgresUuid(value))
+    .withMessage('id must be a valid UUID'),
+  param('mediaId')
+    .custom((value) => isPostgresUuid(value))
+    .withMessage('mediaId must be a valid UUID'),
+];
 
 router.get(
   '/',
@@ -88,6 +103,8 @@ router.get(
   '/audit/:id',
   requireJwtAuth,
   requireRole('AUDITOR'),
+  ...incidentIdValidators,
+  validateRequest,
   asyncHandler(getAuditorIncidentById),
 );
 
@@ -107,6 +124,8 @@ router.get(
   '/:id/media/:mediaId',
   requireJwtAuth,
   requireRole(...STANDARD_INCIDENT_READ_ROLES),
+  ...incidentMediaParamValidators,
+  validateRequest,
   asyncHandler(getIncidentMediaAccess),
 );
 router.get(
@@ -121,6 +140,8 @@ router.get(
   '/:id',
   requireJwtAuth,
   requireRole(...STANDARD_INCIDENT_READ_ROLES),
+  ...incidentIdValidators,
+  validateRequest,
   asyncHandler(getIncidentById),
 );
 router.post(
@@ -143,6 +164,7 @@ router.patch(
   '/:id',
   requireJwtAuth,
   requireRole(...INCIDENT_WRITE_ROLES),
+  ...incidentIdValidators,
   updateIncidentValidator,
   validateRequest,
   asyncHandler(updateIncident),
@@ -151,6 +173,8 @@ router.delete(
   '/:id',
   requireJwtAuth,
   requireRole(...INCIDENT_WRITE_ROLES),
+  ...incidentIdValidators,
+  validateRequest,
   asyncHandler(deleteIncident),
 );
 
@@ -159,6 +183,8 @@ if (isArchiveEnabled()) {
     '/:id/restore',
     requireJwtAuth,
     requireRole(...INCIDENT_WRITE_ROLES),
+    ...incidentIdValidators,
+    validateRequest,
     asyncHandler(restoreIncident),
   );
 }

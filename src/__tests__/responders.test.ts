@@ -143,7 +143,7 @@ describe(`GET ${BASE}/:id`, () => {
   });
 
   it('should return 404 for a non-existent id', async () => {
-    const nonExistentId = '00000000-0000-0000-0000-000000006099';
+    const nonExistentId = '00000000-0000-4000-8000-000000006099';
     const res = await request(app)
       .get(`${BASE}/${nonExistentId}`)
       .set('Authorization', `Bearer ${dispatcherToken}`);
@@ -183,7 +183,7 @@ describe(`POST ${BASE}`, () => {
   it('should return 422 when agencyId does not reference a valid Agency', async () => {
     const res = await request(app).post(BASE).set('Authorization', `Bearer ${adminToken}`).send({
       name: 'Responder A',
-      agencyId: '00000000-0000-0000-0000-000000000099', // valid UUID, not in DB
+      agencyId: '00000000-0000-4000-8000-000000000099', // valid UUID, not in DB
       role: 'Medic',
       contactInfo: 'responder@gov.com',
     });
@@ -243,7 +243,7 @@ describe(`PATCH ${BASE}/:id`, () => {
 
   it('should return 404 for non-existent id', async () => {
     const res = await request(app)
-      .patch(`${BASE}/00000000-0000-0000-0000-000000000099`)
+      .patch(`${BASE}/00000000-0000-4000-8000-000000000099`)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ name: 'Ghost' });
     expect(res.status).toBe(404);
@@ -274,7 +274,7 @@ describe(`DELETE ${BASE}/:id`, () => {
 
   it('should return 404 for non-existent id', async () => {
     const res = await request(app)
-      .delete(`${BASE}/00000000-0000-0000-0000-000000000099`)
+      .delete(`${BASE}/00000000-0000-4000-8000-000000000099`)
       .set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).toBe(404);
   });

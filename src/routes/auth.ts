@@ -1,4 +1,5 @@
 import { Router, type Request } from 'express';
+import { param } from 'express-validator';
 import {
   confirmPasswordReset,
   disableMfa,
@@ -19,8 +20,10 @@ import { isAnyMfaFeatureEnabled, isSessionInventoryFeatureEnabled } from '../fea
 import { createEnvRateLimitMiddleware } from '../middleware/rateLimit.js';
 import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
+import { validateRequest } from '../middleware/validateRequest.js';
 import { MFA_REQUIRED_ROLES } from '../types/auth.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { isPostgresUuid } from '../validators/bodyValidators.js';
 import { normalizeMobileNumber } from '../utils/mobileAuth.js';
 
 const router = Router();
@@ -52,6 +55,14 @@ const loginRateLimit = createEnvRateLimitMiddleware({
   scope: 'auth-login',
   windowMsEnvVar: 'AUTH_LOGIN_RATE_LIMIT_WINDOW_MS',
   maxRequestsEnvVar: 'AUTH_LOGIN_RATE_LIMIT_MAX_REQUESTS',
+  defaultWindowMs: 60_000,
+  defaultMaxRequests: 5,
+  keyGenerator: buildEmailScopedKey,
+});
+const registerRateLimit = createEnvRateLimitMiddleware({
+  scope: 'auth-register',
+  windowMsEnvVar: 'AUTH_REGISTER_RATE_LIMIT_WINDOW_MS',
+  maxRequestsEnvVar: 'AUTH_REGISTER_RATE_LIMIT_MAX_REQUESTS',
   defaultWindowMs: 60_000,
   defaultMaxRequests: 5,
   keyGenerator: buildEmailScopedKey,
@@ -120,8 +131,13 @@ const mfaDisableRateLimit = createEnvRateLimitMiddleware({
   defaultMaxRequests: 10,
   keyGenerator: buildAuthenticatedUserScopedKey,
 });
+const sessionIdValidators = [
+  param('id')
+    .custom((value) => isPostgresUuid(value))
+    .withMessage('id must be a valid UUID'),
+];
 
-router.post('/register', asyncHandler(register));
+router.post('/register', registerRateLimit, asyncHandler(register));
 router.post('/mobile/register', mobileRegisterRateLimit, asyncHandler(registerMobileCitizen));
 router.post('/login', loginRateLimit, asyncHandler(login));
 router.post('/mobile/login', mobileLoginRateLimit, asyncHandler(loginMobileCitizen));
@@ -140,7 +156,13 @@ router.get('/me', requireJwtAuth, asyncHandler(me));
 
 if (isSessionInventoryFeatureEnabled()) {
   router.get('/sessions', requireJwtAuth, asyncHandler(listSessions));
-  router.delete('/sessions/:id', requireJwtAuth, asyncHandler(revokeSession));
+  router.delete(
+    '/sessions/:id',
+    requireJwtAuth,
+    ...sessionIdValidators,
+    validateRequest,
+    asyncHandler(revokeSession),
+  );
 }
 
 router.post('/logout', requireJwtAuth, asyncHandler(logout));

@@ -100,7 +100,7 @@ export async function resolveJurisdictionScope(
       select: { type: true, provinceId: true, province: { select: { regionId: true } } },
     });
 
-    if (!city || city.type !== 'CITY') {
+    if (!city || (city.type !== 'CITY' && city.type !== 'MUNICIPALITY')) {
       return { type: 'own' };
     }
 

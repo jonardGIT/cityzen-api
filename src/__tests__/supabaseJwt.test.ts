@@ -198,6 +198,9 @@ describe('Supabase JWT mode', () => {
   });
 
   it('rejects mobile login when Supabase JWT mode is enabled', async () => {
+    const unique = Date.now();
+    const mobileNumber = `+63917${unique.toString().slice(-7).padStart(7, '0')}`;
+    const rawMobileNumber = `0${mobileNumber.slice(3)}`;
     const passwordHash = await import('bcryptjs').then(({ default: bcrypt }) =>
       bcrypt.hash('Password123!', 10),
     );
@@ -205,8 +208,8 @@ describe('Supabase JWT mode', () => {
     await prisma.user.create({
       data: {
         name: 'Mobile Login Citizen',
-        email: 'mobile.login@xypes.local',
-        mobileNumber: '+639179998888',
+        email: `mobile.login.${unique}@xypes.local`,
+        mobileNumber,
         mobileNumberVerifiedAt: new Date(),
         passwordHash,
         role: 'CITIZEN_REPORTER',
@@ -214,7 +217,7 @@ describe('Supabase JWT mode', () => {
     });
 
     const response = await request(app).post(`${API_V1}/auth/mobile/login`).send({
-      mobileNumber: '09179998888',
+      mobileNumber: rawMobileNumber,
       password: 'Password123!',
     });
 

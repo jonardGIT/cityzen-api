@@ -1,5 +1,6 @@
 import request from 'supertest';
 import app, { API_V1 } from '../app.js';
+import prisma from '../lib/prisma.js';
 import { getAdminToken, getTokenForRole } from './helpers/auth.js';
 import {
   buildIncidentLocationSnapshot,
@@ -16,11 +17,89 @@ jest.setTimeout(120000);
 const BASE = `${API_V1}/assignments`;
 let adminToken = '';
 let dispatcherToken = '';
+let cityAdminToken = '';
+let tuguegaraoCityAdminToken = '';
+let ilaganCityId = '';
+let tuguegaraoCityId = '';
+let ilaganBarangayName = '';
+let tuguegaraoBarangayName = '';
 
 beforeAll(async () => {
   adminToken = await getAdminToken();
   dispatcherToken = await getTokenForRole('dispatcher@xypes.local');
+  cityAdminToken = await getTokenForRole('ops.lead@xypes.local');
+  tuguegaraoCityAdminToken = await getTokenForRole('tuguegarao.city.admin@xypes.local');
+
+  const [ilaganCity, tuguegaraoCity, ilaganBarangay, tuguegaraoBarangay] = await Promise.all([
+    prisma.cityMunicipality.findFirst({
+      where: { name: 'Ilagan City', archivedAt: null },
+      select: { id: true },
+    }),
+    prisma.cityMunicipality.findFirst({
+      where: { name: 'Tuguegarao City', archivedAt: null },
+      select: { id: true },
+    }),
+    prisma.barangay.findFirst({
+      where: {
+        archivedAt: null,
+        cityMunicipality: { name: 'Ilagan City', archivedAt: null },
+      },
+      select: { name: true },
+    }),
+    prisma.barangay.findFirst({
+      where: {
+        archivedAt: null,
+        cityMunicipality: { name: 'Tuguegarao City', archivedAt: null },
+      },
+      select: { name: true },
+    }),
+  ]);
+
+  expect(ilaganCity).not.toBeNull();
+  expect(tuguegaraoCity).not.toBeNull();
+  expect(ilaganBarangay).not.toBeNull();
+  expect(tuguegaraoBarangay).not.toBeNull();
+
+  ilaganCityId = ilaganCity!.id;
+  tuguegaraoCityId = tuguegaraoCity!.id;
+  ilaganBarangayName = ilaganBarangay!.name;
+  tuguegaraoBarangayName = tuguegaraoBarangay!.name;
 });
+
+beforeEach(async () => {
+  await prisma.user.update({
+    where: { email: 'dispatcher@xypes.local' },
+    data: { jurisdictionType: 'city', jurisdictionId: ilaganCityId, archivedAt: null },
+  });
+
+  await prisma.user.update({
+    where: { email: 'ops.lead@xypes.local' },
+    data: { jurisdictionType: 'city', jurisdictionId: ilaganCityId, archivedAt: null },
+  });
+
+  await prisma.user.update({
+    where: { email: 'tuguegarao.city.admin@xypes.local' },
+    data: { jurisdictionType: 'city', jurisdictionId: tuguegaraoCityId, archivedAt: null },
+  });
+});
+
+function buildIlaganIncidentLocationSnapshot() {
+  return {
+    ...buildIncidentLocationSnapshot(),
+    cityName: 'Ilagan City',
+    provinceName: 'Isabela',
+    barangay: ilaganBarangayName,
+  };
+}
+
+function buildTuguegaraoIncidentLocationSnapshot() {
+  return {
+    ...buildIncidentLocationSnapshot(),
+    cityName: 'Tuguegarao City',
+    provinceName: 'Cagayan',
+    barangay: tuguegaraoBarangayName,
+  };
+}
 
 describe(`GET ${BASE}`, () => {
   it('should return 200 with array', async () => {
@@ -63,7 +142,7 @@ describe(`GET ${BASE}/:id`, () => {
         citizenId,
         categoryId,
         severityId,
-        ...buildIncidentLocationSnapshot(),
+        ...buildIlaganIncidentLocationSnapshot(),
       });
     incidentId = incidentRes.body.id;
 
@@ -93,6 +172,13 @@ describe(`GET ${BASE}/:id`, () => {
       .get(`${BASE}/${unknownId}`)
       .set('Authorization', `Bearer ${dispatcherToken}`);
     expect(res.status).toBe(404);
+  });
+
+  it('should return 400 for invalid id format', async () => {
+    const res = await request(app)
+      .get(`${BASE}/not-a-real-uuid`)
+      .set('Authorization', `Bearer ${dispatcherToken}`);
+    expect(res.status).toBe(400);
   });
 });
 
@@ -137,6 +223,46 @@ describe(`POST ${BASE}`, () => {
       .send({ incidentId, responderId });
     expect(res.status).toBe(403);
   });
+
+  it('should return 403 when a dispatcher assigns across city scope', async () => {
+    const statusId = await getStatusId(tuguegaraoCityAdminToken);
+    const citizenId = await createCitizen(adminToken);
+    const categoryId = await createCategory(adminToken);
+    const severityId = await createSeverity(adminToken);
+
+    const incidentRes = await request(app)
+      .post(`${API_V1}/incidents`)
+      .set('Authorization', `Bearer ${tuguegaraoCityAdminToken}`)
+      .send({
+        description: 'Out of scope assignment incident',
+        statusId,
+        citizenId,
+        categoryId,
+        severityId,
+        ...buildTuguegaraoIncidentLocationSnapshot(),
+      });
+
+    expect(incidentRes.status).toBe(201);
+
+    const agencyId = await createAgency(adminToken);
+    await prisma.agency.update({
+      where: { id: agencyId },
+      data: {
+        cityMunicipalityId: tuguegaraoCityId,
+        jurisdictionType: 'city',
+        jurisdictionId: tuguegaraoCityId,
+      },
+    });
+    const scopedResponderId = await createResponder(adminToken, agencyId);
+
+    const res = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${dispatcherToken}`)
+      .send({ incidentId: incidentRes.body.id, responderId: scopedResponderId });
+
+    expect(res.status).toBe(403);
+    expect(res.body.message).toContain('outside your allowed scope');
+  });
 });
 
 describe(`GET ${BASE} (pagination)`, () => {
@@ -176,7 +302,7 @@ describe(`PATCH ${BASE}/:id`, () => {
 
   it('should return 404 for non-existent id', async () => {
     const res = await request(app)
-      .patch(`${BASE}/00000000-0000-0000-0000-000000000099`)
+      .patch(`${BASE}/00000000-0000-4000-8000-000000000099`)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ notes: 'Ghost' });
     expect(res.status).toBe(404);
@@ -185,6 +311,52 @@ describe(`PATCH ${BASE}/:id`, () => {
   it('should return 401 without auth token', async () => {
     const res = await request(app).patch(`${BASE}/${patchId}`).send({ notes: 'NoAuth' });
     expect(res.status).toBe(401);
+  });
+
+  it('should return 404 when updating an out-of-scope assignment', async () => {
+    const statusId = await getStatusId(tuguegaraoCityAdminToken);
+    const citizenId = await createCitizen(adminToken);
+    const categoryId = await createCategory(adminToken);
+    const severityId = await createSeverity(adminToken);
+
+    const incidentRes = await request(app)
+      .post(`${API_V1}/incidents`)
+      .set('Authorization', `Bearer ${tuguegaraoCityAdminToken}`)
+      .send({
+        description: 'Out of scope assignment update incident',
+        statusId,
+        citizenId,
+        categoryId,
+        severityId,
+        ...buildTuguegaraoIncidentLocationSnapshot(),
+      });
+
+    expect(incidentRes.status).toBe(201);
+
+    const agencyId = await createAgency(adminToken);
+    await prisma.agency.update({
+      where: { id: agencyId },
+      data: {
+        cityMunicipalityId: tuguegaraoCityId,
+        jurisdictionType: 'city',
+        jurisdictionId: tuguegaraoCityId,
+      },
+    });
+    const scopedResponderId = await createResponder(adminToken, agencyId);
+
+    const createRes = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ incidentId: incidentRes.body.id, responderId: scopedResponderId });
+
+    expect(createRes.status).toBe(201);
+
+    const res = await request(app)
+      .patch(`${BASE}/${createRes.body.id}`)
+      .set('Authorization', `Bearer ${cityAdminToken}`)
+      .send({ notes: 'Attempted cross-city update' });
+
+    expect(res.status).toBe(404);
   });
 });
 
@@ -208,7 +380,7 @@ describe(`DELETE ${BASE}/:id`, () => {
 
   it('should return 404 for non-existent id', async () => {
     const res = await request(app)
-      .delete(`${BASE}/00000000-0000-0000-0000-000000000099`)
+      .delete(`${BASE}/00000000-0000-4000-8000-000000000099`)
       .set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).toBe(404);
   });

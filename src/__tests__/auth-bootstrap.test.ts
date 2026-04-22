@@ -7,6 +7,11 @@ import { generateMfaCodeFromSecret } from '../utils/mfa.js';
 jest.setTimeout(120000);
 
 describe('Auth bootstrap endpoints', () => {
+  function buildUniqueMobileNumber(seed: number): string {
+    const suffix = seed.toString().slice(-9).padStart(9, '0');
+    return `09${suffix}`;
+  }
+
   beforeEach(async () => {
     await prisma.user.update({
       where: { email: 'admin@xypes.local' },
@@ -76,7 +81,9 @@ describe('Auth bootstrap endpoints', () => {
 
   it('POST /auth/mobile/register should create a linked citizen reporter account and return token', async () => {
     const stamp = Date.now();
-    const mobileNumber = '09171234567';
+    const mobileNumber = buildUniqueMobileNumber(stamp);
+    const normalizedMobileNumber = `+63${mobileNumber.slice(1)}`;
+    const expectedEmail = `citizen.mobile.${normalizedMobileNumber.slice(1)}@cirs.mobile.invalid`;
 
     const res = await request(app)
       .post(`${API_V1}/auth/mobile/register`)
@@ -92,11 +99,11 @@ describe('Auth bootstrap endpoints', () => {
     expect(res.body).toHaveProperty('refreshToken');
     expect(res.body).toHaveProperty('sessionId');
     expect(res.body).toHaveProperty('user.role', 'CITIZEN_REPORTER');
-    expect(res.body).toHaveProperty('user.mobileNumber', '+639171234567');
+    expect(res.body).toHaveProperty('user.mobileNumber', normalizedMobileNumber);
     expect(res.body.user).toHaveProperty('citizenId');
 
     const createdUser = await prisma.user.findUnique({
-      where: { mobileNumber: '+639171234567' },
+      where: { mobileNumber: normalizedMobileNumber },
       select: {
         email: true,
         mobileNumber: true,
@@ -108,7 +115,7 @@ describe('Auth bootstrap endpoints', () => {
     });
 
     expect(createdUser).not.toBeNull();
-    expect(createdUser?.email).toBe('citizen.mobile.639171234567@cirs.mobile.invalid');
+    expect(createdUser?.email).toBe(expectedEmail);
     expect(createdUser?.role).toBe('CITIZEN_REPORTER');
     expect(createdUser?.mobileNumberVerifiedAt).not.toBeNull();
     expect(createdUser?.passwordHash).not.toBeNull();
@@ -124,15 +131,16 @@ describe('Auth bootstrap endpoints', () => {
 
     expect(citizen).toMatchObject({
       name: `Mobile User ${stamp}`,
-      contactInfo: '+639171234567',
+      contactInfo: normalizedMobileNumber,
       preferredChannel: 'mobile',
     });
   });
 
   it('POST /auth/mobile/register should return 409 for duplicate mobile number', async () => {
+    const mobileNumber = buildUniqueMobileNumber(Date.now() + 1);
     const payload = {
       name: 'Duplicate Mobile User',
-      mobileNumber: '09179998888',
+      mobileNumber,
       password: 'Password123!',
     };
 
@@ -147,20 +155,23 @@ describe('Auth bootstrap endpoints', () => {
   });
 
   it('POST /auth/mobile/login should authenticate by normalized mobile number and password', async () => {
+    const mobileNumber = buildUniqueMobileNumber(Date.now() + 2);
+    const normalizedMobileNumber = `+63${mobileNumber.slice(1)}`;
+
     await request(app).post(`${API_V1}/auth/mobile/register`).send({
       name: 'Citizen Mobile Login',
-      mobileNumber: '09175554444',
+      mobileNumber,
       password: 'Password123!',
     });
 
     const res = await request(app).post(`${API_V1}/auth/mobile/login`).send({
-      mobileNumber: '+63 917 555 4444',
+      mobileNumber: normalizedMobileNumber,
       password: 'Password123!',
     });
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('token');
-    expect(res.body).toHaveProperty('user.mobileNumber', '+639175554444');
+    expect(res.body).toHaveProperty('user.mobileNumber', normalizedMobileNumber);
     expect(res.body).toHaveProperty('user.role', 'CITIZEN_REPORTER');
   });
 
@@ -370,6 +381,41 @@ describe('Auth bootstrap endpoints', () => {
       password: 'Password123!',
     });
     expect(res.status).toBe(409);
+  });
+
+  it('POST /auth/register should return 429 after repeated attempts for the same email', async () => {
+    const originalEnv = { ...process.env };
+
+    try {
+      jest.resetModules();
+      process.env = {
+        ...originalEnv,
+        RATE_LIMIT_ENABLED: 'true',
+        RATE_LIMIT_STORE: 'memory',
+        AUTH_REGISTER_RATE_LIMIT_WINDOW_MS: '60000',
+        AUTH_REGISTER_RATE_LIMIT_MAX_REQUESTS: '2',
+      };
+
+      const { default: throttledApp, API_V1: throttledApiBase } = await import('../app.js');
+      const email = `rate-limit-${Date.now()}@xypes.local`;
+      const statuses: number[] = [];
+
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const response = await request(throttledApp)
+          .post(`${throttledApiBase}/auth/register`)
+          .send({
+            name: `Rate Limited ${attempt}`,
+            email,
+            password: 'Password123!',
+          });
+
+        statuses.push(response.status);
+      }
+
+      expect(statuses).toEqual([201, 409, 429]);
+    } finally {
+      process.env = originalEnv;
+    }
   });
 
   it('GET /auth/me should return 401 without token', async () => {

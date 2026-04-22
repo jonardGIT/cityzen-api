@@ -1,6 +1,8 @@
 // Handles CRUD operations for responder assignments to incidents.
 import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
+import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
+import { resolveJurisdictionScope } from '../middleware/jurisdiction.js';
 import {
   buildPaginatedResponse,
   getListQuery,
@@ -16,16 +18,194 @@ import {
   withArchiveScope,
 } from '../utils/archive.js';
 
+type AssignmentScope = { kind: 'global' } | { kind: 'scoped'; cityMunicipalityIds: string[] };
+
+type AssignmentIncidentRecord = {
+  id: string;
+  cityMunicipalityId: string | null;
+};
+
+type AssignmentResponderRecord = {
+  id: string;
+  agency: {
+    cityMunicipalityId: string | null;
+  } | null;
+};
+
+type AssignmentRecordWithIncidentScope = {
+  id: string;
+  incidentId: string;
+  responderId: string;
+  incident: AssignmentIncidentRecord;
+};
+
+function getAuthUser(req: Request, res: Response) {
+  const authUser = (req as AuthenticatedRequest).authUser;
+
+  if (!authUser) {
+    res.status(401).json({ message: 'Unauthorized: missing authentication context' });
+    return null;
+  }
+
+  return authUser;
+}
+
+async function resolveAssignmentScope(
+  authUser: NonNullable<AuthenticatedRequest['authUser']>,
+): Promise<AssignmentScope | null> {
+  if (authUser.role === 'NATIONAL_ADMIN') {
+    return { kind: 'global' };
+  }
+
+  const user = await prisma.user.findFirst({
+    where: withActiveRecords({ id: authUser.id }),
+    select: { jurisdictionType: true, jurisdictionId: true },
+  });
+
+  if (!user) {
+    return null;
+  }
+
+  const scope = await resolveJurisdictionScope(user.jurisdictionType, user.jurisdictionId);
+  const cityMunicipalityIds = scope.cityMunicipalityIds ?? [];
+
+  if (scope.type === 'region' || scope.type === 'province' || scope.type === 'city') {
+    return cityMunicipalityIds.length > 0 ? { kind: 'scoped', cityMunicipalityIds } : null;
+  }
+
+  return null;
+}
+
+function buildAssignmentScopeWhere(
+  baseWhere: Record<string, unknown>,
+  scope: AssignmentScope,
+): Record<string, unknown> {
+  if (scope.kind === 'global') {
+    return baseWhere;
+  }
+
+  return {
+    ...baseWhere,
+    incident: {
+      is: {
+        cityMunicipalityId: {
+          in: scope.cityMunicipalityIds,
+        },
+      },
+    },
+  };
+}
+
+function canManageIncident(scope: AssignmentScope, incident: AssignmentIncidentRecord): boolean {
+  if (scope.kind === 'global') {
+    return true;
+  }
+
+  return Boolean(
+    incident.cityMunicipalityId && scope.cityMunicipalityIds.includes(incident.cityMunicipalityId),
+  );
+}
+
+function canManageResponder(scope: AssignmentScope, responder: AssignmentResponderRecord): boolean {
+  if (scope.kind === 'global') {
+    return true;
+  }
+
+  return Boolean(
+    responder.agency?.cityMunicipalityId &&
+    scope.cityMunicipalityIds.includes(responder.agency.cityMunicipalityId),
+  );
+}
+
+async function findActiveIncident(incidentId: string): Promise<AssignmentIncidentRecord | null> {
+  return prisma.citizenIncident.findFirst({
+    where: withActiveRecords({ id: incidentId }),
+    select: { id: true, cityMunicipalityId: true },
+  });
+}
+
+async function findActiveResponder(responderId: string): Promise<AssignmentResponderRecord | null> {
+  return prisma.responder.findFirst({
+    where: withActiveRecords({ id: responderId }),
+    select: {
+      id: true,
+      agency: {
+        select: {
+          cityMunicipalityId: true,
+        },
+      },
+    },
+  });
+}
+
+async function findScopedActiveAssignment(
+  id: string,
+  scope: AssignmentScope,
+): Promise<AssignmentRecordWithIncidentScope | null> {
+  return prisma.assignment.findFirst({
+    where: buildAssignmentScopeWhere(withActiveRecords({ id }), scope),
+    select: {
+      id: true,
+      incidentId: true,
+      responderId: true,
+      incident: {
+        select: {
+          id: true,
+          cityMunicipalityId: true,
+        },
+      },
+    },
+  });
+}
+
+async function findScopedArchivedAssignment(
+  id: string,
+  scope: AssignmentScope,
+): Promise<AssignmentRecordWithIncidentScope | null> {
+  return prisma.assignment.findFirst({
+    where: buildAssignmentScopeWhere(withArchivedRecords({ id }), scope),
+    select: {
+      id: true,
+      incidentId: true,
+      responderId: true,
+      incident: {
+        select: {
+          id: true,
+          cityMunicipalityId: true,
+        },
+      },
+    },
+  });
+}
+
 // Returns all assignments from the database.
 export async function getAssignments(req: Request, res: Response): Promise<void> {
+  const authUser = getAuthUser(req, res);
+  if (!authUser) {
+    return;
+  }
+
   const pagination = getPaginationQuery(req);
+  const scope = await resolveAssignmentScope(authUser);
+  if (!scope) {
+    if (pagination.enabled) {
+      res.json(buildPaginatedResponse([], 0, pagination));
+      return;
+    }
+
+    res.json([]);
+    return;
+  }
+
   const listQuery = getListQuery(req, res, assignmentsListQueryConfig);
   if (!listQuery) {
     return;
   }
 
+  const scopedListWhere = buildAssignmentScopeWhere(listQuery.where ?? {}, scope);
+
   if (pagination.enabled) {
-    const scopedWhere = withArchiveScope(listQuery.where, listQuery.archiveScope);
+    const scopedWhere = withArchiveScope(scopedListWhere, listQuery.archiveScope);
     const [assignments, total] = await Promise.all([
       prisma.assignment.findMany({
         where: scopedWhere,
@@ -40,22 +220,31 @@ export async function getAssignments(req: Request, res: Response): Promise<void>
   }
 
   const assignments = await prisma.assignment.findMany({
-    where: withArchiveScope(listQuery.where, listQuery.archiveScope),
+    where: withArchiveScope(scopedListWhere, listQuery.archiveScope),
     orderBy: listQuery.orderBy,
   });
   res.json(assignments);
 }
 
-// Returns a single assignment by numeric ID. Responds 404 if not found.
+// Returns a single assignment by ID. Responds 404 if not found.
 export async function getAssignmentById(req: Request, res: Response): Promise<void> {
+  const authUser = getAuthUser(req, res);
+  if (!authUser) {
+    return;
+  }
+
   const id = getParamId(req, res);
   if (id === null) {
     return;
   }
 
-  const assignment = await prisma.assignment.findFirst({
-    where: withActiveRecords({ id }),
-  });
+  const scope = await resolveAssignmentScope(authUser);
+  if (!scope) {
+    res.status(404).json({ message: 'Assignment not found' });
+    return;
+  }
+
+  const assignment = await findScopedActiveAssignment(id, scope);
 
   if (!assignment) {
     res.status(404).json({ message: 'Assignment not found' });
@@ -68,6 +257,11 @@ export async function getAssignmentById(req: Request, res: Response): Promise<vo
 // Creates a new assignment linking a responder to an incident.
 // Validates that both the incident and responder exist before persisting.
 export async function createAssignment(req: Request, res: Response): Promise<void> {
+  const authUser = getAuthUser(req, res);
+  if (!authUser) {
+    return;
+  }
+
   const { incidentId, responderId, assignedDate, responseStart, responseEnd, outcome, notes } =
     req.body as Partial<Assignment>;
 
@@ -76,29 +270,37 @@ export async function createAssignment(req: Request, res: Response): Promise<voi
     return;
   }
 
-  // Relaxed UUID regex for test/seed compatibility
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (typeof incidentId !== 'string' || !uuidRegex.test(incidentId)) {
-    res.status(400).json({ message: 'incidentId must be a valid UUID' });
-    return;
-  }
-  if (typeof responderId !== 'string' || !uuidRegex.test(responderId)) {
-    res.status(400).json({ message: 'responderId must be a valid UUID' });
+  const scope = await resolveAssignmentScope(authUser);
+  if (!scope) {
+    res
+      .status(403)
+      .json({ message: 'Forbidden: assignment creation is outside your allowed scope' });
     return;
   }
 
-  if (
-    !(await prisma.citizenIncident.findFirst({
-      where: withActiveRecords({ id: incidentId }),
-    }))
-  ) {
+  const incident = await findActiveIncident(incidentId);
+  if (!incident) {
     res.status(422).json({ message: 'incidentId does not reference a valid CitizenIncident' });
     return;
   }
-  if (
-    !(await prisma.responder.findFirst({ where: withActiveRecords({ id: responderId }) }))
-  ) {
+
+  if (!canManageIncident(scope, incident)) {
+    res
+      .status(403)
+      .json({ message: 'Forbidden: assignment creation is outside your allowed scope' });
+    return;
+  }
+
+  const responder = await findActiveResponder(responderId);
+  if (!responder) {
     res.status(422).json({ message: 'responderId does not reference a valid Responder' });
+    return;
+  }
+
+  if (!canManageResponder(scope, responder)) {
+    res
+      .status(403)
+      .json({ message: 'Forbidden: assignment creation is outside your allowed scope' });
     return;
   }
 
@@ -119,37 +321,59 @@ export async function createAssignment(req: Request, res: Response): Promise<voi
 
 // Updates an existing assignment and validates any provided foreign keys.
 export async function updateAssignment(req: Request, res: Response): Promise<void> {
+  const authUser = getAuthUser(req, res);
+  if (!authUser) {
+    return;
+  }
+
   const id = getParamId(req, res);
   if (id === null) {
+    return;
+  }
+
+  const scope = await resolveAssignmentScope(authUser);
+  if (!scope) {
+    res.status(404).json({ message: 'Assignment not found' });
     return;
   }
 
   const { incidentId, responderId, assignedDate, responseStart, responseEnd, outcome, notes } =
     req.body as Partial<Assignment>;
 
-  const existingAssignment = await prisma.assignment.findFirst({
-    where: withActiveRecords({ id }),
-  });
+  const existingAssignment = await findScopedActiveAssignment(id, scope);
   if (!existingAssignment) {
     res.status(404).json({ message: 'Assignment not found' });
     return;
   }
 
-  if (
-    incidentId !== undefined &&
-    !(await prisma.citizenIncident.findFirst({
-      where: withActiveRecords({ id: incidentId }),
-    }))
-  ) {
-    res.status(422).json({ message: 'incidentId does not reference a valid CitizenIncident' });
-    return;
+  if (incidentId !== undefined) {
+    const incident = await findActiveIncident(incidentId);
+    if (!incident) {
+      res.status(422).json({ message: 'incidentId does not reference a valid CitizenIncident' });
+      return;
+    }
+
+    if (!canManageIncident(scope, incident)) {
+      res
+        .status(403)
+        .json({ message: 'Forbidden: assignment mutation is outside your allowed scope' });
+      return;
+    }
   }
-  if (
-    responderId !== undefined &&
-    !(await prisma.responder.findFirst({ where: withActiveRecords({ id: responderId }) }))
-  ) {
-    res.status(422).json({ message: 'responderId does not reference a valid Responder' });
-    return;
+
+  if (responderId !== undefined) {
+    const responder = await findActiveResponder(responderId);
+    if (!responder) {
+      res.status(422).json({ message: 'responderId does not reference a valid Responder' });
+      return;
+    }
+
+    if (!canManageResponder(scope, responder)) {
+      res
+        .status(403)
+        .json({ message: 'Forbidden: assignment mutation is outside your allowed scope' });
+      return;
+    }
   }
 
   const assignment = await prisma.assignment.update({
@@ -170,14 +394,23 @@ export async function updateAssignment(req: Request, res: Response): Promise<voi
 
 // Deletes an existing assignment.
 export async function deleteAssignment(req: Request, res: Response): Promise<void> {
+  const authUser = getAuthUser(req, res);
+  if (!authUser) {
+    return;
+  }
+
   const id = getParamId(req, res);
   if (id === null) {
     return;
   }
 
-  const existingAssignment = await prisma.assignment.findFirst({
-    where: withActiveRecords({ id }),
-  });
+  const scope = await resolveAssignmentScope(authUser);
+  if (!scope) {
+    res.status(404).json({ message: 'Assignment not found' });
+    return;
+  }
+
+  const existingAssignment = await findScopedActiveAssignment(id, scope);
   if (!existingAssignment) {
     res.status(404).json({ message: 'Assignment not found' });
     return;
@@ -192,6 +425,11 @@ export async function deleteAssignment(req: Request, res: Response): Promise<voi
 }
 
 export async function restoreAssignment(req: Request, res: Response): Promise<void> {
+  const authUser = getAuthUser(req, res);
+  if (!authUser) {
+    return;
+  }
+
   const id = getParamId(req, res);
   if (id === null) {
     return;
@@ -202,9 +440,13 @@ export async function restoreAssignment(req: Request, res: Response): Promise<vo
     return;
   }
 
-  const existingAssignment = await prisma.assignment.findFirst({
-    where: withArchivedRecords({ id }),
-  });
+  const scope = await resolveAssignmentScope(authUser);
+  if (!scope) {
+    res.status(404).json({ message: 'Archived assignment not found' });
+    return;
+  }
+
+  const existingAssignment = await findScopedArchivedAssignment(id, scope);
   if (!existingAssignment) {
     res.status(404).json({ message: 'Archived assignment not found' });
     return;

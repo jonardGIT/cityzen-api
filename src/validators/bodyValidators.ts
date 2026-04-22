@@ -1,9 +1,10 @@
 import { body } from 'express-validator';
 import { USER_ROLES } from '../types/auth.js';
 
-const POSTGRES_UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const POSTGRES_UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function isPostgresUuid(value: unknown): boolean {
+export function isPostgresUuid(value: unknown): boolean {
   return typeof value === 'string' && POSTGRES_UUID_REGEX.test(value.trim());
 }
 
@@ -96,7 +97,10 @@ const incidentLocationFieldsValidator = [
 ];
 
 const incidentCanonicalLocalityIdFieldsValidator = INCIDENT_LOCALITY_ID_FIELDS.map((field) =>
-  body(field).optional({ nullable: true }).isUUID().withMessage(`${field} must be a valid UUID`),
+  body(field)
+    .optional({ nullable: true })
+    .custom((value) => isPostgresUuid(value))
+    .withMessage(`${field} must be a valid UUID`),
 );
 
 const forbiddenIncidentCanonicalLocalityIdFieldsValidator = INCIDENT_LOCALITY_ID_FIELDS.map(
@@ -374,22 +378,34 @@ export const createIncidentValidator = [
     .isString()
     .trim()
     .notEmpty()
-    .withMessage('statusId is required and must be a string'),
+    .withMessage('statusId is required and must be a string')
+    .bail()
+    .custom((value) => isPostgresUuid(value))
+    .withMessage('statusId must be a valid UUID'),
   body('citizenId')
     .isString()
     .trim()
     .notEmpty()
-    .withMessage('citizenId is required and must be a string'),
+    .withMessage('citizenId is required and must be a string')
+    .bail()
+    .custom((value) => isPostgresUuid(value))
+    .withMessage('citizenId must be a valid UUID'),
   body('categoryId')
     .isString()
     .trim()
     .notEmpty()
-    .withMessage('categoryId is required and must be a string'),
+    .withMessage('categoryId is required and must be a string')
+    .bail()
+    .custom((value) => isPostgresUuid(value))
+    .withMessage('categoryId must be a valid UUID'),
   body('severityId')
     .isString()
     .trim()
     .notEmpty()
-    .withMessage('severityId is required and must be a string'),
+    .withMessage('severityId is required and must be a string')
+    .bail()
+    .custom((value) => isPostgresUuid(value))
+    .withMessage('severityId must be a valid UUID'),
   ...incidentCanonicalLocalityIdFieldsValidator,
   ...incidentLocationFieldsValidator,
 ];
@@ -470,7 +486,10 @@ export const uploadIncidentMediaValidator = [
     .trim()
     .notEmpty()
     .withMessage('dataBase64 is required'),
-  body('incidentId').optional().isUUID().withMessage('incidentId must be a valid UUID'),
+  body('incidentId')
+    .optional()
+    .custom((value) => isPostgresUuid(value))
+    .withMessage('incidentId must be a valid UUID'),
 ];
 
 export const updateIncidentValidator = [
@@ -515,25 +534,25 @@ export const updateIncidentValidator = [
     .optional()
     .isString()
     .trim()
-    .isUUID()
+    .custom((value) => isPostgresUuid(value))
     .withMessage('statusId must be a valid UUID'),
   body('citizenId')
     .optional()
     .isString()
     .trim()
-    .isUUID()
+    .custom((value) => isPostgresUuid(value))
     .withMessage('citizenId must be a valid UUID'),
   body('categoryId')
     .optional()
     .isString()
     .trim()
-    .isUUID()
+    .custom((value) => isPostgresUuid(value))
     .withMessage('categoryId must be a valid UUID'),
   body('severityId')
     .optional()
     .isString()
     .trim()
-    .isUUID()
+    .custom((value) => isPostgresUuid(value))
     .withMessage('severityId must be a valid UUID'),
   ...incidentCanonicalLocalityIdFieldsValidator,
   ...updateIncidentLocationFieldsValidator,
@@ -544,12 +563,18 @@ export const createAssignmentValidator = [
     .isString()
     .trim()
     .notEmpty()
-    .withMessage('incidentId is required and must be a string'),
+    .withMessage('incidentId is required and must be a string')
+    .bail()
+    .custom((value) => isPostgresUuid(value))
+    .withMessage('incidentId must be a valid UUID'),
   body('responderId')
     .isString()
     .trim()
     .notEmpty()
-    .withMessage('responderId is required and must be a string'),
+    .withMessage('responderId is required and must be a string')
+    .bail()
+    .custom((value) => isPostgresUuid(value))
+    .withMessage('responderId must be a valid UUID'),
   body('assignedDate').optional().isISO8601().withMessage('assignedDate must be an ISO8601 date'),
   body('responseStart').optional().isISO8601().withMessage('responseStart must be an ISO8601 date'),
   body('responseEnd').optional().isISO8601().withMessage('responseEnd must be an ISO8601 date'),
@@ -580,13 +605,19 @@ export const updateAssignmentValidator = [
     .isString()
     .trim()
     .notEmpty()
-    .withMessage('incidentId must be a non-empty string'),
+    .withMessage('incidentId must be a non-empty string')
+    .bail()
+    .custom((value) => isPostgresUuid(value))
+    .withMessage('incidentId must be a valid UUID'),
   body('responderId')
     .optional()
     .isString()
     .trim()
     .notEmpty()
-    .withMessage('responderId must be a non-empty string'),
+    .withMessage('responderId must be a non-empty string')
+    .bail()
+    .custom((value) => isPostgresUuid(value))
+    .withMessage('responderId must be a valid UUID'),
   body('assignedDate').optional().isISO8601().withMessage('assignedDate must be an ISO8601 date'),
   body('responseStart').optional().isISO8601().withMessage('responseStart must be an ISO8601 date'),
   body('responseEnd').optional().isISO8601().withMessage('responseEnd must be an ISO8601 date'),
