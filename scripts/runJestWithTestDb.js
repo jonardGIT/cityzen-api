@@ -12,12 +12,27 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
 const envFilePath = path.join(repoRoot, '.env.test');
+const defaultTestEnvironment = {
+  API_BASE_PATH: '/api/v1',
+  CORS_ORIGIN: 'http://localhost:3001',
+  DATABASE_URL: 'postgresql://postgres:postgres@localhost:55432/xypes_test?schema=public',
+  DIRECT_URL: 'postgresql://postgres:postgres@localhost:55432/xypes_test?schema=public',
+  HOST: '0.0.0.0',
+  JWT_SECRET: 'test-only-jwt-secret-change-me',
+  LOG_LEVEL: 'error',
+  NODE_ENV: 'test',
+  PORT: '3000',
+  RATE_LIMIT_ENABLED: 'false',
+  TRUST_PROXY: 'false',
+};
 
 if (fs.existsSync(envFilePath)) {
   dotenv.config({ path: envFilePath, override: false });
 }
 
-process.env.NODE_ENV ??= 'test';
+for (const [key, value] of Object.entries(defaultTestEnvironment)) {
+  process.env[key] ??= value;
+}
 
 const databaseUrl = process.env.DATABASE_URL;
 

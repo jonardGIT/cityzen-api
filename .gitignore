@@ -18,7 +18,9 @@ logs/
 .env.local
 .env.*.local
 .env.example
+.env.test
 ecosystem.config.cjs
+ecosystem.config.example.cjs
 
 # OS files
 .DS_Store

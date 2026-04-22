@@ -45,7 +45,7 @@ describe('feature selection', () => {
     ).toThrow('tokenMode=supabase-jwt requires authProvider=supabase');
   });
 
-  it('removes disabled conditional routes from the OpenAPI document', () => {
+  it('publishes only local-only OpenAPI placeholder metadata in tracked source', () => {
     const document = createOpenApiDocument(
       createSelection({
         authProvider: 'supabase',
@@ -56,33 +56,34 @@ describe('feature selection', () => {
       }),
     );
 
-    expect(document.paths['/auth/mfa/setup']).toBeUndefined();
-    expect(document.paths['/auth/sessions']).toBeUndefined();
-    expect(document.paths['/auth/sessions/{id}']).toBeUndefined();
-    expect(document.paths['/incidents/media/upload']).toBeUndefined();
-    expect(document.paths['/users/{id}/restore']).toBeUndefined();
-    expect(document.paths['/incidents/{id}/restore']).toBeUndefined();
-    expect(document.paths['/users/{id}']?.delete?.summary).toBe('Delete user');
-    expect(document.paths['/incidents/{id}']?.delete?.summary).toBe('Delete incident');
-
-    const userListParameters = document.paths['/users']?.get?.parameters;
-    expect(userListParameters).toBeDefined();
-    expect(
-      userListParameters?.some(
-        (parameter) => !('$ref' in parameter) && parameter.name === 'includeArchived',
-      ),
-    ).toBe(false);
+    expect(document.paths).toEqual({});
+    expect(document.info.version).toBe('local-only');
+    expect(document.info.description).toContain('local-only artifact');
+    expect(document['x-local-only-docs']).toBe(true);
+    expect(document['x-feature-profile']).toEqual({
+      profileSource: 'runtime-env',
+      profileName: 'test-profile',
+      authProvider: 'supabase',
+      tokenMode: 'supabase-jwt',
+      mfaMode: 'disabled',
+      mediaStorage: 'disabled',
+      recordDeletion: 'hard-delete',
+    });
   });
 
-  it('keeps conditional routes in the OpenAPI document when the profile enables them', () => {
+  it('keeps feature metadata for local-only OpenAPI usage', () => {
     const document = createOpenApiDocument(createSelection({}));
 
-    expect(document.paths['/auth/mfa/setup']).toBeDefined();
-    expect(document.paths['/auth/sessions']).toBeDefined();
-    expect(document.paths['/auth/sessions/{id}']).toBeDefined();
-    expect(document.paths['/incidents/media/upload']).toBeDefined();
-    expect(document.paths['/users/{id}/restore']).toBeDefined();
-    expect(document.paths['/incidents/{id}/restore']).toBeDefined();
-    expect(document.paths['/users/{id}']?.delete?.summary).toBe('Archive user');
+    expect(document.paths).toEqual({});
+    expect(document['x-local-only-docs']).toBe(true);
+    expect(document['x-feature-profile']).toEqual({
+      profileSource: 'runtime-env',
+      profileName: 'test-profile',
+      authProvider: 'local',
+      tokenMode: 'app-jwt',
+      mfaMode: 'local-totp',
+      mediaStorage: 'supabase-storage',
+      recordDeletion: 'archive',
+    });
   });
 });
