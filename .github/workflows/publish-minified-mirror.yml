@@ -43,6 +43,8 @@ jobs:
           rm -rf "$STAGE_DIR"
           mkdir -p "$STAGE_DIR/.github/workflows" "$STAGE_DIR/dist" "$STAGE_DIR/prisma"
 
+          cp .gitleaks.toml "$STAGE_DIR/.gitleaks.toml"
+          cp ecosystem.config.example.cjs "$STAGE_DIR/ecosystem.config.example.cjs"
           cp package.json "$STAGE_DIR/package.json"
           cp package-lock.json "$STAGE_DIR/package-lock.json"
           cp README.md "$STAGE_DIR/README.md"
