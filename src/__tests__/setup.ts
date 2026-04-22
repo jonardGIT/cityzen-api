@@ -100,13 +100,18 @@ async function ensureDefaultGeographyFixtures() {
     }),
   ]);
 
-  return { ilaganCityId: ilaganCity.id, tuguegaraoCityId: tuguegaraoCity.id };
+  return {
+    isabelaProvinceId: isabelaProvince.id,
+    ilaganCityId: ilaganCity.id,
+    tuguegaraoCityId: tuguegaraoCity.id,
+  };
 }
 
 async function seedTestUsers(): Promise<void> {
   const { default: prisma } = await import('../lib/prisma.js');
   const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
-  const { ilaganCityId, tuguegaraoCityId } = await ensureDefaultGeographyFixtures();
+  const { isabelaProvinceId, ilaganCityId, tuguegaraoCityId } =
+    await ensureDefaultGeographyFixtures();
 
   const users = [
     { name: 'System Admin', email: 'admin@xypes.local', role: 'NATIONAL_ADMIN' },
@@ -138,7 +143,13 @@ async function seedTestUsers(): Promise<void> {
       jurisdictionType: 'city',
       jurisdictionId: tuguegaraoCityId,
     },
-    { name: 'Supervisor', email: 'supervisor@xypes.local', role: 'PROVINCIAL_ADMIN' },
+    {
+      name: 'Supervisor',
+      email: 'supervisor@xypes.local',
+      role: 'PROVINCIAL_ADMIN',
+      jurisdictionType: 'province',
+      jurisdictionId: isabelaProvinceId,
+    },
     { name: 'Responder', email: 'responder@xypes.local', role: 'RESPONDER' },
     { name: 'Analyst', email: 'analyst@xypes.local', role: 'CITIZEN_REPORTER' },
     { name: 'Auditor', email: 'auditor@xypes.local', role: 'AUDITOR' },
