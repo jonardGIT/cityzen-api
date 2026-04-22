@@ -38,6 +38,9 @@ jobs:
   build-and-audit:
     if: github.repository == 'Xypes13/xypes-cityzen-api'
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/xypes_test?schema=public
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/xypes_test?schema=public
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
