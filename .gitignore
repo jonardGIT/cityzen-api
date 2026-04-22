@@ -45,3 +45,5 @@ api-audit-report.txt
 docs/private-local/
 .vscode/
 .github/agents/
+.tmp-gitleaks-bin/
+.tmp-gitleaks-report.json
