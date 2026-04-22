@@ -42,17 +42,27 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     environment: production
+    env:
+      DEPLOY_HOST: ${{ secrets.DROPLET_HOST }}
+      DEPLOY_USER: ${{ secrets.DROPLET_USER }}
+      DEPLOY_KEY: ${{ secrets.DROPLET_SSH_KEY }}
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      - name: Explain skipped deploy
+        if: env.DEPLOY_HOST == '' || env.DEPLOY_USER == '' || env.DEPLOY_KEY == ''
+        run: |
+          echo "Skipping droplet deploy because DROPLET_HOST, DROPLET_USER, or DROPLET_SSH_KEY is not configured in this repository."
+
       - name: Deploy to Droplet via SSH
+        if: env.DEPLOY_HOST != '' && env.DEPLOY_USER != '' && env.DEPLOY_KEY != ''
         uses: appleboy/ssh-action@v0.1.10
         with:
-          host: ${{ secrets.DROPLET_HOST }}
-          username: ${{ secrets.DROPLET_USER }}
-          key: ${{ secrets.DROPLET_SSH_KEY }}
+          host: ${{ env.DEPLOY_HOST }}
+          username: ${{ env.DEPLOY_USER }}
+          key: ${{ env.DEPLOY_KEY }}
           port: 22
           script: |
             set -e
