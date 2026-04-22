@@ -36,6 +36,7 @@ jobs:
 
       - name: Assemble bundled minified runtime mirror
         env:
+          COMMIT_MESSAGE_FILE: ${{ runner.temp }}/mirror-commit-message.txt
           STAGE_DIR: ${{ runner.temp }}/minified-mirror
         run: |
           set -e
@@ -56,12 +57,11 @@ jobs:
             --platform=node \
             --target=node20
 
-          git log -1 --format=%B "$GITHUB_SHA" > "$STAGE_DIR/.commit-message"
-          git log -1 --format=%an "$GITHUB_SHA" > "$STAGE_DIR/.commit-author-name"
-          git log -1 --format=%ae "$GITHUB_SHA" > "$STAGE_DIR/.commit-author-email"
+          git log -1 --format=%B "$GITHUB_SHA" > "$COMMIT_MESSAGE_FILE"
 
       - name: Publish to Xypes13 mirror repository
         env:
+          COMMIT_MESSAGE_FILE: ${{ runner.temp }}/mirror-commit-message.txt
           MIRROR_PUSH_TOKEN: ${{ secrets['XYPES_MIRROR_TOKEN'] }}
           STAGE_DIR: ${{ runner.temp }}/minified-mirror
           TARGET_BRANCH: ${{ github.ref_name }}
@@ -76,8 +76,8 @@ jobs:
           cd "$STAGE_DIR"
           git init
           git checkout -b "$TARGET_BRANCH"
-          git config user.name "$(cat .commit-author-name)"
-          git config user.email "$(cat .commit-author-email)"
+          git config user.name "Xypes13"
+          git config user.email "tech@xypes.com"
           git add -A
 
           if git diff --cached --quiet; then
@@ -85,6 +85,6 @@ jobs:
             exit 0
           fi
 
-          git commit -F .commit-message
+          git commit -F "$COMMIT_MESSAGE_FILE"
           git remote add origin "https://x-access-token:${MIRROR_PUSH_TOKEN}@github.com/${TARGET_REPO}.git"
           git push --force origin "$TARGET_BRANCH"
