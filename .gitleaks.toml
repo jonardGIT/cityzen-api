@@ -3,53 +3,50 @@ title = "xypes-cirs-api gitleaks config"
 [extend]
 useDefault = true
 
-[[allowlists]]
-description = "Allow known CI placeholder secrets in GitHub workflows"
-targetRules = ["generic-api-key"]
-condition = "AND"
-regexTarget = "line"
-paths = [
-  '''^\.github/workflows/deploy\.yml$''',
-  '''^\.github/workflows/security-checks\.yml$''',
-]
-regexes = [
-  '''JWT_SECRET:\s+(?:ci-jwt-secret-0123456789-abcdef-uvwxyz|test-jwt-value-for-ci-builds-only)''',
-  '''MFA_ENCRYPTION_KEY:\s+(?:ci-mfa-secret-0123456789-abcdef-uvwxyz|test-mfa-value-for-ci-builds-only)''',
-]
+[[rules]]
+id = "generic-api-key"
 
-[[allowlists]]
-description = "Allow documented x-api-key examples in public setup docs"
-targetRules = ["curl-auth-header"]
-condition = "AND"
-regexTarget = "match"
-paths = [
-  '''^docs/supabase-project-setup\.md$''',
-]
-regexes = [
-  '''(?s)curl -X POST http://localhost:3000/api/v1/auth/(register|login) \\\n+  -H "Content-Type: application/json" \\\n+  -H "x-api-key: your-api-key"''',
-]
+  [[rules.allowlists]]
+  description = "Allow known CI placeholder secrets in GitHub workflows"
+  condition = "AND"
+  regexTarget = "line"
+  paths = [
+    '''^\.github/workflows/deploy\.yml$''',
+    '''^\.github/workflows/security-checks\.yml$''',
+  ]
+  regexes = [
+    '''JWT_SECRET:\s+(?:ci-jwt-secret-0123456789-abcdef-uvwxyz|test-jwt-value-for-ci-builds-only)''',
+    '''MFA_ENCRYPTION_KEY:\s+(?:ci-mfa-secret-0123456789-abcdef-uvwxyz|test-mfa-value-for-ci-builds-only)''',
+  ]
 
-[[allowlists]]
-description = "Allow non-production secret placeholders in tests"
-targetRules = ["generic-api-key"]
-condition = "AND"
-regexTarget = "line"
-paths = [
-  '''^src/__tests__/security\.test\.ts$''',
-  '''^src/__tests__/startupEnv\.test\.ts$''',
-  '''^scripts/runJestWithTestDb\.js$''',
-]
-regexes = [
-  '''(?:JWT_SECRET|productionJwtSecret)\s*[:=]\s*['"](?:test-only-jwt-secret-change-me|prod-jwt-secret-0123456789-abcdef-uvwxyz)['"]''',
-  '''(?:MFA_ENCRYPTION_KEY|productionMfaEncryptionKey)\s*[:=]\s*['"](?:prod-mfa-secret-0123456789-abcdef-uvwxyz)['"]''',
-  '''API_KEYS\s*[:=]\s*['"](?:prod-api-key-0123456789)['"]''',
-  '''SUPABASE_ANON_KEY\s*[:=]\s*['"](?:prod-anon-key-0123456789-abcdef-uvwxyz)['"]''',
-  '''SUPABASE_SERVICE_ROLE_KEY\s*[:=]\s*['"](?:prod-service-role-key-0123456789-abcdef-uvwxyz)['"]''',
-]
+  [[rules.allowlists]]
+  description = "Allow intentional placeholder-secret fixtures in tests"
+  paths = [
+    '''^src/__tests__/security\.test\.ts$''',
+    '''^src/__tests__/startupEnv\.test\.ts$''',
+    '''^scripts/runJestWithTestDb\.js$''',
+  ]
 
-[[allowlists]]
-description = "Ignore local-only temp Gitleaks artifacts during manual runs"
+[[rules]]
+id = "curl-auth-header"
+
+  [[rules.allowlists]]
+  description = "Allow documented x-api-key examples in public setup docs"
+  condition = "AND"
+  regexTarget = "line"
+  paths = [
+    '''^docs/supabase-project-setup\.md$''',
+  ]
+  regexes = [
+    '''x-api-key:\s+your-api-key''',
+  ]
+
+[allowlist]
+description = "Ignore local-only and temporary files outside the tracked CI surface"
 paths = [
+  '''^\.env$''',
+  '''^\.env\.development$''',
+  '''^docs/private-local/''',
   '''^\.tmp-gitleaks-bin/''',
   '''^\.tmp-gitleaks-report\.json$''',
 ]
