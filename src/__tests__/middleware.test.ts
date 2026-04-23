@@ -146,7 +146,7 @@ describe('Middleware — Audit Logging', () => {
 
     if (logs.length > 0) {
       expect(logs[0].actorEmail).toBe('admin@xypes.local');
-      expect(logs[0].actorRole).toBe('SYSTEM_ADMIN');
+      expect(logs[0].actorRole).toBe('NATIONAL_ADMIN');
     }
   });
 });

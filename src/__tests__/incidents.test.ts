@@ -168,7 +168,7 @@ async function ensureTuguegaraoCityScope() {
   });
 
   await prisma.user.updateMany({
-    where: { email: 'supervisor@xypes.local' },
+    where: { email: 'provincial.admin@xypes.local' },
     data: {
       jurisdictionType: 'province',
       jurisdictionId: province.id,
@@ -818,7 +818,7 @@ describe(`GET ${BASE}/:id/timeline`, () => {
       jurisdictionType: 'region',
       jurisdictionId: cityScope.region.id,
     });
-    provincialToken = await getTokenForRole('supervisor@xypes.local');
+    provincialToken = await getTokenForRole('provincial.admin@xypes.local');
     nationalToken = await getTokenForRole('admin@xypes.local');
     auditorToken = await getTokenForRole('auditor@xypes.local');
   });
@@ -1257,7 +1257,7 @@ describe('Phase 1 trust-layer incident reads', () => {
   beforeAll(async () => {
     const cityScope = await ensureTuguegaraoCityScope();
     tuguegaraoCityId = cityScope.city.id;
-    provincialAdminToken = await getTokenForRole('supervisor@xypes.local');
+    provincialAdminToken = await getTokenForRole('provincial.admin@xypes.local');
     nationalAdminToken = await getTokenForRole('admin@xypes.local');
     responderToken = await getTokenForRole('responder@xypes.local');
     auditorToken = await getTokenForRole('auditor@xypes.local');
@@ -1650,7 +1650,7 @@ describe('Phase 1 trust-layer incident writes', () => {
   beforeAll(async () => {
     const cityScope = await ensureTuguegaraoCityScope();
     tuguegaraoCityId = cityScope.city.id;
-    provincialAdminToken = await getTokenForRole('supervisor@xypes.local');
+    provincialAdminToken = await getTokenForRole('provincial.admin@xypes.local');
     responderToken = await getTokenForRole('responder@xypes.local');
     regionalDirectorToken = await ensureScopedUserToken({
       email: 'writes.region.director@xypes.local',
@@ -2394,67 +2394,69 @@ describe('incident media persistence', () => {
   });
 });
 
-describe('VIEWER incident scoping', () => {
-  let viewerToken = '';
-  let viewerIncidentId = '';
-  let viewerCitizenId = '';
-  let viewerCategoryId = '';
-  let viewerSeverityId = '';
+describe('CITIZEN_REPORTER incident scoping', () => {
+  let citizenReporterToken = '';
+  let citizenReporterIncidentId = '';
+  let citizenReporterCitizenId = '';
+  let citizenReporterCategoryId = '';
+  let citizenReporterSeverityId = '';
 
   beforeAll(async () => {
     const unique = Date.now();
-    const email = `viewer.${unique}@postman.local`;
+    const email = `citizen-reporter.${unique}@postman.local`;
 
     const registerRes = await request(app)
       .post(`${API_V1}/auth/register`)
       .send({
-        name: `Viewer ${unique}`,
+        name: `Citizen Reporter ${unique}`,
         email,
         password: 'Password123!',
       });
     expect(registerRes.status).toBe(201);
-    viewerToken = registerRes.body.token;
+    citizenReporterToken = registerRes.body.token;
 
     const linkRes = await request(app)
       .post(`${API_V1}/citizens/link-me`)
-      .set('Authorization', `Bearer ${viewerToken}`)
+      .set('Authorization', `Bearer ${citizenReporterToken}`)
       .send({
-        name: `Linked Viewer ${unique}`,
+        name: `Linked Citizen Reporter ${unique}`,
         preferredChannel: 'app',
       });
     expect([200, 201]).toContain(linkRes.status);
-    viewerCitizenId = linkRes.body.id;
+    citizenReporterCitizenId = linkRes.body.id;
 
-    viewerCategoryId = await createCategory();
-    viewerSeverityId = await createSeverity();
+    citizenReporterCategoryId = await createCategory();
+    citizenReporterSeverityId = await createSeverity();
 
     const reportRes = await request(app)
       .post(`${API_V1}/incidents/report`)
-      .set('Authorization', `Bearer ${viewerToken}`)
+      .set('Authorization', `Bearer ${citizenReporterToken}`)
       .send({
-        description: 'Viewer-owned incident',
-        categoryId: viewerCategoryId,
-        severityId: viewerSeverityId,
+        description: 'Citizen-reporter-owned incident',
+        categoryId: citizenReporterCategoryId,
+        severityId: citizenReporterSeverityId,
         ...buildIncidentLocationSnapshot(),
       });
     expect(reportRes.status).toBe(201);
-    viewerIncidentId = reportRes.body.id;
+    citizenReporterIncidentId = reportRes.body.id;
   });
 
-  it('GET /incidents returns only the authenticated viewer incidents', async () => {
-    const res = await request(app).get(BASE).set('Authorization', `Bearer ${viewerToken}`);
+  it('GET /incidents returns only the authenticated citizen reporter incidents', async () => {
+    const res = await request(app)
+      .get(BASE)
+      .set('Authorization', `Bearer ${citizenReporterToken}`);
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
     res.body.forEach((incident: { citizenId: string }) => {
-      expect(incident.citizenId).toBe(viewerCitizenId);
+      expect(incident.citizenId).toBe(citizenReporterCitizenId);
     });
   });
 
-  it('GET /incidents/:id returns 404 for incidents not owned by the viewer', async () => {
+  it('GET /incidents/:id returns 404 for incidents not owned by the citizen reporter', async () => {
     const ownIncident = await request(app)
-      .get(`${BASE}/${viewerIncidentId}`)
-      .set('Authorization', `Bearer ${viewerToken}`);
+      .get(`${BASE}/${citizenReporterIncidentId}`)
+      .set('Authorization', `Bearer ${citizenReporterToken}`);
     expect(ownIncident.status).toBe(200);
 
     const statusId = await getStatusId();
@@ -2466,7 +2468,7 @@ describe('VIEWER incident scoping', () => {
       .post(BASE)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
-        description: 'Admin-owned incident for viewer-scope test',
+        description: 'Admin-owned incident for citizen-reporter scope test',
         statusId,
         citizenId,
         categoryId,
@@ -2477,11 +2479,11 @@ describe('VIEWER incident scoping', () => {
 
     const blocked = await request(app)
       .get(`${BASE}/${otherIncidentRes.body.id}`)
-      .set('Authorization', `Bearer ${viewerToken}`);
+      .set('Authorization', `Bearer ${citizenReporterToken}`);
     expect(blocked.status).toBe(404);
   });
 
-  it('GET /incidents/:id/media/:mediaId returns 404 for media on incidents not owned by the viewer', async () => {
+  it('GET /incidents/:id/media/:mediaId returns 404 for media on incidents not owned by the citizen reporter', async () => {
     const statusId = await getStatusId();
     const citizenId = await createCitizen();
     const categoryId = await createCategory();
@@ -2491,8 +2493,8 @@ describe('VIEWER incident scoping', () => {
       .post(BASE)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
-        description: 'Admin-owned incident media for viewer-scope test',
-        mediaUrls: ['supabase://incident-media/incidents/private/viewer-blocked-photo.jpg'],
+        description: 'Admin-owned incident media for citizen-reporter scope test',
+        mediaUrls: ['supabase://incident-media/incidents/private/citizen-reporter-blocked-photo.jpg'],
         statusId,
         citizenId,
         categoryId,
@@ -2514,14 +2516,14 @@ describe('VIEWER incident scoping', () => {
       .get(
         `${BASE}/${otherIncidentRes.body.id}/media/${incidentRecord.mediaFiles[0]?.id as string}`,
       )
-      .set('Authorization', `Bearer ${viewerToken}`);
+      .set('Authorization', `Bearer ${citizenReporterToken}`);
     expect(blocked.status).toBe(404);
   });
 
   it('POST /citizens/link-me rejects contactInfo from client payload', async () => {
     const res = await request(app)
       .post(`${API_V1}/citizens/link-me`)
-      .set('Authorization', `Bearer ${viewerToken}`)
+      .set('Authorization', `Bearer ${citizenReporterToken}`)
       .send({
         name: 'Attempted Override',
         preferredChannel: 'app',
@@ -2644,12 +2646,12 @@ describe('VIEWER incident scoping', () => {
   it('POST /incidents/report rejects client-provided citizenId', async () => {
     const res = await request(app)
       .post(`${API_V1}/incidents/report`)
-      .set('Authorization', `Bearer ${viewerToken}`)
+      .set('Authorization', `Bearer ${citizenReporterToken}`)
       .send({
         description: 'Should fail because citizenId is forbidden',
         citizenId: 'not-a-real-uuid',
-        categoryId: viewerCategoryId,
-        severityId: viewerSeverityId,
+        categoryId: citizenReporterCategoryId,
+        severityId: citizenReporterSeverityId,
         ...buildIncidentLocationSnapshot(),
       });
 
@@ -2660,12 +2662,12 @@ describe('VIEWER incident scoping', () => {
   it('POST /incidents/report rejects client-provided statusId', async () => {
     const res = await request(app)
       .post(`${API_V1}/incidents/report`)
-      .set('Authorization', `Bearer ${viewerToken}`)
+      .set('Authorization', `Bearer ${citizenReporterToken}`)
       .send({
         description: 'Should fail because statusId is forbidden',
         statusId: 'uuid-status-1',
-        categoryId: viewerCategoryId,
-        severityId: viewerSeverityId,
+        categoryId: citizenReporterCategoryId,
+        severityId: citizenReporterSeverityId,
         ...buildIncidentLocationSnapshot(),
       });
 
@@ -2691,11 +2693,11 @@ describe('VIEWER incident scoping', () => {
 
     const res = await request(app)
       .post(`${API_V1}/incidents/report`)
-      .set('Authorization', `Bearer ${viewerToken}`)
+      .set('Authorization', `Bearer ${citizenReporterToken}`)
       .send({
         description: 'Should fail because canonical locality ids are forbidden',
-        categoryId: viewerCategoryId,
-        severityId: viewerSeverityId,
+        categoryId: citizenReporterCategoryId,
+        severityId: citizenReporterSeverityId,
         ...buildIncidentLocationSnapshot(),
         regionId: region.id,
         provinceId: province.id,
@@ -2717,11 +2719,11 @@ describe('VIEWER incident scoping', () => {
   it('POST /incidents/report accepts coordinate snapshot payload', async () => {
     const res = await request(app)
       .post(`${API_V1}/incidents/report`)
-      .set('Authorization', `Bearer ${viewerToken}`)
+      .set('Authorization', `Bearer ${citizenReporterToken}`)
       .send({
-        description: 'Viewer geo incident',
-        categoryId: viewerCategoryId,
-        severityId: viewerSeverityId,
+        description: 'Citizen reporter geo incident',
+        categoryId: citizenReporterCategoryId,
+        severityId: citizenReporterSeverityId,
         ...buildIncidentLocationSnapshot(),
       });
 
@@ -2733,11 +2735,11 @@ describe('VIEWER incident scoping', () => {
     const reportedStatusId = await getStatusId('Reported');
     const res = await request(app)
       .post(`${API_V1}/incidents/report`)
-      .set('Authorization', `Bearer ${viewerToken}`)
+      .set('Authorization', `Bearer ${citizenReporterToken}`)
       .send({
         description: 'Auto status test',
-        categoryId: viewerCategoryId,
-        severityId: viewerSeverityId,
+        categoryId: citizenReporterCategoryId,
+        severityId: citizenReporterSeverityId,
         ...buildIncidentLocationSnapshot(),
       });
 
@@ -2748,11 +2750,11 @@ describe('VIEWER incident scoping', () => {
   it('POST /incidents/report accepts valid UUID IDs', async () => {
     const res = await request(app)
       .post(`${API_V1}/incidents/report`)
-      .set('Authorization', `Bearer ${viewerToken}`)
+      .set('Authorization', `Bearer ${citizenReporterToken}`)
       .send({
         description: 'Valid UUID id payload',
-        categoryId: viewerCategoryId,
-        severityId: viewerSeverityId,
+        categoryId: citizenReporterCategoryId,
+        severityId: citizenReporterSeverityId,
         ...buildIncidentLocationSnapshot(),
       });
 
@@ -2763,7 +2765,7 @@ describe('VIEWER incident scoping', () => {
   it('POST /incidents/report returns 400 for invalid UUID IDs', async () => {
     const res = await request(app)
       .post(`${API_V1}/incidents/report`)
-      .set('Authorization', `Bearer ${viewerToken}`)
+      .set('Authorization', `Bearer ${citizenReporterToken}`)
       .send({
         description: 'Bad string id payload',
         categoryId: 'uuid-category-1',

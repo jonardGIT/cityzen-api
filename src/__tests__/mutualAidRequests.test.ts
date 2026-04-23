@@ -105,7 +105,7 @@ async function ensureTuguegaraoCityScope() {
   });
 
   await prisma.user.updateMany({
-    where: { email: 'supervisor@xypes.local' },
+    where: { email: 'provincial.admin@xypes.local' },
     data: {
       jurisdictionType: 'province',
       jurisdictionId: province.id,
@@ -776,7 +776,7 @@ describe(`GET ${BASE}`, () => {
   it('hides malformed cross-province workflows from provincial admin reads unless both participant cities are in-province', async () => {
     const { city: requestingCity } = await ensureTuguegaraoCityScope();
     const { city: outsideProvinceCity } = await ensureExternalProvinceCityScope();
-    const provincialToken = await getTokenForRole('supervisor@xypes.local');
+    const provincialToken = await getTokenForRole('provincial.admin@xypes.local');
     const requesterUserId = await getUserIdByEmail('dispatcher@xypes.local');
     const { incidentId } = await createScopedIncident('province-contained-read');
 

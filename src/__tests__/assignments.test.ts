@@ -113,9 +113,11 @@ describe(`GET ${BASE}`, () => {
     expect(res.status).toBe(401);
   });
 
-  it('should return 403 for VIEWER role', async () => {
-    const viewerToken = await getTokenForRole('analyst@xypes.local');
-    const res = await request(app).get(BASE).set('Authorization', `Bearer ${viewerToken}`);
+  it('should return 403 for CITIZEN_REPORTER role', async () => {
+    const citizenReporterToken = await getTokenForRole('analyst@xypes.local');
+    const res = await request(app)
+      .get(BASE)
+      .set('Authorization', `Bearer ${citizenReporterToken}`);
     expect(res.status).toBe(403);
   });
 });
@@ -215,11 +217,11 @@ describe(`POST ${BASE}`, () => {
     expect(res.status).toBe(401);
   });
 
-  it('should return 403 for VIEWER role', async () => {
-    const viewerToken = await getTokenForRole('analyst@xypes.local');
+  it('should return 403 for CITIZEN_REPORTER role', async () => {
+    const citizenReporterToken = await getTokenForRole('analyst@xypes.local');
     const res = await request(app)
       .post(BASE)
-      .set('Authorization', `Bearer ${viewerToken}`)
+      .set('Authorization', `Bearer ${citizenReporterToken}`)
       .send({ incidentId, responderId });
     expect(res.status).toBe(403);
   });

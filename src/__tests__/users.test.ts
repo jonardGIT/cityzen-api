@@ -189,7 +189,7 @@ beforeAll(async () => {
     getTokenForRole('analyst@xypes.local'),
     getTokenForRole('ops.lead@xypes.local'),
     getTokenForRole('content.editor@xypes.local'),
-    getTokenForRole('supervisor@xypes.local'),
+    getTokenForRole('provincial.admin@xypes.local'),
     getTokenForRole('regional.director@xypes.local'),
   ]);
 });
@@ -515,7 +515,7 @@ describe(`POST ${USERS}`, () => {
     const { city: outsideProvinceCity } = await ensureOutsideProvinceMunicipalityScope();
 
     await prisma.user.update({
-      where: { email: 'supervisor@xypes.local' },
+      where: { email: 'provincial.admin@xypes.local' },
       data: {
         jurisdictionType: 'province',
         jurisdictionId: province.id,
@@ -643,7 +643,7 @@ describe(`PATCH ${USERS}/:id`, () => {
     const { city: outsideProvinceCity } = await ensureOutsideProvinceMunicipalityScope();
 
     await prisma.user.update({
-      where: { email: 'supervisor@xypes.local' },
+      where: { email: 'provincial.admin@xypes.local' },
       data: {
         jurisdictionType: 'province',
         jurisdictionId: province.id,
@@ -852,8 +852,8 @@ describe(`GET ${USERS}`, () => {
     });
 
     const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
-    const localEmail = `roxas.viewer.${unique}@xypes.local`;
-    const outsideEmail = `outside.viewer.${unique}@xypes.local`;
+    const localEmail = `roxas.citizen-reporter.${unique}@xypes.local`;
+    const outsideEmail = `outside.citizen-reporter.${unique}@xypes.local`;
 
     await prisma.user.create({
       data: {
@@ -976,7 +976,7 @@ describe(`GET ${USERS}`, () => {
     const { city: outsideCity } = await ensureOutsideProvinceMunicipalityScope();
 
     await prisma.user.update({
-      where: { email: 'supervisor@xypes.local' },
+      where: { email: 'provincial.admin@xypes.local' },
       data: {
         jurisdictionType: 'province',
         jurisdictionId: province.id,
@@ -1024,7 +1024,7 @@ describe(`GET ${USERS}`, () => {
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
     expect(
-      res.body.some((user: { email: string }) => user.email === 'supervisor@xypes.local'),
+      res.body.some((user: { email: string }) => user.email === 'provincial.admin@xypes.local'),
     ).toBe(true);
     expect(
       res.body.some(
@@ -1188,7 +1188,7 @@ describe(`GET ${USERS}/:id`, () => {
     const { city: outsideCity } = await ensureOutsideProvinceMunicipalityScope();
 
     await prisma.user.update({
-      where: { email: 'supervisor@xypes.local' },
+      where: { email: 'provincial.admin@xypes.local' },
       data: {
         jurisdictionType: 'province',
         jurisdictionId: province.id,
@@ -1417,7 +1417,7 @@ describe(`POST ${USERS}/:id/restore`, () => {
     const { city: outsideProvinceCity } = await ensureOutsideProvinceMunicipalityScope();
 
     await prisma.user.update({
-      where: { email: 'supervisor@xypes.local' },
+      where: { email: 'provincial.admin@xypes.local' },
       data: {
         jurisdictionType: 'province',
         jurisdictionId: province.id,

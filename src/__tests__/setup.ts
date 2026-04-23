@@ -144,8 +144,8 @@ async function seedTestUsers(): Promise<void> {
       jurisdictionId: tuguegaraoCityId,
     },
     {
-      name: 'Supervisor',
-      email: 'supervisor@xypes.local',
+      name: 'Provincial Admin',
+      email: 'provincial.admin@xypes.local',
       role: 'PROVINCIAL_ADMIN',
       jurisdictionType: 'province',
       jurisdictionId: isabelaProvinceId,
@@ -775,7 +775,7 @@ beforeAll(async () => {
        WHEN LOWER(email) = 'content.editor@xypes.local' THEN 'CITY_CONTENT_EDITOR'
        WHEN LOWER(email) = 'dispatcher@xypes.local' THEN 'DISPATCHER'
        WHEN LOWER(email) = 'analyst@xypes.local' THEN 'CITIZEN_REPORTER'
-       WHEN LOWER(email) = 'supervisor@xypes.local' THEN 'PROVINCIAL_ADMIN'
+       WHEN LOWER(email) = 'provincial.admin@xypes.local' THEN 'PROVINCIAL_ADMIN'
        WHEN LOWER(email) = 'responder@xypes.local' THEN 'RESPONDER'
        WHEN LOWER(email) = 'auditor@xypes.local' THEN 'AUDITOR'
        ELSE role

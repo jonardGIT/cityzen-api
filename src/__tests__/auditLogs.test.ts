@@ -144,10 +144,10 @@ async function getAuditLogsByFilters(
 }
 
 describe(`GET ${BASE}`, () => {
-  let systemAdminToken = '';
-  let departmentManagerToken = '';
+  let nationalAdminToken = '';
+  let cityAdminToken = '';
   let dispatcherToken = '';
-  let supervisorToken = '';
+  let provincialAdminToken = '';
   let citizenReporterToken = '';
   let auditorToken = '';
 
@@ -171,17 +171,17 @@ describe(`GET ${BASE}`, () => {
     });
 
     [
-      systemAdminToken,
-      departmentManagerToken,
+      nationalAdminToken,
+      cityAdminToken,
       dispatcherToken,
-      supervisorToken,
+      provincialAdminToken,
       citizenReporterToken,
       auditorToken,
     ] = await Promise.all([
       getAdminToken(),
       getTokenForRole('ops.lead@xypes.local'),
       getTokenForRole('dispatcher@xypes.local'),
-      getTokenForRole('supervisor@xypes.local'),
+      getTokenForRole('provincial.admin@xypes.local'),
       getTokenForRole('analyst@xypes.local'),
       getTokenForRole('auditor@xypes.local'),
     ]);
@@ -190,7 +190,7 @@ describe(`GET ${BASE}`, () => {
   it('allows NATIONAL_ADMIN to read audit logs', async () => {
     const response = await request(app)
       .get(`${BASE}?page=1&pageSize=5`)
-      .set('Authorization', `Bearer ${systemAdminToken}`);
+      .set('Authorization', `Bearer ${nationalAdminToken}`);
 
     expect(response.status).toBe(200);
     expect(Array.isArray(response.body.data)).toBe(true);
@@ -208,7 +208,7 @@ describe(`GET ${BASE}`, () => {
   it('returns 403 for CITY_ADMIN', async () => {
     const response = await request(app)
       .get(`${BASE}?page=1&pageSize=5`)
-      .set('Authorization', `Bearer ${departmentManagerToken}`);
+      .set('Authorization', `Bearer ${cityAdminToken}`);
 
     expect(response.status).toBe(403);
   });
@@ -224,7 +224,7 @@ describe(`GET ${BASE}`, () => {
   it('returns 403 for PROVINCIAL_ADMIN', async () => {
     const response = await request(app)
       .get(`${BASE}?page=1&pageSize=5`)
-      .set('Authorization', `Bearer ${supervisorToken}`);
+      .set('Authorization', `Bearer ${provincialAdminToken}`);
 
     expect(response.status).toBe(403);
   });
@@ -245,7 +245,7 @@ describe(`GET ${BASE}`, () => {
   it('returns 422 for invalid sortBy', async () => {
     const response = await request(app)
       .get(`${BASE}?sortBy=passwordHash`)
-      .set('Authorization', `Bearer ${systemAdminToken}`);
+      .set('Authorization', `Bearer ${nationalAdminToken}`);
 
     expect(response.status).toBe(422);
   });
@@ -1376,7 +1376,7 @@ describe('Audit log persistence', () => {
 
   it('records citizen reporter citizen link actions', async () => {
     const unique = Date.now();
-    const email = `audit.viewer.${unique}@postman.local`;
+    const email = `audit.citizen-reporter.${unique}@postman.local`;
     const registerRes = await request(app)
       .post(`${API_V1}/auth/register`)
       .send({

@@ -74,7 +74,7 @@ async function ensureGeographyFixtures() {
 
   await Promise.all([
     prisma.user.updateMany({
-      where: { email: 'supervisor@xypes.local' },
+      where: { email: 'provincial.admin@xypes.local' },
       data: { jurisdictionType: 'province', jurisdictionId: isabelaProvince.id },
     }),
     prisma.user.updateMany({
@@ -89,7 +89,7 @@ async function ensureGeographyFixtures() {
 beforeAll(async () => {
   const fixtures = await ensureGeographyFixtures();
 
-  provincialAdminToken = await getTokenForRole('supervisor@xypes.local');
+  provincialAdminToken = await getTokenForRole('provincial.admin@xypes.local');
   cityAdminToken = await getTokenForRole('ops.lead@xypes.local');
 
   isabelaProvinceId = fixtures.isabelaProvince.id;

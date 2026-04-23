@@ -168,12 +168,12 @@ describe(`PATCH ${BASE}/:id`, () => {
     expect(res.status).toBe(401);
   });
 
-  it('should return 403 for VIEWER role', async () => {
-    const viewerToken = await getTokenForRole('analyst@xypes.local');
+  it('should return 403 for CITIZEN_REPORTER role', async () => {
+    const citizenReporterToken = await getTokenForRole('analyst@xypes.local');
     const res = await request(app)
       .patch(`${BASE}/${testId}`)
-      .set('Authorization', `Bearer ${viewerToken}`)
-      .send({ name: 'ViewerPatch' });
+      .set('Authorization', `Bearer ${citizenReporterToken}`)
+      .send({ name: 'CitizenReporterPatch' });
     expect(res.status).toBe(403);
   });
 });

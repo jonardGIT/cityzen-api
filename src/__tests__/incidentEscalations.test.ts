@@ -101,7 +101,7 @@ async function ensureTuguegaraoCityScope() {
   });
 
   await prisma.user.updateMany({
-    where: { email: 'supervisor@xypes.local' },
+    where: { email: 'provincial.admin@xypes.local' },
     data: {
       jurisdictionType: 'province',
       jurisdictionId: province.id,
@@ -632,7 +632,7 @@ describe(`GET ${BASE}`, () => {
   it("fails closed when a province admin's bound province row is archived", async () => {
     const { province } = await ensureTuguegaraoCityScope();
     const dispatcherToken = await getTokenForRole('dispatcher@xypes.local');
-    const provincialToken = await getTokenForRole('supervisor@xypes.local');
+    const provincialToken = await getTokenForRole('provincial.admin@xypes.local');
     const { incidentId } = await createEscalatableIncident('archived-province-scope');
 
     const createRes = await createEscalation({
@@ -677,14 +677,14 @@ describe(`PATCH ${BASE}/:id`, () => {
     const dispatcherToken = await getTokenForRole('dispatcher@xypes.local');
 
     await prisma.user.updateMany({
-      where: { email: 'supervisor@xypes.local' },
+      where: { email: 'provincial.admin@xypes.local' },
       data: {
         jurisdictionType: 'province',
         jurisdictionId: province.id,
       },
     });
 
-    const provincialToken = await getTokenForRole('supervisor@xypes.local');
+    const provincialToken = await getTokenForRole('provincial.admin@xypes.local');
     const { incidentId } = await createEscalatableIncident('audit-coverage');
 
     const createRes = await createEscalation({
@@ -724,7 +724,7 @@ describe(`PATCH ${BASE}/:id`, () => {
       action: 'update',
       resource: 'incident-escalations',
       outcome: 'success',
-      actorEmail: 'supervisor@xypes.local',
+      actorEmail: 'provincial.admin@xypes.local',
       statusCode: 200,
       targetId: escalationId,
       method: 'PATCH',
@@ -737,14 +737,14 @@ describe(`PATCH ${BASE}/:id`, () => {
     const dispatcherToken = await getTokenForRole('dispatcher@xypes.local');
 
     await prisma.user.updateMany({
-      where: { email: 'supervisor@xypes.local' },
+      where: { email: 'provincial.admin@xypes.local' },
       data: {
         jurisdictionType: 'province',
         jurisdictionId: province.id,
       },
     });
 
-    const provincialToken = await getTokenForRole('supervisor@xypes.local');
+    const provincialToken = await getTokenForRole('provincial.admin@xypes.local');
     const cityAdminToken = await getTokenForRole('ops.lead@xypes.local');
     const { incidentId } = await createEscalatableIncident('province-accept');
 
@@ -906,10 +906,10 @@ describe(`PATCH ${BASE}/:id`, () => {
 
   it('fails closed and does not mutate a pending escalation row that is not city-to-province workflow', async () => {
     const { province } = await ensureTuguegaraoCityScope();
-    const provincialToken = await getTokenForRole('supervisor@xypes.local');
+    const provincialToken = await getTokenForRole('provincial.admin@xypes.local');
     const { incidentId } = await createEscalatableIncident('malformed-workflow');
     const provincialUser = await prisma.user.findUnique({
-      where: { email: 'supervisor@xypes.local' },
+      where: { email: 'provincial.admin@xypes.local' },
       select: { id: true },
     });
 
@@ -963,17 +963,17 @@ describe(`PATCH ${BASE}/:id`, () => {
     const { province: alternateProvince } = await ensureAlternateActiveProvince();
 
     await prisma.user.updateMany({
-      where: { email: 'supervisor@xypes.local' },
+      where: { email: 'provincial.admin@xypes.local' },
       data: {
         jurisdictionType: 'province',
         jurisdictionId: alternateProvince.id,
       },
     });
 
-    const provincialToken = await getTokenForRole('supervisor@xypes.local');
+    const provincialToken = await getTokenForRole('provincial.admin@xypes.local');
     const { incidentId } = await createEscalatableIncident('cross-province-target-patch');
     const provincialUser = await prisma.user.findUnique({
-      where: { email: 'supervisor@xypes.local' },
+      where: { email: 'provincial.admin@xypes.local' },
       select: { id: true },
     });
     const incident = await prisma.citizenIncident.findUniqueOrThrow({

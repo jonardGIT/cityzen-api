@@ -97,7 +97,7 @@ describe('CRUD Factory — Statuses', () => {
       .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/invalid/i);
+    expect(res.body.message).toBe('Validation failed');
   });
 
   it('returns 400 when required field is missing on create', async () => {

@@ -291,7 +291,7 @@ describe('Security — Mass Assignment', () => {
         name: `Mass Assign ${stamp}`,
         email: `massassign.${stamp}@test.local`,
         password: 'Password123!',
-        role: 'SYSTEM_ADMIN', // Should be ignored
+        role: 'NATIONAL_ADMIN', // Should be ignored
       });
 
     expect(res.status).toBe(201);
@@ -373,7 +373,7 @@ describe('Security — Token Tampering', () => {
   it('rejects "none" algorithm attack', async () => {
     const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url');
     const payload = Buffer.from(
-      JSON.stringify({ sub: '1', email: 'admin@xypes.local', role: 'SYSTEM_ADMIN', sid: 'x' }),
+      JSON.stringify({ sub: '1', email: 'admin@xypes.local', role: 'NATIONAL_ADMIN', sid: 'x' }),
     ).toString('base64url');
     const noneToken = `${header}.${payload}.`;
 

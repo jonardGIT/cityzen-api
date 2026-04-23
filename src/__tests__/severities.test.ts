@@ -4,16 +4,18 @@ import { getAdminToken, getTokenForRole } from './helpers/auth.js';
 
 const BASE = `${API_V1}/severities`;
 let adminToken = '';
-let viewerToken = '';
+let citizenReporterToken = '';
 
 beforeAll(async () => {
   adminToken = await getAdminToken();
-  viewerToken = await getTokenForRole('analyst@xypes.local');
+  citizenReporterToken = await getTokenForRole('analyst@xypes.local');
 });
 
 describe(`GET ${BASE}`, () => {
   it('should return 200 with array', async () => {
-    const res = await request(app).get(BASE).set('Authorization', `Bearer ${viewerToken}`);
+    const res = await request(app)
+      .get(BASE)
+      .set('Authorization', `Bearer ${citizenReporterToken}`);
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
   });
@@ -39,7 +41,7 @@ describe(`GET ${BASE}/:id`, () => {
   it('should return 200 for valid id', async () => {
     const res = await request(app)
       .get(`${BASE}/${createdId}`)
-      .set('Authorization', `Bearer ${viewerToken}`);
+      .set('Authorization', `Bearer ${citizenReporterToken}`);
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('id', createdId);
   });
@@ -49,7 +51,7 @@ describe(`GET ${BASE}/:id`, () => {
     const unknownId = '11111111-1111-4111-8111-111111111111';
     const res = await request(app)
       .get(`${BASE}/${unknownId}`)
-      .set('Authorization', `Bearer ${viewerToken}`);
+      .set('Authorization', `Bearer ${citizenReporterToken}`);
     expect(res.status).toBe(404);
   });
 });
@@ -75,12 +77,12 @@ describe(`POST ${BASE}`, () => {
     expect(res.status).toBe(401);
   });
 
-  it('should return 403 for VIEWER role', async () => {
-    const viewerToken = await getTokenForRole('analyst@xypes.local');
+  it('should return 403 for CITIZEN_REPORTER role', async () => {
+    const citizenReporterToken = await getTokenForRole('analyst@xypes.local');
     const res = await request(app)
       .post(BASE)
-      .set('Authorization', `Bearer ${viewerToken}`)
-      .send({ level: 'ViewerLevel' });
+      .set('Authorization', `Bearer ${citizenReporterToken}`)
+      .send({ level: 'CitizenReporterLevel' });
     expect(res.status).toBe(403);
   });
 });
@@ -89,7 +91,7 @@ describe(`GET ${BASE} (pagination)`, () => {
   it('should return paginated result when page and pageSize are provided', async () => {
     const res = await request(app)
       .get(`${BASE}?page=1&pageSize=2`)
-      .set('Authorization', `Bearer ${viewerToken}`);
+      .set('Authorization', `Bearer ${citizenReporterToken}`);
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.data)).toBe(true);
     expect(res.body.pagination).toMatchObject({ page: 1, pageSize: 2 });
