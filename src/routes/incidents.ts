@@ -28,7 +28,13 @@ import { isIncidentMediaUploadFeatureEnabled } from '../featureSelection.js';
 import { createEnvRateLimitMiddleware } from '../middleware/rateLimit.js';
 import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
-import { INCIDENT_WRITE_ROLES, MEDIA_UPLOAD_ROLES } from '../types/auth.js';
+import {
+  INCIDENT_CREATE_ROLES,
+  INCIDENT_DELETE_ROLES,
+  INCIDENT_RESTORE_ROLES,
+  INCIDENT_UPDATE_ROLES,
+  MEDIA_UPLOAD_ROLES,
+} from '../types/auth.js';
 import { isArchiveEnabled } from '../utils/archive.js';
 import { incidentTimelineParamValidator } from '../validators/incidentTrustValidators.js';
 
@@ -155,7 +161,7 @@ router.post(
 router.post(
   '/',
   requireJwtAuth,
-  requireRole(...INCIDENT_WRITE_ROLES),
+  requireRole(...INCIDENT_CREATE_ROLES),
   createIncidentValidator,
   validateRequest,
   asyncHandler(createIncident),
@@ -163,7 +169,7 @@ router.post(
 router.patch(
   '/:id',
   requireJwtAuth,
-  requireRole(...INCIDENT_WRITE_ROLES),
+  requireRole(...INCIDENT_UPDATE_ROLES),
   ...incidentIdValidators,
   updateIncidentValidator,
   validateRequest,
@@ -172,7 +178,7 @@ router.patch(
 router.delete(
   '/:id',
   requireJwtAuth,
-  requireRole(...INCIDENT_WRITE_ROLES),
+  requireRole(...INCIDENT_DELETE_ROLES),
   ...incidentIdValidators,
   validateRequest,
   asyncHandler(deleteIncident),
@@ -182,7 +188,7 @@ if (isArchiveEnabled()) {
   router.post(
     '/:id/restore',
     requireJwtAuth,
-    requireRole(...INCIDENT_WRITE_ROLES),
+    requireRole(...INCIDENT_RESTORE_ROLES),
     ...incidentIdValidators,
     validateRequest,
     asyncHandler(restoreIncident),

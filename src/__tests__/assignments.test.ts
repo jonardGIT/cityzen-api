@@ -149,6 +149,14 @@ describe(`GET ${BASE}/:id`, () => {
     incidentId = incidentRes.body.id;
 
     const agencyId = await createAgency(adminToken);
+    await prisma.agency.update({
+      where: { id: agencyId },
+      data: {
+        cityMunicipalityId: ilaganCityId,
+        jurisdictionType: 'city',
+        jurisdictionId: ilaganCityId,
+      },
+    });
     responderId = await createResponder(adminToken, agencyId);
 
     // Assignment
@@ -181,6 +189,51 @@ describe(`GET ${BASE}/:id`, () => {
       .get(`${BASE}/not-a-real-uuid`)
       .set('Authorization', `Bearer ${dispatcherToken}`);
     expect(res.status).toBe(400);
+  });
+
+  it('should return 404 when the incident is in scope but the responder agency is out of scope', async () => {
+    const statusId = await getStatusId(tuguegaraoCityAdminToken);
+    const citizenId = await createCitizen(adminToken);
+    const categoryId = await createCategory(adminToken);
+    const severityId = await createSeverity(adminToken);
+
+    const incidentRes = await request(app)
+      .post(`${API_V1}/incidents`)
+      .set('Authorization', `Bearer ${cityAdminToken}`)
+      .send({
+        description: 'Mixed-scope assignment read incident',
+        statusId,
+        citizenId,
+        categoryId,
+        severityId,
+        ...buildIlaganIncidentLocationSnapshot(),
+      });
+
+    expect(incidentRes.status).toBe(201);
+
+    const agencyId = await createAgency(adminToken);
+    await prisma.agency.update({
+      where: { id: agencyId },
+      data: {
+        cityMunicipalityId: tuguegaraoCityId,
+        jurisdictionType: 'city',
+        jurisdictionId: tuguegaraoCityId,
+      },
+    });
+    const tuguegaraoResponderId = await createResponder(adminToken, agencyId);
+
+    const assignmentRes = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ incidentId: incidentRes.body.id, responderId: tuguegaraoResponderId });
+
+    expect(assignmentRes.status).toBe(201);
+
+    const res = await request(app)
+      .get(`${BASE}/${assignmentRes.body.id}`)
+      .set('Authorization', `Bearer ${cityAdminToken}`);
+
+    expect(res.status).toBe(404);
   });
 });
 
@@ -357,6 +410,52 @@ describe(`PATCH ${BASE}/:id`, () => {
       .patch(`${BASE}/${createRes.body.id}`)
       .set('Authorization', `Bearer ${cityAdminToken}`)
       .send({ notes: 'Attempted cross-city update' });
+
+    expect(res.status).toBe(404);
+  });
+
+  it('should return 404 when the incident is in scope but the responder agency is out of scope', async () => {
+    const statusId = await getStatusId(tuguegaraoCityAdminToken);
+    const citizenId = await createCitizen(adminToken);
+    const categoryId = await createCategory(adminToken);
+    const severityId = await createSeverity(adminToken);
+
+    const incidentRes = await request(app)
+      .post(`${API_V1}/incidents`)
+      .set('Authorization', `Bearer ${cityAdminToken}`)
+      .send({
+        description: 'Mixed-scope assignment update incident',
+        statusId,
+        citizenId,
+        categoryId,
+        severityId,
+        ...buildIlaganIncidentLocationSnapshot(),
+      });
+
+    expect(incidentRes.status).toBe(201);
+
+    const agencyId = await createAgency(adminToken);
+    await prisma.agency.update({
+      where: { id: agencyId },
+      data: {
+        cityMunicipalityId: tuguegaraoCityId,
+        jurisdictionType: 'city',
+        jurisdictionId: tuguegaraoCityId,
+      },
+    });
+    const tuguegaraoResponderId = await createResponder(adminToken, agencyId);
+
+    const createRes = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ incidentId: incidentRes.body.id, responderId: tuguegaraoResponderId });
+
+    expect(createRes.status).toBe(201);
+
+    const res = await request(app)
+      .patch(`${BASE}/${createRes.body.id}`)
+      .set('Authorization', `Bearer ${cityAdminToken}`)
+      .send({ notes: 'Attempted mixed-scope update' });
 
     expect(res.status).toBe(404);
   });

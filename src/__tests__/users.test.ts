@@ -240,6 +240,8 @@ describe(`GET ${CAPABILITIES}`, () => {
         'role:manage:global',
         'settings:manage:global',
         'incident:manage:global',
+        'assignment:create:global',
+        'mobile_content:create:global',
       ]),
     );
   });
@@ -317,6 +319,8 @@ describe(`GET ${CAPABILITIES}`, () => {
         'user:update:city',
         'user:reset_password:city',
         'geo:manage:city',
+        'assignment:create:city',
+        'mobile_content:create:city',
       ]),
     );
   });
@@ -340,6 +344,8 @@ describe(`GET ${CAPABILITIES}`, () => {
         'geo:manage:province',
         'incident:read:province',
         'agency:manage:province',
+        'assignment:create:province',
+        'mobile_content:create:province',
       ]),
     );
   });
@@ -363,6 +369,8 @@ describe(`GET ${CAPABILITIES}`, () => {
         'geo:manage:region',
         'incident:read:region',
         'agency:manage:region',
+        'assignment:create:region',
+        'mobile_content:create:region',
       ]),
     );
   });

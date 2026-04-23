@@ -85,14 +85,31 @@ function buildAssignmentScopeWhere(
   }
 
   return {
-    ...baseWhere,
-    incident: {
-      is: {
-        cityMunicipalityId: {
-          in: scope.cityMunicipalityIds,
+    AND: [
+      baseWhere,
+      {
+        incident: {
+          is: {
+            cityMunicipalityId: {
+              in: scope.cityMunicipalityIds,
+            },
+          },
         },
       },
-    },
+      {
+        responder: {
+          is: {
+            agency: {
+              is: {
+                cityMunicipalityId: {
+                  in: scope.cityMunicipalityIds,
+                },
+              },
+            },
+          },
+        },
+      },
+    ],
   };
 }
 

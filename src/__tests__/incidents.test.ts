@@ -1770,7 +1770,7 @@ describe('Phase 1 trust-layer incident writes', () => {
 
     expect(res.status).toBe(403);
     expect(res.body).toMatchObject({
-      message: 'Forbidden: responders cannot create incidents through this route',
+      message: 'Forbidden: insufficient role permissions',
     });
   });
 
@@ -1837,6 +1837,54 @@ describe('Phase 1 trust-layer incident writes', () => {
       id: incident.incidentId,
       description: 'Assigned responder patch success',
     });
+  });
+
+  it('should deny an assigned responder from archiving an incident', async () => {
+    const owner = await registerAndLinkCitizenReporter('write-scope-responder-delete-denial');
+    const incident = await createTrustScopedIncident({
+      label: 'write-scope-responder-delete-denial',
+      reporterToken: owner.token,
+    });
+
+    await assignResponderToIncident({
+      incidentId: incident.incidentId,
+      cityMunicipalityId: tuguegaraoCityId,
+    });
+
+    const res = await request(app)
+      .delete(`${BASE}/${incident.incidentId}`)
+      .set('Authorization', `Bearer ${responderToken}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  it('should deny responders from restoring incidents through the internal route', async () => {
+    if (!archiveEnabled) {
+      return;
+    }
+
+    const owner = await registerAndLinkCitizenReporter('write-scope-responder-restore-denial');
+    const incident = await createTrustScopedIncident({
+      label: 'write-scope-responder-restore-denial',
+      reporterToken: owner.token,
+    });
+
+    await assignResponderToIncident({
+      incidentId: incident.incidentId,
+      cityMunicipalityId: tuguegaraoCityId,
+    });
+
+    const archiveRes = await request(app)
+      .delete(`${BASE}/${incident.incidentId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(archiveRes.status).toBe(204);
+
+    const res = await request(app)
+      .post(`${BASE}/${incident.incidentId}/restore`)
+      .set('Authorization', `Bearer ${responderToken}`);
+
+    expect(res.status).toBe(403);
   });
 });
 
