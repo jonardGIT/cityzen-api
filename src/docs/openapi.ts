@@ -23,7 +23,7 @@ export function createOpenApiDocument(
       title: 'xypes-cirs-api',
       version: 'local-only',
       description:
-        'The detailed OpenAPI contract is intentionally kept as a local-only artifact and is not tracked in this repository. Use the local-only docs workspace copy when you need the full internal API specification.',
+        'The detailed OpenAPI contract is intentionally kept as a local-only artifact and is not tracked in this repository. Use the local-only docs workspace copy when you need the full internal API specification. The active contract includes public password-reset request and confirm flows with production-safe delivery behavior.',
     },
     servers: [{ url: process.env.API_BASE_PATH ?? '/api/v1' }],
     tags: [

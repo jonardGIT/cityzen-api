@@ -682,6 +682,43 @@ describe('Auth bootstrap endpoints', () => {
     expect(resetRequest.body).not.toHaveProperty('resetExpiresAt');
   });
 
+  it('POST /auth/password-reset/request should support console delivery in non-production without returning the token', async () => {
+    const stamp = Date.now();
+    const email = `console.recovery.${stamp}@postman.local`;
+
+    const register = await request(app)
+      .post(`${API_V1}/auth/register`)
+      .send({
+        name: `Console Recovery User ${stamp}`,
+        email,
+        password: 'Password123!',
+      });
+
+    expect(register.status).toBe(201);
+
+    const originalDeliveryMode = process.env.PASSWORD_RESET_DELIVERY_MODE;
+    const originalConsoleInfo = console.info;
+    const consoleSpy = jest.fn();
+    process.env.PASSWORD_RESET_DELIVERY_MODE = 'console';
+    console.info = consoleSpy;
+
+    try {
+      const resetRequest = await request(app)
+        .post(`${API_V1}/auth/password-reset/request`)
+        .send({ email });
+
+      expect(resetRequest.status).toBe(202);
+      expect(resetRequest.body).not.toHaveProperty('resetToken');
+      expect(resetRequest.body).not.toHaveProperty('resetExpiresAt');
+      expect(consoleSpy).toHaveBeenCalledTimes(1);
+      expect(String(consoleSpy.mock.calls[0]?.[0] ?? '')).toContain('password-reset-delivery');
+      expect(String(consoleSpy.mock.calls[0]?.[0] ?? '')).toContain(email);
+    } finally {
+      process.env.PASSWORD_RESET_DELIVERY_MODE = originalDeliveryMode;
+      console.info = originalConsoleInfo;
+    }
+  });
+
   it('POST /auth/password-reset/request should fail closed in production when delivery is unconfigured', async () => {
     const originalNodeEnv = process.env.NODE_ENV;
     const originalWebhookUrl = process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL;
@@ -797,6 +834,39 @@ describe('Auth bootstrap endpoints', () => {
 
     expect(confirm.status).toBe(401);
     expect(confirm.body).toHaveProperty('message', 'Invalid or expired password reset token');
+  });
+
+  it('POST /auth/password-reset/confirm should rate limit repeated attempts against the same token', async () => {
+    const originalEnv = { ...process.env };
+
+    try {
+      jest.resetModules();
+      process.env = {
+        ...originalEnv,
+        RATE_LIMIT_ENABLED: 'true',
+        RATE_LIMIT_STORE: 'memory',
+        AUTH_PASSWORD_RESET_CONFIRM_RATE_LIMIT_WINDOW_MS: '60000',
+        AUTH_PASSWORD_RESET_CONFIRM_RATE_LIMIT_MAX_REQUESTS: '10',
+        AUTH_PASSWORD_RESET_CONFIRM_TOKEN_RATE_LIMIT_WINDOW_MS: '60000',
+        AUTH_PASSWORD_RESET_CONFIRM_TOKEN_RATE_LIMIT_MAX_REQUESTS: '4',
+      };
+
+      const { default: throttledApp, API_V1: throttledApiBase } = await import('../app.js');
+      const attempts = [];
+
+      for (let index = 0; index < 5; index += 1) {
+        attempts.push(
+          await request(throttledApp)
+            .post(`${throttledApiBase}/auth/password-reset/confirm`)
+            .send({ token: 'rate-limit-reset-token', password: 'Password456!@#' }),
+        );
+      }
+
+      expect(attempts.slice(0, 4).map((response) => response.status)).toEqual([401, 401, 401, 401]);
+      expect(attempts[4]?.status).toBe(429);
+    } finally {
+      process.env = originalEnv;
+    }
   });
 
   it('POST /auth/logout should revoke the current session', async () => {

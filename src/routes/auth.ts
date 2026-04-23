@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { Router, type Request } from 'express';
 import { param } from 'express-validator';
 import {
@@ -38,6 +39,12 @@ function buildEmailScopedKey(req: Request): string {
   return `${buildIpScopedKey(req)}:${email}`;
 }
 
+function buildEmailIdentityKey(req: Request): string {
+  return typeof req.body?.email === 'string'
+    ? req.body.email.trim().toLowerCase()
+    : 'missing-email';
+}
+
 function buildMobileScopedKey(req: Request): string {
   const normalizedMobileNumber =
     typeof req.body?.mobileNumber === 'string'
@@ -49,6 +56,17 @@ function buildMobileScopedKey(req: Request): string {
 function buildAuthenticatedUserScopedKey(req: Request): string {
   const authUserId = (req as AuthenticatedRequest).authUser?.id ?? 'anonymous';
   return `${authUserId}:${buildIpScopedKey(req)}`;
+}
+
+function buildPasswordResetTokenScopedKey(req: Request): string {
+  const token = typeof req.body?.token === 'string' ? req.body.token.trim() : '';
+
+  if (!token) {
+    return `${buildIpScopedKey(req)}:missing-token`;
+  }
+
+  const tokenHash = createHash('sha256').update(token).digest('hex');
+  return `${buildIpScopedKey(req)}:${tokenHash}`;
 }
 
 const loginRateLimit = createEnvRateLimitMiddleware({
@@ -99,6 +117,14 @@ const passwordResetRequestRateLimit = createEnvRateLimitMiddleware({
   defaultMaxRequests: 5,
   keyGenerator: buildEmailScopedKey,
 });
+const passwordResetRequestIdentityRateLimit = createEnvRateLimitMiddleware({
+  scope: 'auth-password-reset-request-identity',
+  windowMsEnvVar: 'AUTH_PASSWORD_RESET_REQUEST_IDENTITY_RATE_LIMIT_WINDOW_MS',
+  maxRequestsEnvVar: 'AUTH_PASSWORD_RESET_REQUEST_IDENTITY_RATE_LIMIT_MAX_REQUESTS',
+  defaultWindowMs: 3_600_000,
+  defaultMaxRequests: 5,
+  keyGenerator: buildEmailIdentityKey,
+});
 const passwordResetConfirmRateLimit = createEnvRateLimitMiddleware({
   scope: 'auth-password-reset-confirm',
   windowMsEnvVar: 'AUTH_PASSWORD_RESET_CONFIRM_RATE_LIMIT_WINDOW_MS',
@@ -106,6 +132,14 @@ const passwordResetConfirmRateLimit = createEnvRateLimitMiddleware({
   defaultWindowMs: 900_000,
   defaultMaxRequests: 10,
   keyGenerator: buildIpScopedKey,
+});
+const passwordResetConfirmTokenRateLimit = createEnvRateLimitMiddleware({
+  scope: 'auth-password-reset-confirm-token',
+  windowMsEnvVar: 'AUTH_PASSWORD_RESET_CONFIRM_TOKEN_RATE_LIMIT_WINDOW_MS',
+  maxRequestsEnvVar: 'AUTH_PASSWORD_RESET_CONFIRM_TOKEN_RATE_LIMIT_MAX_REQUESTS',
+  defaultWindowMs: 900_000,
+  defaultMaxRequests: 5,
+  keyGenerator: buildPasswordResetTokenScopedKey,
 });
 const mfaSetupRateLimit = createEnvRateLimitMiddleware({
   scope: 'auth-mfa-setup',
@@ -144,11 +178,13 @@ router.post('/mobile/login', mobileLoginRateLimit, asyncHandler(loginMobileCitiz
 router.post(
   '/password-reset/request',
   passwordResetRequestRateLimit,
+  passwordResetRequestIdentityRateLimit,
   asyncHandler(requestPasswordReset),
 );
 router.post(
   '/password-reset/confirm',
   passwordResetConfirmRateLimit,
+  passwordResetConfirmTokenRateLimit,
   asyncHandler(confirmPasswordReset),
 );
 router.post('/refresh', refreshRateLimit, asyncHandler(refresh));

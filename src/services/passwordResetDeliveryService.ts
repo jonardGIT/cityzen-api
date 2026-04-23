@@ -15,17 +15,39 @@ export interface PasswordResetDeliveryResult {
   accepted: boolean;
 }
 
+function getDeliveryMode(): PasswordResetDeliveryMode {
+  const rawValue = process.env.PASSWORD_RESET_DELIVERY_MODE?.trim().toLowerCase();
+
+  if (rawValue === 'api-response' || rawValue === 'console' || rawValue === 'webhook') {
+    return rawValue;
+  }
+
+  return process.env.NODE_ENV === 'production' ? 'webhook' : 'api-response';
+}
+
 function getWebhookUrl(): string | null {
   const value = process.env.PASSWORD_RESET_DELIVERY_WEBHOOK_URL?.trim();
   return value ? value : null;
 }
 
 function isApiResponseDeliveryEnabled(): boolean {
-  return process.env.NODE_ENV !== 'production';
+  return getDeliveryMode() === 'api-response';
+}
+
+function isConsoleDeliveryEnabled(): boolean {
+  return getDeliveryMode() === 'console';
+}
+
+function isWebhookDeliveryEnabled(): boolean {
+  return getDeliveryMode() === 'webhook';
 }
 
 export function isPasswordResetDeliveryConfigured(): boolean {
-  return isApiResponseDeliveryEnabled() || Boolean(getWebhookUrl());
+  if (isApiResponseDeliveryEnabled() || isConsoleDeliveryEnabled()) {
+    return true;
+  }
+
+  return isWebhookDeliveryEnabled() && Boolean(getWebhookUrl());
 }
 
 async function sendWebhookDelivery(
@@ -92,11 +114,17 @@ export async function sendPasswordResetMessage(
     };
   }
 
-  if (getWebhookUrl()) {
+  if (isConsoleDeliveryEnabled()) {
+    return sendConsoleDelivery(input);
+  }
+
+  if (isWebhookDeliveryEnabled() && getWebhookUrl()) {
     return sendWebhookDelivery(input);
   }
 
-  throw new Error('PASSWORD_RESET_DELIVERY_WEBHOOK_URL must be configured in production');
+  throw new Error(
+    'PASSWORD_RESET_DELIVERY_WEBHOOK_URL must be configured when PASSWORD_RESET_DELIVERY_MODE=webhook',
+  );
 }
 
 export function shouldIncludePasswordResetTokenInResponse(
