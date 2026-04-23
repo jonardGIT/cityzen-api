@@ -1,9 +1,11 @@
 name: Publish Minified Mirror
 
 on:
-  push:
-    branches:
-      - '**'
+  workflow_run:
+    workflows:
+      - Security Checks
+    types:
+      - completed
   workflow_dispatch:
 
 permissions:
@@ -11,16 +13,19 @@ permissions:
 
 jobs:
   publish-mirror:
-    if: github.repository == 'jonardGIT/cityzen-api'
+    if: github.repository == 'jonardGIT/cityzen-api' && (github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'))
     runs-on: ubuntu-latest
     env:
+      SOURCE_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
       TARGET_REPO: Xypes13/xypes-cityzen-api
+      TARGET_BRANCH: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}
 
     steps:
       - name: Check out source repo
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ env.SOURCE_SHA }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -62,7 +67,7 @@ jobs:
             --platform=node \
             --target=node20
 
-          git log -1 --format=%B "$GITHUB_SHA" > "$COMMIT_MESSAGE_FILE"
+          git log -1 --format=%B "$SOURCE_SHA" > "$COMMIT_MESSAGE_FILE"
 
       - name: Publish to Xypes13 mirror repository
         env:
@@ -70,7 +75,6 @@ jobs:
           MIRROR_PUSH_TOKEN: ${{ secrets['XYPES_MIRROR_TOKEN'] }}
           PUBLISH_DIR: ${{ runner.temp }}/mirror-publish
           STAGE_DIR: ${{ runner.temp }}/minified-mirror
-          TARGET_BRANCH: ${{ github.ref_name }}
         run: |
           set -e
 
