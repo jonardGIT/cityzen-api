@@ -103,9 +103,8 @@ jobs:
           git add -A
 
           if git diff --cached --quiet; then
-            echo "No mirror changes to publish."
-            exit 0
+            echo "No mirrored file changes detected; creating an empty sync commit so Xypes still records the successful Jonard run."
           fi
 
-          git commit -F "$COMMIT_MESSAGE_FILE"
+          git commit --allow-empty -F "$COMMIT_MESSAGE_FILE"
           git push -u origin "$TARGET_BRANCH"
