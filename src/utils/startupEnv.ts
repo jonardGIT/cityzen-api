@@ -238,17 +238,6 @@ function validateSupabaseStorageAccessMode(
   }
 }
 
-function validateSupabaseStorageScanWebhook(
-  env: NodeJS.ProcessEnv,
-  selection: FeatureSelection,
-): void {
-  if (selection.mediaStorage !== 'supabase-storage') {
-    return;
-  }
-
-  validateRequiredHttpsUrl(env, 'SUPABASE_STORAGE_SCAN_WEBHOOK_URL');
-}
-
 function validateProductionMfaMode(selection: FeatureSelection): void {
   if (selection.mfaMode === 'disabled') {
     throw new Error('FEATURE_MFA_MODE must not be disabled in production');
@@ -291,7 +280,6 @@ export function validateStartupEnvironment({ env, selection }: StartupValidation
   }
 
   validateSupabaseStorageAccessMode(env, selection);
-  validateSupabaseStorageScanWebhook(env, selection);
 
   validateRequiredHttpsUrl(env, 'PASSWORD_RESET_DELIVERY_WEBHOOK_URL');
   validateOptionalHttpsUrl(env, 'SECURITY_ALERT_WEBHOOK_URL');

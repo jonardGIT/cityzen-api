@@ -120,7 +120,8 @@ SUPABASE_STORAGE_ENABLED=true
 SUPABASE_STORAGE_BUCKET=incident-media
 SUPABASE_STORAGE_ACCESS_MODE=signed
 SUPABASE_STORAGE_SIGNED_URL_TTL_SECONDS=900
-SUPABASE_STORAGE_SCAN_WEBHOOK_URL=https://security.example.com/media-scan
+# Optional: enable fail-closed scan callback integration when available
+# SUPABASE_STORAGE_SCAN_WEBHOOK_URL=https://security.example.com/media-scan
 SUPABASE_STORAGE_MAX_UPLOAD_BYTES=10485760
 SUPABASE_STORAGE_ALLOWED_MIME_TYPES=image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/quicktime,application/pdf
 SUPABASE_STORAGE_ARCHIVE_ENABLED=true
@@ -130,14 +131,7 @@ SUPABASE_STORAGE_ARCHIVE_PREFIX=archive/incidents
 Production requirement:
 
 - `SUPABASE_STORAGE_ACCESS_MODE` must be `signed`
-- `SUPABASE_STORAGE_SCAN_WEBHOOK_URL` must be configured and use HTTPS
-
-If you do not have `SUPABASE_STORAGE_SCAN_WEBHOOK_URL` yet, do not enable Supabase media storage in production. Use this fallback until the scan endpoint exists:
-
-```dotenv
-FEATURE_MEDIA_STORAGE=disabled
-SUPABASE_STORAGE_ENABLED=false
-```
+- `SUPABASE_STORAGE_SCAN_WEBHOOK_URL`, when configured, must use HTTPS
 
 ## 5. Configure API feature flags
 
@@ -356,7 +350,8 @@ SUPABASE_STORAGE_ENABLED=true
 SUPABASE_STORAGE_BUCKET=incident-media
 SUPABASE_STORAGE_ACCESS_MODE=signed
 SUPABASE_STORAGE_SIGNED_URL_TTL_SECONDS=900
-SUPABASE_STORAGE_SCAN_WEBHOOK_URL=https://security.example.com/media-scan
+# Optional: enable fail-closed scan callback integration when available
+# SUPABASE_STORAGE_SCAN_WEBHOOK_URL=https://security.example.com/media-scan
 SUPABASE_STORAGE_MAX_UPLOAD_BYTES=10485760
 SUPABASE_STORAGE_ALLOWED_MIME_TYPES=image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/quicktime,application/pdf
 SUPABASE_STORAGE_ARCHIVE_ENABLED=true

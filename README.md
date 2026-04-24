@@ -175,6 +175,7 @@ Important variables:
 - `SUPABASE_STORAGE_BUCKET`: required when `SUPABASE_STORAGE_ENABLED=true`.
 - `SUPABASE_STORAGE_ACCESS_MODE`: optional. Defaults to `public`. Set to `signed` to store stable managed media references and return short-lived access URLs so the backing bucket can stay private.
 - `SUPABASE_STORAGE_SIGNED_URL_TTL_SECONDS`: optional signed-access lifetime in seconds when `SUPABASE_STORAGE_ACCESS_MODE=signed`. Defaults to `900`.
+- `SUPABASE_STORAGE_SCAN_WEBHOOK_URL`: optional HTTPS callback for post-upload scanning or queue handoff. When omitted, uploads still succeed and no scan callback is attempted.
 - `SUPABASE_STORAGE_MAX_UPLOAD_BYTES`: optional max upload size in bytes. Defaults to `10485760` (10 MB).
 - `SUPABASE_STORAGE_ALLOWED_MIME_TYPES`: optional comma-separated allowlist for incident media uploads.
 - `SUPABASE_STORAGE_ARCHIVE_ENABLED`: optional. Defaults to `true`. When enabled, Supabase-managed incident media that gets replaced or deleted is copied under an archive prefix before the original object is removed.

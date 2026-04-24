@@ -323,7 +323,7 @@ describe('startup environment validation', () => {
     );
   });
 
-  it('requires incident media scan webhook configuration in production when media storage is enabled', () => {
+  it('allows production media storage without a scan webhook when signed access is configured', () => {
     expect(() =>
       validateStartupEnvironment({
         env: createProductionEnv({
@@ -332,10 +332,11 @@ describe('startup environment validation', () => {
           SUPABASE_SERVICE_ROLE_KEY: 'prod-service-role-key-0123456789-abcdef-uvwxyz',
           MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
           SUPABASE_STORAGE_ACCESS_MODE: 'signed',
+          PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'https://security.example.gov/password-reset',
         }),
         selection: createSelection({ mfaMode: 'local-totp', mediaStorage: 'supabase-storage' }),
       }),
-    ).toThrow('SUPABASE_STORAGE_SCAN_WEBHOOK_URL must be configured in production');
+    ).not.toThrow();
   });
 
   it('rejects production Supabase media storage mode when SUPABASE_URL is missing', () => {

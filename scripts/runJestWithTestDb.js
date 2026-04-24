@@ -11,6 +11,7 @@ import postgres from 'postgres';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
+const developmentEnvFilePath = path.join(repoRoot, '.env.development');
 const envFilePath = path.join(repoRoot, '.env.test');
 const defaultTestEnvironment = {
   API_BASE_PATH: '/api/v1',
@@ -26,9 +27,32 @@ const defaultTestEnvironment = {
   TRUST_PROXY: 'false',
 };
 
+export function applyDevelopmentDatabaseEnv(targetEnv, developmentEnv, options = {}) {
+  const { preserveDatabaseUrl = false, preserveDirectUrl = false } = options;
+
+  if (!preserveDatabaseUrl && developmentEnv.DATABASE_URL?.trim()) {
+    targetEnv.DATABASE_URL = developmentEnv.DATABASE_URL.trim();
+  }
+
+  if (!preserveDirectUrl && developmentEnv.DIRECT_URL?.trim()) {
+    targetEnv.DIRECT_URL = developmentEnv.DIRECT_URL.trim();
+  }
+}
+
+const explicitDatabaseUrl = process.env.DATABASE_URL;
+const explicitDirectUrl = process.env.DIRECT_URL;
+const developmentEnv = fs.existsSync(developmentEnvFilePath)
+  ? dotenv.parse(fs.readFileSync(developmentEnvFilePath))
+  : {};
+
 if (fs.existsSync(envFilePath)) {
   dotenv.config({ path: envFilePath, override: false });
 }
+
+applyDevelopmentDatabaseEnv(process.env, developmentEnv, {
+  preserveDatabaseUrl: Boolean(explicitDatabaseUrl),
+  preserveDirectUrl: Boolean(explicitDirectUrl),
+});
 
 for (const [key, value] of Object.entries(defaultTestEnvironment)) {
   process.env[key] ??= value;

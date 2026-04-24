@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs';
+import path from 'path';
 import { createClient } from '@supabase/supabase-js';
 import { resetFeatureSelectionCache } from '../featureSelection.js';
 import {
@@ -8,6 +10,10 @@ import {
 jest.mock('@supabase/supabase-js', () => ({
   createClient: jest.fn(),
 }));
+
+const sampleUploadPath = path.resolve(process.cwd(), 'HEISENBERG-Breaking Bad.jpeg');
+const sampleUploadBuffer = readFileSync(sampleUploadPath);
+const sampleUploadBase64 = sampleUploadBuffer.toString('base64');
 
 describe('Supabase storage media scan integration', () => {
   const originalEnv = { ...process.env };
@@ -58,9 +64,9 @@ describe('Supabase storage media scan integration', () => {
     const result = await uploadIncidentMedia({
       actorUserId: 'user-123',
       incidentId: 'incident-123',
-      fileName: 'Private Photo.jpg',
+      fileName: 'HEISENBERG-Breaking Bad.jpeg',
       contentType: 'image/jpeg',
-      dataBase64: Buffer.from('test-image').toString('base64'),
+      dataBase64: sampleUploadBase64,
     });
 
     expect(result.mediaUrl).toMatch(/^supabase:\/\/incident-media\//);
@@ -78,8 +84,8 @@ describe('Supabase storage media scan integration', () => {
       incidentId: 'incident-123',
       bucket: 'incident-media',
       contentType: 'image/jpeg',
-      fileName: 'private-photo.jpg',
-      size: 10,
+      fileName: 'heisenberg-breaking-bad.jpeg',
+      size: sampleUploadBuffer.length,
     });
   });
 

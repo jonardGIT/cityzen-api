@@ -160,7 +160,7 @@ FEATURE_RECORD_DELETION=archive
 
 - `SUPABASE_STORAGE_BUCKET` must exist in Supabase
 - `SUPABASE_STORAGE_ACCESS_MODE=signed` (required in production)
-- `SUPABASE_STORAGE_SCAN_WEBHOOK_URL` must be HTTPS
+- `SUPABASE_STORAGE_SCAN_WEBHOOK_URL` is optional and, when set, must be HTTPS
 
 ---
 
