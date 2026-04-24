@@ -27,6 +27,10 @@ const defaultTestEnvironment = {
   TRUST_PROXY: 'false',
 };
 
+function isTrue(value) {
+  return value?.trim().toLowerCase() === 'true';
+}
+
 export function applyDevelopmentDatabaseEnv(targetEnv, developmentEnv, options = {}) {
   const { preserveDatabaseUrl = false, preserveDirectUrl = false } = options;
 
@@ -44,15 +48,18 @@ const explicitDirectUrl = process.env.DIRECT_URL;
 const developmentEnv = fs.existsSync(developmentEnvFilePath)
   ? dotenv.parse(fs.readFileSync(developmentEnvFilePath))
   : {};
+const shouldUseDevelopmentDatabase = isTrue(process.env.TEST_USE_DEVELOPMENT_DATABASE);
 
 if (fs.existsSync(envFilePath)) {
   dotenv.config({ path: envFilePath, override: false });
 }
 
-applyDevelopmentDatabaseEnv(process.env, developmentEnv, {
-  preserveDatabaseUrl: Boolean(explicitDatabaseUrl),
-  preserveDirectUrl: Boolean(explicitDirectUrl),
-});
+if (shouldUseDevelopmentDatabase) {
+  applyDevelopmentDatabaseEnv(process.env, developmentEnv, {
+    preserveDatabaseUrl: Boolean(explicitDatabaseUrl),
+    preserveDirectUrl: Boolean(explicitDirectUrl),
+  });
+}
 
 for (const [key, value] of Object.entries(defaultTestEnvironment)) {
   process.env[key] ??= value;

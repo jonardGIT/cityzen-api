@@ -17,6 +17,7 @@
     "test:db:seed": "sh ./scripts/runTestDbCompose.sh exec -T postgres psql -U postgres -d xypes_test -f /workspace/prisma/seed-data.sql",
     "test:local": "npm run test:db:up && npm run test:db:reset && npm run test:db:seed && npm test",
     "test": "node ./scripts/runJestWithTestDb.js",
+    "test:development-db": "TEST_USE_DEVELOPMENT_DATABASE=true node ./scripts/runJestWithTestDb.js",
     "test:watch": "node ./scripts/runJestWithTestDb.js --watch",
     "test:coverage": "node ./scripts/runJestWithTestDb.js --coverage"
   },

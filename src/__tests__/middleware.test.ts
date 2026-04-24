@@ -19,6 +19,19 @@ jest.setTimeout(120000);
 
 let adminToken: string;
 
+async function waitForAuditLogs<T>(query: () => Promise<T[]>, attempts = 10): Promise<T[]> {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const logs = await query();
+    if (logs.length > 0) {
+      return logs;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+
+  return query();
+}
+
 beforeAll(async () => {
   const login = await request(app).post(`${API_V1}/auth/login`).send({
     email: 'admin@xypes.local',
@@ -39,15 +52,17 @@ describe('Middleware — Audit Logging', () => {
     });
 
     // Check audit log was created
-    const logs = await prisma.auditLog.findMany({
-      where: {
-        action: 'login',
-        resource: 'auth',
-        timestamp: { gte: before },
-      },
-      orderBy: { timestamp: 'desc' },
-      take: 1,
-    });
+    const logs = await waitForAuditLogs(() =>
+      prisma.auditLog.findMany({
+        where: {
+          action: 'login',
+          resource: 'auth',
+          timestamp: { gte: before },
+        },
+        orderBy: { timestamp: 'desc' },
+        take: 1,
+      }),
+    );
 
     expect(logs.length).toBeGreaterThan(0);
     expect(logs[0].action).toBe('login');
@@ -62,15 +77,17 @@ describe('Middleware — Audit Logging', () => {
       .send({ name: `Audit Test ${Date.now()}` });
 
     if (createRes.status === 201) {
-      const logs = await prisma.auditLog.findMany({
-        where: {
-          action: 'create',
-          resource: 'statuses',
-          timestamp: { gte: before },
-        },
-        orderBy: { timestamp: 'desc' },
-        take: 1,
-      });
+      const logs = await waitForAuditLogs(() =>
+        prisma.auditLog.findMany({
+          where: {
+            action: 'create',
+            resource: 'statuses',
+            timestamp: { gte: before },
+          },
+          orderBy: { timestamp: 'desc' },
+          take: 1,
+        }),
+      );
 
       expect(logs.length).toBeGreaterThan(0);
       expect(logs[0].method).toBe('POST');
@@ -95,15 +112,17 @@ describe('Middleware — Audit Logging', () => {
         .delete(`${API_V1}/statuses/${createRes.body.id}`)
         .set('Authorization', `Bearer ${adminToken}`);
 
-      const logs = await prisma.auditLog.findMany({
-        where: {
-          action: 'delete',
-          resource: 'statuses',
-          timestamp: { gte: before },
-        },
-        orderBy: { timestamp: 'desc' },
-        take: 1,
-      });
+      const logs = await waitForAuditLogs(() =>
+        prisma.auditLog.findMany({
+          where: {
+            action: 'delete',
+            resource: 'statuses',
+            timestamp: { gte: before },
+          },
+          orderBy: { timestamp: 'desc' },
+          take: 1,
+        }),
+      );
 
       expect(logs.length).toBeGreaterThan(0);
     }

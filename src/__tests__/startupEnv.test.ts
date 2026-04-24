@@ -339,6 +339,23 @@ describe('startup environment validation', () => {
     ).not.toThrow();
   });
 
+  it('rejects non-https scan webhooks when Supabase media storage is enabled in production', () => {
+    expect(() =>
+      validateStartupEnvironment({
+        env: createProductionEnv({
+          JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
+          SUPABASE_URL: 'https://project.supabase.co',
+          SUPABASE_SERVICE_ROLE_KEY: 'prod-service-role-key-0123456789-abcdef-uvwxyz',
+          MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
+          SUPABASE_STORAGE_ACCESS_MODE: 'signed',
+          SUPABASE_STORAGE_SCAN_WEBHOOK_URL: 'http://security.example.gov/media-scan',
+          PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'https://security.example.gov/password-reset',
+        }),
+        selection: createSelection({ mfaMode: 'local-totp', mediaStorage: 'supabase-storage' }),
+      }),
+    ).toThrow('SUPABASE_STORAGE_SCAN_WEBHOOK_URL must use HTTPS in production');
+  });
+
   it('rejects production Supabase media storage mode when SUPABASE_URL is missing', () => {
     expect(() =>
       validateStartupEnvironment({

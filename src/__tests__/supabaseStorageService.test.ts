@@ -21,6 +21,9 @@ describe('Supabase storage media scan integration', () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
+    global.fetch = jest.fn(() => {
+      throw new Error('Unexpected outbound fetch in supabaseStorageService.test.ts');
+    }) as typeof fetch;
     process.env = {
       ...originalEnv,
       FEATURE_MEDIA_STORAGE: 'supabase-storage',
@@ -87,6 +90,40 @@ describe('Supabase storage media scan integration', () => {
       fileName: 'heisenberg-breaking-bad.jpeg',
       size: sampleUploadBuffer.length,
     });
+  });
+
+  it('uploads incident media without calling fetch when no scan webhook is configured', async () => {
+    const bucketApi = {
+      upload: jest.fn().mockResolvedValue({ error: null }),
+      createSignedUrl: jest.fn().mockResolvedValue({
+        data: {
+          signedUrl:
+            'https://example.supabase.co/storage/v1/object/sign/incident-media/heisenberg-breaking-bad.jpeg?token=signed',
+        },
+        error: null,
+      }),
+      remove: jest.fn().mockResolvedValue({ error: null }),
+    };
+    (createClient as jest.Mock).mockReturnValue({
+      storage: {
+        from: jest.fn().mockReturnValue(bucketApi),
+      },
+    });
+
+    delete process.env.SUPABASE_STORAGE_SCAN_WEBHOOK_URL;
+
+    const result = await uploadIncidentMedia({
+      actorUserId: 'user-123',
+      incidentId: 'incident-123',
+      fileName: 'HEISENBERG-Breaking Bad.jpeg',
+      contentType: 'image/jpeg',
+      dataBase64: sampleUploadBase64,
+    });
+
+    expect(result.mediaUrl).toMatch(/^supabase:\/\/incident-media\//);
+    expect(result.accessUrl).toContain('/storage/v1/object/sign/');
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(bucketApi.remove).not.toHaveBeenCalled();
   });
 
   it('removes the uploaded object and fails closed when media scan submission is unavailable', async () => {
