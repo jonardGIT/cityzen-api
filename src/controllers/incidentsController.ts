@@ -93,6 +93,8 @@ type PublicIncidentStatusHistoryRecord = Pick<IncidentStatusHistoryRecord, 'id' 
   toStatus: PublicTimelineStatusRecord;
 };
 
+const UNPAGINATED_INCIDENTS_LIMIT = 100;
+
 type AuditorIncidentTimelineEntry = Pick<
   IncidentTimelineEntry,
   'id' | 'changedAt' | 'fromStatus' | 'toStatus'
@@ -293,8 +295,18 @@ async function serializeIncident<T extends IncidentWithMediaFiles>(incident: T) 
   };
 }
 
-async function serializeIncidentCollection<T extends IncidentWithMediaFiles>(incidents: T[]) {
-  return Promise.all(incidents.map((incident) => serializeIncident(incident)));
+function serializeIncidentListItem<T extends IncidentWithMediaFiles>(incident: T) {
+  const mediaUrls = getStoredIncidentMediaUrls(incident);
+
+  return {
+    ...incident,
+    mediaUrl: mediaUrls[0] ?? incident.mediaUrl ?? null,
+    mediaUrls,
+  };
+}
+
+function serializeIncidentCollection<T extends IncidentWithMediaFiles>(incidents: T[]) {
+  return incidents.map((incident) => serializeIncidentListItem(incident));
 }
 
 function buildIncidentTrustResponse<T extends Record<string, unknown>>(
@@ -980,7 +992,9 @@ export async function getIncidents(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const pagination = getPaginationQuery(req);
+  const pagination = getPaginationQuery(req, {
+    unpaginatedTake: UNPAGINATED_INCIDENTS_LIMIT,
+  });
   const listQuery = getListQuery(req, res, incidentsListQueryConfig);
   if (!listQuery) {
     return;
@@ -1046,6 +1060,7 @@ export async function getIncidents(req: Request, res: Response): Promise<void> {
       },
     },
     orderBy: listQuery.orderBy,
+    take: pagination.unpaginatedTake ?? undefined,
   });
 
   res.json(await serializeIncidentCollection(incidents));

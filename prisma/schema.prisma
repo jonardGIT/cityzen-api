@@ -52,6 +52,7 @@ model AuthSession {
 
   @@index([userId])
   @@index([expiresAt])
+  @@index([refreshTokenHash])
   @@index([refreshExpiresAt])
   @@index([revokedAt])
   @@map("auth_sessions")

@@ -2312,6 +2312,50 @@ describe('incident media persistence', () => {
     ]);
   });
 
+  it('should not resolve signed media URLs for incident list responses', async () => {
+    const resolveSpy = jest
+      .spyOn(supabaseStorageService, 'resolveIncidentMediaUrls')
+      .mockImplementation(async (mediaUrls) =>
+        mediaUrls.map((mediaUrl) =>
+          mediaUrl.replace('supabase://incident-media/', 'https://signed.example/'),
+        ),
+      );
+
+    const statusId = await getStatusId();
+    const citizenId = await createCitizen();
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const createRes = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        description: 'Incident list media optimization target',
+        mediaUrls: ['supabase://incident-media/incidents/private/list-photo.jpg'],
+        statusId,
+        citizenId,
+        categoryId,
+        severityId,
+        ...buildIncidentLocationSnapshot(),
+      });
+
+    expect(createRes.status).toBe(201);
+
+    resolveSpy.mockClear();
+
+    const listRes = await request(app).get(BASE).set('Authorization', `Bearer ${adminToken}`);
+
+    expect(listRes.status).toBe(200);
+    const listedIncident = listRes.body.find(
+      (incident: { id: string }) => incident.id === createRes.body.id,
+    );
+    expect(listedIncident).toMatchObject({
+      mediaUrl: 'supabase://incident-media/incidents/private/list-photo.jpg',
+      mediaUrls: ['supabase://incident-media/incidents/private/list-photo.jpg'],
+    });
+    expect(resolveSpy).not.toHaveBeenCalled();
+  });
+
   it('should archive the incident record without archiving storage media when an incident is deleted', async () => {
     const archiveSpy = jest
       .spyOn(supabaseStorageService, 'archiveIncidentMediaUrls')
@@ -2490,9 +2534,7 @@ describe('CITIZEN_REPORTER incident scoping', () => {
   });
 
   it('GET /incidents returns only the authenticated citizen reporter incidents', async () => {
-    const res = await request(app)
-      .get(BASE)
-      .set('Authorization', `Bearer ${citizenReporterToken}`);
+    const res = await request(app).get(BASE).set('Authorization', `Bearer ${citizenReporterToken}`);
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
@@ -2542,7 +2584,9 @@ describe('CITIZEN_REPORTER incident scoping', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
         description: 'Admin-owned incident media for citizen-reporter scope test',
-        mediaUrls: ['supabase://incident-media/incidents/private/citizen-reporter-blocked-photo.jpg'],
+        mediaUrls: [
+          'supabase://incident-media/incidents/private/citizen-reporter-blocked-photo.jpg',
+        ],
         statusId,
         citizenId,
         categoryId,

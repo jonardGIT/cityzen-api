@@ -39,6 +39,8 @@ const userSyncSelect = {
   supabaseAuthUserId: true,
 } as const;
 
+const UNPAGINATED_USERS_LIMIT = 5000;
+
 // Accept any Postgres UUID-shaped value, including seeded fixtures that do not
 // encode an RFC version nibble.
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -490,7 +492,9 @@ export async function getUsers(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const pagination = getPaginationQuery(req);
+  const pagination = getPaginationQuery(req, {
+    unpaginatedTake: UNPAGINATED_USERS_LIMIT,
+  });
   const listQuery = getListQuery(req, res, usersListQueryConfig);
   if (!listQuery) {
     return;
@@ -528,6 +532,7 @@ export async function getUsers(req: Request, res: Response): Promise<void> {
     select: userSelect,
     where: withArchiveScope(scopedWhere, listQuery.archiveScope),
     orderBy: listQuery.orderBy,
+    take: pagination.unpaginatedTake ?? undefined,
   });
   res.json(users);
 }

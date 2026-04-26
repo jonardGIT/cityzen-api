@@ -408,6 +408,7 @@ CREATE INDEX agencies_barangay_id_idx ON agencies ("barangayId");
 CREATE INDEX agencies_jurisdiction_idx ON agencies ("jurisdictionType", "jurisdictionId");
 CREATE INDEX auth_sessions_user_id_idx ON auth_sessions ("userId");
 CREATE INDEX auth_sessions_expires_at_idx ON auth_sessions ("expiresAt");
+CREATE INDEX auth_sessions_refresh_token_hash_idx ON auth_sessions ("refreshTokenHash");
 CREATE INDEX auth_sessions_refresh_expires_at_idx ON auth_sessions ("refreshExpiresAt");
 CREATE INDEX auth_sessions_revoked_at_idx ON auth_sessions ("revokedAt");
 CREATE INDEX password_reset_tokens_user_id_idx ON password_reset_tokens ("userId");

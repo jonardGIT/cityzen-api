@@ -13,6 +13,8 @@ import {
   auditorAuditLogsListQueryConfig,
 } from '../utils/listQueryConfig.js';
 
+const UNPAGINATED_AUDIT_LOGS_LIMIT = 100;
+
 function serializeAuditLog(auditLog: AuditLog, req: AuthenticatedRequest): AuditLog {
   if (req.authUser?.role !== 'AUDITOR' || auditLog.resource !== 'auth') {
     return auditLog;
@@ -32,7 +34,9 @@ function serializeAuditLogs(auditLogs: AuditLog[], req: AuthenticatedRequest): A
 }
 
 export async function getAuditLogs(req: Request, res: Response): Promise<void> {
-  const pagination = getPaginationQuery(req);
+  const pagination = getPaginationQuery(req, {
+    unpaginatedTake: UNPAGINATED_AUDIT_LOGS_LIMIT,
+  });
   const listQueryConfig =
     (req as AuthenticatedRequest).authUser?.role === 'AUDITOR'
       ? auditorAuditLogsListQueryConfig
@@ -66,6 +70,7 @@ export async function getAuditLogs(req: Request, res: Response): Promise<void> {
   const auditLogs = await prisma.auditLog.findMany({
     where: listQuery.where,
     orderBy: listQuery.orderBy,
+    take: pagination.unpaginatedTake ?? undefined,
   });
 
   res.json(serializeAuditLogs(auditLogs, req as AuthenticatedRequest));

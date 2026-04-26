@@ -4,12 +4,18 @@ const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 
+type PaginationQueryOptions = {
+  defaultEnabled?: boolean;
+  unpaginatedTake?: number;
+};
+
 export interface PaginationQuery {
   enabled: boolean;
   page: number;
   pageSize: number;
   skip: number;
   take: number;
+  unpaginatedTake: number | null;
 }
 
 type SortOrder = 'asc' | 'desc';
@@ -611,14 +617,18 @@ export function getListQuery(
   return null;
 }
 
-export function getPaginationQuery(req: Request): PaginationQuery {
+export function getPaginationQuery(
+  req: Request,
+  options: PaginationQueryOptions = {},
+): PaginationQuery {
   const hasPageQuery = req.query.page !== undefined;
   const hasPageSizeQuery = req.query.pageSize !== undefined;
-  const enabled = hasPageQuery || hasPageSizeQuery;
+  const enabled = options.defaultEnabled ?? (hasPageQuery || hasPageSizeQuery);
 
   const page = parsePositiveInt(req.query.page, DEFAULT_PAGE);
   const requestedPageSize = parsePositiveInt(req.query.pageSize, DEFAULT_PAGE_SIZE);
   const pageSize = Math.min(requestedPageSize, MAX_PAGE_SIZE);
+  const unpaginatedTake = enabled ? null : (options.unpaginatedTake ?? null);
 
   return {
     enabled,
@@ -626,6 +636,7 @@ export function getPaginationQuery(req: Request): PaginationQuery {
     pageSize,
     skip: (page - 1) * pageSize,
     take: pageSize,
+    unpaginatedTake,
   };
 }
 

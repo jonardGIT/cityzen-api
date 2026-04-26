@@ -8,6 +8,8 @@ import { usersListQueryConfig } from '../utils/listQueryConfig.js';
 import { getSessionMetadata } from '../utils/sessionMetadata.js';
 import { withArchiveScope } from '../utils/archive.js';
 
+const UNPAGINATED_ADMIN_USERS_LIMIT = 5000;
+
 function getAccessReviewStaleDays(): number {
   const rawValue = process.env.ADMIN_ACCESS_REVIEW_STALE_DAYS?.trim();
   if (!rawValue) {
@@ -20,7 +22,9 @@ function getAccessReviewStaleDays(): number {
 
 // Returns all users for admin-level management views.
 export async function getAllUsersForAdmin(req: Request, res: Response): Promise<void> {
-  const pagination = getPaginationQuery(req);
+  const pagination = getPaginationQuery(req, {
+    unpaginatedTake: UNPAGINATED_ADMIN_USERS_LIMIT,
+  });
   const listQuery = getListQuery(req, res, usersListQueryConfig);
   if (!listQuery) {
     return;
@@ -56,6 +60,7 @@ export async function getAllUsersForAdmin(req: Request, res: Response): Promise<
     select,
     where: withArchiveScope(listQuery.where, listQuery.archiveScope),
     orderBy: listQuery.orderBy,
+    take: pagination.unpaginatedTake ?? undefined,
   });
 
   res.json(users);
