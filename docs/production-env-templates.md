@@ -34,10 +34,10 @@ TRUST_PROXY=true
 LOG_LEVEL=info
 JSON_BODY_LIMIT=12mb
 
-DATABASE_URL=postgresql://postgres:password@your-runtime-db-host:6543/postgres?pgbouncer=true&connection_limit=1&pool_timeout=20
-DIRECT_URL=postgresql://postgres:password@your-direct-db-host:5432/postgres
+DATABASE_URL=postgresql://postgres:<db-password>@your-runtime-db-host:6543/postgres?pgbouncer=true&connection_limit=1&pool_timeout=20
+DIRECT_URL=postgresql://postgres:<db-password>@your-direct-db-host:5432/postgres
 
-API_KEYS=replace-with-a-long-random-api-key
+API_KEYS=<set-production-api-key>
 
 RATE_LIMIT_ENABLED=true
 RATE_LIMIT_STORE=database
@@ -52,8 +52,8 @@ INCIDENT_CASE_TOKEN_TTL_DAYS=30
 PASSWORD_RESET_DELIVERY_WEBHOOK_URL=https://security.example.gov/password-reset
 
 SUPABASE_URL=https://your-project-ref.supabase.co
-SUPABASE_ANON_KEY=replace-with-supabase-anon-key
-SUPABASE_SERVICE_ROLE_KEY=replace-with-supabase-service-role-key
+SUPABASE_ANON_KEY=<set-supabase-anon-key>
+SUPABASE_SERVICE_ROLE_KEY=<set-supabase-service-role-key>
 SUPABASE_AUTH_AUTO_CONFIRM_EMAIL=false
 SUPABASE_PASSWORD_RESET_REDIRECT_URL=https://your-dashboard.example.gov/reset-password
 
@@ -79,10 +79,10 @@ TRUST_PROXY=true
 LOG_LEVEL=info
 JSON_BODY_LIMIT=12mb
 
-DATABASE_URL=postgresql://postgres:password@your-runtime-db-host:6543/postgres?pgbouncer=true&connection_limit=1&pool_timeout=20
-DIRECT_URL=postgresql://postgres:password@your-direct-db-host:5432/postgres
+DATABASE_URL=postgresql://postgres:<db-password>@your-runtime-db-host:6543/postgres?pgbouncer=true&connection_limit=1&pool_timeout=20
+DIRECT_URL=postgresql://postgres:<db-password>@your-direct-db-host:5432/postgres
 
-API_KEYS=replace-with-a-long-random-api-key
+API_KEYS=<set-production-api-key>
 
 RATE_LIMIT_ENABLED=true
 RATE_LIMIT_STORE=database
@@ -97,8 +97,8 @@ INCIDENT_CASE_TOKEN_TTL_DAYS=30
 PASSWORD_RESET_DELIVERY_WEBHOOK_URL=https://security.example.gov/password-reset
 
 SUPABASE_URL=https://your-project-ref.supabase.co
-SUPABASE_ANON_KEY=replace-with-supabase-anon-key
-SUPABASE_SERVICE_ROLE_KEY=replace-with-supabase-service-role-key
+SUPABASE_ANON_KEY=<set-supabase-anon-key>
+SUPABASE_SERVICE_ROLE_KEY=<set-supabase-service-role-key>
 SUPABASE_AUTH_AUTO_CONFIRM_EMAIL=false
 SUPABASE_PASSWORD_RESET_REDIRECT_URL=https://your-dashboard.example.gov/reset-password
 
@@ -134,12 +134,12 @@ TRUST_PROXY=true
 LOG_LEVEL=info
 JSON_BODY_LIMIT=12mb
 
-DATABASE_URL=postgresql://postgres:password@your-runtime-db-host:5432/postgres
-DIRECT_URL=postgresql://postgres:password@your-direct-db-host:5432/postgres
+DATABASE_URL=postgresql://postgres:<db-password>@your-runtime-db-host:5432/postgres
+DIRECT_URL=postgresql://postgres:<db-password>@your-direct-db-host:5432/postgres
 
-API_KEYS=replace-with-a-long-random-api-key
-JWT_SECRET=replace-with-a-long-random-jwt-secret
-MFA_ENCRYPTION_KEY=replace-with-a-long-random-mfa-secret
+API_KEYS=<set-production-api-key>
+JWT_SECRET=<set-long-random-jwt-secret>
+MFA_ENCRYPTION_KEY=<set-long-random-mfa-encryption-key>
 
 RATE_LIMIT_ENABLED=true
 RATE_LIMIT_STORE=database

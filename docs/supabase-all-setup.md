@@ -92,7 +92,7 @@ SUPABASE_TOTP_ENABLED=true
 
 SUPABASE_URL=https://<project-ref>.supabase.co
 SUPABASE_ANON_KEY=<anon-key>
-SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
+SUPABASE_SERVICE_ROLE_KEY=<set-supabase-service-role-key>
 SUPABASE_AUTH_AUTO_CONFIRM_EMAIL=false
 SUPABASE_PASSWORD_RESET_REDIRECT_URL=https://<dashboard-host>/reset-password
 ```
@@ -281,7 +281,7 @@ API_BASE_PATH=/api/v1
 CORS_ORIGIN=https://<dashboard-host>
 TRUST_PROXY=true
 
-API_KEYS=<long-random-api-key>
+API_KEYS=<set-production-api-key>
 PASSWORD_RESET_DELIVERY_WEBHOOK_URL=https://security.example.com/password-reset
 SECURITY_ALERT_WEBHOOK_URL=https://security.example.com/alerts
 ARCHIVE_RECORDS_ENABLED=true
@@ -343,7 +343,7 @@ SUPABASE_JWT_ENABLED=true
 SUPABASE_TOTP_ENABLED=true
 SUPABASE_URL=https://<project-ref>.supabase.co
 SUPABASE_ANON_KEY=<anon-key>
-SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
+SUPABASE_SERVICE_ROLE_KEY=<set-supabase-service-role-key>
 SUPABASE_AUTH_AUTO_CONFIRM_EMAIL=false
 SUPABASE_PASSWORD_RESET_REDIRECT_URL=https://<dashboard-host>/reset-password
 
@@ -358,7 +358,7 @@ SUPABASE_STORAGE_ALLOWED_MIME_TYPES=image/jpeg,image/png,image/webp,image/heic,i
 SUPABASE_STORAGE_ARCHIVE_ENABLED=true
 SUPABASE_STORAGE_ARCHIVE_PREFIX=archive/incidents
 
-API_KEYS=<long-random-api-key>
+API_KEYS=<set-production-api-key>
 
 For the current dashboard deployment model, the browser reaches these backend auth flows through the dashboard's same-origin `/api/auth/*` proxy, while the API continues serving its own `/api/v1/auth/*` routes.
 ARCHIVE_RECORDS_ENABLED=true

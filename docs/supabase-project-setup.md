@@ -380,10 +380,10 @@ For production, upgrade to at least the Pro plan ($25/month) for:
 DATABASE_URL=postgresql://postgres.[ref]:[pass]@aws-[region].pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1&pool_timeout=20
 DIRECT_URL=postgresql://postgres:[pass]@db.[ref].supabase.co:5432/postgres
 SUPABASE_URL=https://[ref].supabase.co
-SUPABASE_ANON_KEY=<from-dashboard>
-SUPABASE_SERVICE_ROLE_KEY=<from-dashboard>
+SUPABASE_ANON_KEY=<set-supabase-anon-key>
+SUPABASE_SERVICE_ROLE_KEY=<set-supabase-service-role-key>
 SUPABASE_AUTH_AUTO_CONFIRM_EMAIL=true
-API_KEYS=local-dev-key
+API_KEYS=<set-local-api-key>
 FEATURE_AUTH_PROVIDER=supabase
 FEATURE_TOKEN_MODE=supabase-jwt
 FEATURE_MFA_MODE=supabase-totp
@@ -395,20 +395,20 @@ FEATURE_MFA_MODE=supabase-totp
 DATABASE_URL=<pooled-connection-string>
 DIRECT_URL=<direct-connection-string>
 SUPABASE_URL=https://[ref].supabase.co
-SUPABASE_ANON_KEY=<from-dashboard>
-SUPABASE_SERVICE_ROLE_KEY=<from-dashboard>
+SUPABASE_ANON_KEY=<set-supabase-anon-key>
+SUPABASE_SERVICE_ROLE_KEY=<set-supabase-service-role-key>
 SUPABASE_AUTH_AUTO_CONFIRM_EMAIL=false
 SUPABASE_AUTH_ENABLED=true
 SUPABASE_JWT_ENABLED=true
 SUPABASE_TOTP_ENABLED=true
-API_KEYS=<long-random-key>
+API_KEYS=<set-production-api-key>
 PASSWORD_RESET_DELIVERY_WEBHOOK_URL=https://<your-webhook>
 FEATURE_AUTH_PROVIDER=supabase
 FEATURE_TOKEN_MODE=supabase-jwt
 FEATURE_MFA_MODE=supabase-totp
 FEATURE_MEDIA_STORAGE=disabled
 FEATURE_RECORD_DELETION=archive
-MFA_ENCRYPTION_KEY=<strong-random-secret>
+MFA_ENCRYPTION_KEY=<set-long-random-mfa-encryption-key>
 ```
 
 ## Troubleshooting

@@ -58,8 +58,8 @@ FEATURE_MFA_MODE=local-totp
 **Required env vars:**
 
 - `DATABASE_URL` (Supabase PostgreSQL or any PostgreSQL)
-- `API_KEYS` (any value, e.g. `local-dev-key`)
-- `JWT_SECRET` (any string, e.g. `test-only-jwt-secret-change-me`)
+- `API_KEYS` (any value, e.g. `<set-local-api-key>`)
+- `JWT_SECRET` (any string, e.g. `<set-local-jwt-secret>`)
 - `MFA_ENCRYPTION_KEY` (any string for encrypting TOTP seeds)
 
 **Start command:**
