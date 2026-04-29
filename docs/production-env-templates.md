@@ -13,6 +13,13 @@ Replace every placeholder before use.
 4. Build with `npm run build:production`.
 5. Start the compiled app with PM2, systemd, or `npm start` for a first manual check.
 
+Use these templates with the current dashboard deployment model in mind:
+
+- `CORS_ORIGIN` should be the dashboard origin for the matching environment
+- the dashboard owns browser cookies on its own origin through its same-origin `/api/auth/*` proxy
+- the API should continue exposing `/api/v1/auth/*` and should not be documented as if it were setting dashboard browser cookies directly
+- production dashboard runtime should use checked-in CRUD config, not live `/api/v1/openapi.json`
+
 ## Template A: Production Supabase Auth, No Media Storage
 
 Use this when you want Supabase auth in production but do not want Supabase Storage incident uploads yet.

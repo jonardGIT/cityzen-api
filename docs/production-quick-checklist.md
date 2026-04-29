@@ -14,6 +14,7 @@ Use this as the short copy-paste checklist before you boot the API in production
 8. If using media storage, confirm `SUPABASE_STORAGE_BUCKET` exists and `SUPABASE_STORAGE_ACCESS_MODE=signed`.
 9. Confirm `RATE_LIMIT_ENABLED=true`.
 10. Confirm `PUBLIC_CASE_LOOKUP_RATE_LIMIT_ENABLED=true`.
+11. Confirm `CORS_ORIGIN` matches the real dashboard origin for the target environment.
 
 ## Before Start
 
@@ -46,7 +47,8 @@ curl http://127.0.0.1:3000/api/v1/health
 
 2. Check external health from the expected ingress path.
 3. Run the remote smoke script if you have staging or production smoke credentials.
-4. Review logs for startup validation, database connection, and auth errors.
+4. If the dashboard is part of the rollout, run the dashboard smoke check against the deployed dashboard origin too.
+5. Review logs for startup validation, database connection, and auth errors.
 
 ## Do Not Ship If
 
@@ -58,3 +60,4 @@ Do not proceed if any of these are true:
 4. `PASSWORD_RESET_DELIVERY_WEBHOOK_URL` is missing in production.
 5. Media storage is enabled but `SUPABASE_STORAGE_ACCESS_MODE` is not `signed`.
 6. The feature profile was not built with `npm run build:production`.
+7. `CORS_ORIGIN` still points to the wrong dashboard environment.

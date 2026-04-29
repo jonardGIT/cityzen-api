@@ -4,6 +4,19 @@ This guide explains how to set up the API properly, which environment variables 
 
 Use this document as the practical operator guide.
 
+## Dashboard Integration Contract
+
+The current CIRS dashboard is a Next.js app that runs locally on `http://localhost:3001` and, in production, should be hosted on its own HTTPS origin.
+
+For API operators, the important integration rules are:
+
+- the API remains the source of truth for auth, authorization, validation, rate limiting, and audit behavior
+- the dashboard now fronts browser auth through its own same-origin `/api/auth/*` proxy routes
+- the dashboard stores browser session state in `HttpOnly` cookies on the dashboard origin, not on the API origin
+- the API must still expose its normal auth routes under `/api/v1/auth/*`
+- `CORS_ORIGIN` must allow the real dashboard origin or origins for the environment being deployed
+- production dashboard runtime should not depend on live `/api/v1/openapi.json`
+
 ## 1. Setup Order
 
 Set the API up in this order:
@@ -192,7 +205,7 @@ NODE_ENV=development
 PORT=3000
 API_BASE_PATH=/api/v1
 HOST=0.0.0.0
-CORS_ORIGIN=http://localhost:5173
+CORS_ORIGIN=http://localhost:3001
 TRUST_PROXY=false
 DATABASE_URL=postgresql://...
 DIRECT_URL=postgresql://...
@@ -233,7 +246,7 @@ NODE_ENV=development
 PORT=3000
 API_BASE_PATH=/api/v1
 HOST=0.0.0.0
-CORS_ORIGIN=http://localhost:5173
+CORS_ORIGIN=http://localhost:3001
 TRUST_PROXY=false
 DATABASE_URL=postgresql://...
 DIRECT_URL=postgresql://...
@@ -471,6 +484,8 @@ Before you call the API properly set up in production, confirm these are true:
 8. You built with `npm run build:production` using the intended `FEATURE_*` profile.
 9. You are starting `dist/server.js`, not the TypeScript dev server.
 10. Health check passes after boot.
+11. `CORS_ORIGIN` matches the real dashboard origin for this environment.
+12. The paired dashboard deployment is using server-only API keys and same-origin `/api/auth/*` proxy routes rather than exposing backend keys to the browser.
 
 ## 11. Commands Summary
 

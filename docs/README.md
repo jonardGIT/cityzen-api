@@ -126,7 +126,7 @@ NODE_ENV=development
 PORT=3000
 API_BASE_PATH=/api/v1
 LOG_LEVEL=info
-CORS_ORIGIN=http://localhost:5173
+CORS_ORIGIN=http://localhost:3001
 TRUST_PROXY=false
 DATABASE_URL=postgresql://postgres:<password>@aws-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1&pool_timeout=20
 DIRECT_URL=postgresql://postgres:<password>@db.<project-ref>.supabase.co:5432/postgres
@@ -148,7 +148,7 @@ SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_ANON_KEY=<public-anon-key>
 SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
 SUPABASE_AUTH_AUTO_CONFIRM_EMAIL=true
-SUPABASE_PASSWORD_RESET_REDIRECT_URL=http://localhost:5173/reset-password
+SUPABASE_PASSWORD_RESET_REDIRECT_URL=http://localhost:3001/reset-password
 SUPABASE_STORAGE_ENABLED=false
 SUPABASE_STORAGE_BUCKET=incident-media
 SUPABASE_STORAGE_ACCESS_MODE=signed
@@ -177,6 +177,8 @@ For production setup, env ordering, feature profiles, and service-run guidance, 
 - `docs/production-env-templates.md`
 - `docs/production-service-runbook.md`
 - `docs/production-readiness-checklist.md`
+
+For the current dashboard integration model, assume the dashboard runs locally on `http://localhost:3001` and fronts browser auth through its own same-origin `/api/auth/*` proxy.
 
 ## Related Docs
 

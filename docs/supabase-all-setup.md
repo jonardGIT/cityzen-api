@@ -102,6 +102,7 @@ Notes:
 - `SUPABASE_JWT_ENABLED=true` requires `SUPABASE_AUTH_ENABLED=true`.
 - `SUPABASE_TOTP_ENABLED=true` requires `SUPABASE_JWT_ENABLED=true`.
 - In pure Supabase JWT mode, `JWT_SECRET` is not required.
+- In the current CIRS dashboard workspace, local dashboard testing uses `http://localhost:3001/reset-password`.
 
 ## 4. Configure Supabase Storage
 
@@ -358,6 +359,8 @@ SUPABASE_STORAGE_ARCHIVE_ENABLED=true
 SUPABASE_STORAGE_ARCHIVE_PREFIX=archive/incidents
 
 API_KEYS=<long-random-api-key>
+
+For the current dashboard deployment model, the browser reaches these backend auth flows through the dashboard's same-origin `/api/auth/*` proxy, while the API continues serving its own `/api/v1/auth/*` routes.
 ARCHIVE_RECORDS_ENABLED=true
 PASSWORD_RESET_DELIVERY_WEBHOOK_URL=https://security.example.com/password-reset
 SECURITY_ALERT_WEBHOOK_URL=https://security.example.com/alerts

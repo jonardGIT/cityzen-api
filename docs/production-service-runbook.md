@@ -2,6 +2,8 @@
 
 This guide explains how to run the API properly in production and answers the practical server question directly.
 
+If this API is deployed with the current CIRS dashboard, remember that browser auth reaches the API through the dashboard's same-origin `/api/auth/*` proxy. The API still owns `/api/v1/auth/*`, but the dashboard owns the browser cookies on its own origin.
+
 ## Short Answer
 
 Yes, you can run the API in a server terminal for a first manual test.
@@ -156,6 +158,7 @@ Before you start the production service, confirm:
 3. The env file contains `API_KEYS` or `API_KEY`.
 4. The env file contains `PASSWORD_RESET_DELIVERY_WEBHOOK_URL`.
 5. The build was done with the intended `FEATURE_*` profile.
+6. `CORS_ORIGIN` matches the real dashboard origin for this environment.
 
 ## Recommended Operator Workflow
 
@@ -176,3 +179,9 @@ curl http://127.0.0.1:3000/api/v1/health
 ```
 
 If you have a reverse proxy, also verify from the public path.
+
+If the dashboard is part of the same release, also verify the full pair:
+
+1. dashboard login succeeds through its `/api/auth/login` proxy
+2. dashboard authenticated calls to `/api/auth/me` and `/api/users/capabilities` succeed
+3. protected dashboard pages can load data through the API-backed proxy routes

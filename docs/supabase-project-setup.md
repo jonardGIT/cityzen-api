@@ -146,9 +146,10 @@ https://your-dashboard.com/reset-password
 For development:
 
 ```
-http://localhost:5173/reset-password
 http://localhost:3001/reset-password
 ```
+
+For the current CIRS dashboard workspace, `http://localhost:3001/reset-password` is the active local dashboard route.
 
 ## 6. Enable MFA (TOTP)
 
