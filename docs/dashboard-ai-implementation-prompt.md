@@ -28,13 +28,13 @@ Functional requirements:
 
 2. Authorization and UI gating
 
-- Assume current user role is available from auth state (`SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, `DISPATCHER`, `RESPONDER`, `CITIZEN_REPORTER`, `AUDITOR`).
+- Assume current user role is available from auth state (`NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `CITY_CONTENT_EDITOR`, `DISPATCHER`, `RESPONDER`, `CITIZEN_REPORTER`, `AUDITOR`).
 - Hide or disable action buttons (Create, Edit, Delete) if current role is not included in allowedRoles.
 - Treat `authRequired` in the config files as authoritative; the current dashboard resource routes are authenticated.
 - Respect `featureGate` metadata in the config files. Do not render or call feature-gated operations when the current deployment does not expose them.
 - Add a reusable hasPermission(endpoint, role) helper.
 - For incident list/get when role is `CITIZEN_REPORTER`, show only the logged-in user's own incidents.
-- Citizens list/get/create/update/delete are admin-only; keep `citizens/link-me` as a dedicated citizen self-service action rather than a normal admin CRUD form.
+- Citizens list/get/create/update/delete are limited to `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, and `CITY_ADMIN`; keep `citizens/link-me` as a dedicated citizen self-service action rather than a normal admin CRUD form.
 
 3. Dynamic resource pages
 
@@ -168,7 +168,7 @@ Security alignment notes:
 - Privileged accounts may be challenged for TOTP MFA at login; the dashboard should render a second-step MFA form instead of treating the first `401` as a generic failure.
 - Password or role changes revoke existing backend sessions, so handle a follow-up `401` by clearing client auth state and forcing a fresh login.
 - Most non-auth API routes also require `x-api-key` when the backend is configured with API keys.
-- Audit logs are admin-only and are handled separately by `docs/dashboard-audit-log-implementation-prompt.md`.
+- Audit logs are limited to `NATIONAL_ADMIN` and `AUDITOR` and are handled separately by `docs/dashboard-audit-log-implementation-prompt.md`.
 
 5. Deliverables
 

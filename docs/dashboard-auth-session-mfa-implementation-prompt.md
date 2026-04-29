@@ -39,7 +39,7 @@ The dashboard must support all of the following backend behaviors:
 - Logout uses `POST /api/v1/auth/logout` and revokes the current server-side session
 - Session inventory uses `GET /api/v1/auth/sessions` only when `tokenMode=app-jwt`
 - Targeted session revocation uses `DELETE /api/v1/auth/sessions/:id` only when `tokenMode=app-jwt`
-- Privileged roles `SYSTEM_ADMIN`, `DEPARTMENT_MANAGER`, `SUPERVISOR`, and `DISPATCHER` can use MFA setup, enable, and disable endpoints when MFA is enabled in the active feature selection
+- Privileged roles `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`, `CITY_CONTENT_EDITOR`, `DISPATCHER`, and `AUDITOR` can use MFA setup, enable, and disable endpoints when MFA is enabled in the active feature selection
 - `POST /api/v1/auth/mfa/setup`, `POST /api/v1/auth/mfa/enable`, and `POST /api/v1/auth/mfa/disable` are optional endpoints gated by the current `mfaMode`
 - `POST /api/v1/auth/mfa/setup` may return `503` when the backend environment is missing `MFA_ENCRYPTION_KEY` or MFA storage is not fully available
 - Once MFA is enabled for a privileged account, login requires `mfaCode`

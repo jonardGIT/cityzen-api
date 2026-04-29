@@ -93,6 +93,9 @@ jobs:
       - name: Validate Prisma schema
         run: npx prisma validate --schema=prisma/schema.prisma
 
+      - name: Verify generated dashboard contract docs are current
+        run: npm run docs:dashboard-config:check
+
       - name: Build source project
         if: github.repository == 'jonardGIT/cityzen-api'
         run: npm run build

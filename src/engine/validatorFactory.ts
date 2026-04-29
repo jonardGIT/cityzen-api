@@ -2,6 +2,12 @@ import { body, type ValidationChain } from 'express-validator';
 import type { RequestHandler } from 'express';
 import type { FieldConfig } from './types.js';
 
+function addStringSafetyChecks(chain: ValidationChain, field: FieldConfig): ValidationChain {
+  return chain
+    .custom((value) => typeof value !== 'string' || !value.includes('\0'))
+    .withMessage(`${field.name} must not contain null bytes`);
+}
+
 function formatFieldList(names: string[]): string {
   if (names.length === 1) return names[0];
   if (names.length === 2) return `${names[0]} or ${names[1]}`;
@@ -20,7 +26,7 @@ function buildCreateChain(field: FieldConfig): ValidationChain {
         .isLength({ max: field.maxLength })
         .withMessage(`${field.name} must be a string with maximum ${field.maxLength} characters`);
     }
-    return chain;
+    return addStringSafetyChecks(chain, field);
   }
 
   let chain = body(field.name).optional().isString();
@@ -32,7 +38,7 @@ function buildCreateChain(field: FieldConfig): ValidationChain {
   } else {
     chain = chain.withMessage(`${field.name} must be a string`);
   }
-  return chain;
+  return addStringSafetyChecks(chain, field);
 }
 
 function buildUpdateChain(field: FieldConfig): ValidationChain {
@@ -47,7 +53,7 @@ function buildUpdateChain(field: FieldConfig): ValidationChain {
         .isLength({ max: field.maxLength })
         .withMessage(`${field.name} must be a string with maximum ${field.maxLength} characters`);
     }
-    return chain;
+    return addStringSafetyChecks(chain, field);
   }
 
   let chain: ValidationChain;
@@ -68,7 +74,7 @@ function buildUpdateChain(field: FieldConfig): ValidationChain {
   } else {
     chain = chain.withMessage(`${field.name} must be a non-empty string`);
   }
-  return chain;
+  return addStringSafetyChecks(chain, field);
 }
 
 export interface CrudValidators {

@@ -106,11 +106,7 @@ describe('Security — Prisma/NoSQL Injection', () => {
         password: 'Password123!',
       });
 
-    // BUG: This currently returns 500 (unhandled object type reaching Prisma).
-    // The API should validate email is a string before passing to the ORM.
-    expect(res.status).toBeGreaterThanOrEqual(400);
-    // Accept either 400 (proper validation) or 500 (current bug)
-    expect([400, 422, 500]).toContain(res.status);
+    expect(res.status).toBe(422);
   });
 
   it('rejects prototype pollution via __proto__', async () => {

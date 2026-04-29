@@ -73,6 +73,14 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+function getRequestBodyObject(req: Request): Record<string, unknown> {
+  if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+    return {};
+  }
+
+  return req.body as Record<string, unknown>;
+}
+
 function requiresSupabaseTotpForUser(role: UserRole, mfaEnabled: boolean): boolean {
   return (
     isSupabaseJwtEnabled() &&
@@ -376,7 +384,7 @@ function handlePasswordResetRuntimeError(res: Response, error: unknown): boolean
 
 // Registers a new user (public endpoint for self-registration).
 export async function register(req: Request, res: Response): Promise<void> {
-  const { name, email, password } = req.body as {
+  const { name, email, password } = getRequestBodyObject(req) as {
     name?: unknown;
     email?: unknown;
     password?: unknown;
@@ -498,7 +506,7 @@ export async function register(req: Request, res: Response): Promise<void> {
 }
 
 export async function registerMobileCitizen(req: Request, res: Response): Promise<void> {
-  const { name, mobileNumber, password, preferredChannel } = req.body as {
+  const { name, mobileNumber, password, preferredChannel } = getRequestBodyObject(req) as {
     name?: unknown;
     mobileNumber?: unknown;
     password?: unknown;
@@ -601,7 +609,7 @@ export async function registerMobileCitizen(req: Request, res: Response): Promis
 
 // Authenticates a user by email and password, returning a signed JWT.
 export async function login(req: Request, res: Response): Promise<void> {
-  const { email, password, mfaCode } = req.body as {
+  const { email, password, mfaCode } = getRequestBodyObject(req) as {
     email?: unknown;
     password?: unknown;
     mfaCode?: unknown;
@@ -825,7 +833,7 @@ export async function login(req: Request, res: Response): Promise<void> {
 }
 
 export async function loginMobileCitizen(req: Request, res: Response): Promise<void> {
-  const { mobileNumber, password } = req.body as {
+  const { mobileNumber, password } = getRequestBodyObject(req) as {
     mobileNumber?: unknown;
     password?: unknown;
   };
@@ -895,7 +903,7 @@ export async function loginMobileCitizen(req: Request, res: Response): Promise<v
 
 // Creates a one-time password reset token for account recovery without exposing whether the email exists.
 export async function requestPasswordReset(req: Request, res: Response): Promise<void> {
-  const { email } = req.body as { email?: string };
+  const { email } = getRequestBodyObject(req) as { email?: string };
 
   if (!email) {
     res.status(422).json({ message: 'email is required' });
@@ -968,7 +976,10 @@ export async function requestPasswordReset(req: Request, res: Response): Promise
 
 // Resets a password with a valid one-time reset token and revokes all existing sessions for that user.
 export async function confirmPasswordReset(req: Request, res: Response): Promise<void> {
-  const { token, password } = req.body as { token?: string; password?: string };
+  const { token, password } = getRequestBodyObject(req) as {
+    token?: string;
+    password?: string;
+  };
 
   if (!token || !password) {
     res.status(422).json({ message: 'token and password are required' });
@@ -1151,7 +1162,7 @@ export async function setupMfa(req: Request, res: Response): Promise<void> {
 // Enables MFA for the authenticated privileged user after verifying a TOTP code.
 export async function enableMfa(req: Request, res: Response): Promise<void> {
   const authUser = (req as AuthenticatedRequest).authUser;
-  const { code } = req.body as { code?: string };
+  const { code } = getRequestBodyObject(req) as { code?: string };
 
   if (!authUser) {
     res.status(401).json({ message: 'Unauthorized: missing authentication context' });
@@ -1285,7 +1296,7 @@ export async function enableMfa(req: Request, res: Response): Promise<void> {
 // Disables MFA for the authenticated privileged user after verifying a TOTP code.
 export async function disableMfa(req: Request, res: Response): Promise<void> {
   const authUser = (req as AuthenticatedRequest).authUser;
-  const { code } = req.body as { code?: string };
+  const { code } = getRequestBodyObject(req) as { code?: string };
 
   if (!authUser) {
     res.status(401).json({ message: 'Unauthorized: missing authentication context' });
@@ -1427,7 +1438,7 @@ export async function me(req: Request, res: Response): Promise<void> {
 
 // Rotates a refresh token and returns a new access token pair for the same session.
 export async function refresh(req: Request, res: Response): Promise<void> {
-  const { refreshToken } = req.body as { refreshToken?: string };
+  const { refreshToken } = getRequestBodyObject(req) as { refreshToken?: string };
 
   if (!refreshToken) {
     res.status(422).json({ message: 'refreshToken is required' });

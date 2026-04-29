@@ -77,9 +77,11 @@ The backend no longer uses the old separate `locations` CRUD surface for inciden
 
 The role model is:
 
-- `SYSTEM_ADMIN`
-- `DEPARTMENT_MANAGER`
-- `SUPERVISOR`
+- `NATIONAL_ADMIN`
+- `REGIONAL_DIRECTOR`
+- `PROVINCIAL_ADMIN`
+- `CITY_ADMIN`
+- `CITY_CONTENT_EDITOR`
 - `DISPATCHER`
 - `RESPONDER`
 - `CITIZEN_REPORTER`

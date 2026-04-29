@@ -2,7 +2,16 @@
 import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
-import { resolveJurisdictionScope } from '../middleware/jurisdiction.js';
+import {
+  buildAssignmentScopeWhere,
+  canManageIncident,
+  canManageResponder,
+  findActiveIncident,
+  findActiveResponder,
+  findScopedActiveAssignment,
+  findScopedArchivedAssignment,
+  resolveAssignmentScope,
+} from '../services/assignmentScopeService.js';
 import {
   buildPaginatedResponse,
   getListQuery,
@@ -11,33 +20,7 @@ import {
 } from '../utils/request.js';
 import { assignmentsListQueryConfig } from '../utils/listQueryConfig.js';
 import type { Assignment } from '../types/models.js';
-import {
-  isArchiveEnabled,
-  withActiveRecords,
-  withArchivedRecords,
-  withArchiveScope,
-} from '../utils/archive.js';
-
-type AssignmentScope = { kind: 'global' } | { kind: 'scoped'; cityMunicipalityIds: string[] };
-
-type AssignmentIncidentRecord = {
-  id: string;
-  cityMunicipalityId: string | null;
-};
-
-type AssignmentResponderRecord = {
-  id: string;
-  agency: {
-    cityMunicipalityId: string | null;
-  } | null;
-};
-
-type AssignmentRecordWithIncidentScope = {
-  id: string;
-  incidentId: string;
-  responderId: string;
-  incident: AssignmentIncidentRecord;
-};
+import { isArchiveEnabled, withActiveRecords, withArchiveScope } from '../utils/archive.js';
 
 function getAuthUser(req: Request, res: Response) {
   const authUser = (req as AuthenticatedRequest).authUser;
@@ -48,151 +31,6 @@ function getAuthUser(req: Request, res: Response) {
   }
 
   return authUser;
-}
-
-async function resolveAssignmentScope(
-  authUser: NonNullable<AuthenticatedRequest['authUser']>,
-): Promise<AssignmentScope | null> {
-  if (authUser.role === 'NATIONAL_ADMIN') {
-    return { kind: 'global' };
-  }
-
-  const user = await prisma.user.findFirst({
-    where: withActiveRecords({ id: authUser.id }),
-    select: { jurisdictionType: true, jurisdictionId: true },
-  });
-
-  if (!user) {
-    return null;
-  }
-
-  const scope = await resolveJurisdictionScope(user.jurisdictionType, user.jurisdictionId);
-  const cityMunicipalityIds = scope.cityMunicipalityIds ?? [];
-
-  if (scope.type === 'region' || scope.type === 'province' || scope.type === 'city') {
-    return cityMunicipalityIds.length > 0 ? { kind: 'scoped', cityMunicipalityIds } : null;
-  }
-
-  return null;
-}
-
-function buildAssignmentScopeWhere(
-  baseWhere: Record<string, unknown>,
-  scope: AssignmentScope,
-): Record<string, unknown> {
-  if (scope.kind === 'global') {
-    return baseWhere;
-  }
-
-  return {
-    AND: [
-      baseWhere,
-      {
-        incident: {
-          is: {
-            cityMunicipalityId: {
-              in: scope.cityMunicipalityIds,
-            },
-          },
-        },
-      },
-      {
-        responder: {
-          is: {
-            agency: {
-              is: {
-                cityMunicipalityId: {
-                  in: scope.cityMunicipalityIds,
-                },
-              },
-            },
-          },
-        },
-      },
-    ],
-  };
-}
-
-function canManageIncident(scope: AssignmentScope, incident: AssignmentIncidentRecord): boolean {
-  if (scope.kind === 'global') {
-    return true;
-  }
-
-  return Boolean(
-    incident.cityMunicipalityId && scope.cityMunicipalityIds.includes(incident.cityMunicipalityId),
-  );
-}
-
-function canManageResponder(scope: AssignmentScope, responder: AssignmentResponderRecord): boolean {
-  if (scope.kind === 'global') {
-    return true;
-  }
-
-  return Boolean(
-    responder.agency?.cityMunicipalityId &&
-    scope.cityMunicipalityIds.includes(responder.agency.cityMunicipalityId),
-  );
-}
-
-async function findActiveIncident(incidentId: string): Promise<AssignmentIncidentRecord | null> {
-  return prisma.citizenIncident.findFirst({
-    where: withActiveRecords({ id: incidentId }),
-    select: { id: true, cityMunicipalityId: true },
-  });
-}
-
-async function findActiveResponder(responderId: string): Promise<AssignmentResponderRecord | null> {
-  return prisma.responder.findFirst({
-    where: withActiveRecords({ id: responderId }),
-    select: {
-      id: true,
-      agency: {
-        select: {
-          cityMunicipalityId: true,
-        },
-      },
-    },
-  });
-}
-
-async function findScopedActiveAssignment(
-  id: string,
-  scope: AssignmentScope,
-): Promise<AssignmentRecordWithIncidentScope | null> {
-  return prisma.assignment.findFirst({
-    where: buildAssignmentScopeWhere(withActiveRecords({ id }), scope),
-    select: {
-      id: true,
-      incidentId: true,
-      responderId: true,
-      incident: {
-        select: {
-          id: true,
-          cityMunicipalityId: true,
-        },
-      },
-    },
-  });
-}
-
-async function findScopedArchivedAssignment(
-  id: string,
-  scope: AssignmentScope,
-): Promise<AssignmentRecordWithIncidentScope | null> {
-  return prisma.assignment.findFirst({
-    where: buildAssignmentScopeWhere(withArchivedRecords({ id }), scope),
-    select: {
-      id: true,
-      incidentId: true,
-      responderId: true,
-      incident: {
-        select: {
-          id: true,
-          cityMunicipalityId: true,
-        },
-      },
-    },
-  });
 }
 
 // Returns all assignments from the database.

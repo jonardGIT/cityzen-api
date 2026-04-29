@@ -120,10 +120,8 @@ describe('Input Validation — Unicode & Special Characters', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ name: value });
 
-      // Should accept or reject cleanly, never 500
-      // Note: null byte currently causes 500 — this is a known bug
       if (label === 'null byte') {
-        expect([201, 400, 422, 500]).toContain(res.status);
+        expect(res.status).toBe(400);
       } else {
         expect(res.status).toBeLessThan(500);
       }
@@ -224,8 +222,7 @@ describe('Input Validation — Empty/Invalid Bodies', () => {
       .set('Content-Type', 'text/plain')
       .send('not json');
 
-    // API should handle gracefully; may return 400 or 415
-    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(res.status).toBe(422);
   });
 });
 
