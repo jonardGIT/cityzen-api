@@ -94,6 +94,7 @@ jobs:
         run: npx prisma validate --schema=prisma/schema.prisma
 
       - name: Verify generated dashboard contract docs are current
+        if: hashFiles('scripts/generateDashboardCrudConfig.ts', 'src/docs/dashboardCrudContract.ts') != ''
         run: npm run docs:dashboard-config:check
 
       - name: Build source project
