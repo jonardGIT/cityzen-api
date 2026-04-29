@@ -184,6 +184,7 @@ For production setup, env ordering, feature profiles, and service-run guidance, 
 - `docs/api-setup-guide.md`
 - `docs/CIRS-Anonymous-Reporting-Policy-Brief.docx`
 - `docs/lawful-basis-register.md`
+- `docs/privacy-governance-operations-guide.md`
 - `docs/production-quick-checklist.md`
 - `docs/production-env-templates.md`
 - `docs/production-service-runbook.md`
@@ -195,10 +196,22 @@ For the current dashboard integration model, assume the dashboard runs locally o
 
 - `docs/api-setup-guide.md`
 - `docs/CIRS-Anonymous-Reporting-Policy-Brief.docx`
+- `docs/access-review-template.md`
 - `docs/feature-profiles-guide.md`
 - `docs/lawful-basis-register.md`
+- `docs/privacy-incident-playbook.md`
+- `docs/privacy-compliance-closeout-checklist.md`
+- `docs/privacy-external-blockers-report.md`
+- `docs/privacy-governance-operations-guide.md`
+- `docs/privacy-governance-policy-draft.md`
 - `docs/production-quick-checklist.md`
 - `docs/production-env-templates.md`
 - `docs/production-service-runbook.md`
 - `docs/production-readiness-checklist.md`
+- `docs/processor-register-template.md`
+- `docs/public-privacy-notice-draft.md`
+- `docs/record-of-processing-activities-template.md`
+- `docs/retention-schedule-template.md`
+- `docs/staff-privacy-training-outline.md`
 - `docs/supabase-all-setup.md`
+- `docs/tuguegarao-pilot-governance-baseline.md`

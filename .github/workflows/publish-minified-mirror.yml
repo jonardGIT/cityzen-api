@@ -98,6 +98,8 @@ jobs:
 
           rsync -a --delete --exclude '.git/' "$STAGE_DIR/" "$PUBLISH_DIR/"
 
+          rm -rf "$PUBLISH_DIR/docs/cirs-privacy-site"
+
           git config user.name "Xypes13"
           git config user.email "tech@xypes.com"
           git add -A

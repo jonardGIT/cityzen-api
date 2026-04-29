@@ -138,6 +138,12 @@ This lawful basis register is only one requirement. The LGU deployment should al
 5. retention and disposal schedules approved by the responsible authority
 6. DPO review and sign-off for production use
 
+For a practical implementation guide covering staff procedures, retention schedules, vendor contracts, access reviews, training, and DPO operations, use `docs/privacy-governance-operations-guide.md`.
+
+For a working processing inventory aligned to the current API, use `docs/record-of-processing-activities-template.md`.
+
+For a plain-language external notice aligned to this register, use `docs/public-privacy-notice-draft.md`.
+
 ## Review Trigger
 
 Review and update this file whenever any of the following changes:
