@@ -289,8 +289,17 @@ npm run dev</code></pre>
                 Write the locked output to
                 <strong>src/generated/productionFeatureProfile.ts</strong>.
               </li>
-              <li>Compile with TypeScript and run using the locked profile.</li>
+              <li>
+                Bundle the production server and run the locked
+                <strong>dist/server.js</strong> output.
+              </li>
             </ol>
+            <p>
+              The locked bundle wins over later runtime changes. If PM2 starts a bundle that was
+              built with <strong>FEATURE_MEDIA_STORAGE=disabled</strong>, media upload stays
+              disabled even when the target database or Supabase project already supports storage.
+              To change the active production profile, rebuild first and then restart the process.
+            </p>
           </section>
         </div>
       </main>

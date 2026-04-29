@@ -39,6 +39,10 @@ import { isArchiveEnabled } from '../utils/archive.js';
 import { incidentTimelineParamValidator } from '../validators/incidentTrustValidators.js';
 
 const router = Router();
+const incidentMediaUploadFeatureEnabled =
+  process.env.CIRS_BUNDLE_FEATURE_LOCKED === 'true'
+    ? process.env.CIRS_BUNDLE_FEATURE_MEDIA_STORAGE === 'supabase-storage'
+    : isIncidentMediaUploadFeatureEnabled();
 
 function buildAuthenticatedUserScopedKey(req: Request): string {
   const authUserId = (req as AuthenticatedRequest).authUser?.id ?? 'anonymous';
@@ -114,7 +118,7 @@ router.get(
   asyncHandler(getAuditorIncidentById),
 );
 
-if (isIncidentMediaUploadFeatureEnabled()) {
+if (incidentMediaUploadFeatureEnabled) {
   router.post(
     '/media/upload',
     requireJwtAuth,

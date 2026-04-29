@@ -48,6 +48,12 @@ This API behaves differently in development and production.
 - Production startup is strict and fails closed if required security variables are missing or unsafe.
 - Start command is usually `npm start` or a process manager running `dist/server.js`.
 
+Important production rule:
+
+- A configured database capability does not enable the matching API feature by itself. For example, having Supabase storage available does not enable media upload unless the build was created with `FEATURE_MEDIA_STORAGE=supabase-storage`.
+- PM2 env or `.env` values only affect the production feature profile if they are present when `npm run build:production` runs.
+- Once `dist/server.js` has been built, restarting PM2 with different `FEATURE_*` values does not change the locked production profile. Rebuild first, then restart.
+
 ## 3. What You Need Before Anything Else
 
 These are the first things to decide before configuring the app.
@@ -449,9 +455,11 @@ npm run build:production
 This does two things:
 
 1. Writes `src/generated/productionFeatureProfile.ts`
-2. Runs TypeScript build to create `dist/`
+2. Bundles the production server to `dist/server.js` with the selected feature profile locked into the output
 
-### Step 3: Start the compiled server
+That means the built artifact already contains the chosen production feature profile. If you build with `FEATURE_MEDIA_STORAGE=disabled`, then later point PM2 at a database or Supabase project that supports storage, the API will still behave as storage-disabled until you rebuild with the storage-enabled profile.
+
+### Step 3: Start the bundled server
 
 Run:
 
@@ -572,7 +580,7 @@ npm run build
 npm run build:production
 ```
 
-### Start compiled server
+### Start bundled server
 
 ```bash
 npm start

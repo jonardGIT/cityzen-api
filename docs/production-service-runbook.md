@@ -10,7 +10,7 @@ Yes, you can run the API in a server terminal for a first manual test.
 
 No, you should not rely on an interactive terminal as the actual production runtime.
 
-For real production, run the compiled server under a supervisor such as:
+For real production, run the bundled server artifact under a supervisor such as:
 
 1. PM2
 2. systemd
@@ -18,7 +18,7 @@ For real production, run the compiled server under a supervisor such as:
 
 ## What You Actually Run In Production
 
-You run the compiled JavaScript server:
+You run the bundled JavaScript server:
 
 ```bash
 node dist/server.js

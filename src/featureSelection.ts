@@ -60,6 +60,56 @@ function validateFeatureSelectionCore(selection: FeatureSelectionCore): void {
   }
 }
 
+const bundledAuthProvider = parseChoice(
+  process.env.CIRS_BUNDLE_FEATURE_AUTH_PROVIDER,
+  AUTH_PROVIDER_OPTIONS,
+);
+const bundledTokenMode = parseChoice(
+  process.env.CIRS_BUNDLE_FEATURE_TOKEN_MODE,
+  TOKEN_MODE_OPTIONS,
+);
+const bundledMfaMode = parseChoice(process.env.CIRS_BUNDLE_FEATURE_MFA_MODE, MFA_MODE_OPTIONS);
+const bundledMediaStorage = parseChoice(
+  process.env.CIRS_BUNDLE_FEATURE_MEDIA_STORAGE,
+  MEDIA_STORAGE_OPTIONS,
+);
+const bundledRecordDeletion = parseChoice(
+  process.env.CIRS_BUNDLE_FEATURE_RECORD_DELETION,
+  RECORD_DELETION_OPTIONS,
+);
+
+const bundledFeatureSelectionCore: FeatureSelectionCore | null =
+  process.env.CIRS_BUNDLE_FEATURE_LOCKED === 'true' &&
+  bundledAuthProvider &&
+  bundledTokenMode &&
+  bundledMfaMode &&
+  bundledMediaStorage &&
+  bundledRecordDeletion
+    ? {
+        authProvider: bundledAuthProvider,
+        tokenMode: bundledTokenMode,
+        mfaMode: bundledMfaMode,
+        mediaStorage: bundledMediaStorage,
+        recordDeletion: bundledRecordDeletion,
+      }
+    : null;
+
+if (bundledFeatureSelectionCore) {
+  validateFeatureSelectionCore(bundledFeatureSelectionCore);
+}
+
+export const BUILD_TIME_SESSION_INVENTORY_FEATURE_ENABLED: boolean | null =
+  bundledFeatureSelectionCore ? bundledFeatureSelectionCore.tokenMode === 'app-jwt' : null;
+
+export const BUILD_TIME_ANY_MFA_FEATURE_ENABLED: boolean | null = bundledFeatureSelectionCore
+  ? bundledFeatureSelectionCore.mfaMode !== 'disabled'
+  : null;
+
+export const BUILD_TIME_INCIDENT_MEDIA_UPLOAD_FEATURE_ENABLED: boolean | null =
+  bundledFeatureSelectionCore
+    ? bundledFeatureSelectionCore.mediaStorage === 'supabase-storage'
+    : null;
+
 function buildRuntimeFeatureSelection(): FeatureSelection {
   const rawArchiveFlag = process.env.ARCHIVE_RECORDS_ENABLED;
   const authProvider =
@@ -96,6 +146,15 @@ function buildRuntimeFeatureSelection(): FeatureSelection {
 
 export function getFeatureSelection(): FeatureSelection {
   if (cachedFeatureSelection) {
+    return cachedFeatureSelection;
+  }
+
+  if (bundledFeatureSelectionCore) {
+    cachedFeatureSelection = {
+      profileSource: 'production-build',
+      profileName: process.env.CIRS_BUNDLE_FEATURE_PROFILE_NAME?.trim() || 'production',
+      ...bundledFeatureSelectionCore,
+    };
     return cachedFeatureSelection;
   }
 

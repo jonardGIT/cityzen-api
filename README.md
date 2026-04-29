@@ -22,7 +22,7 @@ npm run dev
 
 ## Production
 
-Build the locked production profile first, then run the compiled server:
+Build the locked production profile first, then run the bundled server output:
 
 ```bash
 npm ci

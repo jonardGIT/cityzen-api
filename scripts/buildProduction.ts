@@ -1,8 +1,8 @@
-import { existsSync, mkdirSync, writeFileSync } from 'fs';
-import { spawnSync } from 'child_process';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { createRequire } from 'module';
 import path from 'path';
 import dotenv from 'dotenv';
+import { build } from 'esbuild';
 
 function applyMissingEnv(values: Record<string, string | undefined> | undefined): void {
   if (!values) {
@@ -89,17 +89,35 @@ function writeProductionFeatureProfile(selection: FeatureSelectionCore): void {
   writeFileSync(outputPath, content, 'utf8');
 }
 
-function runBuild(): void {
-  const command = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  const result = spawnSync(command, ['run', 'build'], {
-    cwd: process.cwd(),
-    env: { ...process.env, NODE_ENV: process.env.NODE_ENV || 'production' },
-    stdio: 'inherit',
-  });
+async function runBuild(selection: FeatureSelectionCore): Promise<void> {
+  const distDir = path.resolve(process.cwd(), 'dist');
+  rmSync(distDir, { recursive: true, force: true });
 
-  if (result.status !== 0) {
-    process.exit(result.status ?? 1);
-  }
+  await build({
+    entryPoints: [path.resolve(process.cwd(), 'src/server.ts')],
+    outfile: path.resolve(distDir, 'server.js'),
+    bundle: true,
+    format: 'esm',
+    platform: 'node',
+    target: 'node18',
+    packages: 'external',
+    treeShaking: true,
+    minify: true,
+    sourcemap: false,
+    legalComments: 'none',
+    define: {
+      'process.env.NODE_ENV': '"production"',
+      'process.env.CIRS_BUNDLE_FEATURE_LOCKED': '"true"',
+      'process.env.CIRS_BUNDLE_FEATURE_PROFILE_NAME': JSON.stringify(
+        process.env.FEATURE_PROFILE_NAME?.trim() || 'production',
+      ),
+      'process.env.CIRS_BUNDLE_FEATURE_AUTH_PROVIDER': JSON.stringify(selection.authProvider),
+      'process.env.CIRS_BUNDLE_FEATURE_TOKEN_MODE': JSON.stringify(selection.tokenMode),
+      'process.env.CIRS_BUNDLE_FEATURE_MFA_MODE': JSON.stringify(selection.mfaMode),
+      'process.env.CIRS_BUNDLE_FEATURE_MEDIA_STORAGE': JSON.stringify(selection.mediaStorage),
+      'process.env.CIRS_BUNDLE_FEATURE_RECORD_DELETION': JSON.stringify(selection.recordDeletion),
+    },
+  });
 }
 
 const selection: FeatureSelectionCore = {
@@ -112,4 +130,4 @@ const selection: FeatureSelectionCore = {
 
 validateSelection(selection);
 writeProductionFeatureProfile(selection);
-runBuild();
+await runBuild(selection);

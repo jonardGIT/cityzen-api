@@ -28,6 +28,14 @@ import { isPostgresUuid } from '../validators/bodyValidators.js';
 import { normalizeMobileNumber } from '../utils/mobileAuth.js';
 
 const router = Router();
+const sessionInventoryFeatureEnabled =
+  process.env.CIRS_BUNDLE_FEATURE_LOCKED === 'true'
+    ? process.env.CIRS_BUNDLE_FEATURE_TOKEN_MODE === 'app-jwt'
+    : isSessionInventoryFeatureEnabled();
+const anyMfaFeatureEnabled =
+  process.env.CIRS_BUNDLE_FEATURE_LOCKED === 'true'
+    ? process.env.CIRS_BUNDLE_FEATURE_MFA_MODE !== 'disabled'
+    : isAnyMfaFeatureEnabled();
 
 function buildIpScopedKey(req: Request): string {
   return req.ip || req.socket.remoteAddress || 'unknown';
@@ -190,7 +198,7 @@ router.post(
 router.post('/refresh', refreshRateLimit, asyncHandler(refresh));
 router.get('/me', requireJwtAuth, asyncHandler(me));
 
-if (isSessionInventoryFeatureEnabled()) {
+if (sessionInventoryFeatureEnabled) {
   router.get('/sessions', requireJwtAuth, asyncHandler(listSessions));
   router.delete(
     '/sessions/:id',
@@ -203,7 +211,7 @@ if (isSessionInventoryFeatureEnabled()) {
 
 router.post('/logout', requireJwtAuth, asyncHandler(logout));
 
-if (isAnyMfaFeatureEnabled()) {
+if (anyMfaFeatureEnabled) {
   router.post(
     '/mfa/setup',
     requireJwtAuth,

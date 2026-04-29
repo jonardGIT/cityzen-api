@@ -167,6 +167,12 @@ npm run dev</code></pre>
               <strong>FEATURE_*</strong> values are ignored after
               <strong>npm run build:production</strong>.
             </p>
+            <p>
+              Database or Supabase capabilities do not enable API features by themselves. If the
+              bundle was built with media storage disabled, running that same
+              <strong>dist/server.js</strong> under PM2 against a storage-enabled project will still
+              keep media upload disabled until you rebuild with the storage-enabled feature profile.
+            </p>
             <div class="code-card">
               <pre><code>npm ci
 npm run build:production
@@ -199,6 +205,11 @@ npm start</code></pre>
                     <td>Profile switching</td>
                     <td>Change <strong>.env.development</strong> or prefix env vars inline</td>
                     <td>Rebuild with <strong>npm run build:production</strong></td>
+                  </tr>
+                  <tr>
+                    <td>PM2 or runtime env changes</td>
+                    <td>Takes effect on next restart</td>
+                    <td>Does not change the locked feature profile without a rebuild</td>
                   </tr>
                   <tr>
                     <td>Startup strictness</td>
