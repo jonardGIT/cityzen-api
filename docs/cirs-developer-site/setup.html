@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CIRS Developer Setup Guide</title>
+    <meta
+      name="description"
+      content="Developer setup guidance for the CIRS API, including install order, environment variables, and startup rules."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="script.js" defer></script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <nav class="site-nav" aria-label="Site">
+        <a class="brand" href="index.html">
+          <span class="brand-mark">DEV</span>
+          <span>CIRS Developer Guide</span>
+        </a>
+        <div class="site-links">
+          <a href="index.html">Home</a>
+          <a class="active" href="setup.html">Setup</a>
+          <a href="profiles.html">Feature Profiles</a>
+          <a href="workflow.html">Workflow</a>
+        </div>
+      </nav>
+
+      <header class="hero setup-hero">
+        <p class="eyebrow">Developer Setup</p>
+        <h1>Set the API up in the right order.</h1>
+        <p class="lede">
+          The fastest path is also the safest one: install dependencies, prepare the database
+          connection, choose the feature profile, then start the app with the matching environment
+          values.
+        </p>
+        <div class="stat-grid">
+          <article class="stat-card">
+            <span class="meta-label">Primary command</span>
+            <strong>npm run dev</strong>
+            <p>
+              Use this only after the database connection, API keys, and active feature profile are
+              aligned.
+            </p>
+          </article>
+          <article class="stat-card">
+            <span class="meta-label">Default dev posture</span>
+            <strong>Local auth, app JWT, local TOTP</strong>
+            <p>
+              This is the safest working assumption when a machine is set up for day-to-day backend
+              work instead of Supabase integration checks.
+            </p>
+          </article>
+          <article class="stat-card">
+            <span class="meta-label">Main failure mode</span>
+            <strong>Wrong profile, missing governance env</strong>
+            <p>
+              Most startup confusion comes from mixing auth modes or skipping the production-only
+              privacy and residency variables.
+            </p>
+          </article>
+        </div>
+        <div class="hero-meta">
+          <div>
+            <span class="meta-label">Profile switching</span>
+            <strong>Runtime in development</strong>
+          </div>
+          <div>
+            <span class="meta-label">Production behavior</span>
+            <strong>Locked at build time</strong>
+          </div>
+          <div>
+            <span class="meta-label">Governance check</span>
+            <strong>Fail-closed when required privacy env is missing</strong>
+          </div>
+        </div>
+        <div class="doc-strip" aria-label="Document progress">
+          <span class="doc-chip">Guide 1 of 4</span>
+          <span class="doc-chip active">Guide 2 of 4</span>
+          <span class="doc-chip">Setup</span>
+        </div>
+      </header>
+
+      <main class="content-grid">
+        <aside class="toc-card">
+          <p class="toc-title">On this page</p>
+          <div class="toc-meta" aria-live="polite">
+            <p class="toc-status-label">Currently reading</p>
+            <p class="toc-status">Setup order</p>
+            <div class="toc-progress" aria-hidden="true">
+              <span class="toc-progress-bar"></span>
+            </div>
+          </div>
+          <nav>
+            <a href="#order">Setup order</a>
+            <a href="#baseline">Baseline requirements</a>
+            <a href="#dev">Development mode</a>
+            <a href="#prod">Production mode</a>
+            <a href="#mode-matrix">Mode comparison</a>
+            <a href="#env">Core environment values</a>
+            <a href="#env-matrix">Environment matrix</a>
+            <a href="#commands">Common commands</a>
+          </nav>
+        </aside>
+
+        <div class="sections">
+          <section class="card contact-card" id="order">
+            <h2>Setup Order</h2>
+            <ol class="ordered-list">
+              <li>Install dependencies.</li>
+              <li>
+                Prepare PostgreSQL access through <strong>DATABASE_URL</strong> and
+                <strong>DIRECT_URL</strong>.
+              </li>
+              <li>Choose the feature profile before filling the rest of the env values.</li>
+              <li>Set the required auth, MFA, and governance variables for that profile.</li>
+              <li>
+                Start locally with <strong>npm run dev</strong> or build with
+                <strong>npm run build:production</strong>.
+              </li>
+              <li>Verify health, auth behavior, and the active profile after boot.</li>
+            </ol>
+          </section>
+
+          <section class="card" id="baseline">
+            <h2>Baseline Requirements</h2>
+            <ul>
+              <li>Node.js and npm available locally</li>
+              <li>PostgreSQL connection for runtime and direct Prisma access</li>
+              <li>
+                At least one API key through <strong>API_KEYS</strong> or <strong>API_KEY</strong>
+              </li>
+              <li>
+                Dashboard origin allowed through <strong>CORS_ORIGIN</strong> for real browser
+                integration
+              </li>
+            </ul>
+            <p class="callout">
+              Do not treat env setup as generic boilerplate. The profile choice changes which
+              secrets and providers are actually required.
+            </p>
+          </section>
+
+          <section class="card" id="dev">
+            <h2>Development Mode</h2>
+            <p>
+              In development, the API reads <strong>FEATURE_*</strong> variables directly from the
+              runtime environment. You can switch profiles by editing
+              <strong>.env.development</strong> or by prefixing env values inline.
+            </p>
+            <div class="code-card">
+              <pre><code>npm install
+npm run dev</code></pre>
+            </div>
+          </section>
+
+          <section class="card" id="prod">
+            <h2>Production Mode</h2>
+            <p>
+              In production, the feature profile is locked at build time. Runtime
+              <strong>FEATURE_*</strong> values are ignored after
+              <strong>npm run build:production</strong>.
+            </p>
+            <div class="code-card">
+              <pre><code>npm ci
+npm run build:production
+npm start</code></pre>
+            </div>
+            <p>
+              Startup fails closed in production when required security, breach-response, or
+              residency variables are missing or unsafe.
+            </p>
+          </section>
+
+          <section class="card" id="mode-matrix">
+            <h2>Development Versus Production</h2>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Concern</th>
+                    <th>Development</th>
+                    <th>Production</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Feature source</td>
+                    <td>Reads <strong>FEATURE_*</strong> directly from runtime env</td>
+                    <td>Uses the locked build-time profile</td>
+                  </tr>
+                  <tr>
+                    <td>Profile switching</td>
+                    <td>Change <strong>.env.development</strong> or prefix env vars inline</td>
+                    <td>Rebuild with <strong>npm run build:production</strong></td>
+                  </tr>
+                  <tr>
+                    <td>Startup strictness</td>
+                    <td>Flexible for local work</td>
+                    <td>Fail-closed for missing or unsafe security and privacy settings</td>
+                  </tr>
+                  <tr>
+                    <td>Typical command</td>
+                    <td><strong>npm run dev</strong></td>
+                    <td><strong>npm start</strong> after a production build</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="card" id="env">
+            <h2>Core Environment Values</h2>
+            <div class="mini-grid compact-grid">
+              <article>
+                <h3>Always needed</h3>
+                <p>
+                  NODE_ENV, PORT, API_BASE_PATH, DATABASE_URL, DIRECT_URL, API_KEYS, CORS_ORIGIN.
+                </p>
+              </article>
+              <article>
+                <h3>Local auth profile</h3>
+                <p>
+                  JWT_SECRET and MFA_ENCRYPTION_KEY are required when using app JWT and local TOTP.
+                </p>
+              </article>
+              <article>
+                <h3>Supabase profile</h3>
+                <p>
+                  SUPABASE_URL, SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY become required.
+                </p>
+              </article>
+              <article>
+                <h3>Production governance</h3>
+                <p>
+                  Privacy breach and data residency values are mandatory in production-safe
+                  deployments.
+                </p>
+              </article>
+            </div>
+          </section>
+
+          <section class="card" id="env-matrix">
+            <h2>Environment Matrix</h2>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Variable group</th>
+                    <th>Main variables</th>
+                    <th>When required</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Baseline runtime</td>
+                    <td>
+                      NODE_ENV, PORT, API_BASE_PATH, HOST, DATABASE_URL, DIRECT_URL, CORS_ORIGIN,
+                      TRUST_PROXY, API_KEYS
+                    </td>
+                    <td>All real deployments and almost all local work</td>
+                  </tr>
+                  <tr>
+                    <td>Local auth</td>
+                    <td>JWT_SECRET, MFA_ENCRYPTION_KEY</td>
+                    <td>Required for app JWT plus local TOTP mode</td>
+                  </tr>
+                  <tr>
+                    <td>Supabase auth</td>
+                    <td>SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY</td>
+                    <td>Required when auth provider or token mode depends on Supabase</td>
+                  </tr>
+                  <tr>
+                    <td>Password reset delivery</td>
+                    <td>PASSWORD_RESET_DELIVERY_WEBHOOK_URL</td>
+                    <td>Required in production-safe password reset flows</td>
+                  </tr>
+                  <tr>
+                    <td>Privacy governance</td>
+                    <td>
+                      PRIVACY_DPO_CONTACT_EMAIL, PRIVACY_BREACH_PLAYBOOK_VERSION,
+                      PRIVACY_BREACH_NOTIFICATION_WINDOW_HOURS
+                    </td>
+                    <td>Required for production breach-response readiness</td>
+                  </tr>
+                  <tr>
+                    <td>Data residency governance</td>
+                    <td>
+                      DATA_RESIDENCY_MODE, DATA_PROCESSOR_INVENTORY_VERSION,
+                      DATA_RESIDENCY_APPROVED_HOSTS
+                    </td>
+                    <td>Required in production when residency posture must be explicit</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="card" id="commands">
+            <h2>Common Commands</h2>
+            <div class="code-card">
+              <pre><code>npm install
+npm run dev
+npx prisma generate
+npm run build:production
+npm start</code></pre>
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <nav class="doc-pager" aria-label="Page navigation">
+        <a class="doc-pager-card" href="index.html">
+          <span class="meta-label">Previous</span>
+          <strong>Developer Home</strong>
+          <p>Return to the overall guide map and reading path.</p>
+        </a>
+        <a class="doc-pager-card" href="profiles.html">
+          <span class="meta-label">Next</span>
+          <strong>Feature Profiles</strong>
+          <p>Continue into profile combinations, constraints, and production locking.</p>
+        </a>
+      </nav>
+
+      <footer class="site-footer">
+        <div>
+          <strong>CIRS API developer microsite</strong>
+          <p>Companion guide for local development and production-safe changes.</p>
+        </div>
+        <div class="footer-links">
+          <a href="index.html">Home</a>
+          <a href="profiles.html">Feature Profiles</a>
+          <a href="workflow.html">Workflow</a>
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>

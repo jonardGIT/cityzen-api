@@ -15,6 +15,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css" />
+    <script src="script.js" defer></script>
   </head>
   <body>
     <div class="page-shell">
@@ -35,10 +36,35 @@
         <p class="eyebrow">Citizen Incident Reporting System</p>
         <h1>Staff Privacy Training</h1>
         <p class="lede">
-          This page turns the CIRS staff privacy training outline into a
-          readable training reference for admins, dispatchers, responders,
-          reviewers, and technical operators.
+          This page turns the CIRS staff privacy training outline into a readable training reference
+          for admins, dispatchers, responders, reviewers, and technical operators.
         </p>
+        <div class="stat-grid">
+          <article class="stat-card">
+            <span class="meta-label">Audience</span>
+            <strong>Operational and technical staff</strong>
+            <p>
+              The material is written for people who handle incidents, accounts, infrastructure, and
+              oversight decisions in day-to-day work.
+            </p>
+          </article>
+          <article class="stat-card">
+            <span class="meta-label">Training goal</span>
+            <strong>Operational privacy discipline</strong>
+            <p>
+              The objective is not abstract awareness alone; it is to make staff follow correct
+              routing, access, escalation, and evidence practices.
+            </p>
+          </article>
+          <article class="stat-card">
+            <span class="meta-label">Evidence expectation</span>
+            <strong>Completion must be recorded</strong>
+            <p>
+              Attendance, material version, acknowledgement, and follow-up actions are part of the
+              control, not optional training admin work.
+            </p>
+          </article>
+        </div>
         <div class="hero-meta">
           <div>
             <span class="meta-label">Audience</span>
@@ -53,18 +79,34 @@
             <strong>Before live access, then at least annually</strong>
           </div>
         </div>
+        <div class="doc-strip" aria-label="Document progress">
+          <span class="doc-chip">Guide 1 of 4</span>
+          <span class="doc-chip">Guide 2 of 4</span>
+          <span class="doc-chip active">Guide 3 of 4</span>
+          <span class="doc-chip">Training materials</span>
+        </div>
       </header>
 
       <main class="content-grid">
         <aside class="toc-card">
           <p class="toc-title">Training map</p>
+          <div class="toc-meta" aria-live="polite">
+            <p class="toc-status-label">Currently reading</p>
+            <p class="toc-status">Overview</p>
+            <div class="toc-progress" aria-hidden="true">
+              <span class="toc-progress-bar"></span>
+            </div>
+          </div>
           <nav>
             <a href="#overview">Overview</a>
             <a href="#objectives">Learning objectives</a>
             <a href="#modules">Core modules</a>
+            <a href="#module-matrix">Module matrix</a>
             <a href="#roles">Role-specific add-ons</a>
+            <a href="#role-matrix">Role matrix</a>
             <a href="#format">Suggested session format</a>
             <a href="#evidence">Evidence of completion</a>
+            <a href="#evidence-table">Evidence table</a>
             <a href="#refreshers">Refresher triggers</a>
           </nav>
         </aside>
@@ -73,11 +115,10 @@
           <section class="card contact-card" id="overview">
             <h2>Training Overview</h2>
             <p>
-              The goal of this material is to make privacy obligations
-              operational for LGU users, not only legal or technical. Staff
-              should leave training able to recognize privacy-sensitive
-              situations, use the platform correctly, and escalate issues
-              without improvising unsafe workarounds.
+              The goal of this material is to make privacy obligations operational for LGU users,
+              not only legal or technical. Staff should leave training able to recognize
+              privacy-sensitive situations, use the platform correctly, and escalate issues without
+              improvising unsafe workarounds.
             </p>
             <div class="contact-grid">
               <div>
@@ -86,17 +127,11 @@
               </div>
               <div>
                 <span class="meta-label">Audience</span>
-                <strong
-                  >Responders, dispatchers, admins, reviewers, technical
-                  operators</strong
-                >
+                <strong>Responders, dispatchers, admins, reviewers, technical operators</strong>
               </div>
               <div>
                 <span class="meta-label">Trainer</span>
-                <strong
-                  >DPO Office and City ICT training lead, sample
-                  baseline</strong
-                >
+                <strong>DPO Office and City ICT training lead, sample baseline</strong>
               </div>
               <div>
                 <span class="meta-label">Review date</span>
@@ -109,16 +144,12 @@
             <h2>Learning Objectives</h2>
             <ul>
               <li>
-                Explain why CIRS processes personal data and which data types
-                are most sensitive
+                Explain why CIRS processes personal data and which data types are most sensitive
               </li>
               <li>Follow minimum-necessary access and handling rules</li>
               <li>Recognize a data-subject request and route it correctly</li>
               <li>Recognize a privacy incident and escalate it immediately</li>
-              <li>
-                Avoid unsafe sharing, downloading, exporting, or discussing
-                incident data
-              </li>
+              <li>Avoid unsafe sharing, downloading, exporting, or discussing incident data</li>
             </ul>
           </section>
 
@@ -140,13 +171,9 @@
                 <ul>
                   <li>What data the platform collects</li>
                   <li>
-                    Why incident narratives, locations, attachments, and
-                    identities are sensitive
+                    Why incident narratives, locations, attachments, and identities are sensitive
                   </li>
-                  <li>
-                    What is allowed in the system and what must not be copied
-                    outside it
-                  </li>
+                  <li>What is allowed in the system and what must not be copied outside it</li>
                 </ul>
               </article>
               <article class="module-card">
@@ -165,10 +192,7 @@
                 <ul>
                   <li>What a data-subject request looks like</li>
                   <li>Where to route it</li>
-                  <li>
-                    Why staff should not improvise responses outside the
-                    workflow
-                  </li>
+                  <li>Why staff should not improvise responses outside the workflow</li>
                 </ul>
               </article>
               <article class="module-card">
@@ -194,19 +218,61 @@
             </div>
           </section>
 
+          <section class="card" id="module-matrix">
+            <h2>Module Matrix</h2>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Module</th>
+                    <th>Main focus</th>
+                    <th>Expected staff outcome</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Privacy Basics</td>
+                    <td>DPA principles, transparency, necessity, proportionality</td>
+                    <td>Staff can explain why privacy rules apply to CIRS operations</td>
+                  </tr>
+                  <tr>
+                    <td>CIRS Data Handling</td>
+                    <td>Sensitive narratives, locations, attachments, identities</td>
+                    <td>Staff know what must stay inside approved workflows</td>
+                  </tr>
+                  <tr>
+                    <td>Access And Account Discipline</td>
+                    <td>Role scope, MFA, shared-account prohibition, offboarding</td>
+                    <td>Staff understand least-privilege and account hygiene rules</td>
+                  </tr>
+                  <tr>
+                    <td>Rights Requests</td>
+                    <td>Recognition, routing, and no improvised responses</td>
+                    <td>Staff escalate requests through the documented workflow</td>
+                  </tr>
+                  <tr>
+                    <td>Privacy Incidents</td>
+                    <td>Trigger conditions, escalation, evidence preservation</td>
+                    <td>Staff report incidents immediately and avoid cover-up behavior</td>
+                  </tr>
+                  <tr>
+                    <td>Safe Daily Practice</td>
+                    <td>Screen privacy, device hygiene, export discipline, phishing awareness</td>
+                    <td>Staff reduce common day-to-day disclosure and compromise risks</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
           <section class="card" id="roles">
             <h2>Role-Specific Add-Ons</h2>
             <div class="mini-grid">
               <article>
                 <h3>Responders And Dispatchers</h3>
                 <ul>
-                  <li>
-                    Handling sensitive field information during active response
-                  </li>
-                  <li>
-                    Avoiding unnecessary disclosure over radio, chat, or
-                    screenshots
-                  </li>
+                  <li>Handling sensitive field information during active response</li>
+                  <li>Avoiding unnecessary disclosure over radio, chat, or screenshots</li>
                   <li>Using only the assigned jurisdiction scope</li>
                 </ul>
               </article>
@@ -214,9 +280,7 @@
                 <h3>Admins And Supervisors</h3>
                 <ul>
                   <li>Account issuance and revocation</li>
-                  <li>
-                    Rights-request and privacy-incident workflow oversight
-                  </li>
+                  <li>Rights-request and privacy-incident workflow oversight</li>
                   <li>Audit and review expectations</li>
                 </ul>
               </article>
@@ -229,6 +293,43 @@
                   <li>Backup, restore, and log protection</li>
                 </ul>
               </article>
+            </div>
+          </section>
+
+          <section class="card" id="role-matrix">
+            <h2>Role Matrix</h2>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Role group</th>
+                    <th>Training emphasis</th>
+                    <th>Main operational risk</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Responders and dispatchers</td>
+                    <td>Minimum necessary access, field communications, no off-platform sharing</td>
+                    <td>Over-disclosure during active response or screenshot-driven leakage</td>
+                  </tr>
+                  <tr>
+                    <td>Admins and supervisors</td>
+                    <td>Account issuance, workflow oversight, audit expectations</td>
+                    <td>Overbroad privileges or undocumented rights and incident decisions</td>
+                  </tr>
+                  <tr>
+                    <td>Technical operators</td>
+                    <td>Secret handling, env validation, vendor and backup review</td>
+                    <td>Unsafe deployment changes, weak secrets, or unreviewed processors</td>
+                  </tr>
+                  <tr>
+                    <td>DPO and reviewers</td>
+                    <td>Lawful basis, incident assessment, records quality</td>
+                    <td>Poor decision trails or incomplete privacy governance evidence</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </section>
 
@@ -270,6 +371,43 @@
             </ul>
           </section>
 
+          <section class="card" id="evidence-table">
+            <h2>Evidence Table</h2>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Evidence item</th>
+                    <th>Why it matters</th>
+                    <th>Typical owner</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Attendance list</td>
+                    <td>Shows who completed training before live access or refresher deadlines</td>
+                    <td>Training lead or HR support</td>
+                  </tr>
+                  <tr>
+                    <td>Material version</td>
+                    <td>Proves which policy and process baseline was taught</td>
+                    <td>DPO office or training owner</td>
+                  </tr>
+                  <tr>
+                    <td>Quiz or acknowledgement result</td>
+                    <td>Provides basic assurance that staff understood the required controls</td>
+                    <td>Training lead</td>
+                  </tr>
+                  <tr>
+                    <td>Follow-up action log</td>
+                    <td>Shows gaps were corrected instead of only recorded</td>
+                    <td>Operations lead or system owner</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
           <section class="card" id="refreshers">
             <h2>Refresher Triggers</h2>
             <ul>
@@ -279,12 +417,25 @@
               <li>After a significant privacy or security incident</li>
             </ul>
             <p class="callout">
-              Training is not complete when slides exist. It is complete when
-              attendance, acknowledgement, and follow-up evidence are retained.
+              Training is not complete when slides exist. It is complete when attendance,
+              acknowledgement, and follow-up evidence are retained.
             </p>
           </section>
         </div>
       </main>
+
+      <nav class="doc-pager" aria-label="Page navigation">
+        <a class="doc-pager-card" href="privacy.html">
+          <span class="meta-label">Previous</span>
+          <strong>Privacy Notice</strong>
+          <p>Go back to public data handling, transfer posture, and retention guidance.</p>
+        </a>
+        <a class="doc-pager-card" href="rights.html">
+          <span class="meta-label">Next</span>
+          <strong>Rights & Incidents</strong>
+          <p>Continue into requests, complaints, escalation, and incident record expectations.</p>
+        </a>
+      </nav>
 
       <footer class="site-footer">
         <div>

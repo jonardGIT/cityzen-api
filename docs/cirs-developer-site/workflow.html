@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CIRS Developer Workflow Guide</title>
+    <meta
+      name="description"
+      content="Developer workflow guide for understanding the CIRS API repository structure and making changes safely."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="script.js" defer></script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <nav class="site-nav" aria-label="Site">
+        <a class="brand" href="index.html">
+          <span class="brand-mark">DEV</span>
+          <span>CIRS Developer Guide</span>
+        </a>
+        <div class="site-links">
+          <a href="index.html">Home</a>
+          <a href="setup.html">Setup</a>
+          <a href="profiles.html">Feature Profiles</a>
+          <a class="active" href="workflow.html">Workflow</a>
+        </div>
+      </nav>
+
+      <header class="hero workflow-hero">
+        <p class="eyebrow">Repository Workflow</p>
+        <h1>Start from the owning abstraction, not from broad search.</h1>
+        <p class="lede">
+          The main implementation surfaces are already split by concern. Work from the nearest
+          controller, route, service, middleware, utility, or CRUD factory instead of spreading
+          logic across the repo.
+        </p>
+        <div class="stat-grid">
+          <article class="stat-card">
+            <span class="meta-label">First routing choice</span>
+            <strong>Find the owning layer</strong>
+            <p>
+              Pick the nearest controller, route, service, middleware, factory, or schema file that
+              actually decides the behavior.
+            </p>
+          </article>
+          <article class="stat-card">
+            <span class="meta-label">Most useful habit</span>
+            <strong>Validate immediately</strong>
+            <p>
+              After the first real edit, run the narrowest test or build check that can prove or
+              disprove the change.
+            </p>
+          </article>
+          <article class="stat-card">
+            <span class="meta-label">Repository posture</span>
+            <strong>Generic where valid, custom where needed</strong>
+            <p>
+              Standard resources belong in the CRUD engine, but incident and privacy-heavy flows
+              need explicit custom logic.
+            </p>
+          </article>
+        </div>
+        <div class="doc-strip" aria-label="Document progress">
+          <span class="doc-chip">Guide 1 of 4</span>
+          <span class="doc-chip">Guide 2 of 4</span>
+          <span class="doc-chip">Guide 3 of 4</span>
+          <span class="doc-chip active">Guide 4 of 4</span>
+        </div>
+      </header>
+
+      <main class="content-grid">
+        <aside class="toc-card">
+          <p class="toc-title">On this page</p>
+          <div class="toc-meta" aria-live="polite">
+            <p class="toc-status-label">Currently reading</p>
+            <p class="toc-status">Main surfaces</p>
+            <div class="toc-progress" aria-hidden="true">
+              <span class="toc-progress-bar"></span>
+            </div>
+          </div>
+          <nav>
+            <a href="#surfaces">Main surfaces</a>
+            <a href="#repo-matrix">Repository matrix</a>
+            <a href="#rules">Practical rules</a>
+            <a href="#testing">Validation</a>
+            <a href="#validation-matrix">Validation matrix</a>
+            <a href="#safe-routine">Safe routine</a>
+          </nav>
+        </aside>
+
+        <div class="sections">
+          <section class="card contact-card" id="surfaces">
+            <h2>Main Surfaces</h2>
+            <div class="mini-grid compact-grid">
+              <article>
+                <h3>Controllers</h3>
+                <p>Own request handlers and custom endpoint behavior.</p>
+              </article>
+              <article>
+                <h3>Routes</h3>
+                <p>Own Express wiring and auth or role boundaries.</p>
+              </article>
+              <article>
+                <h3>Services</h3>
+                <p>Own reusable domain logic and provider integration.</p>
+              </article>
+              <article>
+                <h3>Middleware</h3>
+                <p>Own auth, rate limiting, audit, and error behavior.</p>
+              </article>
+              <article>
+                <h3>Engine</h3>
+                <p>
+                  Own standard CRUD behavior through controller, route, and validator factories.
+                </p>
+              </article>
+              <article>
+                <h3>Prisma</h3>
+                <p>Own schema shape, relations, and migration alignment.</p>
+              </article>
+            </div>
+          </section>
+
+          <section class="card" id="repo-matrix">
+            <h2>Repository Matrix</h2>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Surface</th>
+                    <th>What it owns</th>
+                    <th>Use it when</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>src/controllers</td>
+                    <td>Request handlers and custom endpoint logic</td>
+                    <td>The behavior is computed in the handler itself</td>
+                  </tr>
+                  <tr>
+                    <td>src/routes</td>
+                    <td>Route mounting, middleware composition, access boundaries</td>
+                    <td>You need to change URL wiring or auth boundaries</td>
+                  </tr>
+                  <tr>
+                    <td>src/services</td>
+                    <td>Reusable business logic and provider integration</td>
+                    <td>Multiple handlers need the same domain logic</td>
+                  </tr>
+                  <tr>
+                    <td>src/middleware</td>
+                    <td>Auth, audit, rate limiting, request safety, and errors</td>
+                    <td>The behavior applies across many endpoints</td>
+                  </tr>
+                  <tr>
+                    <td>src/engine</td>
+                    <td>Standard CRUD controller, route, and validator factories</td>
+                    <td>The resource is conventional and should stay generic</td>
+                  </tr>
+                  <tr>
+                    <td>prisma and SQL scripts</td>
+                    <td>Schema shape, constraints, indexes, migration rollout</td>
+                    <td>Data model or archive behavior changes</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="card" id="rules">
+            <h2>Practical Rules</h2>
+            <ul>
+              <li>
+                Use the CRUD factory for conventional resources instead of hand-rolling standard
+                handlers.
+              </li>
+              <li>
+                Keep incident-specific behavior in custom logic when the domain goes beyond generic
+                CRUD.
+              </li>
+              <li>Preserve archive-safe behavior and avoid hard-delete assumptions.</li>
+              <li>
+                Scope access by the narrowest valid jurisdiction and fail closed when boundaries are
+                unclear.
+              </li>
+              <li>Keep Prisma schema, SQL migrations, and runtime behavior aligned.</li>
+            </ul>
+          </section>
+
+          <section class="card" id="testing">
+            <h2>Validation</h2>
+            <p>
+              After a meaningful backend change, prefer the narrowest executable check that can
+              falsify the change: a focused Jest or Supertest run, a targeted type check, or a build
+              command for the touched slice.
+            </p>
+            <div class="timeline-list">
+              <div>
+                <span class="meta-label">Step 1</span>
+                <strong>Change the smallest owning slice first</strong>
+              </div>
+              <div>
+                <span class="meta-label">Step 2</span>
+                <strong>Run the narrowest relevant validation immediately</strong>
+              </div>
+              <div>
+                <span class="meta-label">Step 3</span>
+                <strong>Only widen scope after the first check passes or redirects you</strong>
+              </div>
+            </div>
+          </section>
+
+          <section class="card" id="validation-matrix">
+            <h2>Validation Matrix</h2>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Change type</th>
+                    <th>First validation to prefer</th>
+                    <th>Why</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Controller or route behavior</td>
+                    <td>Focused Jest or Supertest slice</td>
+                    <td>Falsifies the request and response path directly</td>
+                  </tr>
+                  <tr>
+                    <td>Type or contract changes</td>
+                    <td>Narrow type check or build step</td>
+                    <td>Shows whether the code still compiles across the touched boundary</td>
+                  </tr>
+                  <tr>
+                    <td>Schema or migration change</td>
+                    <td>Prisma generate plus the narrowest schema-aware check</td>
+                    <td>Confirms runtime types and migration assumptions still align</td>
+                  </tr>
+                  <tr>
+                    <td>Docs or config only</td>
+                    <td>Diagnostics or targeted diff review</td>
+                    <td>There may be no narrower executable behavior to run</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="card" id="safe-routine">
+            <h2>Safe Developer Routine</h2>
+            <ol class="ordered-list">
+              <li>Identify the owning surface from the request or failing behavior.</li>
+              <li>Read only enough nearby code to form one local hypothesis.</li>
+              <li>Make the smallest edit that tests that hypothesis.</li>
+              <li>Run focused validation before expanding the change.</li>
+              <li>Keep docs, schema, or config in sync when the behavior surface changed.</li>
+            </ol>
+            <p class="callout">
+              Most wasted time in this repo comes from debugging the wrong layer. Start from the
+              code that actually decides the behavior.
+            </p>
+          </section>
+        </div>
+      </main>
+
+      <nav class="doc-pager" aria-label="Page navigation">
+        <a class="doc-pager-card" href="profiles.html">
+          <span class="meta-label">Previous</span>
+          <strong>Feature Profiles</strong>
+          <p>Return to the valid combinations and profile-locking rules.</p>
+        </a>
+        <a class="doc-pager-card" href="index.html">
+          <span class="meta-label">Back to index</span>
+          <strong>Developer Home</strong>
+          <p>Use the main guide as the jump-off point for the next task.</p>
+        </a>
+      </nav>
+
+      <footer class="site-footer">
+        <div>
+          <strong>CIRS API developer microsite</strong>
+          <p>Companion guide for local development and production-safe changes.</p>
+        </div>
+        <div class="footer-links">
+          <a href="index.html">Home</a>
+          <a href="setup.html">Setup</a>
+          <a href="profiles.html">Feature Profiles</a>
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>

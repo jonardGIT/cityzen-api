@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CIRS Developer Guide</title>
+    <meta
+      name="description"
+      content="Developer-facing microsite for setting up, running, and extending the CIRS API."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <nav class="site-nav" aria-label="Site">
+        <a class="brand" href="index.html">
+          <span class="brand-mark">DEV</span>
+          <span>CIRS Developer Guide</span>
+        </a>
+        <div class="site-links">
+          <a class="active" href="index.html">Home</a>
+          <a href="setup.html">Setup</a>
+          <a href="profiles.html">Feature Profiles</a>
+          <a href="workflow.html">Workflow</a>
+        </div>
+      </nav>
+
+      <header class="hero home-hero">
+        <p class="eyebrow">CIRS API Workspace</p>
+        <h1>Developer guidance for local setup, production-safe profiles, and daily workflow.</h1>
+        <p class="lede">
+          This companion microsite turns the API's operator and repository docs into a cleaner
+          developer path: what to install, how to start safely, how feature locking works, and which
+          repository surfaces own the main behavior.
+        </p>
+        <div class="stat-grid">
+          <article class="stat-card">
+            <span class="meta-label">Documents</span>
+            <strong>3 core guides</strong>
+            <p>
+              Setup, feature selection, and repository workflow in the order most developers
+              actually need them.
+            </p>
+          </article>
+          <article class="stat-card">
+            <span class="meta-label">Primary concern</span>
+            <strong>Profile-aware startup</strong>
+            <p>
+              Most auth and runtime confusion in this repo starts with the wrong feature
+              combination.
+            </p>
+          </article>
+          <article class="stat-card">
+            <span class="meta-label">Working rule</span>
+            <strong>Change the owning layer</strong>
+            <p>
+              Start from the controller, route, service, middleware, or factory that actually
+              decides the behavior.
+            </p>
+          </article>
+        </div>
+        <div class="hero-actions">
+          <a class="primary-link" href="setup.html">Start with setup</a>
+          <a class="secondary-link" href="profiles.html">Review feature profiles</a>
+        </div>
+        <div class="doc-strip" aria-label="Document progress">
+          <span class="doc-chip active">Guide 1 of 4</span>
+          <span class="doc-chip">Developer home</span>
+          <span class="doc-chip">Setup, profiles, workflow</span>
+        </div>
+      </header>
+
+      <main class="sections home-sections">
+        <section class="card material-section">
+          <div class="section-head">
+            <div>
+              <p class="meta-label">Reading path</p>
+              <h2>Use this site like an onboarding and change-safety checklist.</h2>
+            </div>
+            <p class="section-copy">
+              The pages below are no longer just summaries. Each one now includes structured tables
+              and decision aids so developers can confirm environment posture, legal profile
+              combinations, and the right repository surface before they start changing code.
+            </p>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Page</th>
+                  <th>What it covers in detail</th>
+                  <th>Use it when</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Setup</td>
+                  <td>
+                    Install order, development versus production differences, environment matrix,
+                    and command baselines
+                  </td>
+                  <td>
+                    You are bootstrapping the repo, switching machines, or validating runtime
+                    prerequisites
+                  </td>
+                </tr>
+                <tr>
+                  <td>Feature Profiles</td>
+                  <td>
+                    Auth provider modes, JWT modes, MFA combinations, storage posture, and
+                    production profile locking
+                  </td>
+                  <td>
+                    Auth or session behavior looks inconsistent, or you need to move between local
+                    and Supabase-backed flows
+                  </td>
+                </tr>
+                <tr>
+                  <td>Workflow</td>
+                  <td>
+                    Repository ownership map, abstraction boundaries, and the preferred validation
+                    path by change type
+                  </td>
+                  <td>
+                    You need to decide where a fix belongs and what the first executable check
+                    should be
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="feature-grid">
+          <article class="card feature-card">
+            <p class="meta-label">Page 1</p>
+            <h2>Setup Guide</h2>
+            <p>
+              Covers install order, required environment variables, development versus production
+              behavior, and the minimum commands for local work.
+            </p>
+            <a class="inline-link" href="setup.html">Open setup guide</a>
+          </article>
+
+          <article class="card feature-card">
+            <p class="meta-label">Page 2</p>
+            <h2>Feature Profiles</h2>
+            <p>
+              Explains runtime feature flags, production build locking, valid profile combinations,
+              and how to switch between local and Supabase-backed flows.
+            </p>
+            <a class="inline-link" href="profiles.html">Open feature profiles</a>
+          </article>
+
+          <article class="card feature-card">
+            <p class="meta-label">Page 3</p>
+            <h2>Developer Workflow</h2>
+            <p>
+              Shows the repository layout, the main abstraction boundaries, and a practical routine
+              for making changes without fighting the platform.
+            </p>
+            <a class="inline-link" href="workflow.html">Open workflow guide</a>
+          </article>
+        </section>
+
+        <section class="card material-section">
+          <div class="section-head">
+            <div>
+              <p class="meta-label">Quick reference</p>
+              <h2>What developers usually need first</h2>
+            </div>
+            <p class="section-copy">
+              These are the recurring points that slow changes down in this repository. The
+              microsite pages expand each of them with the actual tables and checks.
+            </p>
+          </div>
+          <div class="mini-grid compact-grid info-grid">
+            <article>
+              <h3>Environment truth</h3>
+              <p>
+                Confirm the active feature profile and required governance variables before you
+                inspect runtime behavior.
+              </p>
+            </article>
+            <article>
+              <h3>Auth posture</h3>
+              <p>
+                Do not debug token or MFA behavior until you know whether the instance is local or
+                Supabase-backed.
+              </p>
+            </article>
+            <article>
+              <h3>Owning abstraction</h3>
+              <p>
+                Conventional resources belong in the CRUD engine. Custom incident and privacy flows
+                do not.
+              </p>
+            </article>
+            <article>
+              <h3>Validation order</h3>
+              <p>
+                Use the narrowest test or build check that can falsify the change before widening
+                scope.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section class="card banner-card">
+          <div>
+            <p class="meta-label">Suggested order</p>
+            <h2>Read this microsite in the same order you would touch the codebase.</h2>
+          </div>
+          <div class="mini-grid compact-grid">
+            <article>
+              <h3>Start-up</h3>
+              <p>Confirm dependencies, database access, and baseline env values first.</p>
+            </article>
+            <article>
+              <h3>Feature choice</h3>
+              <p>Pick the correct auth and MFA profile before debugging the wrong runtime.</p>
+            </article>
+            <article>
+              <h3>Implementation</h3>
+              <p>Work inside the owning controller, route, service, or factory layer.</p>
+            </article>
+          </div>
+        </section>
+      </main>
+
+      <nav class="doc-pager" aria-label="Page navigation">
+        <a class="doc-pager-card doc-pager-card-single" href="setup.html">
+          <span class="meta-label">Next guide</span>
+          <strong>Setup</strong>
+          <p>Move into environment setup, runtime mode differences, and command baselines.</p>
+        </a>
+      </nav>
+
+      <footer class="site-footer">
+        <div>
+          <strong>CIRS API developer microsite</strong>
+          <p>Companion guide for local development and production-safe changes.</p>
+        </div>
+        <div class="footer-links">
+          <a href="setup.html">Setup</a>
+          <a href="profiles.html">Feature Profiles</a>
+          <a href="workflow.html">Workflow</a>
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>

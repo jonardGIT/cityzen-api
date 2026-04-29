@@ -197,6 +197,7 @@ For the current dashboard integration model, assume the dashboard runs locally o
 - `docs/api-setup-guide.md`
 - `docs/CIRS-Anonymous-Reporting-Policy-Brief.docx`
 - `docs/access-review-template.md`
+- `docs/cirs-developer-site/index.html`
 - `docs/feature-profiles-guide.md`
 - `docs/lawful-basis-register.md`
 - `docs/privacy-incident-playbook.md`

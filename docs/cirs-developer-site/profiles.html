@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CIRS Feature Profiles Guide</title>
+    <meta
+      name="description"
+      content="Feature profile guide for CIRS API developers, including valid combinations, switching rules, and production locking."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="script.js" defer></script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <nav class="site-nav" aria-label="Site">
+        <a class="brand" href="index.html">
+          <span class="brand-mark">DEV</span>
+          <span>CIRS Developer Guide</span>
+        </a>
+        <div class="site-links">
+          <a href="index.html">Home</a>
+          <a href="setup.html">Setup</a>
+          <a class="active" href="profiles.html">Feature Profiles</a>
+          <a href="workflow.html">Workflow</a>
+        </div>
+      </nav>
+
+      <header class="hero profiles-hero">
+        <p class="eyebrow">Feature Selection</p>
+        <h1>Understand the profile before you debug the behavior.</h1>
+        <p class="lede">
+          Auth provider, token mode, MFA mode, media storage, and record deletion are
+          feature-selected. Valid combinations are enforced at runtime in development and at build
+          time in production.
+        </p>
+        <div class="stat-grid">
+          <article class="stat-card">
+            <span class="meta-label">Core rule</span>
+            <strong>Profiles are not cosmetic</strong>
+            <p>
+              They change auth flow, token semantics, MFA behavior, storage behavior, and what
+              runtime secrets are actually required.
+            </p>
+          </article>
+          <article class="stat-card">
+            <span class="meta-label">Development flexibility</span>
+            <strong>Runtime switching allowed</strong>
+            <p>
+              In development, you can move between local and Supabase-backed combinations by
+              changing the active feature variables and restarting the app.
+            </p>
+          </article>
+          <article class="stat-card">
+            <span class="meta-label">Production rule</span>
+            <strong>Build-time locking only</strong>
+            <p>
+              Once the production build is generated, the selected feature combination is frozen
+              until the next build.
+            </p>
+          </article>
+        </div>
+        <div class="doc-strip" aria-label="Document progress">
+          <span class="doc-chip">Guide 1 of 4</span>
+          <span class="doc-chip">Guide 2 of 4</span>
+          <span class="doc-chip active">Guide 3 of 4</span>
+          <span class="doc-chip">Profiles</span>
+        </div>
+      </header>
+
+      <main class="content-grid">
+        <aside class="toc-card">
+          <p class="toc-title">On this page</p>
+          <div class="toc-meta" aria-live="polite">
+            <p class="toc-status-label">Currently reading</p>
+            <p class="toc-status">Feature groups</p>
+            <div class="toc-progress" aria-hidden="true">
+              <span class="toc-progress-bar"></span>
+            </div>
+          </div>
+          <nav>
+            <a href="#groups">Feature groups</a>
+            <a href="#feature-matrix">Feature matrix</a>
+            <a href="#constraints">Constraints</a>
+            <a href="#profiles">Recommended profiles</a>
+            <a href="#profile-matrix">Profile matrix</a>
+            <a href="#switching">Switching in development</a>
+            <a href="#locking">Production locking</a>
+          </nav>
+        </aside>
+
+        <div class="sections">
+          <section class="card contact-card" id="groups">
+            <h2>Feature Groups</h2>
+            <div class="mini-grid compact-grid">
+              <article>
+                <h3>Auth provider</h3>
+                <p>Choose between local auth and Supabase-backed auth.</p>
+              </article>
+              <article>
+                <h3>Token mode</h3>
+                <p>Use app JWT for local auth or Supabase JWT for Supabase auth.</p>
+              </article>
+              <article>
+                <h3>MFA mode</h3>
+                <p>
+                  Use local TOTP, Supabase TOTP, or disable only where the deployment allows it.
+                </p>
+              </article>
+              <article>
+                <h3>Storage and deletion</h3>
+                <p>Media storage and archive versus hard-delete are also profile-controlled.</p>
+              </article>
+            </div>
+          </section>
+
+          <section class="card" id="feature-matrix">
+            <h2>Feature Matrix</h2>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Feature</th>
+                    <th>Environment variable</th>
+                    <th>Options</th>
+                    <th>Default in development</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Auth provider</td>
+                    <td>FEATURE_AUTH_PROVIDER</td>
+                    <td>local, supabase</td>
+                    <td>local</td>
+                  </tr>
+                  <tr>
+                    <td>Token mode</td>
+                    <td>FEATURE_TOKEN_MODE</td>
+                    <td>app-jwt, supabase-jwt</td>
+                    <td>app-jwt</td>
+                  </tr>
+                  <tr>
+                    <td>MFA mode</td>
+                    <td>FEATURE_MFA_MODE</td>
+                    <td>disabled, local-totp, supabase-totp</td>
+                    <td>local-totp</td>
+                  </tr>
+                  <tr>
+                    <td>Media storage</td>
+                    <td>FEATURE_MEDIA_STORAGE</td>
+                    <td>disabled, supabase-storage</td>
+                    <td>disabled</td>
+                  </tr>
+                  <tr>
+                    <td>Record deletion</td>
+                    <td>FEATURE_RECORD_DELETION</td>
+                    <td>hard-delete, archive</td>
+                    <td>archive</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="card" id="constraints">
+            <h2>Constraints</h2>
+            <ul>
+              <li>Supabase JWT requires the Supabase auth provider.</li>
+              <li>Supabase TOTP requires Supabase JWT mode.</li>
+              <li>MFA disabled is blocked in production when privileged roles exist.</li>
+              <li>Invalid combinations fail the build or crash at startup.</li>
+            </ul>
+            <p class="callout">
+              If behavior looks impossible, check the profile first. Many auth and session
+              differences are profile-driven, not code regressions.
+            </p>
+          </section>
+
+          <section class="card" id="profiles">
+            <h2>Recommended Profiles</h2>
+            <div class="module-stack">
+              <article class="module-card">
+                <p class="meta-label">Development Local</p>
+                <h3>Local auth, app JWT, local TOTP</h3>
+                <p>Best for day-to-day backend work, tests, and non-Supabase flows.</p>
+              </article>
+              <article class="module-card">
+                <p class="meta-label">Development Supabase</p>
+                <h3>Supabase auth, Supabase JWT, Supabase TOTP</h3>
+                <p>
+                  Best for integration checks and validating Supabase-backed flows before
+                  production.
+                </p>
+              </article>
+              <article class="module-card">
+                <p class="meta-label">Production Supabase Auth</p>
+                <h3>Supabase auth with archive-safe records</h3>
+                <p>Recommended baseline when media storage is still disabled.</p>
+              </article>
+              <article class="module-card">
+                <p class="meta-label">Production Full Supabase</p>
+                <h3>Supabase auth plus media storage</h3>
+                <p>
+                  Use when storage bucket, access mode, and upload controls are production-ready.
+                </p>
+              </article>
+            </div>
+          </section>
+
+          <section class="card" id="profile-matrix">
+            <h2>Profile Matrix</h2>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Profile</th>
+                    <th>Auth</th>
+                    <th>Token</th>
+                    <th>MFA</th>
+                    <th>Storage</th>
+                    <th>Best used for</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Development local</td>
+                    <td>local</td>
+                    <td>app-jwt</td>
+                    <td>local-totp</td>
+                    <td>disabled</td>
+                    <td>Day-to-day backend work and tests</td>
+                  </tr>
+                  <tr>
+                    <td>Development Supabase</td>
+                    <td>supabase</td>
+                    <td>supabase-jwt</td>
+                    <td>supabase-totp</td>
+                    <td>disabled</td>
+                    <td>Integration checks and Supabase auth verification</td>
+                  </tr>
+                  <tr>
+                    <td>Production Supabase Auth</td>
+                    <td>supabase</td>
+                    <td>supabase-jwt</td>
+                    <td>supabase-totp</td>
+                    <td>disabled</td>
+                    <td>Recommended production baseline before media rollout</td>
+                  </tr>
+                  <tr>
+                    <td>Production Full Supabase</td>
+                    <td>supabase</td>
+                    <td>supabase-jwt</td>
+                    <td>supabase-totp</td>
+                    <td>supabase-storage</td>
+                    <td>Full production posture with storage-ready media workflows</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="card" id="switching">
+            <h2>Switching In Development</h2>
+            <div class="code-card">
+              <pre><code>FEATURE_AUTH_PROVIDER=supabase \
+FEATURE_TOKEN_MODE=supabase-jwt \
+FEATURE_MFA_MODE=supabase-totp \
+FEATURE_PROFILE_NAME=development-supabase \
+npm run dev</code></pre>
+            </div>
+            <p>
+              You can also place the full set of <strong>FEATURE_*</strong> values in
+              <strong>.env.development</strong> and restart the server.
+            </p>
+          </section>
+
+          <section class="card" id="locking">
+            <h2>Production Locking</h2>
+            <ol class="ordered-list">
+              <li>Read <strong>FEATURE_*</strong> from env or build inputs.</li>
+              <li>Validate that the selected combination is legal.</li>
+              <li>
+                Write the locked output to
+                <strong>src/generated/productionFeatureProfile.ts</strong>.
+              </li>
+              <li>Compile with TypeScript and run using the locked profile.</li>
+            </ol>
+          </section>
+        </div>
+      </main>
+
+      <nav class="doc-pager" aria-label="Page navigation">
+        <a class="doc-pager-card" href="setup.html">
+          <span class="meta-label">Previous</span>
+          <strong>Setup</strong>
+          <p>Go back to runtime prerequisites, commands, and environment requirements.</p>
+        </a>
+        <a class="doc-pager-card" href="workflow.html">
+          <span class="meta-label">Next</span>
+          <strong>Workflow</strong>
+          <p>Move into repository ownership, validation order, and safe change routines.</p>
+        </a>
+      </nav>
+
+      <footer class="site-footer">
+        <div>
+          <strong>CIRS API developer microsite</strong>
+          <p>Companion guide for local development and production-safe changes.</p>
+        </div>
+        <div class="footer-links">
+          <a href="index.html">Home</a>
+          <a href="setup.html">Setup</a>
+          <a href="workflow.html">Workflow</a>
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>

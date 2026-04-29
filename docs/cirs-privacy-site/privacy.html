@@ -15,6 +15,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css" />
+    <script src="script.js" defer></script>
   </head>
   <body>
     <div class="page-shell">
@@ -31,7 +32,7 @@
         </div>
       </nav>
 
-      <header class="hero">
+      <header class="hero privacy-hero">
         <p class="eyebrow">Citizen Incident Reporting System</p>
         <h1>Privacy Notice</h1>
         <p class="lede">
@@ -39,6 +40,23 @@
           processes personal data when people use CIRS for incident reporting,
           coordination, and related public-service workflows.
         </p>
+        <div class="stat-grid">
+          <article class="stat-card">
+            <span class="meta-label">Main purpose</span>
+            <strong>Explain real handling, not generic promises</strong>
+            <p>This notice is structured around actual processing, recipients, transfers, retention, and rights handling instead of only broad privacy language.</p>
+          </article>
+          <article class="stat-card">
+            <span class="meta-label">Primary contact</span>
+            <strong>Office of the Data Protection Officer</strong>
+            <p>The DPO contact route is the main path for notice questions, complaints, and rights-related follow-up.</p>
+          </article>
+          <article class="stat-card">
+            <span class="meta-label">Review posture</span>
+            <strong>Aligned with the governance pack</strong>
+            <p>The matrices on this page are meant to stay consistent with the lawful basis, processor, retention, and breach-response documents kept in the repo.</p>
+          </article>
+        </div>
         <div class="hero-meta">
           <div>
             <span class="meta-label">Notice version</span>
@@ -53,20 +71,34 @@
             <strong>2026-04-29</strong>
           </div>
         </div>
+        <div class="doc-strip" aria-label="Document progress">
+          <span class="doc-chip">Guide 1 of 4</span>
+          <span class="doc-chip active">Guide 2 of 4</span>
+          <span class="doc-chip">Privacy notice</span>
+        </div>
       </header>
 
       <main class="content-grid">
         <aside class="toc-card">
           <p class="toc-title">On this page</p>
+          <div class="toc-meta" aria-live="polite">
+            <p class="toc-status-label">Currently reading</p>
+            <p class="toc-status">Who is responsible</p>
+            <div class="toc-progress" aria-hidden="true">
+              <span class="toc-progress-bar"></span>
+            </div>
+          </div>
           <nav>
             <a href="#controller">Who is responsible</a>
             <a href="#purpose">What CIRS is for</a>
             <a href="#collection">What data we collect</a>
+            <a href="#handling-matrix">Processing matrix</a>
             <a href="#processing">Why we process data</a>
             <a href="#lawful-basis">Lawful bases</a>
             <a href="#sharing">Who may receive data</a>
             <a href="#transfers">Cross-border processing</a>
             <a href="#retention">How long we keep data</a>
+            <a href="#retention-matrix">Retention matrix</a>
             <a href="#rights">Your rights</a>
             <a href="#security">How we protect data</a>
             <a href="#updates">Notice updates</a>
@@ -88,10 +120,7 @@
               </div>
               <div>
                 <span class="meta-label">Data Protection Officer</span>
-                <strong
-                  >City Data Protection Officer, Tuguegarao City
-                  Government</strong
-                >
+                <strong>City Data Protection Officer, Tuguegarao City Government</strong>
               </div>
               <div>
                 <span class="meta-label">Email</span>
@@ -99,10 +128,7 @@
               </div>
               <div>
                 <span class="meta-label">Address</span>
-                <strong
-                  >Tuguegarao City Hall Complex, Tuguegarao City,
-                  Cagayan</strong
-                >
+                <strong>Tuguegarao City Hall Complex, Tuguegarao City, Cagayan</strong>
               </div>
             </div>
           </section>
@@ -110,8 +136,8 @@
           <section class="card" id="purpose">
             <h2>What CIRS Is For</h2>
             <p>
-              CIRS is used to receive, manage, route, and monitor incident
-              reports and related public-safety or service-response activities.
+              CIRS is used to receive, manage, route, and monitor incident reports and
+              related public-safety or service-response activities.
             </p>
             <ul>
               <li>Citizen account registration and login</li>
@@ -124,53 +150,79 @@
 
           <section class="card" id="collection">
             <h2>What Personal Data We May Collect</h2>
-            <p>
-              Depending on your interaction with the service, we may collect:
-            </p>
+            <p>Depending on your interaction with the service, we may collect:</p>
             <ul>
-              <li>
-                Your name, email address, mobile number, or account details
-              </li>
-              <li>
-                Your incident report details, including location, description,
-                category, status, and related communications
-              </li>
-              <li>
-                Uploaded files, photos, videos, or other supporting evidence
-              </li>
-              <li>
-                Account and security data such as login activity, device or
-                browser details, session data, and password-reset records
-              </li>
-              <li>
-                Privacy request or complaint details when you exercise your
-                rights
-              </li>
+              <li>Your name, email address, mobile number, or account details</li>
+              <li>Your incident report details, including location, description, category, status, and related communications</li>
+              <li>Uploaded files, photos, videos, or other supporting evidence</li>
+              <li>Account and security data such as login activity, device or browser details, session data, and password-reset records</li>
+              <li>Privacy request or complaint details when you exercise your rights</li>
             </ul>
             <p class="callout">
-              We aim to collect only the data that is necessary for the specific
-              service or legal purpose.
+              We aim to collect only the data that is necessary for the specific service or legal purpose.
             </p>
+          </section>
+
+          <section class="card" id="handling-matrix">
+            <h2>Processing Matrix</h2>
+            <p>
+              The main processing activities are shown below in the same structured style used in the governance pack.
+            </p>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Activity</th>
+                    <th>Main data involved</th>
+                    <th>Typical internal recipients</th>
+                    <th>Main purpose</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Account registration and authentication</td>
+                    <td>Name, email, mobile number, auth metadata, MFA state</td>
+                    <td>Authorized admins, auth support roles, system operators where needed</td>
+                    <td>Create and secure access to the service</td>
+                  </tr>
+                  <tr>
+                    <td>Incident reporting and case creation</td>
+                    <td>Identity data, contact details, location, narrative, category, attachments</td>
+                    <td>Dispatchers, responders, city admins, limited auditors</td>
+                    <td>Receive and manage public-safety or service-response records</td>
+                  </tr>
+                  <tr>
+                    <td>Audit logging and monitoring</td>
+                    <td>User identifiers, route, action, timestamps, security metadata</td>
+                    <td>Security owner, system owner, DPO where needed</td>
+                    <td>Accountability, misuse investigation, and platform protection</td>
+                  </tr>
+                  <tr>
+                    <td>Data-subject request handling</td>
+                    <td>Request type, identity details, review notes, outcome summary</td>
+                    <td>DPO, authorized reviewers, admin support roles</td>
+                    <td>Respond to rights requests and privacy concerns</td>
+                  </tr>
+                  <tr>
+                    <td>Privacy incident management</td>
+                    <td>Incident summary, affected categories, notification notes, reviewer actions</td>
+                    <td>DPO, security owner, system owner, limited reviewers</td>
+                    <td>Document and assess privacy incidents or breach-response actions</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </section>
 
           <section class="card" id="processing">
             <h2>Why We Process Your Data</h2>
             <ul>
-              <li>
-                Create and secure accounts when you request access to the
-                service
-              </li>
+              <li>Create and secure accounts when you request access to the service</li>
               <li>Receive, validate, route, and manage incident reports</li>
-              <li>
-                Support lawful public-service or emergency-response functions
-              </li>
-              <li>
-                Protect the platform, prevent abuse, and investigate misuse
-              </li>
+              <li>Support lawful public-service or emergency-response functions</li>
+              <li>Protect the platform, prevent abuse, and investigate misuse</li>
               <li>Respond to privacy requests, complaints, or incidents</li>
-              <li>
-                Maintain audit, accountability, and records-management controls
-              </li>
+              <li>Maintain audit, accountability, and records-management controls</li>
             </ul>
           </section>
 
@@ -185,9 +237,7 @@
               <span>Consent for limited optional cases</span>
             </div>
             <p>
-              We do not rely on consent for core security, records, or
-              incident-response functions when those functions are required to
-              operate the service lawfully and safely.
+              We do not rely on consent for core security, records, or incident-response functions when those functions are required to operate the service lawfully and safely.
             </p>
           </section>
 
@@ -195,87 +245,151 @@
             <h2>Who May Receive Your Data</h2>
             <ul>
               <li>LGU staff or responders responsible for incident handling</li>
-              <li>
-                Authorized administrators, auditors, or compliance reviewers
-              </li>
-              <li>
-                Approved technical providers for hosting, database,
-                authentication, storage, or secure notifications, where
-                applicable
-              </li>
+              <li>Authorized administrators, auditors, or compliance reviewers</li>
+              <li>Approved technical providers for hosting, database, authentication, storage, or secure notifications, where applicable</li>
             </ul>
             <p>
-              Public-facing case lookup or status features are designed to show
-              only limited and privacy-safe information.
+              Public-facing case lookup or status features are designed to show only limited and privacy-safe information.
             </p>
           </section>
 
           <section class="card" id="transfers">
             <h2>Cross-Border Or External Processing</h2>
             <p>
-              Some technical service providers used to run the platform may be
-              outside the Philippines or may use infrastructure outside the
-              Philippines.
+              Some technical service providers used to run the platform may be outside the Philippines or may use infrastructure outside the Philippines.
             </p>
             <p>
-              When this applies, the operating authority should document the
-              transfer basis, review the provider's safeguards, and maintain the
-              required transfer and processor records. If you want more
-              information about the current processor or residency posture of
-              the deployment, contact the DPO.
+              When this applies, the operating authority should document the transfer basis, review the provider's safeguards, and maintain the required transfer and processor records. If you want more information about the current processor or residency posture of the deployment, contact the DPO.
             </p>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Processor category</th>
+                    <th>Typical data involved</th>
+                    <th>Sample residency posture</th>
+                    <th>Review expectation</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Hosting provider</td>
+                    <td>Runtime and infrastructure metadata</td>
+                    <td>Cross-border documented or approved LGU infrastructure</td>
+                    <td>Confirm contract owner, hosting region, and transfer basis</td>
+                  </tr>
+                  <tr>
+                    <td>Database provider</td>
+                    <td>Incident records, user records, audit data, rights records</td>
+                    <td>Cross-border documented for sample Supabase-backed posture</td>
+                    <td>Confirm DPA, direct connection hosts, and approved host inventory</td>
+                  </tr>
+                  <tr>
+                    <td>Monitoring or alerts provider</td>
+                    <td>Error traces, operational logs, limited metadata</td>
+                    <td>Cross-border documented if external monitoring is enabled</td>
+                    <td>Confirm privacy filtering and escalation contacts</td>
+                  </tr>
+                  <tr>
+                    <td>Messaging or webhook delivery</td>
+                    <td>Password reset or operational notification metadata</td>
+                    <td>Hybrid or cross-border depending on destination</td>
+                    <td>Review transfer assessment and approved destinations</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </section>
 
           <section class="card" id="retention">
             <h2>How Long We Keep Data</h2>
             <p>
-              We keep personal data only for as long as needed for the service,
-              accountability, records-management, legal, and security purposes
-              that apply to the specific record type.
+              We keep personal data only for as long as needed for the service, accountability, records-management, legal, and security purposes that apply to the specific record type.
             </p>
             <div class="mini-grid">
               <article>
                 <h3>Longer retention</h3>
-                <p>
-                  Incident and audit records may be kept longer for
-                  accountability and investigation purposes.
-                </p>
+                <p>Incident and audit records may be kept longer for accountability and investigation purposes.</p>
               </article>
               <article>
                 <h3>Shorter retention</h3>
-                <p>
-                  Session and password-reset records may be kept for shorter
-                  operational security periods.
-                </p>
+                <p>Session and password-reset records may be kept for shorter operational security periods.</p>
               </article>
               <article>
                 <h3>Governance records</h3>
-                <p>
-                  Privacy request and privacy incident records may be kept as
-                  long as needed for legal and governance review.
-                </p>
+                <p>Privacy request and privacy incident records may be kept as long as needed for legal and governance review.</p>
               </article>
+            </div>
+          </section>
+
+          <section class="card" id="retention-matrix">
+            <h2>Retention Matrix</h2>
+            <p>
+              The current governance pack uses sample retention baselines so reviewers can audit the policy by record class rather than relying on generic statements.
+            </p>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Record class</th>
+                    <th>Retention clock starts</th>
+                    <th>Sample retention period</th>
+                    <th>Archive or disposal rule</th>
+                    <th>Owner</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Citizen accounts</td>
+                    <td>Account closure or last verified activity</td>
+                    <td>3 years</td>
+                    <td>Archive inactive accounts and dispose only after no hold or complaint applies</td>
+                    <td>System owner and DPO</td>
+                  </tr>
+                  <tr>
+                    <td>Incident reports</td>
+                    <td>Final closure date</td>
+                    <td>7 years</td>
+                    <td>Archive when closed and inactive; no disposal during investigation or legal hold</td>
+                    <td>Operations lead and records officer</td>
+                  </tr>
+                  <tr>
+                    <td>Audit logs</td>
+                    <td>Event timestamp</td>
+                    <td>3 years</td>
+                    <td>Keep immutable in primary or approved export storage before disposal review</td>
+                    <td>Security owner</td>
+                  </tr>
+                  <tr>
+                    <td>Data-subject requests</td>
+                    <td>Final resolution date</td>
+                    <td>5 years</td>
+                    <td>Preserve full workflow history until complaint and review windows end</td>
+                    <td>DPO</td>
+                  </tr>
+                  <tr>
+                    <td>Privacy incidents</td>
+                    <td>Closure and completion of follow-up actions</td>
+                    <td>7 years</td>
+                    <td>Keep the full decision trail until notification and review obligations end</td>
+                    <td>DPO and security owner</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </section>
 
           <section class="card" id="rights">
             <h2>Your Rights</h2>
-            <p>
-              Subject to applicable law and operational limitations, you may
-              have the right to:
-            </p>
+            <p>Subject to applicable law and operational limitations, you may have the right to:</p>
             <ul>
               <li>Request access to your personal data</li>
               <li>Request correction of inaccurate data</li>
-              <li>
-                Request deletion, blocking, restriction, or objection in
-                appropriate cases
-              </li>
+              <li>Request deletion, blocking, restriction, or objection in appropriate cases</li>
               <li>File a complaint or raise a privacy concern</li>
             </ul>
             <p class="callout">
-              To exercise your rights, contact the DPO or visit the dedicated
-              <a href="rights.html">Rights & Incidents page</a>.
+              To exercise your rights, contact the DPO or visit the dedicated <a href="rights.html">Rights & Incidents page</a>.
             </p>
           </section>
 
@@ -286,20 +400,49 @@
               <li>Authentication and session-security controls</li>
               <li>Audit logging and security monitoring</li>
               <li>Restricted workflow access for sensitive records</li>
-              <li>
-                Breach-response and privacy-incident documentation procedures
-              </li>
+              <li>Breach-response and privacy-incident documentation procedures</li>
             </ul>
             <p>
-              No system can guarantee absolute security, but we aim to maintain
-              safeguards proportionate to the risks of the data involved.
+              No system can guarantee absolute security, but we aim to maintain safeguards proportionate to the risks of the data involved.
             </p>
           </section>
 
           <section class="card" id="updates">
             <h2>Updates To This Notice</h2>
             <p>
-              This notice may be updated from time to time when the service,
+              This notice may be updated from time to time when the service, legal position, or data practices change. When material changes are made, the operating authority should update the published notice and, where appropriate, the onboarding notice shown to users.
+            </p>
+          </section>
+        </div>
+      </main>
+
+      <nav class="doc-pager" aria-label="Page navigation">
+        <a class="doc-pager-card" href="index.html">
+          <span class="meta-label">Previous</span>
+          <strong>Public Information Home</strong>
+          <p>Return to the public site map and audience overview.</p>
+        </a>
+        <a class="doc-pager-card" href="training.html">
+          <span class="meta-label">Next</span>
+          <strong>Training Materials</strong>
+          <p>Move into staff obligations, modules, role expectations, and evidence requirements.</p>
+        </a>
+      </nav>
+
+      <footer class="site-footer">
+        <div>
+          <strong>Tuguegarao City pilot deployment sample</strong>
+          <p>Citizen Incident Reporting System public information microsite.</p>
+        </div>
+        <div class="footer-links">
+          <a href="index.html">Home</a>
+          <a href="training.html">Training Materials</a>
+          <a href="rights.html">Rights & Incidents</a>
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>
               legal position, or data practices change. When material changes
               are made, the operating authority should update the published
               notice and, where appropriate, the onboarding notice shown to
