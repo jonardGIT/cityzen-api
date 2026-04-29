@@ -1,0 +1,438 @@
+type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
+
+type SmokeCheck = {
+  name: string;
+  ok: boolean;
+  status: number | null;
+  summary: string | null;
+  skipped?: boolean;
+  error?: string;
+};
+
+type SmokeSummary = {
+  baseUrl: string;
+  apiBasePath: string;
+  startedAt: string;
+  finishedAt?: string;
+  checks: SmokeCheck[];
+  ok: boolean;
+};
+
+type AuthPayload = {
+  token?: string;
+  refreshToken?: string;
+  sessionId?: string;
+};
+
+type RequestOptions = {
+  authToken?: string;
+  body?: unknown;
+  expectedStatuses?: number[];
+  includeApiKey?: boolean;
+};
+
+const HELP_TEXT = `
+Usage: npm run smoke:remote
+
+Environment:
+  SMOKE_BASE_URL           Required base origin, e.g. https://api.example.gov
+  SMOKE_API_BASE_PATH      Optional API prefix, defaults to /api/v1
+  SMOKE_API_KEY            Optional x-api-key value for protected routes
+  SMOKE_ADMIN_EMAIL        Optional admin login email, defaults to admin@xypes.local
+  SMOKE_ADMIN_PASSWORD     Optional admin login password, defaults to Password123!
+  SMOKE_CITIZEN_EMAIL      Optional citizen reporter login for mobile checks
+  SMOKE_CITIZEN_PASSWORD   Optional citizen reporter password for mobile checks
+  SMOKE_CASE_TOKEN         Optional public case token for /cases/{token} check
+
+This script is a black-box smoke test for a running deployment. It never imports the app.
+`.trim();
+
+if (process.argv.includes('--help') || process.argv.includes('-h')) {
+  console.log(HELP_TEXT);
+  process.exit(0);
+}
+
+const baseUrl = process.env.SMOKE_BASE_URL?.trim();
+const apiBasePath = process.env.SMOKE_API_BASE_PATH?.trim() || '/api/v1';
+const apiKey = process.env.SMOKE_API_KEY?.trim();
+const adminEmail = process.env.SMOKE_ADMIN_EMAIL?.trim() || 'admin@xypes.local';
+const adminPassword = process.env.SMOKE_ADMIN_PASSWORD?.trim() || 'Password123!';
+const citizenEmail = process.env.SMOKE_CITIZEN_EMAIL?.trim();
+const citizenPassword = process.env.SMOKE_CITIZEN_PASSWORD?.trim();
+const caseToken = process.env.SMOKE_CASE_TOKEN?.trim();
+
+if (!baseUrl) {
+  console.error('SMOKE_BASE_URL must be configured');
+  process.exit(1);
+}
+
+function buildUrl(path: string): string {
+  const normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  const normalizedApiBasePath = apiBasePath.startsWith('/') ? apiBasePath : `/${apiBasePath}`;
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${normalizedBaseUrl}${normalizedApiBasePath}${normalizedPath}`;
+}
+
+function summarizeBody(body: unknown): string | null {
+  if (body == null) {
+    return null;
+  }
+
+  if (Array.isArray(body)) {
+    return JSON.stringify({
+      type: 'array',
+      length: body.length,
+      sampleKeys:
+        body.length > 0 && body[0] && typeof body[0] === 'object'
+          ? Object.keys(body[0] as Record<string, unknown>).slice(0, 8)
+          : [],
+    });
+  }
+
+  if (typeof body === 'object') {
+    const record = body as Record<string, unknown>;
+    return JSON.stringify({
+      type: 'object',
+      keys: Object.keys(record).slice(0, 12),
+      message: typeof record.message === 'string' ? record.message : undefined,
+      count:
+        typeof record.count === 'number'
+          ? record.count
+          : typeof record.total === 'number'
+            ? record.total
+            : undefined,
+      hasData: Object.prototype.hasOwnProperty.call(record, 'data'),
+      hasItems: Object.prototype.hasOwnProperty.call(record, 'items'),
+      hasResults: Object.prototype.hasOwnProperty.call(record, 'results'),
+    });
+  }
+
+  return String(body).replace(/\s+/g, ' ').slice(0, 220);
+}
+
+function normalizeError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message.replace(/\s+/g, ' ').slice(0, 220);
+  }
+
+  return String(error).replace(/\s+/g, ' ').slice(0, 220);
+}
+
+async function requestJson(
+  method: HttpMethod,
+  path: string,
+  options: RequestOptions = {},
+): Promise<{ status: number; body: unknown }> {
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+  };
+
+  if (options.body !== undefined) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  if (options.authToken) {
+    headers.Authorization = `Bearer ${options.authToken}`;
+  }
+
+  if (options.includeApiKey !== false && apiKey) {
+    headers['x-api-key'] = apiKey;
+  }
+
+  const response = await fetch(buildUrl(path), {
+    method,
+    headers,
+    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+  });
+
+  const responseText = await response.text();
+  let parsedBody: unknown = responseText;
+
+  if (responseText) {
+    try {
+      parsedBody = JSON.parse(responseText);
+    } catch {
+      parsedBody = responseText;
+    }
+  }
+
+  const expectedStatuses = options.expectedStatuses ?? [200];
+  if (!expectedStatuses.includes(response.status)) {
+    throw new Error(
+      `${method} ${path} returned ${response.status}; expected ${expectedStatuses.join(', ')}`,
+    );
+  }
+
+  return { status: response.status, body: parsedBody };
+}
+
+function addCheck(summary: SmokeSummary, check: SmokeCheck): void {
+  summary.checks.push(check);
+}
+
+async function runCheck(
+  summary: SmokeSummary,
+  name: string,
+  runner: () => Promise<{ status: number; body: unknown }>,
+): Promise<{ status: number; body: unknown } | null> {
+  try {
+    const result = await runner();
+    addCheck(summary, {
+      name,
+      ok: true,
+      status: result.status,
+      summary: summarizeBody(result.body),
+    });
+    return result;
+  } catch (error) {
+    addCheck(summary, {
+      name,
+      ok: false,
+      status: null,
+      summary: null,
+      error: normalizeError(error),
+    });
+    return null;
+  }
+}
+
+function addSkippedCheck(summary: SmokeSummary, name: string, reason: string): void {
+  addCheck(summary, {
+    name,
+    ok: true,
+    skipped: true,
+    status: null,
+    summary: reason,
+  });
+}
+
+async function loginUser(
+  summary: SmokeSummary,
+  name: string,
+  email: string,
+  password: string,
+): Promise<AuthPayload | null> {
+  const result = await runCheck(summary, name, () =>
+    requestJson('POST', '/auth/login', {
+      body: { email, password },
+      expectedStatuses: [200],
+    }),
+  );
+
+  if (!result || typeof result.body !== 'object' || !result.body) {
+    return null;
+  }
+
+  const body = result.body as Record<string, unknown>;
+  const token = typeof body.token === 'string' ? body.token : undefined;
+  const refreshToken = typeof body.refreshToken === 'string' ? body.refreshToken : undefined;
+  const sessionId = typeof body.sessionId === 'string' ? body.sessionId : undefined;
+
+  if (!token) {
+    addCheck(summary, {
+      name: `${name} token presence`,
+      ok: false,
+      status: result.status,
+      summary: summarizeBody(body),
+      error: 'Login response did not include token',
+    });
+    return null;
+  }
+
+  addCheck(summary, {
+    name: `${name} token presence`,
+    ok: true,
+    status: result.status,
+    summary: JSON.stringify({
+      hasToken: true,
+      hasRefreshToken: Boolean(refreshToken),
+      hasSessionId: Boolean(sessionId),
+    }),
+  });
+
+  return { token, refreshToken, sessionId };
+}
+
+async function main(): Promise<void> {
+  const summary: SmokeSummary = {
+    baseUrl,
+    apiBasePath,
+    startedAt: new Date().toISOString(),
+    checks: [],
+    ok: false,
+  };
+
+  await runCheck(summary, 'health', () =>
+    requestJson('GET', '/health', {
+      expectedStatuses: [200],
+    }),
+  );
+
+  await runCheck(summary, 'public mobile content', () =>
+    requestJson('GET', '/mobile/content', {
+      expectedStatuses: [200],
+    }),
+  );
+
+  if (caseToken) {
+    await runCheck(summary, 'public case lookup', () =>
+      requestJson('GET', `/cases/${caseToken}`, {
+        expectedStatuses: [200],
+      }),
+    );
+  } else {
+    addSkippedCheck(
+      summary,
+      'public case lookup',
+      'Set SMOKE_CASE_TOKEN to verify /cases/{token}.',
+    );
+  }
+
+  const adminAuth = await loginUser(summary, 'admin login', adminEmail, adminPassword);
+
+  if (adminAuth?.token) {
+    await runCheck(summary, 'auth me', () =>
+      requestJson('GET', '/auth/me', {
+        authToken: adminAuth.token,
+        expectedStatuses: [200],
+      }),
+    );
+
+    await runCheck(summary, 'users capabilities', () =>
+      requestJson('GET', '/users/capabilities', {
+        authToken: adminAuth.token,
+        expectedStatuses: [200],
+      }),
+    );
+
+    await runCheck(summary, 'users list', () =>
+      requestJson('GET', '/users', {
+        authToken: adminAuth.token,
+        expectedStatuses: [200],
+      }),
+    );
+
+    await runCheck(summary, 'admin access review', () =>
+      requestJson('GET', '/admin/users/access-review', {
+        authToken: adminAuth.token,
+        expectedStatuses: [200],
+      }),
+    );
+
+    await runCheck(summary, 'admin mfa compliance', () =>
+      requestJson('GET', '/admin/users/mfa-compliance', {
+        authToken: adminAuth.token,
+        expectedStatuses: [200],
+      }),
+    );
+
+    await runCheck(summary, 'admin data governance', () =>
+      requestJson('GET', '/admin/security/data-governance', {
+        authToken: adminAuth.token,
+        expectedStatuses: [200],
+      }),
+    );
+
+    await runCheck(summary, 'audit logs list', () =>
+      requestJson('GET', '/audit-logs', {
+        authToken: adminAuth.token,
+        expectedStatuses: [200],
+      }),
+    );
+
+    await runCheck(summary, 'session inventory', () =>
+      requestJson('GET', '/auth/sessions', {
+        authToken: adminAuth.token,
+        expectedStatuses: [200, 404],
+      }),
+    );
+
+    let activeToken = adminAuth.token;
+    let activeRefreshToken = adminAuth.refreshToken;
+
+    if (activeRefreshToken) {
+      const refreshResult = await runCheck(summary, 'refresh token rotation', () =>
+        requestJson('POST', '/auth/refresh', {
+          body: { refreshToken: activeRefreshToken },
+          expectedStatuses: [200],
+        }),
+      );
+
+      if (refreshResult && typeof refreshResult.body === 'object' && refreshResult.body) {
+        const refreshBody = refreshResult.body as Record<string, unknown>;
+        activeToken = typeof refreshBody.token === 'string' ? refreshBody.token : activeToken;
+        activeRefreshToken =
+          typeof refreshBody.refreshToken === 'string'
+            ? refreshBody.refreshToken
+            : activeRefreshToken;
+      }
+    } else {
+      addSkippedCheck(
+        summary,
+        'refresh token rotation',
+        'Login response did not include refreshToken for this feature profile.',
+      );
+    }
+
+    await runCheck(summary, 'logout current session', () =>
+      requestJson('POST', '/auth/logout', {
+        authToken: activeToken,
+        expectedStatuses: [200],
+      }),
+    );
+
+    await runCheck(summary, 'post logout auth rejection', () =>
+      requestJson('GET', '/auth/me', {
+        authToken: activeToken,
+        expectedStatuses: [401],
+      }),
+    );
+
+    if (activeRefreshToken) {
+      await runCheck(summary, 'post logout refresh rejection', () =>
+        requestJson('POST', '/auth/refresh', {
+          body: { refreshToken: activeRefreshToken },
+          expectedStatuses: [401],
+        }),
+      );
+    }
+  }
+
+  if (citizenEmail && citizenPassword) {
+    const citizenAuth = await loginUser(summary, 'citizen login', citizenEmail, citizenPassword);
+    if (citizenAuth?.token) {
+      await runCheck(summary, 'mobile profile', () =>
+        requestJson('GET', '/mobile/profile', {
+          authToken: citizenAuth.token,
+          expectedStatuses: [200, 404],
+        }),
+      );
+
+      await runCheck(summary, 'mobile incidents list', () =>
+        requestJson('GET', '/mobile/incidents', {
+          authToken: citizenAuth.token,
+          expectedStatuses: [200],
+        }),
+      );
+    }
+  } else {
+    addSkippedCheck(
+      summary,
+      'citizen mobile checks',
+      'Set SMOKE_CITIZEN_EMAIL and SMOKE_CITIZEN_PASSWORD to verify mobile profile and incident endpoints.',
+    );
+  }
+
+  summary.finishedAt = new Date().toISOString();
+  summary.ok = summary.checks.every((check) => check.ok);
+  console.log(JSON.stringify(summary, null, 2));
+
+  if (!summary.ok) {
+    process.exitCode = 1;
+  }
+}
+
+main().catch((error) => {
+  console.error(normalizeError(error));
+  process.exitCode = 1;
+});
