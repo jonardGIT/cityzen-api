@@ -8,6 +8,8 @@ const dotenv = require('dotenv');
 // INCIDENT_CASE_TOKEN_TTL_DAYS=30
 // PUBLIC_CASE_LOOKUP_RATE_LIMIT_ENABLED=true
 // PM2 production env files must also provide PASSWORD_RESET_DELIVERY_WEBHOOK_URL=https://... because startup requires it for production password-reset delivery.
+// PM2 production env files must also provide PRIVACY_DPO_CONTACT_EMAIL, PRIVACY_BREACH_PLAYBOOK_VERSION,
+// PRIVACY_BREACH_NOTIFICATION_WINDOW_HOURS, DATA_RESIDENCY_MODE, and DATA_PROCESSOR_INVENTORY_VERSION.
 const envFile = process.env.PM2_ENV_FILE || '.env';
 const envPath = path.resolve(__dirname, envFile);
 const fileEnv = fs.existsSync(envPath) ? dotenv.parse(fs.readFileSync(envPath, 'utf8')) : {};

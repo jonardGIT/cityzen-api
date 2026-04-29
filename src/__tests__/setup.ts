@@ -192,6 +192,12 @@ beforeAll(async () => {
     `CREATE TABLE IF NOT EXISTS users (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), "createdAt" timestamptz NOT NULL DEFAULT NOW(), "updatedAt" timestamptz NOT NULL DEFAULT NOW(), name text NOT NULL, email text NOT NULL UNIQUE, "passwordHash" text NOT NULL, role text NOT NULL DEFAULT 'CITIZEN_REPORTER')`,
   );
   await prisma.$executeRawUnsafe(
+    'ALTER TABLE users ADD COLUMN IF NOT EXISTS "privacyNoticeAcceptedAt" timestamptz',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE users ADD COLUMN IF NOT EXISTS "privacyNoticeVersion" text',
+  );
+  await prisma.$executeRawUnsafe(
     'CREATE TABLE IF NOT EXISTS auth_sessions (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), "createdAt" timestamptz NOT NULL DEFAULT NOW(), "updatedAt" timestamptz NOT NULL DEFAULT NOW(), "userId" uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE, "expiresAt" timestamptz NOT NULL, "refreshTokenHash" text NOT NULL DEFAULT \'\', "refreshExpiresAt" timestamptz NOT NULL DEFAULT NOW(), "refreshUsedAt" timestamptz, "revokedAt" timestamptz, "lastUsedAt" timestamptz, "userAgent" text, "ipAddress" text)',
   );
   await prisma.$executeRawUnsafe(
@@ -205,6 +211,18 @@ beforeAll(async () => {
   );
   await prisma.$executeRawUnsafe(
     'CREATE TABLE IF NOT EXISTS citizens (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), "createdAt" timestamptz NOT NULL DEFAULT NOW(), "updatedAt" timestamptz NOT NULL DEFAULT NOW(), name text NOT NULL, "contactInfo" text NOT NULL, "preferredChannel" text NOT NULL)',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE citizens ADD COLUMN IF NOT EXISTS "privacyNoticeAcceptedAt" timestamptz',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE citizens ADD COLUMN IF NOT EXISTS "privacyNoticeVersion" text',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE TABLE IF NOT EXISTS data_subject_requests (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), "createdAt" timestamptz NOT NULL DEFAULT NOW(), "updatedAt" timestamptz NOT NULL DEFAULT NOW(), "requesterUserId" uuid REFERENCES users(id) ON DELETE SET NULL, "reviewerUserId" uuid REFERENCES users(id) ON DELETE SET NULL, "citizenId" uuid REFERENCES citizens(id) ON DELETE SET NULL, "requestType" text NOT NULL, status text NOT NULL DEFAULT \'SUBMITTED\', channel text NOT NULL DEFAULT \'self-service\', "requesterEmail" text, details text, "reviewerNotes" text, "resolutionSummary" text, "acknowledgedAt" timestamptz, "reviewedAt" timestamptz, "resolvedAt" timestamptz, "dueAt" timestamptz NOT NULL, metadata jsonb)',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE TABLE IF NOT EXISTS privacy_incidents (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), "createdAt" timestamptz NOT NULL DEFAULT NOW(), "updatedAt" timestamptz NOT NULL DEFAULT NOW(), "reportedByUserId" uuid REFERENCES users(id) ON DELETE SET NULL, "reviewedByUserId" uuid REFERENCES users(id) ON DELETE SET NULL, "referenceCode" text NOT NULL UNIQUE, status text NOT NULL DEFAULT \'REPORTED\', severity text NOT NULL DEFAULT \'HIGH\', "detectedAt" timestamptz NOT NULL, "occurredAt" timestamptz, summary text NOT NULL, details text, "likelyPersonalDataBreach" boolean NOT NULL DEFAULT true, "npcNotificationRequired" boolean NOT NULL DEFAULT false, "npcNotificationDueAt" timestamptz, "npcNotifiedAt" timestamptz, "npcNotificationReference" text, "dataSubjectNotificationRequired" boolean NOT NULL DEFAULT false, "dataSubjectNotifiedAt" timestamptz, "dataSubjectNotificationReference" text, "affectedRecordCount" integer, "affectedDataCategories" text[] NOT NULL DEFAULT ARRAY[]::text[], "containmentActions" text, "riskAssessment" text, "reviewerNotes" text, "resolutionSummary" text, "closedAt" timestamptz, metadata jsonb)',
   );
   await prisma.$executeRawUnsafe(
     `CREATE TABLE IF NOT EXISTS mobile_app_content (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), "createdAt" timestamptz NOT NULL DEFAULT NOW(), "updatedAt" timestamptz NOT NULL DEFAULT NOW(), "archivedAt" timestamptz, slug text NOT NULL UNIQUE, title text NOT NULL, summary text, body text NOT NULL, "contentType" text NOT NULL DEFAULT 'announcement', placement text NOT NULL DEFAULT 'home', audience text, "imageUrl" text, "ctaLabel" text, "ctaUrl" text, "sortOrder" integer NOT NULL DEFAULT 0, "isPublished" boolean NOT NULL DEFAULT false, "publishedAt" timestamptz, "startsAt" timestamptz, "endsAt" timestamptz, metadata jsonb)`,
@@ -428,6 +446,39 @@ beforeAll(async () => {
     'CREATE INDEX IF NOT EXISTS citizens_archived_at_idx ON citizens ("archivedAt")',
   );
   await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS data_subject_requests_requester_user_id_idx ON data_subject_requests ("requesterUserId")',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS data_subject_requests_reviewer_user_id_idx ON data_subject_requests ("reviewerUserId")',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS data_subject_requests_citizen_id_idx ON data_subject_requests ("citizenId")',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS data_subject_requests_status_idx ON data_subject_requests (status)',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS data_subject_requests_due_at_idx ON data_subject_requests ("dueAt")',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS privacy_incidents_reported_by_user_id_idx ON privacy_incidents ("reportedByUserId")',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS privacy_incidents_reviewed_by_user_id_idx ON privacy_incidents ("reviewedByUserId")',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS privacy_incidents_status_idx ON privacy_incidents (status)',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS privacy_incidents_severity_idx ON privacy_incidents (severity)',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS privacy_incidents_detected_at_idx ON privacy_incidents ("detectedAt")',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS privacy_incidents_npc_notification_due_at_idx ON privacy_incidents ("npcNotificationDueAt")',
+  );
+  await prisma.$executeRawUnsafe(
     'CREATE INDEX IF NOT EXISTS mobile_app_content_archived_at_idx ON mobile_app_content ("archivedAt")',
   );
   await prisma.$executeRawUnsafe(
@@ -563,6 +614,13 @@ beforeAll(async () => {
       IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'set_password_reset_tokens_updated_at') THEN
         CREATE TRIGGER set_password_reset_tokens_updated_at
         BEFORE UPDATE ON password_reset_tokens
+        FOR EACH ROW
+        EXECUTE FUNCTION set_updated_at();
+      END IF;
+
+      IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'set_privacy_incidents_updated_at') THEN
+        CREATE TRIGGER set_privacy_incidents_updated_at
+        BEFORE UPDATE ON privacy_incidents
         FOR EACH ROW
         EXECUTE FUNCTION set_updated_at();
       END IF;

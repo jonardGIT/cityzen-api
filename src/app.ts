@@ -26,6 +26,7 @@ import authRouter from './routes/auth.js';
 import adminRouter from './routes/admin.js';
 import mobileRouter from './routes/mobile.js';
 import mobileContentRouter from './routes/mobileContent.js';
+import privacyRequestsRouter from './routes/privacyRequests.js';
 import { openApiDocument } from './docs/openapi.js';
 import { getFeatureSelection } from './featureSelection.js';
 import { createApiKeyAuthMiddleware } from './middleware/apiKeyAuth.js';
@@ -204,6 +205,8 @@ app.use(`${API_V1}/incident-escalations`, incidentEscalationsRouter);
 app.use(`${API_V1}/mutual-aid-requests`, mutualAidRequestsRouter);
 // Mount auth endpoints (JWT login/me).
 app.use(`${API_V1}/auth`, authRouter);
+// Mount authenticated data-subject request endpoints.
+app.use(`${API_V1}/privacy-requests`, privacyRequestsRouter);
 // Mount admin endpoints (JWT + role-protected).
 app.use(`${API_V1}/admin`, adminRouter);
 // Mount first-party mobile app routes.

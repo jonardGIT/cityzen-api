@@ -157,8 +157,10 @@ Before you start the production service, confirm:
 2. The production env file is present.
 3. The env file contains `API_KEYS` or `API_KEY`.
 4. The env file contains `PASSWORD_RESET_DELIVERY_WEBHOOK_URL`.
-5. The build was done with the intended `FEATURE_*` profile.
-6. `CORS_ORIGIN` matches the real dashboard origin for this environment.
+5. The env file contains `PRIVACY_DPO_CONTACT_EMAIL`, `PRIVACY_BREACH_PLAYBOOK_VERSION`, and `PRIVACY_BREACH_NOTIFICATION_WINDOW_HOURS`.
+6. The env file contains `DATA_RESIDENCY_MODE` and `DATA_PROCESSOR_INVENTORY_VERSION`.
+7. The build was done with the intended `FEATURE_*` profile.
+8. `CORS_ORIGIN` matches the real dashboard origin for this environment.
 
 ## Recommended Operator Workflow
 

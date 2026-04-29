@@ -86,6 +86,18 @@ Depending on the profile, you may also need:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `PASSWORD_RESET_DELIVERY_WEBHOOK_URL`
 
+Production governance and privacy controls may also require:
+
+- `PRIVACY_DPO_CONTACT_EMAIL`
+- `PRIVACY_BREACH_PLAYBOOK_VERSION`
+- `PRIVACY_BREACH_NOTIFICATION_WINDOW_HOURS`
+- `PRIVACY_INCIDENT_ESCALATION_WEBHOOK_URL`
+- `DATA_RESIDENCY_MODE`
+- `DATA_PROCESSOR_INVENTORY_VERSION`
+- `DATA_RESIDENCY_APPROVED_HOSTS`
+- `CROSS_BORDER_TRANSFER_ASSESSMENT_REFERENCE`
+- `CROSS_BORDER_TRANSFER_MCC_REFERENCE`
+
 ## 4. Environment Variables By Priority
 
 The easiest way to think about the environment is by priority.
@@ -112,6 +124,14 @@ Recommended baseline operational variables:
 - `RATE_LIMIT_MAX_REQUESTS`
 - `LOG_LEVEL`
 - `JSON_BODY_LIMIT`
+
+Recommended privacy and governance baseline for production:
+
+- `PRIVACY_DPO_CONTACT_EMAIL`
+- `PRIVACY_BREACH_PLAYBOOK_VERSION`
+- `PRIVACY_BREACH_NOTIFICATION_WINDOW_HOURS`
+- `DATA_RESIDENCY_MODE`
+- `DATA_PROCESSOR_INVENTORY_VERSION`
 
 ### B. Required For Local Auth Profiles
 
@@ -147,6 +167,42 @@ Important:
 
 - In production, `PASSWORD_RESET_DELIVERY_MODE` must be unset or set to `webhook`.
 - In production, `PASSWORD_RESET_DELIVERY_WEBHOOK_URL` must be `https://`.
+
+### D1. Required For Production Breach-Response Readiness
+
+Production startup now enforces explicit privacy breach governance settings.
+
+- `PRIVACY_DPO_CONTACT_EMAIL`
+- `PRIVACY_BREACH_PLAYBOOK_VERSION`
+- `PRIVACY_BREACH_NOTIFICATION_WINDOW_HOURS`
+
+Optional but recommended:
+
+- `PRIVACY_INCIDENT_ESCALATION_WEBHOOK_URL`
+
+Important:
+
+- In production, `PRIVACY_DPO_CONTACT_EMAIL` must be a valid email address.
+- In production, `PRIVACY_BREACH_NOTIFICATION_WINDOW_HOURS` must be explicitly configured and stay within `1` to `72`.
+- If set, `PRIVACY_INCIDENT_ESCALATION_WEBHOOK_URL` must be `https://`.
+
+### D2. Required For Production Data Residency Governance
+
+Production startup now enforces explicit residency posture and cross-border documentation.
+
+- `DATA_RESIDENCY_MODE`
+- `DATA_PROCESSOR_INVENTORY_VERSION`
+
+Common supporting variables:
+
+- `DATA_RESIDENCY_APPROVED_HOSTS`
+- `CROSS_BORDER_TRANSFER_ASSESSMENT_REFERENCE`
+- `CROSS_BORDER_TRANSFER_MCC_REFERENCE`
+
+Important:
+
+- `DATA_RESIDENCY_MODE` must be explicitly configured in production.
+- Cross-border documentation becomes mandatory when configured processors appear to be outside the approved-host set.
 
 ### E. Required When Media Storage Is Enabled
 
@@ -216,6 +272,7 @@ RATE_LIMIT_ENABLED=true
 RATE_LIMIT_STORE=memory
 RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX_REQUESTS=100
+PRIVACY_NOTICE_ENFORCED=false
 ```
 
 Start command:
@@ -258,6 +315,7 @@ SUPABASE_AUTH_AUTO_CONFIRM_EMAIL=true
 RATE_LIMIT_ENABLED=true
 RATE_LIMIT_STORE=memory
 RATE_LIMIT_WINDOW_MS=60000
+
 RATE_LIMIT_MAX_REQUESTS=100
 ```
 

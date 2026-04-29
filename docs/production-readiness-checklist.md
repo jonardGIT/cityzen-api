@@ -116,6 +116,18 @@ Before booting a production release, confirm all of these are true:
 
 The current server startup now fails closed if any of those guarantees are violated.
 
+### 4b. Required Production Privacy And Residency Baseline
+
+Before booting a production release, confirm all of these are true:
+
+1. `PRIVACY_DPO_CONTACT_EMAIL` is configured with a valid address.
+2. `PRIVACY_BREACH_PLAYBOOK_VERSION` is configured.
+3. `PRIVACY_BREACH_NOTIFICATION_WINDOW_HOURS` is explicitly set between `1` and `72`.
+4. `DATA_RESIDENCY_MODE` and `DATA_PROCESSOR_INVENTORY_VERSION` are configured.
+5. Cross-border documentation references are configured when any active processor is outside the approved-host set.
+
+The current server startup now fails closed if those privacy-governance and residency guarantees are violated.
+
 ### 5. Backups, Restore, and Rollback
 
 You need a repeatable operational drill that proves:
@@ -140,6 +152,7 @@ These are the highest-value additions based on the current route surface and tes
 - Public case lookup does not have a dedicated `cases` test file; most coverage is indirect through incidents tests.
 - Feature-gated incident media upload and managed media access need direct end-to-end coverage when that profile is enabled.
 - Auditor-specific incident read surfaces deserve stronger direct coverage, especially list and detail reads.
+- New privacy incident and data-subject request endpoints still need black-box validation on a live database-backed environment, not only compile coverage.
 
 ### Medium
 
@@ -154,6 +167,7 @@ These are the highest-value additions based on the current route surface and tes
 3. Add a feature-gated media-upload integration suite.
 4. Wire remote smoke into staging or post-deploy automation.
 5. Add a written rollback and restore runbook.
+6. Add deploy-facing smoke coverage for privacy request and privacy incident admin surfaces.
 
 ## Minimum Confidence Standard
 

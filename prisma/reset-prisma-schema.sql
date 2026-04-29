@@ -25,6 +25,8 @@ DROP TABLE IF EXISTS statuses CASCADE;
 DROP TABLE IF EXISTS categories CASCADE;
 DROP TABLE IF EXISTS severities CASCADE;
 DROP TABLE IF EXISTS password_reset_tokens CASCADE;
+DROP TABLE IF EXISTS data_subject_requests CASCADE;
+DROP TABLE IF EXISTS privacy_incidents CASCADE;
 DROP TABLE IF EXISTS auth_sessions CASCADE;
 DROP TABLE IF EXISTS rate_limit_buckets CASCADE;
 DROP TABLE IF EXISTS audit_logs CASCADE;
@@ -40,6 +42,8 @@ CREATE TABLE users (
   "archivedAt" timestamptz,
   name text NOT NULL,
   email text NOT NULL UNIQUE,
+  "privacyNoticeAcceptedAt" timestamptz,
+  "privacyNoticeVersion" text,
   "mobileNumber" text UNIQUE,
   "mobileNumberVerifiedAt" timestamptz,
   "mobileAuthSubject" text UNIQUE,
@@ -113,7 +117,61 @@ CREATE TABLE citizens (
   "archivedAt" timestamptz,
   name text NOT NULL,
   "contactInfo" text NOT NULL,
-  "preferredChannel" text NOT NULL
+  "preferredChannel" text NOT NULL,
+  "privacyNoticeAcceptedAt" timestamptz,
+  "privacyNoticeVersion" text
+);
+
+CREATE TABLE data_subject_requests (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  "createdAt" timestamptz NOT NULL DEFAULT NOW(),
+  "updatedAt" timestamptz NOT NULL DEFAULT NOW(),
+  "requesterUserId" uuid REFERENCES users(id) ON DELETE SET NULL,
+  "reviewerUserId" uuid REFERENCES users(id) ON DELETE SET NULL,
+  "citizenId" uuid REFERENCES citizens(id) ON DELETE SET NULL,
+  "requestType" text NOT NULL,
+  status text NOT NULL DEFAULT 'SUBMITTED',
+  channel text NOT NULL DEFAULT 'self-service',
+  "requesterEmail" text,
+  details text,
+  "reviewerNotes" text,
+  "resolutionSummary" text,
+  "acknowledgedAt" timestamptz,
+  "reviewedAt" timestamptz,
+  "resolvedAt" timestamptz,
+  "dueAt" timestamptz NOT NULL,
+  metadata jsonb
+);
+
+CREATE TABLE privacy_incidents (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  "createdAt" timestamptz NOT NULL DEFAULT NOW(),
+  "updatedAt" timestamptz NOT NULL DEFAULT NOW(),
+  "reportedByUserId" uuid REFERENCES users(id) ON DELETE SET NULL,
+  "reviewedByUserId" uuid REFERENCES users(id) ON DELETE SET NULL,
+  "referenceCode" text NOT NULL UNIQUE,
+  status text NOT NULL DEFAULT 'REPORTED',
+  severity text NOT NULL DEFAULT 'HIGH',
+  "detectedAt" timestamptz NOT NULL,
+  "occurredAt" timestamptz,
+  summary text NOT NULL,
+  details text,
+  "likelyPersonalDataBreach" boolean NOT NULL DEFAULT true,
+  "npcNotificationRequired" boolean NOT NULL DEFAULT false,
+  "npcNotificationDueAt" timestamptz,
+  "npcNotifiedAt" timestamptz,
+  "npcNotificationReference" text,
+  "dataSubjectNotificationRequired" boolean NOT NULL DEFAULT false,
+  "dataSubjectNotifiedAt" timestamptz,
+  "dataSubjectNotificationReference" text,
+  "affectedRecordCount" integer,
+  "affectedDataCategories" text[] NOT NULL DEFAULT ARRAY[]::text[],
+  "containmentActions" text,
+  "riskAssessment" text,
+  "reviewerNotes" text,
+  "resolutionSummary" text,
+  "closedAt" timestamptz,
+  metadata jsonb
 );
 
 ALTER TABLE users
@@ -414,6 +472,12 @@ CREATE INDEX auth_sessions_revoked_at_idx ON auth_sessions ("revokedAt");
 CREATE INDEX password_reset_tokens_user_id_idx ON password_reset_tokens ("userId");
 CREATE INDEX password_reset_tokens_expires_at_idx ON password_reset_tokens ("expiresAt");
 CREATE INDEX password_reset_tokens_used_at_idx ON password_reset_tokens ("usedAt");
+CREATE INDEX privacy_incidents_reported_by_user_id_idx ON privacy_incidents ("reportedByUserId");
+CREATE INDEX privacy_incidents_reviewed_by_user_id_idx ON privacy_incidents ("reviewedByUserId");
+CREATE INDEX privacy_incidents_status_idx ON privacy_incidents (status);
+CREATE INDEX privacy_incidents_severity_idx ON privacy_incidents (severity);
+CREATE INDEX privacy_incidents_detected_at_idx ON privacy_incidents ("detectedAt");
+CREATE INDEX privacy_incidents_npc_notification_due_at_idx ON privacy_incidents ("npcNotificationDueAt");
 CREATE INDEX rate_limit_buckets_expires_at_idx ON rate_limit_buckets ("expiresAt");
 CREATE INDEX audit_logs_timestamp_idx ON audit_logs (timestamp);
 CREATE INDEX audit_logs_actor_email_idx ON audit_logs ("actorEmail");
@@ -468,6 +532,11 @@ EXECUTE FUNCTION set_updated_at();
 
 CREATE TRIGGER set_password_reset_tokens_updated_at
 BEFORE UPDATE ON password_reset_tokens
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER set_privacy_incidents_updated_at
+BEFORE UPDATE ON privacy_incidents
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 

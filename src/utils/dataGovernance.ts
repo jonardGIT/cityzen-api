@@ -1,4 +1,19 @@
 import type { FeatureSelection } from '../featureSelection.js';
+import { getCurrentPrivacyNoticeVersion, isPrivacyNoticeEnforced } from './privacyNotice.js';
+import { getDataSubjectRequestResponseDays } from './privacyRequests.js';
+import {
+  getCrossBorderTransferAssessmentReference,
+  getCrossBorderTransferMccReference,
+  getDataResidencyMode,
+  getProcessorInventoryVersion,
+  getResidencyProcessors,
+} from './dataResidency.js';
+import {
+  getPrivacyBreachNotificationWindowHours,
+  getPrivacyBreachPlaybookVersion,
+  getPrivacyDpoContactEmail,
+  getPrivacyIncidentEscalationWebhookUrl,
+} from './privacyIncidents.js';
 
 type DataClassification = {
   domain: string;
@@ -19,6 +34,10 @@ type DataGovernanceReport = {
     mediaStorageMode: 'disabled' | 'public' | 'signed';
     tlsRequired: boolean;
     retentionPolicyCount: number;
+    privacyNoticeVersion: string;
+    privacyNoticeEnforced: boolean;
+    dataSubjectRequestResponseDays: number;
+    dataResidencyMode: 'strict-ph' | 'hybrid-ph-primary' | 'cross-border-documented';
   };
   classifications: DataClassification[];
   retentionPolicies: RetentionPolicy[];
@@ -29,8 +48,15 @@ type DataGovernanceReport = {
     sessionGovernanceDocumented: boolean;
     privilegedAccessReviewEndpoint: string;
     privilegedMfaComplianceEndpoint: string;
+    privacyNoticeCaptureEndpoints: string[];
+    subjectRequestIntakeEndpoint: string;
+    subjectRequestAdminEndpoint: string;
+    breachRegisterEndpoint: string;
     sessionInventoryMode: 'app-jwt' | 'external-provider';
     quarterlyReviewRequired: boolean;
+    subjectRequestWorkflowDocumented: boolean;
+    processorInventoryVersion: string | null;
+    privacyIncidentPlaybookVersion: string | null;
   };
   encryption: {
     transport: string;
@@ -41,6 +67,29 @@ type DataGovernanceReport = {
     enabled: boolean;
     contact: string | null;
     procedure: string;
+  };
+  breachResponse: {
+    dpoContactEmail: string | null;
+    playbookVersion: string | null;
+    notificationWindowHours: number;
+    escalationWebhookConfigured: boolean;
+    breachRegisterEndpoint: string;
+    npcNotificationRule: string;
+  };
+  dataResidency: {
+    mode: 'strict-ph' | 'hybrid-ph-primary' | 'cross-border-documented';
+    processorInventoryVersion: string | null;
+    crossBorderTransferAssessmentReference: string | null;
+    crossBorderTransferMccReference: string | null;
+    processors: Array<{
+      name: string;
+      category: 'database' | 'auth' | 'media-storage' | 'monitoring' | 'webhook';
+      configured: boolean;
+      host: string | null;
+      approvedHost: boolean | null;
+      likelyCrossBorder: boolean;
+      dataCategories: string[];
+    }>;
   };
 };
 
@@ -74,6 +123,13 @@ export function getDataGovernanceReport(
   const mediaStorageMode = getMediaStorageMode(selection, env);
   const legalHoldEnabled = isTrue(env.DATA_LEGAL_HOLD_ENABLED);
   const legalHoldContact = env.DATA_LEGAL_HOLD_CONTACT?.trim() || null;
+  const privacyNoticeVersion = getCurrentPrivacyNoticeVersion(env);
+  const privacyNoticeEnforced = isPrivacyNoticeEnforced(env);
+  const dataSubjectRequestResponseDays = getDataSubjectRequestResponseDays(env);
+  const dataResidencyMode = getDataResidencyMode(env);
+  const processorInventoryVersion = getProcessorInventoryVersion(env);
+  const processors = getResidencyProcessors(env, selection);
+  const privacyIncidentPlaybookVersion = getPrivacyBreachPlaybookVersion(env);
 
   const retentionPolicies: RetentionPolicy[] = [
     {
@@ -147,6 +203,10 @@ export function getDataGovernanceReport(
       mediaStorageMode,
       tlsRequired: true,
       retentionPolicyCount: retentionPolicies.length,
+      privacyNoticeVersion,
+      privacyNoticeEnforced,
+      dataSubjectRequestResponseDays,
+      dataResidencyMode,
     },
     classifications,
     retentionPolicies,
@@ -157,8 +217,19 @@ export function getDataGovernanceReport(
       sessionGovernanceDocumented: true,
       privilegedAccessReviewEndpoint: '/api/v1/admin/users/access-review',
       privilegedMfaComplianceEndpoint: '/api/v1/admin/users/mfa-compliance',
+      privacyNoticeCaptureEndpoints: [
+        '/api/v1/auth/register',
+        '/api/v1/auth/mobile/register',
+        '/api/v1/mobile/profile',
+      ],
+      subjectRequestIntakeEndpoint: '/api/v1/privacy-requests',
+      subjectRequestAdminEndpoint: '/api/v1/admin/privacy-requests',
+      breachRegisterEndpoint: '/api/v1/admin/security/privacy-incidents',
       sessionInventoryMode: selection.tokenMode === 'app-jwt' ? 'app-jwt' : 'external-provider',
       quarterlyReviewRequired: true,
+      subjectRequestWorkflowDocumented: true,
+      processorInventoryVersion,
+      privacyIncidentPlaybookVersion,
     },
     encryption: {
       transport:
@@ -177,6 +248,22 @@ export function getDataGovernanceReport(
       contact: legalHoldContact,
       procedure:
         'When legal hold is active, automated purge work must be suspended and release must require documented administrative approval.',
+    },
+    breachResponse: {
+      dpoContactEmail: getPrivacyDpoContactEmail(env),
+      playbookVersion: privacyIncidentPlaybookVersion,
+      notificationWindowHours: getPrivacyBreachNotificationWindowHours(env),
+      escalationWebhookConfigured: Boolean(getPrivacyIncidentEscalationWebhookUrl(env)),
+      breachRegisterEndpoint: '/api/v1/admin/security/privacy-incidents',
+      npcNotificationRule:
+        'Likely personal data breaches that pose a real risk of serious harm should be assessed immediately and, when notifiable, documented for NPC submission within the configured notification window.',
+    },
+    dataResidency: {
+      mode: dataResidencyMode,
+      processorInventoryVersion,
+      crossBorderTransferAssessmentReference: getCrossBorderTransferAssessmentReference(env),
+      crossBorderTransferMccReference: getCrossBorderTransferMccReference(env),
+      processors,
     },
   };
 }

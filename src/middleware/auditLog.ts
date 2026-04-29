@@ -25,6 +25,28 @@ function getAuditEvent(method: string, path: string): AuditEventDefinition | nul
     return { action: 'register', resource: 'auth' };
   }
 
+  if (upperMethod === 'POST' && normalizedPath === '/privacy-requests') {
+    return { action: 'create', resource: 'privacy-requests' };
+  }
+
+  if (
+    upperMethod === 'PATCH' &&
+    /^\/admin\/privacy-requests\/[A-Za-z0-9-]+$/.test(normalizedPath)
+  ) {
+    return { action: 'update', resource: 'privacy-requests' };
+  }
+
+  if (upperMethod === 'POST' && normalizedPath === '/admin/security/privacy-incidents') {
+    return { action: 'create', resource: 'privacy-incidents' };
+  }
+
+  if (
+    upperMethod === 'PATCH' &&
+    /^\/admin\/security\/privacy-incidents\/[A-Za-z0-9-]+$/.test(normalizedPath)
+  ) {
+    return { action: 'update', resource: 'privacy-incidents' };
+  }
+
   if (upperMethod === 'POST' && normalizedPath === '/auth/password-reset/request') {
     return { action: 'password_reset_request', resource: 'auth' };
   }

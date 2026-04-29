@@ -15,6 +15,9 @@ Use this as the short copy-paste checklist before you boot the API in production
 9. Confirm `RATE_LIMIT_ENABLED=true`.
 10. Confirm `PUBLIC_CASE_LOOKUP_RATE_LIMIT_ENABLED=true`.
 11. Confirm `CORS_ORIGIN` matches the real dashboard origin for the target environment.
+12. Confirm `PRIVACY_DPO_CONTACT_EMAIL`, `PRIVACY_BREACH_PLAYBOOK_VERSION`, and `PRIVACY_BREACH_NOTIFICATION_WINDOW_HOURS` are set.
+13. Confirm `DATA_RESIDENCY_MODE` and `DATA_PROCESSOR_INVENTORY_VERSION` are set.
+14. If any processor is cross-border, confirm `CROSS_BORDER_TRANSFER_ASSESSMENT_REFERENCE` and `CROSS_BORDER_TRANSFER_MCC_REFERENCE` are set.
 
 ## Before Start
 
@@ -22,6 +25,7 @@ Use this as the short copy-paste checklist before you boot the API in production
 2. Build the locked production profile with `npm run build:production`.
 3. Confirm `dist/server.js` exists.
 4. Confirm the intended feature profile was baked into `src/generated/productionFeatureProfile.ts` during build.
+5. Confirm the chosen env file reflects the intended privacy-residency posture from `docs/production-env-templates.md`.
 
 ## Start
 
@@ -61,3 +65,5 @@ Do not proceed if any of these are true:
 5. Media storage is enabled but `SUPABASE_STORAGE_ACCESS_MODE` is not `signed`.
 6. The feature profile was not built with `npm run build:production`.
 7. `CORS_ORIGIN` still points to the wrong dashboard environment.
+8. Breach-response governance envs are missing or invalid.
+9. Residency mode or transfer documentation envs are missing for the deployed processor set.

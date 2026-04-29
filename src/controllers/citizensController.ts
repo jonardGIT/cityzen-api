@@ -14,6 +14,10 @@ import {
   assignCitizenToUser,
   resolveLinkedCitizenForAuthUser,
 } from '../services/userCitizenLinkService.js';
+import {
+  PrivacyNoticeAcceptanceError,
+  resolvePrivacyNoticeAcceptance,
+} from '../utils/privacyNotice.js';
 
 const config: ContentTypeConfig = {
   modelName: 'citizen',
@@ -142,12 +146,55 @@ export async function linkMyCitizenProfile(req: Request, res: Response): Promise
       return;
     }
 
+    const userPrivacyState = await prisma.user.findUnique({
+      where: { id: authUser.id },
+      select: {
+        privacyNoticeAcceptedAt: true,
+        privacyNoticeVersion: true,
+      },
+    });
+
+    let privacyNoticeAcceptance =
+      userPrivacyState?.privacyNoticeAcceptedAt && userPrivacyState.privacyNoticeVersion
+        ? {
+            acceptedAt: userPrivacyState.privacyNoticeAcceptedAt,
+            version: userPrivacyState.privacyNoticeVersion,
+          }
+        : null;
+
+    if (!privacyNoticeAcceptance) {
+      try {
+        privacyNoticeAcceptance = resolvePrivacyNoticeAcceptance(
+          req.body as Record<string, unknown>,
+        );
+      } catch (error) {
+        if (error instanceof PrivacyNoticeAcceptanceError) {
+          res.status(422).json({ message: error.message });
+          return;
+        }
+
+        throw error;
+      }
+    }
+
     const citizen = await prisma.$transaction(async (transaction) => {
+      if (privacyNoticeAcceptance && !userPrivacyState?.privacyNoticeAcceptedAt) {
+        await transaction.user.update({
+          where: { id: authUser.id },
+          data: {
+            privacyNoticeAcceptedAt: privacyNoticeAcceptance.acceptedAt,
+            privacyNoticeVersion: privacyNoticeAcceptance.version,
+          },
+        });
+      }
+
       const createdCitizen = await transaction.citizen.create({
         data: {
           name,
           preferredChannel,
           contactInfo: authUser.email,
+          privacyNoticeAcceptedAt: privacyNoticeAcceptance?.acceptedAt ?? null,
+          privacyNoticeVersion: privacyNoticeAcceptance?.version ?? null,
         },
       });
 

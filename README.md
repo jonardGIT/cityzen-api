@@ -6,6 +6,8 @@ Citizen Incident Reporting System (CIRS) REST API built with TypeScript, Express
 
 - Setup and deployment: `docs/api-setup-guide.md`
 - Detailed repository guide: `docs/README.md`
+- Lawful basis register: `docs/lawful-basis-register.md`
+- Anonymous reporting policy brief: `docs/CIRS-Anonymous-Reporting-Policy-Brief.docx`
 - Production checklist: `docs/production-quick-checklist.md`
 - Production env templates: `docs/production-env-templates.md`
 - Production runtime runbook: `docs/production-service-runbook.md`

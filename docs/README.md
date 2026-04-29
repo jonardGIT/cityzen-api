@@ -25,6 +25,9 @@ Core features:
 - Centralized 404 and error handling
 - API key protection, JWT auth, and role-based access control
 - Persistent server-side audit logging for auth and selected mutating operations
+- Privacy notice capture and version tracking for citizen onboarding
+- Data-subject request intake and admin review workflows
+- Admin privacy incident register for breach-response documentation
 - Shared whitelist-based list query filtering, sorting, and pagination
 - Swagger/OpenAPI docs in development
 - Jest + Supertest test coverage
@@ -34,6 +37,9 @@ Current platform capabilities:
 - Optional Supabase-backed email/password auth, optional Supabase JWT mode, and optional Supabase TOTP MFA, while preserving the API's local user/session model when those flags are disabled.
 - Runtime and migration database connection split for Supabase deployments: pooled `DATABASE_URL` for the API, direct `DIRECT_URL` for Prisma schema and migration commands.
 - Persistent audit logging for auth and privileged mutating flows, including citizen incident reporting and failure-path capture for operational review.
+- Consent-backed privacy notice enforcement for `/api/v1/auth/register`, `/api/v1/auth/mobile/register`, and first-time `/api/v1/mobile/profile` creation when enabled.
+- Authenticated self-service and admin review endpoints for data-subject requests under `/api/v1/privacy-requests` and `/api/v1/admin/privacy-requests`.
+- Governance reporting and production fail-closed validation for breach-response readiness and data residency posture.
 - Supabase Storage-backed incident media upload, including single-file and multi-file JSON/base64 upload support and ordered `mediaUrls` persistence on incidents.
 - Archive-by-default CRUD behavior across core resources, restore endpoints, archive-aware auth guards, and shared list-query archive browsing through `includeArchived=true` and `archivedOnly=true`.
 
@@ -76,6 +82,9 @@ Recommended infrastructure extensions for the current architecture:
 
 - `prisma/schema.prisma`: single source of truth for data models and relations.
 - `prisma/reset-prisma-schema.sql`: one-time database reset script.
+- `prisma/add-privacy-notice-consent.sql`: additive privacy notice acceptance columns for existing databases.
+- `prisma/add-data-subject-requests.sql`: additive migration for data-subject rights workflow storage.
+- `prisma/add-privacy-incidents.sql`: additive migration for the privacy incident and breach register.
 - `prisma/add-timestamps.sql`: additive migration script for existing databases.
 - `prisma/seed-data.sql`: reusable seed script.
 
@@ -173,6 +182,8 @@ SECURITY_ALERT_PASSWORD_RESET_WINDOW_MS=3600000
 For production setup, env ordering, feature profiles, and service-run guidance, use these docs instead of extending the root README:
 
 - `docs/api-setup-guide.md`
+- `docs/CIRS-Anonymous-Reporting-Policy-Brief.docx`
+- `docs/lawful-basis-register.md`
 - `docs/production-quick-checklist.md`
 - `docs/production-env-templates.md`
 - `docs/production-service-runbook.md`
@@ -183,7 +194,9 @@ For the current dashboard integration model, assume the dashboard runs locally o
 ## Related Docs
 
 - `docs/api-setup-guide.md`
+- `docs/CIRS-Anonymous-Reporting-Policy-Brief.docx`
 - `docs/feature-profiles-guide.md`
+- `docs/lawful-basis-register.md`
 - `docs/production-quick-checklist.md`
 - `docs/production-env-templates.md`
 - `docs/production-service-runbook.md`

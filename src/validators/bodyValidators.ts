@@ -1,5 +1,13 @@
 import { body } from 'express-validator';
 import { USER_ROLES } from '../types/auth.js';
+import {
+  DATA_SUBJECT_REQUEST_STATUSES,
+  DATA_SUBJECT_REQUEST_TYPES,
+} from '../utils/privacyRequests.js';
+import {
+  PRIVACY_INCIDENT_SEVERITIES,
+  PRIVACY_INCIDENT_STATUSES,
+} from '../utils/privacyIncidents.js';
 
 export const POSTGRES_UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -206,6 +214,245 @@ export const linkMyCitizenProfileValidator = [
     .trim()
     .notEmpty()
     .withMessage('preferredChannel must be a non-empty string'),
+];
+
+export const createDataSubjectRequestValidator = [
+  body('requestType')
+    .exists()
+    .withMessage('requestType is required')
+    .bail()
+    .isString()
+    .withMessage('requestType must be a string')
+    .bail()
+    .custom((value) => DATA_SUBJECT_REQUEST_TYPES.includes(value))
+    .withMessage('requestType must be a supported data-subject request type'),
+  body('details')
+    .exists()
+    .withMessage('details are required')
+    .bail()
+    .isString()
+    .withMessage('details must be a string')
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage('details are required to process a data-subject request')
+    .isLength({ max: 5000 })
+    .withMessage('details must not exceed 5000 characters'),
+];
+
+export const updateDataSubjectRequestValidator = [
+  body().custom((value) => {
+    const hasUpdatableField = ['status', 'reviewerNotes', 'resolutionSummary'].some(
+      (field) => value?.[field] !== undefined,
+    );
+    if (!hasUpdatableField) {
+      throw new Error('at least one of status, reviewerNotes, or resolutionSummary is required');
+    }
+    return true;
+  }),
+  body('status')
+    .optional()
+    .isString()
+    .withMessage('status must be a string')
+    .bail()
+    .custom((value) => DATA_SUBJECT_REQUEST_STATUSES.includes(value))
+    .withMessage('status must be a supported data-subject request status'),
+  body('reviewerNotes')
+    .optional({ nullable: true })
+    .isString()
+    .withMessage('reviewerNotes must be a string')
+    .bail()
+    .isLength({ max: 5000 })
+    .withMessage('reviewerNotes must not exceed 5000 characters'),
+  body('resolutionSummary')
+    .optional({ nullable: true })
+    .isString()
+    .withMessage('resolutionSummary must be a string')
+    .bail()
+    .isLength({ max: 5000 })
+    .withMessage('resolutionSummary must not exceed 5000 characters'),
+];
+
+export const createPrivacyIncidentValidator = [
+  body('summary')
+    .exists()
+    .withMessage('summary is required')
+    .bail()
+    .isString()
+    .withMessage('summary must be a string')
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage('summary is required to register a privacy incident')
+    .isLength({ max: 5000 })
+    .withMessage('summary must not exceed 5000 characters'),
+  body('severity')
+    .optional()
+    .isString()
+    .withMessage('severity must be a string')
+    .bail()
+    .custom((value) => PRIVACY_INCIDENT_SEVERITIES.includes(value))
+    .withMessage('severity must be a supported privacy incident severity'),
+  body('detectedAt')
+    .optional()
+    .isISO8601()
+    .withMessage('detectedAt must be a valid ISO-8601 timestamp'),
+  body('occurredAt')
+    .optional({ nullable: true })
+    .isISO8601()
+    .withMessage('occurredAt must be a valid ISO-8601 timestamp'),
+  body('details')
+    .optional({ nullable: true })
+    .isString()
+    .withMessage('details must be a string')
+    .bail()
+    .isLength({ max: 5000 })
+    .withMessage('details must not exceed 5000 characters'),
+  body('containmentActions')
+    .optional({ nullable: true })
+    .isString()
+    .withMessage('containmentActions must be a string')
+    .bail()
+    .isLength({ max: 5000 })
+    .withMessage('containmentActions must not exceed 5000 characters'),
+  body('riskAssessment')
+    .optional({ nullable: true })
+    .isString()
+    .withMessage('riskAssessment must be a string')
+    .bail()
+    .isLength({ max: 5000 })
+    .withMessage('riskAssessment must not exceed 5000 characters'),
+  body('affectedRecordCount')
+    .optional({ nullable: true })
+    .isInt({ min: 0 })
+    .withMessage('affectedRecordCount must be a non-negative integer'),
+  body('affectedDataCategories')
+    .optional()
+    .isArray()
+    .withMessage('affectedDataCategories must be an array'),
+  body('affectedDataCategories.*')
+    .optional()
+    .isString()
+    .withMessage('affectedDataCategories entries must be strings')
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage('affectedDataCategories entries must not be empty'),
+  body('likelyPersonalDataBreach')
+    .optional()
+    .isBoolean()
+    .withMessage('likelyPersonalDataBreach must be a boolean'),
+  body('npcNotificationRequired')
+    .optional()
+    .isBoolean()
+    .withMessage('npcNotificationRequired must be a boolean'),
+  body('dataSubjectNotificationRequired')
+    .optional()
+    .isBoolean()
+    .withMessage('dataSubjectNotificationRequired must be a boolean'),
+];
+
+export const updatePrivacyIncidentValidator = [
+  body().custom((value) => {
+    const hasUpdatableField = [
+      'status',
+      'severity',
+      'reviewerNotes',
+      'resolutionSummary',
+      'npcNotificationReference',
+      'dataSubjectNotificationReference',
+      'containmentActions',
+      'riskAssessment',
+      'npcNotificationRequired',
+      'dataSubjectNotificationRequired',
+      'affectedRecordCount',
+      'affectedDataCategories',
+    ].some((field) => value?.[field] !== undefined);
+    if (!hasUpdatableField) {
+      throw new Error('at least one privacy incident update field is required');
+    }
+    return true;
+  }),
+  body('status')
+    .optional()
+    .isString()
+    .withMessage('status must be a string')
+    .bail()
+    .custom((value) => PRIVACY_INCIDENT_STATUSES.includes(value))
+    .withMessage('status must be a supported privacy incident status'),
+  body('severity')
+    .optional()
+    .isString()
+    .withMessage('severity must be a string')
+    .bail()
+    .custom((value) => PRIVACY_INCIDENT_SEVERITIES.includes(value))
+    .withMessage('severity must be a supported privacy incident severity'),
+  body('reviewerNotes')
+    .optional({ nullable: true })
+    .isString()
+    .withMessage('reviewerNotes must be a string')
+    .bail()
+    .isLength({ max: 5000 })
+    .withMessage('reviewerNotes must not exceed 5000 characters'),
+  body('resolutionSummary')
+    .optional({ nullable: true })
+    .isString()
+    .withMessage('resolutionSummary must be a string')
+    .bail()
+    .isLength({ max: 5000 })
+    .withMessage('resolutionSummary must not exceed 5000 characters'),
+  body('npcNotificationReference')
+    .optional({ nullable: true })
+    .isString()
+    .withMessage('npcNotificationReference must be a string')
+    .bail()
+    .isLength({ max: 255 })
+    .withMessage('npcNotificationReference must not exceed 255 characters'),
+  body('dataSubjectNotificationReference')
+    .optional({ nullable: true })
+    .isString()
+    .withMessage('dataSubjectNotificationReference must be a string')
+    .bail()
+    .isLength({ max: 255 })
+    .withMessage('dataSubjectNotificationReference must not exceed 255 characters'),
+  body('containmentActions')
+    .optional({ nullable: true })
+    .isString()
+    .withMessage('containmentActions must be a string')
+    .bail()
+    .isLength({ max: 5000 })
+    .withMessage('containmentActions must not exceed 5000 characters'),
+  body('riskAssessment')
+    .optional({ nullable: true })
+    .isString()
+    .withMessage('riskAssessment must be a string')
+    .bail()
+    .isLength({ max: 5000 })
+    .withMessage('riskAssessment must not exceed 5000 characters'),
+  body('affectedRecordCount')
+    .optional({ nullable: true })
+    .isInt({ min: 0 })
+    .withMessage('affectedRecordCount must be a non-negative integer'),
+  body('affectedDataCategories')
+    .optional()
+    .isArray()
+    .withMessage('affectedDataCategories must be an array'),
+  body('affectedDataCategories.*')
+    .optional()
+    .isString()
+    .withMessage('affectedDataCategories entries must be strings')
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage('affectedDataCategories entries must not be empty'),
+  body('npcNotificationRequired')
+    .optional()
+    .isBoolean()
+    .withMessage('npcNotificationRequired must be a boolean'),
+  body('dataSubjectNotificationRequired')
+    .optional()
+    .isBoolean()
+    .withMessage('dataSubjectNotificationRequired must be a boolean'),
 ];
 
 const MOBILE_APP_CONTENT_FIELDS = [

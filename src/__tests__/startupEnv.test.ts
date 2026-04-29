@@ -21,6 +21,14 @@ function createProductionEnv(overrides: Record<string, string> = {}): NodeJS.Pro
     PUBLIC_CASE_LOOKUP_RATE_LIMIT_WINDOW_MS: '600000',
     PUBLIC_CASE_LOOKUP_RATE_LIMIT_MAX_REQUESTS: '20',
     INCIDENT_CASE_TOKEN_TTL_DAYS: '30',
+    PRIVACY_BREACH_NOTIFICATION_WINDOW_HOURS: '72',
+    PRIVACY_DPO_CONTACT_EMAIL: 'dpo@example.gov',
+    PRIVACY_BREACH_PLAYBOOK_VERSION: 'privacy-breach-playbook-2026.04',
+    PRIVACY_INCIDENT_ESCALATION_WEBHOOK_URL: 'https://security.example.gov/privacy-incidents',
+    DATA_RESIDENCY_MODE: 'cross-border-documented',
+    DATA_PROCESSOR_INVENTORY_VERSION: '2026-04-29',
+    CROSS_BORDER_TRANSFER_ASSESSMENT_REFERENCE: 'DTIA-2026-001',
+    CROSS_BORDER_TRANSFER_MCC_REFERENCE: 'NPC-MCC-2026-001',
     ...overrides,
   };
 }
@@ -475,6 +483,114 @@ describe('startup environment validation', () => {
         selection: createSelection({ mfaMode: 'local-totp' }),
       }),
     ).toThrow('SECURITY_ALERT_WEBHOOK_URL must be a valid absolute URL in production');
+  });
+
+  it('rejects production startup when DATA_RESIDENCY_MODE is omitted', () => {
+    const env = createProductionEnv({
+      JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
+      MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
+      PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'https://security.example.gov/password-reset',
+    });
+
+    delete env.DATA_RESIDENCY_MODE;
+
+    expect(() =>
+      validateStartupEnvironment({
+        env,
+        selection: createSelection({ mfaMode: 'local-totp' }),
+      }),
+    ).toThrow('DATA_RESIDENCY_MODE must be explicitly configured in production');
+  });
+
+  it('rejects production startup when PRIVACY_DPO_CONTACT_EMAIL is omitted', () => {
+    const env = createProductionEnv({
+      JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
+      MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
+      PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'https://security.example.gov/password-reset',
+    });
+
+    delete env.PRIVACY_DPO_CONTACT_EMAIL;
+
+    expect(() =>
+      validateStartupEnvironment({
+        env,
+        selection: createSelection({ mfaMode: 'local-totp' }),
+      }),
+    ).toThrow('PRIVACY_DPO_CONTACT_EMAIL must be configured in production');
+  });
+
+  it('rejects privacy breach notification windows longer than 72 hours', () => {
+    expect(() =>
+      validateStartupEnvironment({
+        env: createProductionEnv({
+          PRIVACY_BREACH_NOTIFICATION_WINDOW_HOURS: '96',
+          JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
+          MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
+          PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'https://security.example.gov/password-reset',
+        }),
+        selection: createSelection({ mfaMode: 'local-totp' }),
+      }),
+    ).toThrow('PRIVACY_BREACH_NOTIFICATION_WINDOW_HOURS must be between 1 and 72 in production');
+  });
+
+  it('rejects strict-ph mode when Supabase-backed auth is enabled', () => {
+    expect(() =>
+      validateStartupEnvironment({
+        env: createProductionEnv({
+          DATA_RESIDENCY_MODE: 'strict-ph',
+          DATA_RESIDENCY_APPROVED_HOSTS: 'security.example.gov',
+          SUPABASE_URL: 'https://project.supabase.co',
+          SUPABASE_ANON_KEY: 'prod-anon-key-0123456789-abcdef-uvwxyz',
+          SUPABASE_SERVICE_ROLE_KEY: 'prod-service-role-key-0123456789-abcdef-uvwxyz',
+          PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'https://security.example.gov/password-reset',
+        }),
+        selection: createSelection({
+          authProvider: 'supabase',
+          tokenMode: 'supabase-jwt',
+          mfaMode: 'supabase-totp',
+        }),
+      }),
+    ).toThrow(
+      'DATA_RESIDENCY_MODE=strict-ph does not allow Supabase-backed authentication or token processing',
+    );
+  });
+
+  it('rejects hybrid-ph-primary mode when the primary database host is not approved', () => {
+    expect(() =>
+      validateStartupEnvironment({
+        env: createProductionEnv({
+          DATA_RESIDENCY_MODE: 'hybrid-ph-primary',
+          DATA_RESIDENCY_APPROVED_HOSTS: 'security.example.gov',
+          DATABASE_URL: 'postgresql://postgres:secret@db.external.example.com:5432/postgres',
+          JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
+          MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
+          PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'https://security.example.gov/password-reset',
+        }),
+        selection: createSelection({ mfaMode: 'local-totp' }),
+      }),
+    ).toThrow(
+      'DATA_RESIDENCY_MODE=hybrid-ph-primary requires the primary database host to be in DATA_RESIDENCY_APPROVED_HOSTS',
+    );
+  });
+
+  it('requires cross-border documentation when likely cross-border processors are configured', () => {
+    const env = createProductionEnv({
+      JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
+      MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
+      PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'https://security.example.gov/password-reset',
+      SECURITY_ALERT_WEBHOOK_URL: 'https://monitoring.external.example.com/alerts',
+    });
+
+    delete env.CROSS_BORDER_TRANSFER_ASSESSMENT_REFERENCE;
+
+    expect(() =>
+      validateStartupEnvironment({
+        env,
+        selection: createSelection({ mfaMode: 'local-totp' }),
+      }),
+    ).toThrow(
+      'CROSS_BORDER_TRANSFER_ASSESSMENT_REFERENCE must be configured when likely cross-border processors are active in production',
+    );
   });
 
   it('skips strict validation outside production', () => {

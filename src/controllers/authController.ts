@@ -50,6 +50,10 @@ import {
   isPrivilegedMfaFeatureMisconfigured,
   requiresPrivilegedMfaEnrollment,
 } from '../utils/mfaPolicy.js';
+import {
+  PrivacyNoticeAcceptanceError,
+  resolvePrivacyNoticeAcceptance,
+} from '../utils/privacyNotice.js';
 
 const MOBILE_AUTH_ROLE_ONLY_MESSAGE = 'Mobile auth is only available for citizen accounts';
 const MOBILE_AUTH_PROVIDER_BOUNDARY_MESSAGE =
@@ -384,7 +388,8 @@ function handlePasswordResetRuntimeError(res: Response, error: unknown): boolean
 
 // Registers a new user (public endpoint for self-registration).
 export async function register(req: Request, res: Response): Promise<void> {
-  const { name, email, password } = getRequestBodyObject(req) as {
+  const requestBody = getRequestBodyObject(req);
+  const { name, email, password } = requestBody as {
     name?: unknown;
     email?: unknown;
     password?: unknown;
@@ -410,6 +415,19 @@ export async function register(req: Request, res: Response): Promise<void> {
         'password must be at least 12 characters and include uppercase, lowercase, number, and special character',
     });
     return;
+  }
+
+  let privacyNoticeAcceptance;
+
+  try {
+    privacyNoticeAcceptance = resolvePrivacyNoticeAcceptance(requestBody);
+  } catch (error) {
+    if (error instanceof PrivacyNoticeAcceptanceError) {
+      res.status(422).json({ message: error.message });
+      return;
+    }
+
+    throw error;
   }
 
   const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail } });
@@ -449,6 +467,8 @@ export async function register(req: Request, res: Response): Promise<void> {
         passwordHash,
         supabaseAuthUserId,
         role: 'CITIZEN_REPORTER',
+        privacyNoticeAcceptedAt: privacyNoticeAcceptance?.acceptedAt ?? null,
+        privacyNoticeVersion: privacyNoticeAcceptance?.version ?? null,
       },
       select: {
         ...getAuthUserSelect(),
@@ -506,7 +526,8 @@ export async function register(req: Request, res: Response): Promise<void> {
 }
 
 export async function registerMobileCitizen(req: Request, res: Response): Promise<void> {
-  const { name, mobileNumber, password, preferredChannel } = getRequestBodyObject(req) as {
+  const requestBody = getRequestBodyObject(req);
+  const { name, mobileNumber, password, preferredChannel } = requestBody as {
     name?: unknown;
     mobileNumber?: unknown;
     password?: unknown;
@@ -547,6 +568,19 @@ export async function registerMobileCitizen(req: Request, res: Response): Promis
     return;
   }
 
+  let privacyNoticeAcceptance;
+
+  try {
+    privacyNoticeAcceptance = resolvePrivacyNoticeAcceptance(requestBody);
+  } catch (error) {
+    if (error instanceof PrivacyNoticeAcceptanceError) {
+      res.status(422).json({ message: error.message });
+      return;
+    }
+
+    throw error;
+  }
+
   const existingUser = await prisma.user.findFirst({
     where: withActiveRecords({ mobileNumber: normalizedMobileNumber }),
     select: { id: true },
@@ -571,6 +605,8 @@ export async function registerMobileCitizen(req: Request, res: Response): Promis
           name: name.trim(),
           contactInfo: normalizedMobileNumber,
           preferredChannel: preferredCitizenChannel,
+          privacyNoticeAcceptedAt: privacyNoticeAcceptance?.acceptedAt ?? null,
+          privacyNoticeVersion: privacyNoticeAcceptance?.version ?? null,
         },
       });
 
@@ -583,6 +619,8 @@ export async function registerMobileCitizen(req: Request, res: Response): Promis
           passwordHash,
           role: 'CITIZEN_REPORTER',
           citizenId: citizen.id,
+          privacyNoticeAcceptedAt: privacyNoticeAcceptance?.acceptedAt ?? null,
+          privacyNoticeVersion: privacyNoticeAcceptance?.version ?? null,
         },
         select: getAuthUserSelect(),
       });

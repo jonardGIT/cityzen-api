@@ -15,6 +15,8 @@ model User {
   archivedAt            DateTime?
   name                  String
   email                 String                  @unique
+  privacyNoticeAcceptedAt DateTime?
+  privacyNoticeVersion  String?
   mobileNumber          String?                 @unique
   mobileNumberVerifiedAt DateTime?
   mobileAuthSubject     String?                 @unique
@@ -28,6 +30,10 @@ model User {
   jurisdictionId        String?                 @db.Uuid
   citizenId             String?                 @unique @db.Uuid
   citizen               Citizen?                @relation(fields: [citizenId], references: [id], onDelete: SetNull)
+  privacyRequests       DataSubjectRequest[]    @relation("DataSubjectRequestRequester")
+  reviewedPrivacyRequests DataSubjectRequest[]  @relation("DataSubjectRequestReviewer")
+  reportedPrivacyIncidents PrivacyIncident[]    @relation("PrivacyIncidentReporter")
+  reviewedPrivacyIncidents PrivacyIncident[]    @relation("PrivacyIncidentReviewer")
   authSessions          AuthSession[]
   incidentStatusChanges IncidentStatusHistory[]
   passwordResetTokens   PasswordResetToken[]
@@ -126,10 +132,85 @@ model Citizen {
   name             String
   contactInfo      String
   preferredChannel String
+  privacyNoticeAcceptedAt DateTime?
+  privacyNoticeVersion String?
   user             User?
+  dataSubjectRequests DataSubjectRequest[]
   incidents        CitizenIncident[]
 
   @@map("citizens")
+}
+
+model DataSubjectRequest {
+  id                String    @id @default(uuid()) @db.Uuid
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  requesterUserId   String?   @db.Uuid
+  reviewerUserId    String?   @db.Uuid
+  citizenId         String?   @db.Uuid
+  requestType       String
+  status            String    @default("SUBMITTED")
+  channel           String    @default("self-service")
+  requesterEmail    String?
+  details           String?
+  reviewerNotes     String?
+  resolutionSummary String?
+  acknowledgedAt    DateTime?
+  reviewedAt        DateTime?
+  resolvedAt        DateTime?
+  dueAt             DateTime
+  metadata          Json?
+  requesterUser     User?     @relation("DataSubjectRequestRequester", fields: [requesterUserId], references: [id], onDelete: SetNull)
+  reviewerUser      User?     @relation("DataSubjectRequestReviewer", fields: [reviewerUserId], references: [id], onDelete: SetNull)
+  citizen           Citizen?  @relation(fields: [citizenId], references: [id], onDelete: SetNull)
+
+  @@index([requesterUserId])
+  @@index([reviewerUserId])
+  @@index([citizenId])
+  @@index([status])
+  @@index([dueAt])
+  @@map("data_subject_requests")
+}
+
+model PrivacyIncident {
+  id                               String    @id @default(uuid()) @db.Uuid
+  createdAt                        DateTime  @default(now())
+  updatedAt                        DateTime  @updatedAt
+  reportedByUserId                 String?   @db.Uuid
+  reviewedByUserId                 String?   @db.Uuid
+  referenceCode                    String    @unique
+  status                           String    @default("REPORTED")
+  severity                         String    @default("HIGH")
+  detectedAt                       DateTime
+  occurredAt                       DateTime?
+  summary                          String
+  details                          String?
+  likelyPersonalDataBreach         Boolean   @default(true)
+  npcNotificationRequired          Boolean   @default(false)
+  npcNotificationDueAt             DateTime?
+  npcNotifiedAt                    DateTime?
+  npcNotificationReference         String?
+  dataSubjectNotificationRequired  Boolean   @default(false)
+  dataSubjectNotifiedAt            DateTime?
+  dataSubjectNotificationReference String?
+  affectedRecordCount              Int?
+  affectedDataCategories           String[]
+  containmentActions               String?
+  riskAssessment                   String?
+  reviewerNotes                    String?
+  resolutionSummary                String?
+  closedAt                         DateTime?
+  metadata                         Json?
+  reportedByUser                   User?     @relation("PrivacyIncidentReporter", fields: [reportedByUserId], references: [id], onDelete: SetNull)
+  reviewedByUser                   User?     @relation("PrivacyIncidentReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([reportedByUserId])
+  @@index([reviewedByUserId])
+  @@index([status])
+  @@index([severity])
+  @@index([detectedAt])
+  @@index([npcNotificationDueAt])
+  @@map("privacy_incidents")
 }
 
 model MobileAppContent {

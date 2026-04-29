@@ -1,4 +1,17 @@
 import type { FeatureSelection } from '../featureSelection.js';
+import {
+  getDataResidencyMode,
+  getProcessorInventoryVersion,
+  getCrossBorderTransferAssessmentReference,
+  getCrossBorderTransferMccReference,
+  getResidencyProcessors,
+  hasLikelyCrossBorderProcessor,
+} from './dataResidency.js';
+import {
+  getPrivacyBreachNotificationWindowHours,
+  getPrivacyBreachPlaybookVersion,
+  getPrivacyDpoContactEmail,
+} from './privacyIncidents.js';
 
 type StartupValidationOptions = {
   env: NodeJS.ProcessEnv;
@@ -80,6 +93,17 @@ function validateRequiredSecret(env: NodeJS.ProcessEnv, name: string, minimumLen
 
   if (WEAK_SECRET_VALUES.has(normalizeValue(value))) {
     throw new Error(`${name} must not use a placeholder or test value in production`);
+  }
+}
+
+function validateRequiredEmail(env: NodeJS.ProcessEnv, name: string): void {
+  const value = env[name]?.trim();
+  if (!value) {
+    throw new Error(`${name} must be configured in production`);
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+    throw new Error(`${name} must be a valid email address in production`);
   }
 }
 
@@ -267,6 +291,111 @@ function validateProductionMfaMode(selection: FeatureSelection): void {
   }
 }
 
+function validatePrivacyBreachProductionEnv(env: NodeJS.ProcessEnv): void {
+  const notificationWindowHours = getPrivacyBreachNotificationWindowHours(env);
+
+  if (!env.PRIVACY_BREACH_NOTIFICATION_WINDOW_HOURS?.trim()) {
+    throw new Error(
+      'PRIVACY_BREACH_NOTIFICATION_WINDOW_HOURS must be explicitly configured in production',
+    );
+  }
+
+  if (notificationWindowHours < 1 || notificationWindowHours > 72) {
+    throw new Error(
+      'PRIVACY_BREACH_NOTIFICATION_WINDOW_HOURS must be between 1 and 72 in production',
+    );
+  }
+
+  validateRequiredEmail(env, 'PRIVACY_DPO_CONTACT_EMAIL');
+
+  if (!getPrivacyBreachPlaybookVersion(env)) {
+    throw new Error('PRIVACY_BREACH_PLAYBOOK_VERSION must be configured in production');
+  }
+
+  validateOptionalHttpsUrl(env, 'PRIVACY_INCIDENT_ESCALATION_WEBHOOK_URL');
+
+  if (!getPrivacyDpoContactEmail(env)) {
+    throw new Error('PRIVACY_DPO_CONTACT_EMAIL must be configured in production');
+  }
+}
+
+function validateDataResidencyProductionEnv(
+  env: NodeJS.ProcessEnv,
+  selection: FeatureSelection,
+): void {
+  const residencyMode = getDataResidencyMode(env);
+  const processorInventoryVersion = getProcessorInventoryVersion(env);
+
+  if (!env.DATA_RESIDENCY_MODE?.trim()) {
+    throw new Error('DATA_RESIDENCY_MODE must be explicitly configured in production');
+  }
+
+  if (!processorInventoryVersion) {
+    throw new Error('DATA_PROCESSOR_INVENTORY_VERSION must be configured in production');
+  }
+
+  const processors = getResidencyProcessors(env, selection);
+
+  if (residencyMode === 'strict-ph') {
+    if (selection.authProvider === 'supabase' || selection.tokenMode === 'supabase-jwt') {
+      throw new Error(
+        'DATA_RESIDENCY_MODE=strict-ph does not allow Supabase-backed authentication or token processing',
+      );
+    }
+
+    if (selection.mediaStorage === 'supabase-storage') {
+      throw new Error(
+        'DATA_RESIDENCY_MODE=strict-ph does not allow Supabase media storage for incident evidence',
+      );
+    }
+
+    if (env.SENTRY_DSN?.trim()) {
+      throw new Error('DATA_RESIDENCY_MODE=strict-ph does not allow external Sentry monitoring');
+    }
+
+    const unapprovedProcessors = processors.filter(
+      (processor) => processor.configured && processor.approvedHost === false,
+    );
+
+    if (unapprovedProcessors.length > 0) {
+      throw new Error(
+        `DATA_RESIDENCY_MODE=strict-ph requires approved hosts for all configured processors; unapproved: ${unapprovedProcessors
+          .map((processor) => processor.name)
+          .join(', ')}`,
+      );
+    }
+  }
+
+  if (residencyMode === 'hybrid-ph-primary') {
+    if (selection.mediaStorage === 'supabase-storage') {
+      throw new Error(
+        'DATA_RESIDENCY_MODE=hybrid-ph-primary requires incident media storage to remain local or disabled',
+      );
+    }
+
+    const databaseProcessor = processors.find((processor) => processor.name === 'primary-database');
+    if (databaseProcessor?.approvedHost === false) {
+      throw new Error(
+        'DATA_RESIDENCY_MODE=hybrid-ph-primary requires the primary database host to be in DATA_RESIDENCY_APPROVED_HOSTS',
+      );
+    }
+  }
+
+  if (hasLikelyCrossBorderProcessor(env, selection)) {
+    if (!getCrossBorderTransferAssessmentReference(env)) {
+      throw new Error(
+        'CROSS_BORDER_TRANSFER_ASSESSMENT_REFERENCE must be configured when likely cross-border processors are active in production',
+      );
+    }
+
+    if (!getCrossBorderTransferMccReference(env)) {
+      throw new Error(
+        'CROSS_BORDER_TRANSFER_MCC_REFERENCE must be configured when likely cross-border processors are active in production',
+      );
+    }
+  }
+}
+
 export function validateStartupEnvironment({ env, selection }: StartupValidationOptions): void {
   if (env.NODE_ENV !== 'production' || shouldSkipStrictValidation(env)) {
     return;
@@ -305,6 +434,8 @@ export function validateStartupEnvironment({ env, selection }: StartupValidation
   validateSupabaseStorageAccessMode(env, selection);
   validateSupabaseStorageScanWebhook(env, selection);
   validateProductionPasswordResetDeliveryMode(env);
+  validatePrivacyBreachProductionEnv(env);
+  validateDataResidencyProductionEnv(env, selection);
 
   validateRequiredHttpsUrl(env, 'PASSWORD_RESET_DELIVERY_WEBHOOK_URL');
   validateOptionalHttpsUrl(env, 'SECURITY_ALERT_WEBHOOK_URL');

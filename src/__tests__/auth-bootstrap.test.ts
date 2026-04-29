@@ -6,6 +6,15 @@ import { generateMfaCodeFromSecret } from '../utils/mfa.js';
 
 jest.setTimeout(120000);
 
+const DEFAULT_PRIVACY_NOTICE_VERSION = 'ph-dpa-2012-v1';
+
+function buildPrivacyNoticeAcceptance() {
+  return {
+    privacyNoticeAccepted: true,
+    privacyNoticeVersion: DEFAULT_PRIVACY_NOTICE_VERSION,
+  };
+}
+
 describe('Auth bootstrap endpoints', () => {
   function buildUniqueMobileNumber(seed: number): string {
     const suffix = seed.toString().slice(-9).padStart(9, '0');
@@ -46,6 +55,7 @@ describe('Auth bootstrap endpoints', () => {
         name: `Bootstrap User ${stamp}`,
         email: `bootstrap.${stamp}@postman.local`,
         password: 'Password123!',
+        ...buildPrivacyNoticeAcceptance(),
       });
 
     expect(res.status).toBe(201);
@@ -59,6 +69,17 @@ describe('Auth bootstrap endpoints', () => {
     expect(res.body.user).toHaveProperty('role', 'CITIZEN_REPORTER');
     expect(res.body.user).toHaveProperty('createdAt');
     expect(res.body.user).toHaveProperty('updatedAt');
+
+    const createdUser = await prisma.user.findUnique({
+      where: { email: `bootstrap.${stamp}@postman.local` },
+      select: {
+        privacyNoticeAcceptedAt: true,
+        privacyNoticeVersion: true,
+      },
+    });
+
+    expect(createdUser?.privacyNoticeAcceptedAt).not.toBeNull();
+    expect(createdUser?.privacyNoticeVersion).toBe(DEFAULT_PRIVACY_NOTICE_VERSION);
   });
 
   it('POST /auth/login should return token for seeded admin', async () => {
@@ -91,6 +112,7 @@ describe('Auth bootstrap endpoints', () => {
         name: `Mobile User ${stamp}`,
         mobileNumber,
         password: 'Password123!',
+        ...buildPrivacyNoticeAcceptance(),
       });
 
     expect(res.status).toBe(201);
@@ -111,6 +133,8 @@ describe('Auth bootstrap endpoints', () => {
         role: true,
         citizenId: true,
         passwordHash: true,
+        privacyNoticeAcceptedAt: true,
+        privacyNoticeVersion: true,
       },
     });
 
@@ -119,6 +143,8 @@ describe('Auth bootstrap endpoints', () => {
     expect(createdUser?.role).toBe('CITIZEN_REPORTER');
     expect(createdUser?.mobileNumberVerifiedAt).not.toBeNull();
     expect(createdUser?.passwordHash).not.toBeNull();
+    expect(createdUser?.privacyNoticeAcceptedAt).not.toBeNull();
+    expect(createdUser?.privacyNoticeVersion).toBe(DEFAULT_PRIVACY_NOTICE_VERSION);
 
     const citizen = await prisma.citizen.findUnique({
       where: { id: createdUser!.citizenId! },
@@ -126,6 +152,8 @@ describe('Auth bootstrap endpoints', () => {
         name: true,
         contactInfo: true,
         preferredChannel: true,
+        privacyNoticeAcceptedAt: true,
+        privacyNoticeVersion: true,
       },
     });
 
@@ -133,7 +161,9 @@ describe('Auth bootstrap endpoints', () => {
       name: `Mobile User ${stamp}`,
       contactInfo: normalizedMobileNumber,
       preferredChannel: 'mobile',
+      privacyNoticeVersion: DEFAULT_PRIVACY_NOTICE_VERSION,
     });
+    expect(citizen?.privacyNoticeAcceptedAt).not.toBeNull();
   });
 
   it('POST /auth/mobile/register should return 409 for duplicate mobile number', async () => {
@@ -142,6 +172,7 @@ describe('Auth bootstrap endpoints', () => {
       name: 'Duplicate Mobile User',
       mobileNumber,
       password: 'Password123!',
+      ...buildPrivacyNoticeAcceptance(),
     };
 
     const first = await request(app).post(`${API_V1}/auth/mobile/register`).send(payload);
@@ -158,11 +189,14 @@ describe('Auth bootstrap endpoints', () => {
     const mobileNumber = buildUniqueMobileNumber(Date.now() + 2);
     const normalizedMobileNumber = `+63${mobileNumber.slice(1)}`;
 
-    await request(app).post(`${API_V1}/auth/mobile/register`).send({
-      name: 'Citizen Mobile Login',
-      mobileNumber,
-      password: 'Password123!',
-    });
+    await request(app)
+      .post(`${API_V1}/auth/mobile/register`)
+      .send({
+        name: 'Citizen Mobile Login',
+        mobileNumber,
+        password: 'Password123!',
+        ...buildPrivacyNoticeAcceptance(),
+      });
 
     const res = await request(app).post(`${API_V1}/auth/mobile/login`).send({
       mobileNumber: normalizedMobileNumber,
@@ -360,6 +394,34 @@ describe('Auth bootstrap endpoints', () => {
   it('POST /auth/register should return 422 for missing fields', async () => {
     const res = await request(app).post(`${API_V1}/auth/register`).send({ name: 'Incomplete' });
     expect(res.status).toBe(422);
+  });
+
+  it('POST /auth/register should require privacy notice acceptance when enforcement is enabled', async () => {
+    const originalSetting = process.env.PRIVACY_NOTICE_ENFORCED;
+
+    process.env.PRIVACY_NOTICE_ENFORCED = 'true';
+
+    try {
+      const res = await request(app)
+        .post(`${API_V1}/auth/register`)
+        .send({
+          name: 'No Notice',
+          email: `no-notice.${Date.now()}@postman.local`,
+          password: 'Password123!',
+        });
+
+      expect(res.status).toBe(422);
+      expect(res.body).toHaveProperty(
+        'message',
+        'privacyNoticeAccepted must be true before personal data can be collected',
+      );
+    } finally {
+      if (originalSetting === undefined) {
+        delete process.env.PRIVACY_NOTICE_ENFORCED;
+      } else {
+        process.env.PRIVACY_NOTICE_ENFORCED = originalSetting;
+      }
+    }
   });
 
   it('POST /auth/register should return 422 for non-string email payloads', async () => {
