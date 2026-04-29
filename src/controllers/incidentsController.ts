@@ -180,6 +180,13 @@ const INCIDENT_LOCALITY_WRITE_FIELDS = [
   'regionId',
 ] as const;
 
+const RESPONDER_ALLOWED_INCIDENT_MUTATION_FIELDS = new Set([
+  'description',
+  'mediaUrl',
+  'mediaUrls',
+  'statusId',
+]);
+
 const trustPrisma = prisma as typeof prisma & TrustLayerPrismaDelegates;
 
 function buildIncidentLocationSnapshot(input: Partial<CitizenIncident>) {
@@ -502,6 +509,12 @@ function denyIncidentWrite(res: Response, message: string): void {
   res.status(403).json({ message });
 }
 
+function getDisallowedResponderIncidentMutationFields(payload: Record<string, unknown>): string[] {
+  return Object.keys(payload)
+    .filter((field) => payload[field] !== undefined)
+    .filter((field) => !RESPONDER_ALLOWED_INCIDENT_MUTATION_FIELDS.has(field));
+}
+
 async function authorizeIncidentDestinationScope(
   authUser: NonNullable<AuthenticatedRequest['authUser']>,
   res: Response,
@@ -711,6 +724,13 @@ export async function uploadIncidentMedia(req: Request, res: Response): Promise<
       typeof req.body.incidentId === 'string' && req.body.incidentId.trim().length > 0
         ? req.body.incidentId.trim()
         : undefined;
+
+    if (incidentId) {
+      const incident = await getAuthorizedIncidentWithMedia(req, res, incidentId);
+      if (!incident) {
+        return;
+      }
+    }
 
     const files = await Promise.all(
       mediaItems.map((item) =>
@@ -1392,6 +1412,17 @@ export async function updateIncident(req: Request, res: Response): Promise<void>
   if (!authUser) {
     res.status(401).json({ message: 'Unauthorized: missing authentication context' });
     return;
+  }
+
+  if (authUser.role === 'RESPONDER') {
+    const disallowedFields = getDisallowedResponderIncidentMutationFields(
+      req.body as Record<string, unknown>,
+    );
+
+    if (disallowedFields.length > 0) {
+      denyIncidentWrite(res, `Forbidden: responders cannot modify ${disallowedFields.join(', ')}`);
+      return;
+    }
   }
 
   const actorUserId = authUser.id;

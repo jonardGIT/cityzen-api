@@ -86,7 +86,7 @@ function validateRequiredSecret(env: NodeJS.ProcessEnv, name: string, minimumLen
 function validateApiKeys(env: NodeJS.ProcessEnv): void {
   const rawValue = env.API_KEYS?.trim() || env.API_KEY?.trim();
   if (!rawValue) {
-    return;
+    throw new Error('API_KEYS or API_KEY must be configured in production');
   }
 
   const keys = rawValue
@@ -249,6 +249,18 @@ function validateSupabaseStorageScanWebhook(
   validateOptionalHttpsUrl(env, 'SUPABASE_STORAGE_SCAN_WEBHOOK_URL');
 }
 
+function validateProductionPasswordResetDeliveryMode(env: NodeJS.ProcessEnv): void {
+  const deliveryMode = env.PASSWORD_RESET_DELIVERY_MODE?.trim().toLowerCase();
+
+  if (!deliveryMode || deliveryMode === 'webhook') {
+    return;
+  }
+
+  throw new Error(
+    'PASSWORD_RESET_DELIVERY_MODE must be webhook in production; unsafe delivery modes are not allowed',
+  );
+}
+
 function validateProductionMfaMode(selection: FeatureSelection): void {
   if (selection.mfaMode === 'disabled') {
     throw new Error('FEATURE_MFA_MODE must not be disabled in production');
@@ -292,6 +304,7 @@ export function validateStartupEnvironment({ env, selection }: StartupValidation
 
   validateSupabaseStorageAccessMode(env, selection);
   validateSupabaseStorageScanWebhook(env, selection);
+  validateProductionPasswordResetDeliveryMode(env);
 
   validateRequiredHttpsUrl(env, 'PASSWORD_RESET_DELIVERY_WEBHOOK_URL');
   validateOptionalHttpsUrl(env, 'SECURITY_ALERT_WEBHOOK_URL');

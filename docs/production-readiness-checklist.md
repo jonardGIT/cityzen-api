@@ -105,6 +105,17 @@ Also test failure modes explicitly:
 
 The target is fail-closed behavior with diagnosable logs and expected 4xx or 5xx responses.
 
+### 4a. Required Production Security Env Baseline
+
+Before booting a production release, confirm all of these are true:
+
+1. `API_KEYS` or `API_KEY` is configured with a non-placeholder value.
+2. `PASSWORD_RESET_DELIVERY_WEBHOOK_URL` is configured with an `https://` URL.
+3. `PASSWORD_RESET_DELIVERY_MODE` is unset or explicitly `webhook`.
+4. Placeholder secrets are not used for `JWT_SECRET`, `MFA_ENCRYPTION_KEY`, or `SUPABASE_SERVICE_ROLE_KEY`.
+
+The current server startup now fails closed if any of those guarantees are violated.
+
 ### 5. Backups, Restore, and Rollback
 
 You need a repeatable operational drill that proves:

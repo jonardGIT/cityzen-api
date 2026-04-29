@@ -1839,6 +1839,30 @@ describe('Phase 1 trust-layer incident writes', () => {
     });
   });
 
+  it('should deny an assigned responder from changing incident ownership', async () => {
+    const owner = await registerAndLinkCitizenReporter('write-scope-responder-owner-denial');
+    const incident = await createTrustScopedIncident({
+      label: 'write-scope-responder-owner-denial',
+      reporterToken: owner.token,
+    });
+    const replacementCitizenId = await createCitizen();
+
+    await assignResponderToIncident({
+      incidentId: incident.incidentId,
+      cityMunicipalityId: tuguegaraoCityId,
+    });
+
+    const res = await request(app)
+      .patch(`${BASE}/${incident.incidentId}`)
+      .set('Authorization', `Bearer ${responderToken}`)
+      .send({ citizenId: replacementCitizenId });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({
+      message: 'Forbidden: responders cannot modify citizenId',
+    });
+  });
+
   it('should deny an assigned responder from archiving an incident', async () => {
     const owner = await registerAndLinkCitizenReporter('write-scope-responder-delete-denial');
     const incident = await createTrustScopedIncident({
@@ -2052,6 +2076,51 @@ describe(`POST ${BASE}/media/upload`, () => {
         contentType: 'video/mp4',
       }),
     );
+  });
+
+  it('should reject incident-bound uploads for an out-of-scope responder', async () => {
+    if (!incidentMediaUploadEnabled) {
+      const responderToken = await getTokenForRole('responder@xypes.local');
+      const owner = await registerAndLinkCitizenReporter('media-upload-out-of-scope');
+      const incident = await createTrustScopedIncident({
+        label: 'media-upload-out-of-scope',
+        reporterToken: owner.token,
+      });
+
+      const res = await request(app)
+        .post(`${BASE}/media/upload`)
+        .set('Authorization', `Bearer ${responderToken}`)
+        .send({
+          incidentId: incident.incidentId,
+          fileName: 'blocked-photo.jpg',
+          contentType: 'image/jpeg',
+          dataBase64: Buffer.from('blocked-image').toString('base64'),
+        });
+
+      expect(res.status).toBe(404);
+      return;
+    }
+
+    const responderToken = await getTokenForRole('responder@xypes.local');
+    const owner = await registerAndLinkCitizenReporter('media-upload-out-of-scope');
+    const incident = await createTrustScopedIncident({
+      label: 'media-upload-out-of-scope',
+      reporterToken: owner.token,
+    });
+    const uploadSpy = jest.spyOn(supabaseStorageService, 'uploadIncidentMedia');
+
+    const res = await request(app)
+      .post(`${BASE}/media/upload`)
+      .set('Authorization', `Bearer ${responderToken}`)
+      .send({
+        incidentId: incident.incidentId,
+        fileName: 'blocked-photo.jpg',
+        contentType: 'image/jpeg',
+        dataBase64: Buffer.from('blocked-image').toString('base64'),
+      });
+
+    expect(res.status).toBe(404);
+    expect(uploadSpy).not.toHaveBeenCalled();
   });
 
   it('should return managed references plus accessUrls when signed storage mode is enabled', async () => {

@@ -561,6 +561,64 @@ describe('Auth bootstrap endpoints', () => {
     expect(secondRefresh.body).toHaveProperty('message', 'Invalid or expired refresh token');
   });
 
+  it('POST /auth/refresh should allow only one success for concurrent reuse of the same refresh token', async () => {
+    const login = await request(app).post(`${API_V1}/auth/login`).send({
+      email: 'admin@xypes.local',
+      password: 'Password123!',
+    });
+
+    expect(login.status).toBe(200);
+
+    const [firstRefresh, secondRefresh] = await Promise.all([
+      request(app).post(`${API_V1}/auth/refresh`).send({
+        refreshToken: login.body.refreshToken,
+      }),
+      request(app).post(`${API_V1}/auth/refresh`).send({
+        refreshToken: login.body.refreshToken,
+      }),
+    ]);
+
+    const statuses = [firstRefresh.status, secondRefresh.status].sort(
+      (left, right) => left - right,
+    );
+    expect(statuses).toEqual([200, 401]);
+
+    const successfulRefresh = [firstRefresh, secondRefresh].find(
+      (response) => response.status === 200,
+    );
+    const failedRefresh = [firstRefresh, secondRefresh].find((response) => response.status === 401);
+
+    expect(successfulRefresh?.body).toHaveProperty('token');
+    expect(successfulRefresh?.body).toHaveProperty('refreshToken');
+    expect(failedRefresh?.body).toHaveProperty('message', 'Invalid or expired refresh token');
+  });
+
+  it('POST /auth/refresh should reject archived users', async () => {
+    const stamp = Date.now();
+    const email = `archived.refresh.${stamp}@postman.local`;
+    const register = await request(app)
+      .post(`${API_V1}/auth/register`)
+      .send({
+        name: `Archived Refresh User ${stamp}`,
+        email,
+        password: 'Password123!',
+      });
+
+    expect(register.status).toBe(201);
+
+    await prisma.user.update({
+      where: { email },
+      data: { archivedAt: new Date() },
+    });
+
+    const refresh = await request(app).post(`${API_V1}/auth/refresh`).send({
+      refreshToken: register.body.refreshToken,
+    });
+
+    expect(refresh.status).toBe(401);
+    expect(refresh.body).toHaveProperty('message', 'Invalid or expired refresh token');
+  });
+
   it('POST /auth/refresh should return 422 when refreshToken is missing', async () => {
     const refresh = await request(app).post(`${API_V1}/auth/refresh`).send({});
 

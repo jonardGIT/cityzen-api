@@ -131,9 +131,10 @@ export async function refreshAuthSession(input: {
   userAgent: string | null;
   ipAddress: string | null;
 }): Promise<SessionTokenBundle | null> {
+  const currentRefreshTokenHash = hashRefreshToken(input.refreshToken);
   const session = await prisma.authSession.findFirst({
     where: {
-      refreshTokenHash: hashRefreshToken(input.refreshToken),
+      refreshTokenHash: currentRefreshTokenHash,
     },
     include: {
       user: {
@@ -141,12 +142,18 @@ export async function refreshAuthSession(input: {
           id: true,
           email: true,
           role: true,
+          archivedAt: true,
         },
       },
     },
   });
 
-  if (!session || session.revokedAt || session.refreshExpiresAt.getTime() <= Date.now()) {
+  if (
+    !session ||
+    session.revokedAt ||
+    session.user.archivedAt !== null ||
+    session.refreshExpiresAt.getTime() <= Date.now()
+  ) {
     return null;
   }
 
@@ -155,8 +162,15 @@ export async function refreshAuthSession(input: {
   const nextRefreshExpiresAt = buildRefreshExpiry();
   const nextAccessExpiresAt = buildSessionExpiry();
 
-  const updatedSession = await prisma.authSession.update({
-    where: { id: session.id },
+  const updateResult = await prisma.authSession.updateMany({
+    where: {
+      id: session.id,
+      revokedAt: null,
+      refreshTokenHash: currentRefreshTokenHash,
+      refreshExpiresAt: {
+        gt: new Date(),
+      },
+    },
     data: {
       expiresAt: nextAccessExpiresAt,
       refreshTokenHash: hashRefreshToken(nextRefreshToken),
@@ -166,24 +180,23 @@ export async function refreshAuthSession(input: {
       userAgent: input.userAgent,
       ipAddress: input.ipAddress,
     },
-    select: {
-      id: true,
-      expiresAt: true,
-      refreshExpiresAt: true,
-    },
   });
+
+  if (updateResult.count !== 1) {
+    return null;
+  }
 
   return {
     token: signAccessToken({
       userId: session.user.id,
       email: session.user.email,
       role: normalizedRole,
-      sessionId: updatedSession.id,
+      sessionId: session.id,
     }),
     refreshToken: nextRefreshToken,
-    sessionId: updatedSession.id,
-    expiresAt: updatedSession.expiresAt.toISOString(),
-    refreshExpiresAt: updatedSession.refreshExpiresAt.toISOString(),
+    sessionId: session.id,
+    expiresAt: nextAccessExpiresAt.toISOString(),
+    refreshExpiresAt: nextRefreshExpiresAt.toISOString(),
   };
 }
 

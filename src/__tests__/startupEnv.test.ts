@@ -17,6 +17,7 @@ function createSelection(overrides: Partial<FeatureSelection> = {}): FeatureSele
 function createProductionEnv(overrides: Record<string, string> = {}): NodeJS.ProcessEnv {
   return {
     NODE_ENV: 'production',
+    API_KEYS: 'prod-api-key-0123456789',
     PUBLIC_CASE_LOOKUP_RATE_LIMIT_WINDOW_MS: '600000',
     PUBLIC_CASE_LOOKUP_RATE_LIMIT_MAX_REQUESTS: '20',
     INCIDENT_CASE_TOKEN_TTL_DAYS: '30',
@@ -279,6 +280,24 @@ describe('startup environment validation', () => {
     ).toThrow('API_KEYS must contain values that are at least 16 characters in production');
   });
 
+  it('requires API keys to be configured in production', () => {
+    const env = createProductionEnv({
+      JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
+      MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
+      PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'https://security.example.gov/password-reset',
+    });
+
+    delete env.API_KEYS;
+    delete env.API_KEY;
+
+    expect(() =>
+      validateStartupEnvironment({
+        env,
+        selection: createSelection({ mfaMode: 'local-totp' }),
+      }),
+    ).toThrow('API_KEYS or API_KEY must be configured in production');
+  });
+
   it('requires a strong MFA encryption key when local TOTP is enabled', () => {
     expect(() =>
       validateStartupEnvironment({
@@ -397,6 +416,22 @@ describe('startup environment validation', () => {
         selection: createSelection({ mfaMode: 'local-totp' }),
       }),
     ).toThrow('PASSWORD_RESET_DELIVERY_WEBHOOK_URL must be configured in production');
+  });
+
+  it('rejects unsafe password reset delivery modes in production', () => {
+    expect(() =>
+      validateStartupEnvironment({
+        env: createProductionEnv({
+          JWT_SECRET: 'prod-jwt-secret-0123456789-abcdef-uvwxyz',
+          MFA_ENCRYPTION_KEY: 'prod-mfa-secret-0123456789-abcdef-uvwxyz',
+          PASSWORD_RESET_DELIVERY_MODE: 'api-response',
+          PASSWORD_RESET_DELIVERY_WEBHOOK_URL: 'https://security.example.gov/password-reset',
+        }),
+        selection: createSelection({ mfaMode: 'local-totp' }),
+      }),
+    ).toThrow(
+      'PASSWORD_RESET_DELIVERY_MODE must be webhook in production; unsafe delivery modes are not allowed',
+    );
   });
 
   it('rejects overlong password reset token TTL values in production', () => {
