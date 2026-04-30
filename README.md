@@ -7,6 +7,18 @@ Citizen Incident Reporting System (CIRS) REST API built with TypeScript, Express
 - Setup and deployment: `docs/api-setup-guide.md`
 - Developer guide microsite: `docs/cirs-developer-site/index.html`
 - Detailed repository guide: `docs/README.md`
+- Privacy management program: `docs/privacy-management-program.md`
+- Privacy management program Word copy: `docs/privacy-management-program.docx`
+- Privacy management program memo: `docs/privacy-management-program-memo.md`
+- Privacy management program memo Word copy: `docs/privacy-management-program-memo.docx`
+- Pilot privacy impact assessment: `docs/privacy-impact-assessment-pilot.md`
+- Pilot privacy impact assessment Word copy: `docs/privacy-impact-assessment-pilot.docx`
+- Pilot privacy impact assessment memo: `docs/privacy-impact-assessment-pilot-memo.md`
+- Pilot privacy impact assessment memo Word copy: `docs/privacy-impact-assessment-pilot-memo.docx`
+- Data processing system description: `docs/data-processing-system-description.md`
+- Data processing system description Word copy: `docs/data-processing-system-description.docx`
+- Data processing system description memo: `docs/data-processing-system-description-memo.md`
+- Data processing system description memo Word copy: `docs/data-processing-system-description-memo.docx`
 - Lawful basis register: `docs/lawful-basis-register.md`
 - Anonymous reporting policy brief: `docs/CIRS-Anonymous-Reporting-Policy-Brief.docx`
 - Production checklist: `docs/production-quick-checklist.md`

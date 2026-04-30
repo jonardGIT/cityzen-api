@@ -274,6 +274,19 @@ pre {
   color: var(--accent);
 }
 
+.inline-link-compact {
+  margin-top: 0;
+  justify-content: flex-start;
+}
+
+.section-copy-tight {
+  margin-top: 18px;
+}
+
+.section-copy-tight .inline-link {
+  margin-left: 10px;
+}
+
 .hero-meta,
 .contact-grid,
 .mini-grid {

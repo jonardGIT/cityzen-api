@@ -2,6 +2,21 @@
 
 This is the detailed repository guide for the CIRS API. The root `README.md` stays intentionally minimal.
 
+For pilot-stage privacy compliance documentation added for LGU registration and governance review, see:
+
+- `docs/privacy-management-program.md`
+- `docs/privacy-management-program.docx`
+- `docs/privacy-management-program-memo.md`
+- `docs/privacy-management-program-memo.docx`
+- `docs/privacy-impact-assessment-pilot.md`
+- `docs/privacy-impact-assessment-pilot.docx`
+- `docs/privacy-impact-assessment-pilot-memo.md`
+- `docs/privacy-impact-assessment-pilot-memo.docx`
+- `docs/data-processing-system-description.md`
+- `docs/data-processing-system-description.docx`
+- `docs/data-processing-system-description-memo.md`
+- `docs/data-processing-system-description-memo.docx`
+
 ## Overview
 
 If you need a setup and deployment walkthrough, see `docs/api-setup-guide.md`.
@@ -196,11 +211,23 @@ For the current dashboard integration model, assume the dashboard runs locally o
 
 - `docs/api-setup-guide.md`
 - `docs/CIRS-Anonymous-Reporting-Policy-Brief.docx`
+- `docs/data-processing-system-description.docx`
+- `docs/data-processing-system-description-memo.md`
+- `docs/data-processing-system-description-memo.docx`
 - `docs/access-review-template.md`
 - `docs/cirs-developer-site/index.html`
 - `docs/feature-profiles-guide.md`
+- `docs/data-processing-system-description.md`
 - `docs/lawful-basis-register.md`
+- `docs/privacy-impact-assessment-pilot-memo.md`
+- `docs/privacy-impact-assessment-pilot-memo.docx`
+- `docs/privacy-impact-assessment-pilot.docx`
+- `docs/privacy-impact-assessment-pilot.md`
 - `docs/privacy-incident-playbook.md`
+- `docs/privacy-management-program-memo.md`
+- `docs/privacy-management-program-memo.docx`
+- `docs/privacy-management-program.docx`
+- `docs/privacy-management-program.md`
 - `docs/privacy-compliance-closeout-checklist.md`
 - `docs/privacy-external-blockers-report.md`
 - `docs/privacy-governance-operations-guide.md`
