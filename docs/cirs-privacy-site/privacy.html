@@ -90,6 +90,8 @@
           </div>
           <nav>
             <a href="#controller">Who is responsible</a>
+            <a href="#posture">Processing posture snapshot</a>
+            <a href="#surfaces">Service surfaces in scope</a>
             <a href="#purpose">What CIRS is for</a>
             <a href="#collection">What data we collect</a>
             <a href="#handling-matrix">Processing matrix</a>
@@ -131,6 +133,72 @@
                 <strong>Tuguegarao City Hall Complex, Tuguegarao City, Cagayan</strong>
               </div>
             </div>
+          </section>
+
+          <section class="card" id="posture">
+            <h2>Processing Posture Snapshot</h2>
+            <p>
+              The internal system description tracks a few baseline questions for governance and registration review. This summary mirrors that posture in public-facing language.
+            </p>
+            <div class="mini-grid">
+              <article>
+                <h3>System and role</h3>
+                <p>CIRS is the incident reporting and coordination system for the pilot deployment, and the operating LGU acts as the personal information controller for the live service.</p>
+              </article>
+              <article>
+                <h3>Automated decisions</h3>
+                <p>The current pilot baseline does not describe formal automated decision-making or profiling in production use.</p>
+              </article>
+              <article>
+                <h3>Cross-border posture</h3>
+                <p>Some external providers may operate outside the Philippines, so residency and transfer documentation must match the actual deployment.</p>
+              </article>
+            </div>
+            <p class="callout">
+              If the same platform is later used in a separate processor role for another organization, that use should be documented and registered separately from the LGU's controller use.
+            </p>
+          </section>
+
+          <section class="card" id="surfaces">
+            <h2>Service Surfaces In Scope</h2>
+            <p>
+              The current CIRS deployment model is easier to understand when it is read as three connected surfaces: a citizen-facing service surface, an operational staff surface, and the API processing core behind both.
+            </p>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Surface</th>
+                    <th>What it does</th>
+                    <th>Main data involved</th>
+                    <th>Controller or processor posture</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>MyTuguegarao citizen surface</td>
+                    <td>Citizen-facing registration, profile linking, incident submission, and status-follow-up experience</td>
+                    <td>Account details, incident details, location, attachments, and related account metadata</td>
+                    <td>The operating LGU is normally the personal information controller for this use. If the same app is later run by a provider on behalf of another controller, that use should be documented separately.</td>
+                  </tr>
+                  <tr>
+                    <td>CIRS Dashboard operational surface</td>
+                    <td>Browser-based staff, responder, dispatcher, admin, auditor, and reviewer interface</td>
+                    <td>Staff account and session data, incident records, assignments, audit views, and governance records</td>
+                    <td>The operating LGU is normally the personal information controller for this operational use, while external hosting or support vendors act as processors where applicable.</td>
+                  </tr>
+                  <tr>
+                    <td>CIRS API processing core</td>
+                    <td>Backend validation, storage, authentication, audit logging, and privacy-governance workflows</td>
+                    <td>Operational records, auth metadata, audit data, privacy-request records, and privacy-incident records</td>
+                    <td>The operating LGU is the controller for live service operation, while hosting, database, auth, storage, monitoring, and messaging vendors act as processors where applicable.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="callout">
+              The current pilot baseline does not document formal automated decision-making in any of these three surfaces. Cross-border processing depends on the actual providers used for hosting, storage, monitoring, notifications, and related infrastructure.
+            </p>
           </section>
 
           <section class="card" id="purpose">
