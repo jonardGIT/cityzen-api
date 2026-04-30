@@ -2,13 +2,13 @@
 
 ## Memo Information
 
-| Field          | Value                                                                                 |
-| -------------- | ------------------------------------------------------------------------------------- |
-| To             | `[Insert approving authority, DPO, and system owner]`                                 |
-| From           | `[Insert responsible privacy reviewer or DPO name]`                                   |
-| Subject        | `Submission of the Citizen Incident Reporting System Pilot Privacy Impact Assessment` |
-| Date           | `2026-04-30`                                                                          |
-| Classification | `Internal`                                                                            |
+| Field          | Value                                                                                                                                              |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| To             | `DPO Office - sample reviewer; CIRS System Owner - sample technical owner; City Administrator or delegated approving authority - approval pending` |
+| From           | `DPO Office - sample reviewer`                                                                                                                     |
+| Subject        | `Submission of the Citizen Incident Reporting System Pilot Privacy Impact Assessment`                                                              |
+| Date           | `2026-04-30`                                                                                                                                       |
+| Classification | `Internal`                                                                                                                                         |
 
 ## Purpose
 
@@ -30,15 +30,24 @@ The attached assessment documents:
 3. approve the assessment for pilot use or return it for revision
 4. schedule reassessment when hosting, data scope, or automation changes
 
+## Outstanding Items Still Requiring LGU Completion
+
+1. replace the sample DPO, system-owner, and approving-authority labels with final names and titles
+2. attach the approved retention schedule and records-management approval reference
+3. attach the completed processor register and any transfer assessment references for live vendors
+4. confirm that the live deployment still matches the Tuguegarao-first sample baseline used in the attached assessment
+5. record the final review and approval references in the sign-off block
+
 ## Attachments
 
 1. `docs/privacy-impact-assessment-pilot.md`
 2. `docs/privacy-impact-assessment-pilot.docx`
+3. `docs/privacy-external-blockers-report.md`
 
 ## Signature Block
 
-| Item        | Value                                               |
-| ----------- | --------------------------------------------------- |
-| Assessed by | `[Insert responsible privacy reviewer or DPO name]` |
-| Reviewed by | `[Insert system owner or technical owner]`          |
-| Approved by | `[Insert approving authority]`                      |
+| Item        | Value                                                                    |
+| ----------- | ------------------------------------------------------------------------ |
+| Assessed by | `DPO Office - sample reviewer`                                           |
+| Reviewed by | `CIRS System Owner - sample technical owner`                             |
+| Approved by | `City Administrator or delegated approving authority - approval pending` |

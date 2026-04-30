@@ -7,9 +7,9 @@
 | Document title | `Citizen Incident Reporting System Privacy Impact Assessment` |
 | Assessment scope | `Pilot-stage LGU deployment using the current API repository and connected processors` |
 | Intended use | `Internal privacy review, pilot approval, and registration-stage compliance support` |
-| Organization | `[Insert LGU, office, or agency name]` |
+| Organization | `Tuguegarao City pilot deployment or comparable partner LGU` |
 | Prepared for | `DPO, system owner, technical owner, and approving authority` |
-| Assessed by | `[Insert responsible privacy reviewer or DPO name]` |
+| Assessed by | `DPO Office - sample reviewer` |
 | Assessment date | `2026-04-30` |
 | Version | `pilot-v1.0` |
 
@@ -36,12 +36,14 @@ It is intended for initial registration-stage compliance and deployment review, 
 - System assessed: `Citizen Incident Reporting System`
 - Assessment scope: `Pilot-stage LGU deployment using the current API repository and connected hosting, database, auth, logging, and notification services`
 - Assessment date: `2026-04-30`
-- Conducted by: `[Insert responsible privacy reviewer or DPO name before formal use]`
+- Conducted by: `DPO Office - sample reviewer`
 - Supporting repository documents:
   - `docs/privacy-management-program.md`
   - `docs/data-processing-system-description.md`
   - `docs/lawful-basis-register.md`
   - `docs/privacy-incident-playbook.md`
+  - `docs/tuguegarao-pilot-governance-baseline.md`
+  - `docs/privacy-external-blockers-report.md`
 
 ## 2. Description Of The Data Flow
 
@@ -141,16 +143,17 @@ This baseline PIA should be treated as sufficient for pilot deployment only if t
 
 ## 7. Mandatory Follow-Up Actions
 
-1. Insert the formal name of the responsible privacy reviewer or DPO.
-2. Attach or reference the approved retention schedule.
-3. Attach or reference the processor register and transfer assessment.
-4. Re-run this PIA before enabling AI triage, scoring, or profiling features.
-5. Review this PIA after any significant privacy incident or major processing change.
+1. Replace the sample DPO, system-owner, and approving-authority labels with final LGU-assigned names and titles.
+2. Attach or reference the approved retention schedule and records-management approval.
+3. Attach or reference the completed processor register and any transfer assessment for live vendors.
+4. Confirm that the live deployment still matches the Tuguegarao-first sample baseline used by this document.
+5. Re-run this PIA before enabling AI triage, scoring, or profiling features.
+6. Review this PIA after any significant privacy incident or major processing change.
 
 ## 8. Approval Record
 
 | Sign-off item             | Name and title                                      | Signature or approval reference                          | Date                     |
 | ------------------------- | --------------------------------------------------- | -------------------------------------------------------- | ------------------------ |
-| Assessed by               | `[Insert responsible privacy reviewer or DPO name]` | `[Insert signature, memo number, or approval reference]` | `2026-04-30`             |
-| Reviewed by               | `[Insert system owner or technical owner]`          | `[Insert signature, memo number, or approval reference]` | `[Insert review date]`   |
-| Approved for pilot use by | `[Insert approving authority]`                      | `[Insert signature, memo number, or approval reference]` | `[Insert approval date]` |
+| Assessed by               | `DPO Office - sample reviewer`                      | `PIA draft baseline recorded in repository on 2026-04-30` | `2026-04-30`           |
+| Reviewed by               | `CIRS System Owner - sample technical owner`        | `Technical and deployment confirmation pending live LGU assignment` | `Pending live LGU review date` |
+| Approved for pilot use by | `City Administrator or delegated approving authority - approval pending` | `Executive approval reference pending LGU sign-off` | `Pending executive approval date` |
