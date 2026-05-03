@@ -881,6 +881,12 @@ describe('Production privileged MFA enforcement', () => {
         },
       },
     }));
+    // beforeEach already imported featureSelection.js (which transitively loaded
+    // the real productionFeatureProfile). Reset the module registry now so the
+    // next dynamic import picks up the mocked productionFeatureProfile above.
+    // jest.doMock registrations survive resetModules, so the supabase mock from
+    // beforeEach is preserved.
+    jest.resetModules();
 
     const { default: prisma } = await import('../lib/prisma.js');
     await prisma.user.update({
@@ -948,6 +954,10 @@ describe('Production privileged MFA enforcement', () => {
         },
       },
     }));
+    // beforeEach already imported featureSelection.js. Reset the module registry
+    // so the next dynamic import picks up the mocks above. doMock registrations
+    // survive resetModules.
+    jest.resetModules();
 
     const { default: prisma } = await import('../lib/prisma.js');
     await prisma.user.update({

@@ -1,3 +1,23 @@
+/**
+ * Auth surface for the Tuguegarao-first pilot.
+ *
+ * Two canonical client surfaces share this router:
+ *
+ *   1. Dashboard / email-based (canonical for dashboard, compatibility for mobile):
+ *      /register, /login, /password-reset/request, /password-reset/confirm,
+ *      /refresh, /me, /logout, /sessions*, /mfa/*
+ *
+ *   2. Mobile-citizen / phone-based (canonical for MyTuguegarao):
+ *      /mobile/register, /mobile/login
+ *      Mobile clients then share /refresh, /me, /logout with the dashboard surface.
+ *
+ * Mobile clients MAY still call /register and /login for compatibility, but
+ * the phone-based variants are preferred for the pilot because they
+ * auto-link a CITIZEN_REPORTER user to a citizen profile.
+ *
+ * See `mobileCitizenSurface.authBootstrap` in src/docs/dashboardCrudContract.ts
+ * for the authoritative canonical-vs-compatibility mapping.
+ */
 import { createHash } from 'crypto';
 import { Router, type Request } from 'express';
 import { param } from 'express-validator';

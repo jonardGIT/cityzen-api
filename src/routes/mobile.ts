@@ -1,3 +1,20 @@
+/**
+ * Canonical mobile-citizen surface (Tuguegarao-first pilot).
+ *
+ * The `/mobile/*` namespace is the canonical entry surface for citizen mobile
+ * clients (MyTuguegarao). Each authenticated route requires CITIZEN_REPORTER
+ * and the backend scopes results to the JWT subject's own citizen profile.
+ *
+ * Compatibility-only aliases live OUTSIDE this router and are kept for
+ * dashboard-bootstrap and pre-mobile clients:
+ *   - POST /citizens/link-me  (alias for PATCH /mobile/profile)
+ *   - POST /incidents/report  (alias for POST /mobile/incidents/report)
+ *
+ * See `mobileCitizenSurface` in src/docs/dashboardCrudContract.ts for the
+ * authoritative canonical-vs-compatibility mapping. Backend authorization,
+ * jurisdiction scoping, and trust-layer rules are enforced server-side
+ * regardless of which surface a client uses.
+ */
 import { Router } from 'express';
 import { getMyCitizenProfile, linkMyCitizenProfile } from '../controllers/citizensController.js';
 import {

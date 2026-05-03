@@ -76,3 +76,44 @@ For a pilot deployment, keep a clearly labeled folder or controlled repository l
 7. training attendance records
 8. privacy request records
 9. privacy incident records
+
+## 7. Pilot Contract Boundary
+
+The pilot contract boundary is published from this repository as the source of truth for both the CIRS Dashboard and the MyTuguegarao mobile client. It is generated from `src/docs/dashboardCrudContract.ts` into `docs/dashboard-crud-config.json` and `docs/dashboard-crud-config.flat.json` via `npm run docs:dashboard-config`, and verified by `npm run docs:dashboard-config:check`.
+
+The pilot boundary is declared in the contract as:
+
+- `pilot.scope`: `tuguegarao-first`
+- `pilot.partnerLguExpansion`: `planned`
+- `pilot.governanceBaselineDoc`: `docs/tuguegarao-pilot-governance-baseline.md` (this file)
+
+### Canonical citizen surface (mobile-citizen)
+
+The `/mobile/*` namespace is the canonical entry surface for citizen mobile clients in the pilot. The contract publishes these under `mobileCitizenSurface.routes`:
+
+1. `GET  /api/v1/mobile/content` (public)
+2. `GET  /api/v1/mobile/profile`
+3. `PATCH /api/v1/mobile/profile`
+4. `GET  /api/v1/mobile/incidents`
+5. `GET  /api/v1/mobile/incidents/{id}`
+6. `GET  /api/v1/mobile/incidents/{id}/timeline`
+7. `POST /api/v1/mobile/incidents/report`
+
+Mobile auth bootstrap canonical paths:
+
+- `POST /api/v1/auth/mobile/register`
+- `POST /api/v1/auth/mobile/login`
+- `POST /api/v1/auth/refresh`, `GET /api/v1/auth/me`, `POST /api/v1/auth/logout` (shared with dashboard)
+
+### Compatibility-only aliases
+
+The following routes remain functional for backward compatibility (dashboard self-link flows and pre-mobile clients) but are flagged `compatibility-only` in the contract under `mobileCitizenSurface.compatibilityRoutes`. New mobile clients should NOT prefer them:
+
+- `POST /api/v1/citizens/link-me`  (superseded by `PATCH /api/v1/mobile/profile`)
+- `POST /api/v1/incidents/report`  (superseded by `POST /api/v1/mobile/incidents/report`)
+- `POST /api/v1/auth/register`, `POST /api/v1/auth/login` (canonical for dashboard; compatibility for mobile)
+
+### Backend authority
+
+All authorization, jurisdiction scoping, citizen-self scoping, trust-layer rules, and privacy redactions are enforced server-side regardless of which surface a client uses. The contract's canonical-vs-compatibility classification is a client-preference signal only; it does not relax any backend boundary.
+

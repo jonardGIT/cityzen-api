@@ -82,3 +82,17 @@ For each account, confirm:
 ## 8. Filing Rule
 
 Keep the completed access review with supporting evidence, including the reviewed account list, approval notes, and remediation actions.
+
+## 9. Pilot Contract Boundary Review
+
+In addition to user and service-account review, each cycle should confirm that the pilot contract boundary published from this repository remains aligned with the intended pilot scope. The contract is generated from `src/docs/dashboardCrudContract.ts` into `docs/dashboard-crud-config.json` and `docs/dashboard-crud-config.flat.json` via `npm run docs:dashboard-config` and verified by `npm run docs:dashboard-config:check`.
+
+Confirm during each review:
+
+1. `pilot.scope` in the published contract is still `tuguegarao-first` (or the explicitly approved partner-LGU scope).
+2. The `mobileCitizenSurface.routes` block exposes only the canonical `/mobile/*` mobile-citizen entry points and the canonical `/auth/mobile/*` bootstrap paths.
+3. `mobileCitizenSurface.compatibilityRoutes` continues to flag `POST /citizens/link-me` and `POST /incidents/report` as `compatibility-only` with `supersededBy` pointing at the canonical mobile operation. They must not be re-promoted as primary mobile entry points without governance review.
+4. National-admin-only resources (`adminUsers`, `adminUserMfaCompliance`, `adminUserAccessReview`) remain restricted to `NATIONAL_ADMIN` in the contract and remain disabled in the live pilot account roster (Section 2 above).
+5. Any new endpoints added to the contract since the last review have been classified as `canonical` or `compatibility-only` and assigned a `pilotScope`.
+6. The dashboard CRUD artifacts (`docs/dashboard-crud-config.json`, `docs/dashboard-crud-config.flat.json`) match the TS source exactly (`docs:dashboard-config:check` passes with no diff).
+

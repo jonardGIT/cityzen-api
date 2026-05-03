@@ -1,5 +1,11 @@
 {
   "apiBasePath": "/api/v1",
+  "pilot": {
+    "scope": "tuguegarao-first",
+    "partnerLguExpansion": "planned",
+    "governanceBaselineDoc": "docs/tuguegarao-pilot-governance-baseline.md",
+    "notes": "CIRS pilot is Tuguegarao-first. City and barangay operations are the canonical scope; partner-LGU expansion is planned. National roles and surfaces are deferred until formal regional governance is enabled. Dashboard and mobile clients should treat this contract as the source of truth for canonical vs compatibility-only routes."
+  },
   "auth": {
     "type": "bearer",
     "tokenHeader": "Authorization",
@@ -117,7 +123,8 @@
         "PROVINCIAL_ADMIN",
         "CITY_ADMIN"
       ],
-      "fullPath": "/api/v1/citizens"
+      "fullPath": "/api/v1/citizens",
+      "surface": "dashboard"
     },
     {
       "resource": "citizens",
@@ -132,7 +139,8 @@
         "PROVINCIAL_ADMIN",
         "CITY_ADMIN"
       ],
-      "fullPath": "/api/v1/citizens/{id}"
+      "fullPath": "/api/v1/citizens/{id}",
+      "surface": "dashboard"
     },
     {
       "resource": "citizens",
@@ -147,7 +155,8 @@
         "PROVINCIAL_ADMIN",
         "CITY_ADMIN"
       ],
-      "fullPath": "/api/v1/citizens"
+      "fullPath": "/api/v1/citizens",
+      "surface": "dashboard"
     },
     {
       "resource": "citizens",
@@ -162,7 +171,8 @@
         "PROVINCIAL_ADMIN",
         "CITY_ADMIN"
       ],
-      "fullPath": "/api/v1/citizens/{id}"
+      "fullPath": "/api/v1/citizens/{id}",
+      "surface": "dashboard"
     },
     {
       "resource": "citizens",
@@ -177,7 +187,8 @@
         "PROVINCIAL_ADMIN",
         "CITY_ADMIN"
       ],
-      "fullPath": "/api/v1/citizens/{id}"
+      "fullPath": "/api/v1/citizens/{id}",
+      "surface": "dashboard"
     },
     {
       "resource": "citizens",
@@ -196,7 +207,8 @@
         "feature": "recordDeletion",
         "requires": "archive"
       },
-      "fullPath": "/api/v1/citizens/{id}/restore"
+      "fullPath": "/api/v1/citizens/{id}/restore",
+      "surface": "dashboard"
     },
     {
       "resource": "citizens",
@@ -209,7 +221,8 @@
         "CITIZEN_REPORTER"
       ],
       "notes": "Creates or updates the authenticated citizen reporter's linked citizen profile. contactInfo is inferred from the authenticated email.",
-      "fullPath": "/api/v1/citizens/link-me"
+      "fullPath": "/api/v1/citizens/link-me",
+      "surface": "dashboard"
     },
     {
       "resource": "agencies",
@@ -225,7 +238,8 @@
         "CITY_ADMIN",
         "DISPATCHER"
       ],
-      "fullPath": "/api/v1/agencies"
+      "fullPath": "/api/v1/agencies",
+      "surface": "dashboard"
     },
     {
       "resource": "agencies",
@@ -241,7 +255,8 @@
         "CITY_ADMIN",
         "DISPATCHER"
       ],
-      "fullPath": "/api/v1/agencies/{id}"
+      "fullPath": "/api/v1/agencies/{id}",
+      "surface": "dashboard"
     },
     {
       "resource": "agencies",
@@ -256,7 +271,8 @@
         "PROVINCIAL_ADMIN",
         "CITY_ADMIN"
       ],
-      "fullPath": "/api/v1/agencies"
+      "fullPath": "/api/v1/agencies",
+      "surface": "dashboard"
     },
     {
       "resource": "agencies",
@@ -271,7 +287,8 @@
         "PROVINCIAL_ADMIN",
         "CITY_ADMIN"
       ],
-      "fullPath": "/api/v1/agencies/{id}"
+      "fullPath": "/api/v1/agencies/{id}",
+      "surface": "dashboard"
     },
     {
       "resource": "agencies",
@@ -286,7 +303,8 @@
         "PROVINCIAL_ADMIN",
         "CITY_ADMIN"
       ],
-      "fullPath": "/api/v1/agencies/{id}"
+      "fullPath": "/api/v1/agencies/{id}",
+      "surface": "dashboard"
     },
     {
       "resource": "agencies",
@@ -305,7 +323,8 @@
         "feature": "recordDeletion",
         "requires": "archive"
       },
-      "fullPath": "/api/v1/agencies/{id}/restore"
+      "fullPath": "/api/v1/agencies/{id}/restore",
+      "surface": "dashboard"
     },
     {
       "resource": "responders",
@@ -321,7 +340,8 @@
         "CITY_ADMIN",
         "DISPATCHER"
       ],
-      "fullPath": "/api/v1/responders"
+      "fullPath": "/api/v1/responders",
+      "surface": "dashboard"
     },
     {
       "resource": "responders",
@@ -337,7 +357,8 @@
         "CITY_ADMIN",
         "DISPATCHER"
       ],
-      "fullPath": "/api/v1/responders/{id}"
+      "fullPath": "/api/v1/responders/{id}",
+      "surface": "dashboard"
     },
     {
       "resource": "responders",
@@ -352,7 +373,8 @@
         "PROVINCIAL_ADMIN",
         "CITY_ADMIN"
       ],
-      "fullPath": "/api/v1/responders"
+      "fullPath": "/api/v1/responders",
+      "surface": "dashboard"
     },
     {
       "resource": "responders",
@@ -367,7 +389,8 @@
         "PROVINCIAL_ADMIN",
         "CITY_ADMIN"
       ],
-      "fullPath": "/api/v1/responders/{id}"
+      "fullPath": "/api/v1/responders/{id}",
+      "surface": "dashboard"
     },
     {
       "resource": "responders",
@@ -382,7 +405,8 @@
         "PROVINCIAL_ADMIN",
         "CITY_ADMIN"
       ],
-      "fullPath": "/api/v1/responders/{id}"
+      "fullPath": "/api/v1/responders/{id}",
+      "surface": "dashboard"
     },
     {
       "resource": "responders",
@@ -401,7 +425,8 @@
         "feature": "recordDeletion",
         "requires": "archive"
       },
-      "fullPath": "/api/v1/responders/{id}/restore"
+      "fullPath": "/api/v1/responders/{id}/restore",
+      "surface": "dashboard"
     },
     {
       "resource": "statuses",
@@ -421,7 +446,8 @@
         "CITIZEN_REPORTER",
         "AUDITOR"
       ],
-      "fullPath": "/api/v1/statuses"
+      "fullPath": "/api/v1/statuses",
+      "surface": "dashboard"
     },
     {
       "resource": "statuses",
@@ -441,7 +467,8 @@
         "CITIZEN_REPORTER",
         "AUDITOR"
       ],
-      "fullPath": "/api/v1/statuses/{id}"
+      "fullPath": "/api/v1/statuses/{id}",
+      "surface": "dashboard"
     },
     {
       "resource": "statuses",
@@ -456,7 +483,8 @@
         "PROVINCIAL_ADMIN",
         "CITY_ADMIN"
       ],
-      "fullPath": "/api/v1/statuses"
+      "fullPath": "/api/v1/statuses",
+      "surface": "dashboard"
     },
     {
       "resource": "statuses",
@@ -471,7 +499,8 @@
         "PROVINCIAL_ADMIN",
         "CITY_ADMIN"
       ],
-      "fullPath": "/api/v1/statuses/{id}"
+      "fullPath": "/api/v1/statuses/{id}",
+      "surface": "dashboard"
     },
     {
       "resource": "statuses",
@@ -486,7 +515,8 @@
         "PROVINCIAL_ADMIN",
         "CITY_ADMIN"
       ],
-      "fullPath": "/api/v1/statuses/{id}"
+      "fullPath": "/api/v1/statuses/{id}",
+      "surface": "dashboard"
     },
     {
       "resource": "statuses",
@@ -505,7 +535,8 @@
         "feature": "recordDeletion",
         "requires": "archive"
       },
-      "fullPath": "/api/v1/statuses/{id}/restore"
+      "fullPath": "/api/v1/statuses/{id}/restore",
+      "surface": "dashboard"
     },
     {
       "resource": "categories",
@@ -525,7 +556,8 @@
         "CITIZEN_REPORTER",
         "AUDITOR"
       ],
-      "fullPath": "/api/v1/categories"
+      "fullPath": "/api/v1/categories",
+      "surface": "dashboard"
     },
     {
       "resource": "categories",
@@ -545,7 +577,8 @@
         "CITIZEN_REPORTER",
         "AUDITOR"
       ],
-      "fullPath": "/api/v1/categories/{id}"
+      "fullPath": "/api/v1/categories/{id}",
+      "surface": "dashboard"
     },
     {
       "resource": "categories",
@@ -560,7 +593,8 @@
         "PROVINCIAL_ADMIN",
         "CITY_ADMIN"
       ],
-      "fullPath": "/api/v1/categories"
+      "fullPath": "/api/v1/categories",
+      "surface": "dashboard"
     },
     {
       "resource": "categories",
@@ -575,7 +609,8 @@
         "PROVINCIAL_ADMIN",
         "CITY_ADMIN"
       ],
-      "fullPath": "/api/v1/categories/{id}"
+      "fullPath": "/api/v1/categories/{id}",
+      "surface": "dashboard"
     },
     {
       "resource": "categories",
@@ -590,7 +625,8 @@
         "PROVINCIAL_ADMIN",
         "CITY_ADMIN"
       ],
-      "fullPath": "/api/v1/categories/{id}"
+      "fullPath": "/api/v1/categories/{id}",
+      "surface": "dashboard"
     },
     {
       "resource": "categories",
@@ -609,7 +645,8 @@
         "feature": "recordDeletion",
         "requires": "archive"
       },
-      "fullPath": "/api/v1/categories/{id}/restore"
+      "fullPath": "/api/v1/categories/{id}/restore",
+      "surface": "dashboard"
     },
     {
       "resource": "severities",
@@ -629,7 +666,8 @@
         "CITIZEN_REPORTER",
         "AUDITOR"
       ],
-      "fullPath": "/api/v1/severities"
+      "fullPath": "/api/v1/severities",
+      "surface": "dashboard"
     },
     {
       "resource": "severities",
@@ -649,7 +687,8 @@
         "CITIZEN_REPORTER",
         "AUDITOR"
       ],
-      "fullPath": "/api/v1/severities/{id}"
+      "fullPath": "/api/v1/severities/{id}",
+      "surface": "dashboard"
     },
     {
       "resource": "severities",
@@ -664,7 +703,8 @@
         "PROVINCIAL_ADMIN",
         "CITY_ADMIN"
       ],
-      "fullPath": "/api/v1/severities"
+      "fullPath": "/api/v1/severities",
+      "surface": "dashboard"
     },
     {
       "resource": "severities",
@@ -679,7 +719,8 @@
         "PROVINCIAL_ADMIN",
         "CITY_ADMIN"
       ],
-      "fullPath": "/api/v1/severities/{id}"
+      "fullPath": "/api/v1/severities/{id}",
+      "surface": "dashboard"
     },
     {
       "resource": "severities",
@@ -694,7 +735,8 @@
         "PROVINCIAL_ADMIN",
         "CITY_ADMIN"
       ],
-      "fullPath": "/api/v1/severities/{id}"
+      "fullPath": "/api/v1/severities/{id}",
+      "surface": "dashboard"
     },
     {
       "resource": "severities",
@@ -713,7 +755,8 @@
         "feature": "recordDeletion",
         "requires": "archive"
       },
-      "fullPath": "/api/v1/severities/{id}/restore"
+      "fullPath": "/api/v1/severities/{id}/restore",
+      "surface": "dashboard"
     },
     {
       "resource": "incidents",
@@ -732,7 +775,8 @@
         "RESPONDER"
       ],
       "notes": "The backend applies role-aware scoping. Citizen reporters only receive their own incidents.",
-      "fullPath": "/api/v1/incidents"
+      "fullPath": "/api/v1/incidents",
+      "surface": "dashboard"
     },
     {
       "resource": "incidents",
@@ -751,7 +795,8 @@
         "RESPONDER"
       ],
       "notes": "The backend enforces per-role incident visibility. Citizen reporters can only access their own incident IDs.",
-      "fullPath": "/api/v1/incidents/{id}"
+      "fullPath": "/api/v1/incidents/{id}",
+      "surface": "dashboard"
     },
     {
       "resource": "incidents",
@@ -767,7 +812,8 @@
         "CITY_ADMIN",
         "DISPATCHER"
       ],
-      "fullPath": "/api/v1/incidents"
+      "fullPath": "/api/v1/incidents",
+      "surface": "dashboard"
     },
     {
       "resource": "incidents",
@@ -780,7 +826,8 @@
         "CITIZEN_REPORTER"
       ],
       "notes": "Citizen self-report endpoint. citizenId is inferred from the authenticated user context.",
-      "fullPath": "/api/v1/incidents/report"
+      "fullPath": "/api/v1/incidents/report",
+      "surface": "dashboard"
     },
     {
       "resource": "incidents",
@@ -797,7 +844,8 @@
         "DISPATCHER",
         "RESPONDER"
       ],
-      "fullPath": "/api/v1/incidents/{id}"
+      "fullPath": "/api/v1/incidents/{id}",
+      "surface": "dashboard"
     },
     {
       "resource": "incidents",
@@ -813,7 +861,8 @@
         "CITY_ADMIN",
         "DISPATCHER"
       ],
-      "fullPath": "/api/v1/incidents/{id}"
+      "fullPath": "/api/v1/incidents/{id}",
+      "surface": "dashboard"
     },
     {
       "resource": "incidents",
@@ -833,7 +882,8 @@
         "feature": "recordDeletion",
         "requires": "archive"
       },
-      "fullPath": "/api/v1/incidents/{id}/restore"
+      "fullPath": "/api/v1/incidents/{id}/restore",
+      "surface": "dashboard"
     },
     {
       "resource": "incidents",
@@ -852,7 +902,8 @@
         "RESPONDER"
       ],
       "notes": "Authenticated media access endpoint. The backend enforces incident-level authorization before resolving an access URL.",
-      "fullPath": "/api/v1/incidents/{id}/media/{mediaId}"
+      "fullPath": "/api/v1/incidents/{id}/media/{mediaId}",
+      "surface": "dashboard"
     },
     {
       "resource": "incidents",
@@ -875,7 +926,8 @@
         "requires": "supabase-storage"
       },
       "notes": "Available only when the selected feature profile enables incident media uploads. Feature-aware OpenAPI output omits this operation when mediaStorage is disabled.",
-      "fullPath": "/api/v1/incidents/media/upload"
+      "fullPath": "/api/v1/incidents/media/upload",
+      "surface": "dashboard"
     },
     {
       "resource": "assignments",
@@ -891,7 +943,8 @@
         "CITY_ADMIN",
         "DISPATCHER"
       ],
-      "fullPath": "/api/v1/assignments"
+      "fullPath": "/api/v1/assignments",
+      "surface": "dashboard"
     },
     {
       "resource": "assignments",
@@ -907,7 +960,8 @@
         "CITY_ADMIN",
         "DISPATCHER"
       ],
-      "fullPath": "/api/v1/assignments/{id}"
+      "fullPath": "/api/v1/assignments/{id}",
+      "surface": "dashboard"
     },
     {
       "resource": "assignments",
@@ -923,7 +977,8 @@
         "CITY_ADMIN",
         "DISPATCHER"
       ],
-      "fullPath": "/api/v1/assignments"
+      "fullPath": "/api/v1/assignments",
+      "surface": "dashboard"
     },
     {
       "resource": "assignments",
@@ -939,7 +994,8 @@
         "CITY_ADMIN",
         "DISPATCHER"
       ],
-      "fullPath": "/api/v1/assignments/{id}"
+      "fullPath": "/api/v1/assignments/{id}",
+      "surface": "dashboard"
     },
     {
       "resource": "assignments",
@@ -955,7 +1011,8 @@
         "CITY_ADMIN",
         "DISPATCHER"
       ],
-      "fullPath": "/api/v1/assignments/{id}"
+      "fullPath": "/api/v1/assignments/{id}",
+      "surface": "dashboard"
     },
     {
       "resource": "assignments",
@@ -975,7 +1032,8 @@
         "feature": "recordDeletion",
         "requires": "archive"
       },
-      "fullPath": "/api/v1/assignments/{id}/restore"
+      "fullPath": "/api/v1/assignments/{id}/restore",
+      "surface": "dashboard"
     },
     {
       "resource": "users",
@@ -995,7 +1053,8 @@
         "CITIZEN_REPORTER",
         "AUDITOR"
       ],
-      "fullPath": "/api/v1/users/capabilities"
+      "fullPath": "/api/v1/users/capabilities",
+      "surface": "dashboard"
     },
     {
       "resource": "users",
@@ -1010,7 +1069,8 @@
         "PROVINCIAL_ADMIN",
         "CITY_ADMIN"
       ],
-      "fullPath": "/api/v1/users"
+      "fullPath": "/api/v1/users",
+      "surface": "dashboard"
     },
     {
       "resource": "users",
@@ -1025,7 +1085,8 @@
         "PROVINCIAL_ADMIN",
         "CITY_ADMIN"
       ],
-      "fullPath": "/api/v1/users/{id}"
+      "fullPath": "/api/v1/users/{id}",
+      "surface": "dashboard"
     },
     {
       "resource": "users",
@@ -1040,7 +1101,8 @@
         "PROVINCIAL_ADMIN",
         "CITY_ADMIN"
       ],
-      "fullPath": "/api/v1/users"
+      "fullPath": "/api/v1/users",
+      "surface": "dashboard"
     },
     {
       "resource": "users",
@@ -1055,7 +1117,8 @@
         "PROVINCIAL_ADMIN",
         "CITY_ADMIN"
       ],
-      "fullPath": "/api/v1/users/{id}"
+      "fullPath": "/api/v1/users/{id}",
+      "surface": "dashboard"
     },
     {
       "resource": "users",
@@ -1070,7 +1133,8 @@
         "PROVINCIAL_ADMIN",
         "CITY_ADMIN"
       ],
-      "fullPath": "/api/v1/users/{id}"
+      "fullPath": "/api/v1/users/{id}",
+      "surface": "dashboard"
     },
     {
       "resource": "users",
@@ -1089,7 +1153,8 @@
         "feature": "recordDeletion",
         "requires": "archive"
       },
-      "fullPath": "/api/v1/users/{id}/restore"
+      "fullPath": "/api/v1/users/{id}/restore",
+      "surface": "dashboard"
     },
     {
       "resource": "adminUsers",
@@ -1102,7 +1167,8 @@
         "NATIONAL_ADMIN"
       ],
       "notes": "National-admin-only administrative user inventory endpoint exposed under the admin route surface.",
-      "fullPath": "/api/v1/admin/users"
+      "fullPath": "/api/v1/admin/users",
+      "surface": "dashboard"
     },
     {
       "resource": "adminUserMfaCompliance",
@@ -1115,7 +1181,8 @@
         "NATIONAL_ADMIN"
       ],
       "notes": "Privileged MFA compliance report for national administrators. Use for security review dashboards rather than generic CRUD.",
-      "fullPath": "/api/v1/admin/users/mfa-compliance"
+      "fullPath": "/api/v1/admin/users/mfa-compliance",
+      "surface": "dashboard"
     },
     {
       "resource": "adminUserAccessReview",
@@ -1128,7 +1195,8 @@
         "NATIONAL_ADMIN"
       ],
       "notes": "Privileged access-review report for national administrators. Use for governance and stale-access review dashboards.",
-      "fullPath": "/api/v1/admin/users/access-review"
+      "fullPath": "/api/v1/admin/users/access-review",
+      "surface": "dashboard"
     },
     {
       "resource": "adminSecurityDataGovernance",
@@ -1145,7 +1213,8 @@
         "AUDITOR"
       ],
       "notes": "Security and data-governance summary surface for admin and auditor dashboards.",
-      "fullPath": "/api/v1/admin/security/data-governance"
+      "fullPath": "/api/v1/admin/security/data-governance",
+      "surface": "dashboard"
     },
     {
       "resource": "auditLogs",
@@ -1159,7 +1228,8 @@
         "AUDITOR"
       ],
       "notes": "Sensitive server-side audit log list surface. Requests remain read-only and should be handled as a dedicated review experience.",
-      "fullPath": "/api/v1/audit-logs"
+      "fullPath": "/api/v1/audit-logs",
+      "surface": "dashboard"
     },
     {
       "resource": "auditLogs",
@@ -1173,7 +1243,171 @@
         "AUDITOR"
       ],
       "notes": "Sensitive server-side audit log detail surface. Requests remain read-only and should be handled as a dedicated review experience.",
-      "fullPath": "/api/v1/audit-logs/{id}"
+      "fullPath": "/api/v1/audit-logs/{id}",
+      "surface": "dashboard"
+    },
+    {
+      "resource": "mobileCitizen",
+      "label": "Mobile Citizen (Canonical Pilot Surface)",
+      "operation": "publishedContent",
+      "method": "GET",
+      "path": "/mobile/content",
+      "authRequired": false,
+      "pilotScope": "tuguegarao-first",
+      "compatibility": {
+        "status": "canonical"
+      },
+      "notes": "Publicly available mobile app content. Backend filters audience to published, generic content only; draft and citizen-only entries are not exposed unauthenticated.",
+      "fullPath": "/api/v1/mobile/content",
+      "surface": "mobile-citizen"
+    },
+    {
+      "resource": "mobileCitizen",
+      "label": "Mobile Citizen (Canonical Pilot Surface)",
+      "operation": "getProfile",
+      "method": "GET",
+      "path": "/mobile/profile",
+      "authRequired": true,
+      "allowedRoles": [
+        "CITIZEN_REPORTER"
+      ],
+      "pilotScope": "tuguegarao-first",
+      "compatibility": {
+        "status": "canonical"
+      },
+      "notes": "Returns the authenticated citizen reporter's linked citizen profile. citizenId is inferred from the JWT subject; never accept it from the client.",
+      "fullPath": "/api/v1/mobile/profile",
+      "surface": "mobile-citizen"
+    },
+    {
+      "resource": "mobileCitizen",
+      "label": "Mobile Citizen (Canonical Pilot Surface)",
+      "operation": "linkProfile",
+      "method": "PATCH",
+      "path": "/mobile/profile",
+      "authRequired": true,
+      "allowedRoles": [
+        "CITIZEN_REPORTER"
+      ],
+      "pilotScope": "tuguegarao-first",
+      "compatibility": {
+        "status": "canonical"
+      },
+      "notes": "Creates or links the authenticated citizen reporter to their citizen profile. Supersedes POST /citizens/link-me for mobile clients.",
+      "fullPath": "/api/v1/mobile/profile",
+      "surface": "mobile-citizen"
+    },
+    {
+      "resource": "mobileCitizen",
+      "label": "Mobile Citizen (Canonical Pilot Surface)",
+      "operation": "listMyIncidents",
+      "method": "GET",
+      "path": "/mobile/incidents",
+      "authRequired": true,
+      "allowedRoles": [
+        "CITIZEN_REPORTER"
+      ],
+      "pilotScope": "tuguegarao-first",
+      "compatibility": {
+        "status": "canonical"
+      },
+      "notes": "Backend scopes results to the authenticated reporter only.",
+      "fullPath": "/api/v1/mobile/incidents",
+      "surface": "mobile-citizen"
+    },
+    {
+      "resource": "mobileCitizen",
+      "label": "Mobile Citizen (Canonical Pilot Surface)",
+      "operation": "getMyIncident",
+      "method": "GET",
+      "path": "/mobile/incidents/{id}",
+      "authRequired": true,
+      "allowedRoles": [
+        "CITIZEN_REPORTER"
+      ],
+      "pilotScope": "tuguegarao-first",
+      "compatibility": {
+        "status": "canonical"
+      },
+      "notes": "Backend enforces per-reporter visibility. Other reporters receive 404 for incidents they do not own.",
+      "fullPath": "/api/v1/mobile/incidents/{id}",
+      "surface": "mobile-citizen"
+    },
+    {
+      "resource": "mobileCitizen",
+      "label": "Mobile Citizen (Canonical Pilot Surface)",
+      "operation": "getMyIncidentTimeline",
+      "method": "GET",
+      "path": "/mobile/incidents/{id}/timeline",
+      "authRequired": true,
+      "allowedRoles": [
+        "CITIZEN_REPORTER"
+      ],
+      "pilotScope": "tuguegarao-first",
+      "compatibility": {
+        "status": "canonical"
+      },
+      "notes": "Status timeline scoped to the authenticated reporter. Internal-only fields are not exposed.",
+      "fullPath": "/api/v1/mobile/incidents/{id}/timeline",
+      "surface": "mobile-citizen"
+    },
+    {
+      "resource": "mobileCitizen",
+      "label": "Mobile Citizen (Canonical Pilot Surface)",
+      "operation": "reportIncident",
+      "method": "POST",
+      "path": "/mobile/incidents/report",
+      "authRequired": true,
+      "allowedRoles": [
+        "CITIZEN_REPORTER"
+      ],
+      "pilotScope": "tuguegarao-first",
+      "compatibility": {
+        "status": "canonical"
+      },
+      "notes": "Citizen self-report endpoint for mobile clients. citizenId is inferred from the JWT subject. Supersedes POST /incidents/report for mobile clients.",
+      "fullPath": "/api/v1/mobile/incidents/report",
+      "surface": "mobile-citizen"
+    },
+    {
+      "resource": "mobileCitizen",
+      "label": "Mobile Citizen (Canonical Pilot Surface)",
+      "operation": "linkMeAlias",
+      "method": "POST",
+      "path": "/citizens/link-me",
+      "authRequired": true,
+      "allowedRoles": [
+        "CITIZEN_REPORTER"
+      ],
+      "pilotScope": "tuguegarao-first",
+      "compatibility": {
+        "status": "compatibility-only",
+        "supersededBy": "mobileCitizenSurface.linkProfile",
+        "notes": "Preserved for dashboard-bootstrap and pre-mobile clients. New mobile clients should use PATCH /mobile/profile."
+      },
+      "notes": "Same controller as PATCH /mobile/profile. Authoritative for dashboard self-link and legacy clients.",
+      "fullPath": "/api/v1/citizens/link-me",
+      "surface": "mobile-citizen-compatibility"
+    },
+    {
+      "resource": "mobileCitizen",
+      "label": "Mobile Citizen (Canonical Pilot Surface)",
+      "operation": "incidentReportAlias",
+      "method": "POST",
+      "path": "/incidents/report",
+      "authRequired": true,
+      "allowedRoles": [
+        "CITIZEN_REPORTER"
+      ],
+      "pilotScope": "tuguegarao-first",
+      "compatibility": {
+        "status": "compatibility-only",
+        "supersededBy": "mobileCitizenSurface.reportIncident",
+        "notes": "Preserved for dashboard-bootstrap and pre-mobile clients. New mobile clients should use POST /mobile/incidents/report."
+      },
+      "notes": "Same controller as POST /mobile/incidents/report. Authoritative for dashboard-side citizen self-report and legacy clients.",
+      "fullPath": "/api/v1/incidents/report",
+      "surface": "mobile-citizen-compatibility"
     }
   ]
 }

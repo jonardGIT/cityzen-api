@@ -43,6 +43,11 @@ jobs:
         env:
           COMMIT_MESSAGE_FILE: ${{ runner.temp }}/mirror-commit-message.txt
           STAGE_DIR: ${{ runner.temp }}/minified-mirror
+        # NOTE: This stage uses an explicit allowlist (cp lines below). Local-only
+        # Copilot customization — .github/copilot-instructions.md, .github/agents/,
+        # and .github/prompts/ — is intentionally NOT copied and therefore never
+        # reaches the Xypes13 mirror. Keep it that way: only add specific files
+        # here, never copy .github/ wholesale.
         run: |
           set -e
           rm -rf "$STAGE_DIR"

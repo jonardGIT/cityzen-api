@@ -16,6 +16,38 @@ import {
 
 export const DASHBOARD_API_BASE_PATH = '/api/v1';
 
+/**
+ * Pilot scope for the contract. The CIRS pilot is Tuguegarao-first, then
+ * partner-LGU expansion. National roles and surfaces are deferred until formal
+ * regional governance is enabled. See `pilot` block on `dashboardCrudConfig`
+ * and docs/tuguegarao-pilot-governance-baseline.md.
+ */
+export type PilotScope =
+  | 'tuguegarao-first'
+  | 'partner-lgu'
+  | 'national-deferred';
+
+/**
+ * Compatibility classification for a contract route.
+ *
+ * - `canonical`     : The route clients SHOULD use as the primary entry point
+ *                    for the surface it serves (dashboard, mobile-citizen,
+ *                    public). Backend authorization remains the source of
+ *                    truth regardless of client preference.
+ * - `compatibility-only`
+ *                  : The route is preserved for backward compatibility but a
+ *                    canonical replacement exists for new clients. The
+ *                    `supersededBy` field points to the canonical operation
+ *                    key (e.g. `mobileCitizenSurface.linkProfile`).
+ */
+export type RouteCompatibilityStatus = 'canonical' | 'compatibility-only';
+
+export type RouteCompatibility = {
+  status: RouteCompatibilityStatus;
+  supersededBy?: string;
+  notes?: string;
+};
+
 type FeatureGate = {
   feature: 'tokenMode' | 'mfaMode' | 'mediaStorage' | 'recordDeletion';
   requires?: string;
@@ -28,6 +60,8 @@ type ContractRoute = {
   authRequired: boolean;
   allowedRoles?: UserRole[];
   featureGate?: FeatureGate;
+  pilotScope?: PilotScope;
+  compatibility?: RouteCompatibility;
   notes?: string;
 };
 
@@ -40,8 +74,56 @@ type ResourceContract = {
 
 type AuthOptionalEndpointMap = Record<string, ContractRoute>;
 
+/**
+ * Top-level pilot block. Declares the contract's intended deployment scope
+ * for downstream client and governance tooling. This is informational metadata
+ * for clients and reviewers; backend authorization, jurisdiction scoping, and
+ * privacy boundaries are enforced server-side regardless.
+ */
+export interface PilotContract {
+  scope: PilotScope;
+  partnerLguExpansion: 'planned' | 'enabled' | 'not-planned';
+  governanceBaselineDoc: string;
+  notes: string;
+}
+
+/**
+ * Mobile-citizen canonical surface. The `/mobile/*` namespace is the
+ * canonical entry surface for citizen mobile clients (MyTuguegarao). The
+ * `compatibilityRoutes` block exposes legacy aliases under non-mobile paths
+ * (e.g. `/citizens/link-me`, `/incidents/report`) that mobile clients may
+ * still reach but should NOT prefer; the `supersededBy` field on each entry
+ * points to the canonical operation in `routes`.
+ *
+ * The `authBootstrap` block separates email-based auth (canonical for
+ * dashboard) from phone-based mobile auth (canonical for mobile-citizen).
+ */
+export interface MobileCitizenSurfaceContract {
+  label: string;
+  basePath: '/mobile';
+  pilotScope: PilotScope;
+  notes: string;
+  routes: Record<string, ContractRoute>;
+  compatibilityRoutes: Record<string, ContractRoute>;
+  authBootstrap: {
+    canonical: {
+      mobileRegisterPath: '/auth/mobile/register';
+      mobileLoginPath: '/auth/mobile/login';
+      mePath: '/auth/me';
+      logoutPath: '/auth/logout';
+      refreshPath: '/auth/refresh';
+    };
+    compatibility: {
+      registerPath: '/auth/register';
+      loginPath: '/auth/login';
+      notes: string;
+    };
+  };
+}
+
 export interface DashboardCrudConfig {
   apiBasePath: string;
+  pilot: PilotContract;
   auth: {
     type: 'bearer';
     tokenHeader: 'Authorization';
@@ -59,6 +141,7 @@ export interface DashboardCrudConfig {
     optionalEndpoints: AuthOptionalEndpointMap;
   };
   resources: ResourceContract[];
+  mobileCitizenSurface: MobileCitizenSurfaceContract;
 }
 
 export interface DashboardCrudFlatEndpoint extends ContractRoute {
@@ -68,8 +151,18 @@ export interface DashboardCrudFlatEndpoint extends ContractRoute {
   fullPath: string;
 }
 
+export type DashboardCrudFlatSurface =
+  | 'dashboard'
+  | 'mobile-citizen'
+  | 'mobile-citizen-compatibility';
+
+export interface DashboardCrudFlatEndpointWithSurface extends DashboardCrudFlatEndpoint {
+  surface: DashboardCrudFlatSurface;
+}
+
 export interface DashboardCrudFlatConfig {
   apiBasePath: string;
+  pilot: PilotContract;
   auth: {
     type: 'bearer';
     tokenHeader: 'Authorization';
@@ -81,7 +174,7 @@ export interface DashboardCrudFlatConfig {
       }
     >;
   };
-  endpoints: DashboardCrudFlatEndpoint[];
+  endpoints: DashboardCrudFlatEndpointWithSurface[];
 }
 
 const allAuthenticatedRoles = [...USER_ROLES];
@@ -185,8 +278,124 @@ const authOptionalEndpoints: AuthOptionalEndpointMap = {
   }),
 };
 
+const pilotContract: PilotContract = {
+  scope: 'tuguegarao-first',
+  partnerLguExpansion: 'planned',
+  governanceBaselineDoc: 'docs/tuguegarao-pilot-governance-baseline.md',
+  notes:
+    'CIRS pilot is Tuguegarao-first. City and barangay operations are the canonical scope; partner-LGU expansion is planned. National roles and surfaces are deferred until formal regional governance is enabled. Dashboard and mobile clients should treat this contract as the source of truth for canonical vs compatibility-only routes.',
+};
+
+const mobileCitizenSurface: MobileCitizenSurfaceContract = {
+  label: 'Mobile Citizen (Canonical Pilot Surface)',
+  basePath: '/mobile',
+  pilotScope: 'tuguegarao-first',
+  notes:
+    'Canonical mobile-citizen surface for the Tuguegarao-first pilot (consumed by MyTuguegarao). Mobile clients SHOULD use these routes in preference to dashboard-shared aliases. Backend authorization, jurisdiction scoping, and trust-layer rules are enforced server-side regardless of client choice.',
+  routes: {
+    publishedContent: route('GET', '/mobile/content', {
+      authRequired: false,
+      pilotScope: 'tuguegarao-first',
+      compatibility: { status: 'canonical' },
+      notes:
+        'Publicly available mobile app content. Backend filters audience to published, generic content only; draft and citizen-only entries are not exposed unauthenticated.',
+    }),
+    getProfile: route('GET', '/mobile/profile', {
+      authRequired: true,
+      allowedRoles: ['CITIZEN_REPORTER'],
+      pilotScope: 'tuguegarao-first',
+      compatibility: { status: 'canonical' },
+      notes:
+        "Returns the authenticated citizen reporter's linked citizen profile. citizenId is inferred from the JWT subject; never accept it from the client.",
+    }),
+    linkProfile: route('PATCH', '/mobile/profile', {
+      authRequired: true,
+      allowedRoles: ['CITIZEN_REPORTER'],
+      pilotScope: 'tuguegarao-first',
+      compatibility: { status: 'canonical' },
+      notes:
+        'Creates or links the authenticated citizen reporter to their citizen profile. Supersedes POST /citizens/link-me for mobile clients.',
+    }),
+    listMyIncidents: route('GET', '/mobile/incidents', {
+      authRequired: true,
+      allowedRoles: ['CITIZEN_REPORTER'],
+      pilotScope: 'tuguegarao-first',
+      compatibility: { status: 'canonical' },
+      notes: 'Backend scopes results to the authenticated reporter only.',
+    }),
+    getMyIncident: route('GET', '/mobile/incidents/{id}', {
+      authRequired: true,
+      allowedRoles: ['CITIZEN_REPORTER'],
+      pilotScope: 'tuguegarao-first',
+      compatibility: { status: 'canonical' },
+      notes:
+        'Backend enforces per-reporter visibility. Other reporters receive 404 for incidents they do not own.',
+    }),
+    getMyIncidentTimeline: route('GET', '/mobile/incidents/{id}/timeline', {
+      authRequired: true,
+      allowedRoles: ['CITIZEN_REPORTER'],
+      pilotScope: 'tuguegarao-first',
+      compatibility: { status: 'canonical' },
+      notes:
+        'Status timeline scoped to the authenticated reporter. Internal-only fields are not exposed.',
+    }),
+    reportIncident: route('POST', '/mobile/incidents/report', {
+      authRequired: true,
+      allowedRoles: ['CITIZEN_REPORTER'],
+      pilotScope: 'tuguegarao-first',
+      compatibility: { status: 'canonical' },
+      notes:
+        'Citizen self-report endpoint for mobile clients. citizenId is inferred from the JWT subject. Supersedes POST /incidents/report for mobile clients.',
+    }),
+  },
+  compatibilityRoutes: {
+    linkMeAlias: route('POST', '/citizens/link-me', {
+      authRequired: true,
+      allowedRoles: ['CITIZEN_REPORTER'],
+      pilotScope: 'tuguegarao-first',
+      compatibility: {
+        status: 'compatibility-only',
+        supersededBy: 'mobileCitizenSurface.linkProfile',
+        notes:
+          'Preserved for dashboard-bootstrap and pre-mobile clients. New mobile clients should use PATCH /mobile/profile.',
+      },
+      notes:
+        'Same controller as PATCH /mobile/profile. Authoritative for dashboard self-link and legacy clients.',
+    }),
+    incidentReportAlias: route('POST', '/incidents/report', {
+      authRequired: true,
+      allowedRoles: ['CITIZEN_REPORTER'],
+      pilotScope: 'tuguegarao-first',
+      compatibility: {
+        status: 'compatibility-only',
+        supersededBy: 'mobileCitizenSurface.reportIncident',
+        notes:
+          'Preserved for dashboard-bootstrap and pre-mobile clients. New mobile clients should use POST /mobile/incidents/report.',
+      },
+      notes:
+        'Same controller as POST /mobile/incidents/report. Authoritative for dashboard-side citizen self-report and legacy clients.',
+    }),
+  },
+  authBootstrap: {
+    canonical: {
+      mobileRegisterPath: '/auth/mobile/register',
+      mobileLoginPath: '/auth/mobile/login',
+      mePath: '/auth/me',
+      logoutPath: '/auth/logout',
+      refreshPath: '/auth/refresh',
+    },
+    compatibility: {
+      registerPath: '/auth/register',
+      loginPath: '/auth/login',
+      notes:
+        'Email-based register and login remain canonical for dashboard clients and remain accessible to mobile clients for compatibility. New mobile clients should prefer /auth/mobile/register and /auth/mobile/login (phone + name) so that a citizen profile is auto-linked.',
+    },
+  },
+};
+
 export const dashboardCrudConfig: DashboardCrudConfig = {
   apiBasePath: DASHBOARD_API_BASE_PATH,
+  pilot: pilotContract,
   auth: {
     type: 'bearer',
     tokenHeader: 'Authorization',
@@ -395,6 +604,7 @@ export const dashboardCrudConfig: DashboardCrudConfig = {
       },
     },
   ],
+  mobileCitizenSurface,
 };
 
 export function buildDashboardCrudConfigFlat(
@@ -408,25 +618,56 @@ export function buildDashboardCrudConfigFlat(
     }),
   );
 
-  const endpoints = config.resources.flatMap((resource) =>
-    Object.entries(resource.routes).map(([operation, endpoint]) => ({
-      resource: resource.name,
-      label: resource.label,
-      operation,
-      ...endpoint,
-      fullPath: `${config.apiBasePath}${endpoint.path}`,
-    })),
-  );
+  const dashboardEndpoints: DashboardCrudFlatEndpointWithSurface[] =
+    config.resources.flatMap((resource) =>
+      Object.entries(resource.routes).map(([operation, endpoint]) => ({
+        resource: resource.name,
+        label: resource.label,
+        operation,
+        ...endpoint,
+        fullPath: `${config.apiBasePath}${endpoint.path}`,
+        surface: 'dashboard' as const,
+      })),
+    );
+
+  const mobileCanonicalEndpoints: DashboardCrudFlatEndpointWithSurface[] =
+    Object.entries(config.mobileCitizenSurface.routes).map(
+      ([operation, endpoint]) => ({
+        resource: 'mobileCitizen',
+        label: config.mobileCitizenSurface.label,
+        operation,
+        ...endpoint,
+        fullPath: `${config.apiBasePath}${endpoint.path}`,
+        surface: 'mobile-citizen' as const,
+      }),
+    );
+
+  const mobileCompatibilityEndpoints: DashboardCrudFlatEndpointWithSurface[] =
+    Object.entries(config.mobileCitizenSurface.compatibilityRoutes).map(
+      ([operation, endpoint]) => ({
+        resource: 'mobileCitizen',
+        label: config.mobileCitizenSurface.label,
+        operation,
+        ...endpoint,
+        fullPath: `${config.apiBasePath}${endpoint.path}`,
+        surface: 'mobile-citizen-compatibility' as const,
+      }),
+    );
 
   return {
     apiBasePath: config.apiBasePath,
+    pilot: config.pilot,
     auth: {
       type: config.auth.type,
       tokenHeader: config.auth.tokenHeader,
       tokenPrefix: config.auth.tokenPrefix,
       optionalEndpoints,
     },
-    endpoints,
+    endpoints: [
+      ...dashboardEndpoints,
+      ...mobileCanonicalEndpoints,
+      ...mobileCompatibilityEndpoints,
+    ],
   };
 }
 
