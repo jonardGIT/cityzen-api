@@ -15,6 +15,10 @@ function buildPrivacyNoticeAcceptance() {
   };
 }
 
+function assertNoLegacyNameField(body: unknown) {
+  expect(JSON.stringify(body)).not.toContain('"name"');
+}
+
 describe('Auth bootstrap endpoints', () => {
   function buildUniqueMobileNumber(seed: number): string {
     const suffix = seed.toString().slice(-9).padStart(9, '0');
@@ -52,7 +56,10 @@ describe('Auth bootstrap endpoints', () => {
     const res = await request(app)
       .post(`${API_V1}/auth/register`)
       .send({
-        name: `Bootstrap User ${stamp}`,
+        firstName: 'Bootstrap',
+        middleName: `Cutover ${stamp}`,
+        lastName: 'User',
+        suffix: 'Jr.',
         email: `bootstrap.${stamp}@postman.local`,
         password: 'Password123!',
         ...buildPrivacyNoticeAcceptance(),
@@ -67,19 +74,50 @@ describe('Auth bootstrap endpoints', () => {
     expect(res.body).toHaveProperty('refreshExpiresAt');
     expect(res.body).toHaveProperty('user');
     expect(res.body.user).toHaveProperty('role', 'CITIZEN_REPORTER');
+    expect(res.body.user).toMatchObject({
+      firstName: 'Bootstrap',
+      middleName: `Cutover ${stamp}`,
+      lastName: 'User',
+      suffix: 'Jr.',
+    });
     expect(res.body.user).toHaveProperty('createdAt');
     expect(res.body.user).toHaveProperty('updatedAt');
+    expect(res.body.user).not.toHaveProperty('name');
+    assertNoLegacyNameField(res.body);
 
     const createdUser = await prisma.user.findUnique({
       where: { email: `bootstrap.${stamp}@postman.local` },
       select: {
+        firstName: true,
+        lastName: true,
         privacyNoticeAcceptedAt: true,
         privacyNoticeVersion: true,
       },
     });
 
+    expect(createdUser).toMatchObject({
+      firstName: 'Bootstrap',
+      lastName: 'User',
+    });
     expect(createdUser?.privacyNoticeAcceptedAt).not.toBeNull();
     expect(createdUser?.privacyNoticeVersion).toBe(DEFAULT_PRIVACY_NOTICE_VERSION);
+  });
+
+  it('POST /auth/register should reject legacy name', async () => {
+    const stamp = Date.now();
+    const res = await request(app)
+      .post(`${API_V1}/auth/register`)
+      .send({
+        name: `Legacy Bootstrap User ${stamp}`,
+        email: `legacy.bootstrap.${stamp}@postman.local`,
+        password: 'Password123!',
+        ...buildPrivacyNoticeAcceptance(),
+      });
+
+    expect(res.status).toBe(422);
+    expect(res.body).toEqual({
+      message: 'name is not supported; use firstName and lastName',
+    });
   });
 
   it('POST /auth/login should return token for seeded admin', async () => {
@@ -109,7 +147,10 @@ describe('Auth bootstrap endpoints', () => {
     const res = await request(app)
       .post(`${API_V1}/auth/mobile/register`)
       .send({
-        name: `Mobile User ${stamp}`,
+        firstName: 'Mobile',
+        middleName: `Citizen ${stamp}`,
+        lastName: 'User',
+        suffix: 'III',
         mobileNumber,
         password: 'Password123!',
         ...buildPrivacyNoticeAcceptance(),
@@ -123,11 +164,21 @@ describe('Auth bootstrap endpoints', () => {
     expect(res.body).toHaveProperty('user.role', 'CITIZEN_REPORTER');
     expect(res.body).toHaveProperty('user.mobileNumber', normalizedMobileNumber);
     expect(res.body.user).toHaveProperty('citizenId');
+    expect(res.body.user).toMatchObject({
+      firstName: 'Mobile',
+      middleName: `Citizen ${stamp}`,
+      lastName: 'User',
+      suffix: 'III',
+    });
+    expect(res.body.user).not.toHaveProperty('name');
+    assertNoLegacyNameField(res.body);
 
     const createdUser = await prisma.user.findUnique({
       where: { mobileNumber: normalizedMobileNumber },
       select: {
         email: true,
+        firstName: true,
+        lastName: true,
         mobileNumber: true,
         mobileNumberVerifiedAt: true,
         role: true,
@@ -140,6 +191,10 @@ describe('Auth bootstrap endpoints', () => {
 
     expect(createdUser).not.toBeNull();
     expect(createdUser?.email).toBe(expectedEmail);
+    expect(createdUser).toMatchObject({
+      firstName: 'Mobile',
+      lastName: 'User',
+    });
     expect(createdUser?.role).toBe('CITIZEN_REPORTER');
     expect(createdUser?.mobileNumberVerifiedAt).not.toBeNull();
     expect(createdUser?.passwordHash).not.toBeNull();
@@ -149,7 +204,8 @@ describe('Auth bootstrap endpoints', () => {
     const citizen = await prisma.citizen.findUnique({
       where: { id: createdUser!.citizenId! },
       select: {
-        name: true,
+        firstName: true,
+        lastName: true,
         contactInfo: true,
         preferredChannel: true,
         privacyNoticeAcceptedAt: true,
@@ -158,7 +214,8 @@ describe('Auth bootstrap endpoints', () => {
     });
 
     expect(citizen).toMatchObject({
-      name: `Mobile User ${stamp}`,
+      firstName: 'Mobile',
+      lastName: 'User',
       contactInfo: normalizedMobileNumber,
       preferredChannel: 'mobile',
       privacyNoticeVersion: DEFAULT_PRIVACY_NOTICE_VERSION,
@@ -166,10 +223,30 @@ describe('Auth bootstrap endpoints', () => {
     expect(citizen?.privacyNoticeAcceptedAt).not.toBeNull();
   });
 
+  it('POST /auth/mobile/register should reject legacy name', async () => {
+    const stamp = Date.now();
+    const mobileNumber = buildUniqueMobileNumber(stamp + 7);
+
+    const res = await request(app)
+      .post(`${API_V1}/auth/mobile/register`)
+      .send({
+        name: `Legacy Mobile User ${stamp}`,
+        mobileNumber,
+        password: 'Password123!',
+        ...buildPrivacyNoticeAcceptance(),
+      });
+
+    expect(res.status).toBe(422);
+    expect(res.body).toEqual({
+      message: 'name is not supported; use firstName and lastName',
+    });
+  });
+
   it('POST /auth/mobile/register should return 409 for duplicate mobile number', async () => {
     const mobileNumber = buildUniqueMobileNumber(Date.now() + 1);
     const payload = {
-      name: 'Duplicate Mobile User',
+      firstName: 'Duplicate',
+      lastName: 'Mobile User',
       mobileNumber,
       password: 'Password123!',
       ...buildPrivacyNoticeAcceptance(),
@@ -178,7 +255,7 @@ describe('Auth bootstrap endpoints', () => {
     const first = await request(app).post(`${API_V1}/auth/mobile/register`).send(payload);
     const second = await request(app)
       .post(`${API_V1}/auth/mobile/register`)
-      .send({ ...payload, name: 'Second Attempt' });
+      .send({ ...payload, firstName: 'Second', lastName: 'Attempt' });
 
     expect(first.status).toBe(201);
     expect(second.status).toBe(409);
@@ -192,7 +269,8 @@ describe('Auth bootstrap endpoints', () => {
     await request(app)
       .post(`${API_V1}/auth/mobile/register`)
       .send({
-        name: 'Citizen Mobile Login',
+        firstName: 'Citizen',
+        lastName: 'Mobile Login',
         mobileNumber,
         password: 'Password123!',
         ...buildPrivacyNoticeAcceptance(),

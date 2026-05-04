@@ -58,6 +58,10 @@ export interface CrudControllerHooks {
     body: Record<string, unknown>,
     existing: Record<string, unknown>,
   ) => Promise<CrudHookResult | null>;
+  serializeResponse?: (
+    record: Record<string, unknown>,
+    req: Request,
+  ) => Record<string, unknown>;
 }
 
 export interface ContentTypeConfig {

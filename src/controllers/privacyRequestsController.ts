@@ -79,7 +79,10 @@ const adminRequestSelect = {
     select: {
       id: true,
       email: true,
-      name: true,
+      firstName: true,
+      middleName: true,
+      lastName: true,
+      suffix: true,
       role: true,
     },
   },
@@ -87,7 +90,10 @@ const adminRequestSelect = {
     select: {
       id: true,
       email: true,
-      name: true,
+      firstName: true,
+      middleName: true,
+      lastName: true,
+      suffix: true,
       role: true,
     },
   },

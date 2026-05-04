@@ -58,7 +58,10 @@ export interface AuditLog {
 export interface Citizen {
   id: string;
   archivedAt?: Date | null;
-  name: string;
+  firstName: string;
+  middleName?: string | null;
+  lastName: string;
+  suffix?: string | null;
   contactInfo: string;
   preferredChannel: string;
 }

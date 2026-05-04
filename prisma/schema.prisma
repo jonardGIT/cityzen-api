@@ -9,34 +9,39 @@ datasource db {
 }
 
 model User {
-  id                    String                  @id @default(uuid()) @db.Uuid
-  createdAt             DateTime                @default(now())
-  updatedAt             DateTime                @updatedAt
-  archivedAt            DateTime?
-  name                  String
-  email                 String                  @unique
-  privacyNoticeAcceptedAt DateTime?
-  privacyNoticeVersion  String?
-  mobileNumber          String?                 @unique
-  mobileNumberVerifiedAt DateTime?
-  mobileAuthSubject     String?                 @unique
-  passwordHash          String?
-  supabaseAuthUserId    String?                 @unique @db.Uuid
-  role                  String                  @default("CITIZEN_REPORTER")
-  mfaEnabled            Boolean                 @default(false)
-  mfaSecretEncrypted    String?
-  mfaEnabledAt          DateTime?
-  jurisdictionType      String?
-  jurisdictionId        String?                 @db.Uuid
-  citizenId             String?                 @unique @db.Uuid
-  citizen               Citizen?                @relation(fields: [citizenId], references: [id], onDelete: SetNull)
-  privacyRequests       DataSubjectRequest[]    @relation("DataSubjectRequestRequester")
-  reviewedPrivacyRequests DataSubjectRequest[]  @relation("DataSubjectRequestReviewer")
-  reportedPrivacyIncidents PrivacyIncident[]    @relation("PrivacyIncidentReporter")
-  reviewedPrivacyIncidents PrivacyIncident[]    @relation("PrivacyIncidentReviewer")
-  authSessions          AuthSession[]
-  incidentStatusChanges IncidentStatusHistory[]
-  passwordResetTokens   PasswordResetToken[]
+  id                       String                  @id @default(uuid()) @db.Uuid
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
+  archivedAt               DateTime?
+  /// Deprecated transitional storage for split-name cutover.
+  name                     String?
+  firstName                String?
+  middleName               String?
+  lastName                 String?
+  suffix                   String?
+  email                    String                  @unique
+  privacyNoticeAcceptedAt  DateTime?
+  privacyNoticeVersion     String?
+  mobileNumber             String?                 @unique
+  mobileNumberVerifiedAt   DateTime?
+  mobileAuthSubject        String?                 @unique
+  passwordHash             String?
+  supabaseAuthUserId       String?                 @unique @db.Uuid
+  role                     String                  @default("CITIZEN_REPORTER")
+  mfaEnabled               Boolean                 @default(false)
+  mfaSecretEncrypted       String?
+  mfaEnabledAt             DateTime?
+  jurisdictionType         String?
+  jurisdictionId           String?                 @db.Uuid
+  citizenId                String?                 @unique @db.Uuid
+  citizen                  Citizen?                @relation(fields: [citizenId], references: [id], onDelete: SetNull)
+  privacyRequests          DataSubjectRequest[]    @relation("DataSubjectRequestRequester")
+  reviewedPrivacyRequests  DataSubjectRequest[]    @relation("DataSubjectRequestReviewer")
+  reportedPrivacyIncidents PrivacyIncident[]       @relation("PrivacyIncidentReporter")
+  reviewedPrivacyIncidents PrivacyIncident[]       @relation("PrivacyIncidentReviewer")
+  authSessions             AuthSession[]
+  incidentStatusChanges    IncidentStatusHistory[]
+  passwordResetTokens      PasswordResetToken[]
 
   @@map("users")
 }
@@ -125,20 +130,44 @@ model AuditLog {
 }
 
 model Citizen {
-  id               String            @id @default(uuid()) @db.Uuid
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  archivedAt       DateTime?
-  name             String
-  contactInfo      String
-  preferredChannel String
+  id                      String               @id @default(uuid()) @db.Uuid
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+  archivedAt              DateTime?
+  /// Deprecated transitional storage for split-name cutover.
+  name                    String?
+  firstName               String?
+  middleName              String?
+  lastName                String?
+  suffix                  String?
+  contactInfo             String
+  preferredChannel        String
   privacyNoticeAcceptedAt DateTime?
-  privacyNoticeVersion String?
-  user             User?
-  dataSubjectRequests DataSubjectRequest[]
-  incidents        CitizenIncident[]
+  privacyNoticeVersion    String?
+  user                    User?
+  dataSubjectRequests     DataSubjectRequest[]
+  incidents               CitizenIncident[]
 
   @@map("citizens")
+}
+
+model NameBackfillReview {
+  id                  String    @id @default(uuid()) @db.Uuid
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  entityType          String
+  entityId            String    @db.Uuid
+  legacyName          String
+  suggestedFirstName  String?
+  suggestedMiddleName String?
+  suggestedLastName   String?
+  suggestedSuffix     String?
+  reason              String
+  resolvedAt          DateTime?
+
+  @@unique([entityType, entityId])
+  @@index([resolvedAt])
+  @@map("name_backfill_reviews")
 }
 
 model DataSubjectRequest {
@@ -437,39 +466,39 @@ model Region {
 }
 
 model Province {
-  id         String             @id @default(uuid()) @db.Uuid
-  createdAt  DateTime           @default(now())
-  updatedAt  DateTime           @updatedAt
-  archivedAt DateTime?
-  code       String             @unique
-  name       String
-  regionId   String             @db.Uuid
-  region     Region             @relation(fields: [regionId], references: [id])
-  cities     CityMunicipality[]
-  incidents  CitizenIncident[]
+  id                        String               @id @default(uuid()) @db.Uuid
+  createdAt                 DateTime             @default(now())
+  updatedAt                 DateTime             @updatedAt
+  archivedAt                DateTime?
+  code                      String               @unique
+  name                      String
+  regionId                  String               @db.Uuid
+  region                    Region               @relation(fields: [regionId], references: [id])
+  cities                    CityMunicipality[]
+  incidents                 CitizenIncident[]
   targetIncidentEscalations IncidentEscalation[] @relation("IncidentEscalationTargetProvince")
-  agencies   Agency[]
+  agencies                  Agency[]
 
   @@index([regionId])
   @@map("provinces")
 }
 
 model CityMunicipality {
-  id         String            @id @default(uuid()) @db.Uuid
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
-  archivedAt DateTime?
-  code       String            @unique
-  name       String
-  type       String
-  provinceId String            @db.Uuid
-  province   Province          @relation(fields: [provinceId], references: [id])
-  barangays  Barangay[]
-  incidents  CitizenIncident[]
-  sourceIncidentEscalations IncidentEscalation[] @relation("IncidentEscalationSourceCityMunicipality")
-  requestingMutualAidRequests MutualAidRequest[] @relation("MutualAidRequestRequestingJurisdiction")
-  targetMutualAidRequests MutualAidRequest[] @relation("MutualAidRequestTargetJurisdiction")
-  agencies   Agency[]
+  id                          String               @id @default(uuid()) @db.Uuid
+  createdAt                   DateTime             @default(now())
+  updatedAt                   DateTime             @updatedAt
+  archivedAt                  DateTime?
+  code                        String               @unique
+  name                        String
+  type                        String
+  provinceId                  String               @db.Uuid
+  province                    Province             @relation(fields: [provinceId], references: [id])
+  barangays                   Barangay[]
+  incidents                   CitizenIncident[]
+  sourceIncidentEscalations   IncidentEscalation[] @relation("IncidentEscalationSourceCityMunicipality")
+  requestingMutualAidRequests MutualAidRequest[]   @relation("MutualAidRequestRequestingJurisdiction")
+  targetMutualAidRequests     MutualAidRequest[]   @relation("MutualAidRequestTargetJurisdiction")
+  agencies                    Agency[]
 
   @@index([provinceId])
   @@map("cities_municipalities")
@@ -492,20 +521,20 @@ model Barangay {
 }
 
 model IncidentEscalation {
-  id                     String            @id @default(uuid()) @db.Uuid
-  createdAt              DateTime          @default(now())
-  updatedAt              DateTime          @updatedAt
-  incidentId             String            @db.Uuid
-  sourceCityMunicipalityId String?         @db.Uuid
-  targetProvinceId       String?           @db.Uuid
-  incident               CitizenIncident   @relation(fields: [incidentId], references: [id])
-  sourceCityMunicipality CityMunicipality? @relation("IncidentEscalationSourceCityMunicipality", fields: [sourceCityMunicipalityId], references: [id])
-  targetProvince         Province?         @relation("IncidentEscalationTargetProvince", fields: [targetProvinceId], references: [id])
-  fromLevel              String
-  toLevel                String
-  escalatedById          String            @db.Uuid
-  reason                 String
-  status                 String
+  id                       String            @id @default(uuid()) @db.Uuid
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @updatedAt
+  incidentId               String            @db.Uuid
+  sourceCityMunicipalityId String?           @db.Uuid
+  targetProvinceId         String?           @db.Uuid
+  incident                 CitizenIncident   @relation(fields: [incidentId], references: [id])
+  sourceCityMunicipality   CityMunicipality? @relation("IncidentEscalationSourceCityMunicipality", fields: [sourceCityMunicipalityId], references: [id])
+  targetProvince           Province?         @relation("IncidentEscalationTargetProvince", fields: [targetProvinceId], references: [id])
+  fromLevel                String
+  toLevel                  String
+  escalatedById            String            @db.Uuid
+  reason                   String
+  status                   String
 
   @@index([incidentId])
   @@index([sourceCityMunicipalityId])
@@ -515,16 +544,16 @@ model IncidentEscalation {
 }
 
 model MutualAidRequest {
-  id                       String            @id @default(uuid()) @db.Uuid
-  createdAt                DateTime          @default(now())
-  updatedAt                DateTime          @updatedAt
-  incidentId               String            @db.Uuid
-  incident                 CitizenIncident   @relation(fields: [incidentId], references: [id])
-  requestingJurisdictionId String            @db.Uuid
-  targetJurisdictionId     String            @db.Uuid
-  requestingJurisdiction   CityMunicipality  @relation("MutualAidRequestRequestingJurisdiction", fields: [requestingJurisdictionId], references: [id])
-  targetJurisdiction       CityMunicipality  @relation("MutualAidRequestTargetJurisdiction", fields: [targetJurisdictionId], references: [id])
-  requestedById            String            @db.Uuid
+  id                       String           @id @default(uuid()) @db.Uuid
+  createdAt                DateTime         @default(now())
+  updatedAt                DateTime         @updatedAt
+  incidentId               String           @db.Uuid
+  incident                 CitizenIncident  @relation(fields: [incidentId], references: [id])
+  requestingJurisdictionId String           @db.Uuid
+  targetJurisdictionId     String           @db.Uuid
+  requestingJurisdiction   CityMunicipality @relation("MutualAidRequestRequestingJurisdiction", fields: [requestingJurisdictionId], references: [id])
+  targetJurisdiction       CityMunicipality @relation("MutualAidRequestTargetJurisdiction", fields: [targetJurisdictionId], references: [id])
+  requestedById            String           @db.Uuid
   status                   String
   notes                    String?
 

@@ -22,12 +22,21 @@ import {
   withArchivedRecords,
   withArchiveScope,
 } from '../utils/archive.js';
+import {
+  buildCanonicalNameCreateData,
+  buildCanonicalNameUpdateData,
+  formatCanonicalDisplayName,
+  hasAnyCanonicalNameField,
+} from '../utils/nameFields.js';
 
 const userSelect = {
   id: true,
   createdAt: true,
   updatedAt: true,
-  name: true,
+  firstName: true,
+  middleName: true,
+  lastName: true,
+  suffix: true,
   email: true,
   role: true,
   jurisdictionType: true,
@@ -571,22 +580,23 @@ export async function getUserById(req: Request, res: Response): Promise<void> {
 // Creates a new user account. Requires name, email, and password.
 export async function createUser(req: Request, res: Response): Promise<void> {
   const authUser = getAuthUser(req);
-  const { name, email, password, role, jurisdictionType, jurisdictionId } = req.body as {
-    name?: string;
+  const { email, password, role, jurisdictionType, jurisdictionId } = req.body as {
     email?: string;
     password?: string;
     role?: string;
     jurisdictionType?: string;
     jurisdictionId?: string;
   };
+  const nameData = buildCanonicalNameCreateData(req.body as Record<string, unknown>);
+  const displayName = nameData ? formatCanonicalDisplayName(nameData) : null;
 
   if (!authUser) {
     res.status(401).json({ message: 'Unauthorized: missing authentication context' });
     return;
   }
 
-  if (!name || !email || !password) {
-    res.status(422).json({ message: 'name, email, and password are required' });
+  if (!nameData || !displayName || !email || !password) {
+    res.status(422).json({ message: 'firstName, lastName, email, and password are required' });
     return;
   }
 
@@ -642,7 +652,7 @@ export async function createUser(req: Request, res: Response): Promise<void> {
       const supabaseUser = await registerSupabaseAuthUser({
         email: normalizedEmail,
         password,
-        name,
+        displayName,
         role: normalizedRole,
       });
       supabaseAuthUserId = supabaseUser.id;
@@ -659,7 +669,11 @@ export async function createUser(req: Request, res: Response): Promise<void> {
 
   try {
     const createData: Prisma.UserCreateInput = {
-      name,
+      name: displayName,
+      firstName: nameData.firstName,
+      middleName: nameData.middleName,
+      lastName: nameData.lastName,
+      suffix: nameData.suffix,
       email: normalizedEmail,
       role: normalizedRole,
       jurisdictionType: managedJurisdiction?.jurisdictionType ?? null,
@@ -706,14 +720,16 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
   const authUser = getAuthUser(req);
   const id = getUserId(req, res);
   if (id === null) return;
-  const { name, email, password, role, jurisdictionType, jurisdictionId } = req.body as {
-    name?: string;
+  const { email, password, role, jurisdictionType, jurisdictionId } = req.body as {
     email?: string;
     password?: string;
     role?: string;
     jurisdictionType?: string;
     jurisdictionId?: string;
   };
+  const body = req.body as Record<string, unknown>;
+  const nameData = buildCanonicalNameUpdateData(body);
+  const hasNameFields = hasAnyCanonicalNameField(body);
 
   if (!authUser) {
     res.status(401).json({ message: 'Unauthorized: missing authentication context' });
@@ -799,8 +815,33 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
   const data: Prisma.UserUpdateInput = {};
   const normalizedEmail = email !== undefined ? normalizeEmail(email) : undefined;
 
-  if (name !== undefined) {
-    data.name = name;
+  if (hasNameFields) {
+    const nextNameState = {
+      firstName: nameData.firstName ?? existingUser.firstName,
+      middleName: nameData.middleName ?? existingUser.middleName,
+      lastName: nameData.lastName ?? existingUser.lastName,
+      suffix: nameData.suffix ?? existingUser.suffix,
+    };
+    const displayName = formatCanonicalDisplayName(nextNameState);
+
+    if (!displayName) {
+      res.status(422).json({ message: 'firstName and lastName are required for canonical name updates' });
+      return;
+    }
+
+    data.name = displayName;
+    if (Object.prototype.hasOwnProperty.call(nameData, 'firstName')) {
+      data.firstName = nameData.firstName;
+    }
+    if (Object.prototype.hasOwnProperty.call(nameData, 'middleName')) {
+      data.middleName = nameData.middleName;
+    }
+    if (Object.prototype.hasOwnProperty.call(nameData, 'lastName')) {
+      data.lastName = nameData.lastName;
+    }
+    if (Object.prototype.hasOwnProperty.call(nameData, 'suffix')) {
+      data.suffix = nameData.suffix;
+    }
   }
 
   if (normalizedEmail !== undefined) {
@@ -822,7 +863,7 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
         await updateSupabaseAuthUser(existingUser.supabaseAuthUserId, {
           email: normalizedEmail,
           password,
-          name,
+          displayName: hasNameFields ? (data.name as string) : undefined,
           role: normalizedRole ?? undefined,
         });
       } catch (error) {

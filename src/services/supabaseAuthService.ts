@@ -315,18 +315,23 @@ export function isSupabaseTotpEnabled(): boolean {
 export async function registerSupabaseAuthUser(input: {
   email: string;
   password: string;
-  name: string;
+  displayName?: string;
   role: string;
 }): Promise<{ id: string; email: string }> {
   const client = getAdminClient();
+  const userMetadata: Record<string, string> = {
+    role: input.role,
+  };
+
+  if (input.displayName) {
+    userMetadata.name = input.displayName;
+  }
+
   const { data, error } = await client.auth.admin.createUser({
     email: input.email,
     password: input.password,
     email_confirm: shouldAutoConfirmEmail(),
-    user_metadata: {
-      name: input.name,
-      role: input.role,
-    },
+    user_metadata: userMetadata,
   });
 
   if (error) {
@@ -603,15 +608,15 @@ export async function updateSupabaseAuthUser(
   input: {
     email?: string;
     password?: string;
-    name?: string;
+    displayName?: string;
     role?: string;
   },
 ): Promise<void> {
   const client = getAdminClient();
   const userMetadata: Record<string, string> = {};
 
-  if (input.name !== undefined) {
-    userMetadata.name = input.name;
+  if (input.displayName !== undefined) {
+    userMetadata.name = input.displayName;
   }
 
   if (input.role !== undefined) {

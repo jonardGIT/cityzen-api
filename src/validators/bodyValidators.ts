@@ -8,6 +8,10 @@ import {
   PRIVACY_INCIDENT_SEVERITIES,
   PRIVACY_INCIDENT_STATUSES,
 } from '../utils/privacyIncidents.js';
+import {
+  buildCanonicalNameCreateValidators,
+  buildCanonicalNameUpdateValidators,
+} from './nameFields.js';
 
 export const POSTGRES_UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -190,11 +194,12 @@ const updateIncidentLocationFieldsValidator = [
 
 export const linkMyCitizenProfileValidator = [
   body().custom((value) => {
-    const hasUpdatableField = ['name', 'preferredChannel'].some(
-      (field) => value?.[field] !== undefined,
-    );
+    const hasUpdatableField = ['firstName', 'middleName', 'lastName', 'suffix', 'preferredChannel']
+      .some((field) => value?.[field] !== undefined);
     if (!hasUpdatableField) {
-      throw new Error('at least one of name or preferredChannel is required');
+      throw new Error(
+        'at least one of firstName, middleName, lastName, suffix, or preferredChannel is required',
+      );
     }
     return true;
   }),
@@ -202,12 +207,7 @@ export const linkMyCitizenProfileValidator = [
     .not()
     .exists()
     .withMessage('contactInfo is managed from authenticated account email'),
-  body('name')
-    .optional()
-    .isString()
-    .trim()
-    .notEmpty()
-    .withMessage('name must be a non-empty string'),
+  ...buildCanonicalNameUpdateValidators(),
   body('preferredChannel')
     .optional()
     .isString()
@@ -874,7 +874,7 @@ export const updateAssignmentValidator = [
 
 // Duplicate removed. Only one export for updateIncidentValidator should exist.
 export const createUserValidator = [
-  body('name').isString().trim().notEmpty().withMessage('name is required'),
+  ...buildCanonicalNameCreateValidators(),
   body('email').isEmail().withMessage('email must be a valid email address'),
   body('password')
     .isString()
@@ -921,7 +921,10 @@ export const createUserValidator = [
 export const updateUserValidator = [
   body().custom((value) => {
     const hasUpdatableField = [
-      'name',
+      'firstName',
+      'middleName',
+      'lastName',
+      'suffix',
       'email',
       'password',
       'role',
@@ -930,17 +933,12 @@ export const updateUserValidator = [
     ].some((field) => value?.[field] !== undefined);
     if (!hasUpdatableField) {
       throw new Error(
-        'at least one of name, email, password, role, jurisdictionType, or jurisdictionId is required',
+        'at least one of firstName, middleName, lastName, suffix, email, password, role, jurisdictionType, or jurisdictionId is required',
       );
     }
     return true;
   }),
-  body('name')
-    .optional()
-    .isString()
-    .trim()
-    .notEmpty()
-    .withMessage('name must be a non-empty string'),
+  ...buildCanonicalNameUpdateValidators(),
   body('email').optional().isEmail().withMessage('email must be a valid email address'),
   body('password')
     .optional()

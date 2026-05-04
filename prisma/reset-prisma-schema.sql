@@ -27,6 +27,7 @@ DROP TABLE IF EXISTS severities CASCADE;
 DROP TABLE IF EXISTS password_reset_tokens CASCADE;
 DROP TABLE IF EXISTS data_subject_requests CASCADE;
 DROP TABLE IF EXISTS privacy_incidents CASCADE;
+DROP TABLE IF EXISTS name_backfill_reviews CASCADE;
 DROP TABLE IF EXISTS auth_sessions CASCADE;
 DROP TABLE IF EXISTS rate_limit_buckets CASCADE;
 DROP TABLE IF EXISTS audit_logs CASCADE;
@@ -40,7 +41,11 @@ CREATE TABLE users (
   "createdAt" timestamptz NOT NULL DEFAULT NOW(),
   "updatedAt" timestamptz NOT NULL DEFAULT NOW(),
   "archivedAt" timestamptz,
-  name text NOT NULL,
+  name text,
+  "firstName" text,
+  "middleName" text,
+  "lastName" text,
+  suffix text,
   email text NOT NULL UNIQUE,
   "privacyNoticeAcceptedAt" timestamptz,
   "privacyNoticeVersion" text,
@@ -115,11 +120,34 @@ CREATE TABLE citizens (
   "createdAt" timestamptz NOT NULL DEFAULT NOW(),
   "updatedAt" timestamptz NOT NULL DEFAULT NOW(),
   "archivedAt" timestamptz,
-  name text NOT NULL,
+  name text,
+  "firstName" text,
+  "middleName" text,
+  "lastName" text,
+  suffix text,
   "contactInfo" text NOT NULL,
   "preferredChannel" text NOT NULL,
   "privacyNoticeAcceptedAt" timestamptz,
   "privacyNoticeVersion" text
+);
+
+CREATE TABLE name_backfill_reviews (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  "createdAt" timestamptz NOT NULL DEFAULT NOW(),
+  "updatedAt" timestamptz NOT NULL DEFAULT NOW(),
+  "entityType" text NOT NULL,
+  "entityId" uuid NOT NULL,
+  "legacyName" text NOT NULL,
+  "suggestedFirstName" text,
+  "suggestedMiddleName" text,
+  "suggestedLastName" text,
+  "suggestedSuffix" text,
+  reason text NOT NULL,
+  "resolvedAt" timestamptz,
+  CONSTRAINT name_backfill_reviews_entity_type_check CHECK (
+    "entityType" IN ('user', 'citizen')
+  ),
+  CONSTRAINT name_backfill_reviews_entity_unique UNIQUE ("entityType", "entityId")
 );
 
 CREATE TABLE data_subject_requests (
@@ -503,6 +531,7 @@ CREATE INDEX users_archived_at_idx ON users ("archivedAt");
 CREATE INDEX users_mobile_number_idx ON users ("mobileNumber");
 CREATE INDEX users_mobile_auth_subject_idx ON users ("mobileAuthSubject");
 CREATE INDEX citizens_archived_at_idx ON citizens ("archivedAt");
+CREATE INDEX name_backfill_reviews_resolved_at_idx ON name_backfill_reviews ("resolvedAt");
 CREATE INDEX mobile_app_content_archived_at_idx ON mobile_app_content ("archivedAt");
 CREATE INDEX agencies_archived_at_idx ON agencies ("archivedAt");
 CREATE INDEX responders_archived_at_idx ON responders ("archivedAt");
@@ -547,6 +576,11 @@ EXECUTE FUNCTION set_updated_at();
 
 CREATE TRIGGER set_citizens_updated_at
 BEFORE UPDATE ON citizens
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER set_name_backfill_reviews_updated_at
+BEFORE UPDATE ON name_backfill_reviews
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 

@@ -173,6 +173,18 @@ export function createCrudController(config: ContentTypeConfig): CrudHandlers {
   const model = getModel(config.modelName);
   const defaultInclude = config.include ? { include: config.include } : {};
 
+  function serializeRecord(req: Request, record: Record<string, unknown>): Record<string, unknown> {
+    if (!config.hooks?.serializeResponse) {
+      return record;
+    }
+
+    return config.hooks.serializeResponse(record, req);
+  }
+
+  function serializeRecords(req: Request, records: Record<string, unknown>[]): Record<string, unknown>[] {
+    return records.map((record) => serializeRecord(req, record));
+  }
+
   function resolveInclude(req: Request, res: Response): { include?: PrismaInclude } | null {
     const param = req.query.include;
 
@@ -233,7 +245,7 @@ export function createCrudController(config: ContentTypeConfig): CrudHandlers {
         }),
         model.count({ where: scopedWhere }),
       ]);
-      res.json(buildPaginatedResponse(records, total, pagination));
+      res.json(buildPaginatedResponse(serializeRecords(req, records), total, pagination));
       return;
     }
 
@@ -242,7 +254,7 @@ export function createCrudController(config: ContentTypeConfig): CrudHandlers {
       where: scopedWhere,
       orderBy: listQuery.orderBy,
     });
-    res.json(records);
+    res.json(serializeRecords(req, records));
   }
 
   async function getById(req: Request, res: Response): Promise<void> {
@@ -267,7 +279,7 @@ export function createCrudController(config: ContentTypeConfig): CrudHandlers {
       return;
     }
 
-    res.json(record);
+    res.json(serializeRecord(req, record as Record<string, unknown>));
   }
 
   async function create(req: Request, res: Response): Promise<void> {
@@ -318,7 +330,7 @@ export function createCrudController(config: ContentTypeConfig): CrudHandlers {
       data,
       ...defaultInclude,
     });
-    res.status(201).json(record);
+    res.status(201).json(serializeRecord(req, record as Record<string, unknown>));
   }
 
   async function update(req: Request, res: Response): Promise<void> {
@@ -370,7 +382,7 @@ export function createCrudController(config: ContentTypeConfig): CrudHandlers {
       data,
       ...defaultInclude,
     });
-    res.json(record);
+    res.json(serializeRecord(req, record as Record<string, unknown>));
   }
 
   async function remove(req: Request, res: Response): Promise<void> {
@@ -453,7 +465,7 @@ export function createCrudController(config: ContentTypeConfig): CrudHandlers {
       data: { archivedAt: null },
       ...defaultInclude,
     });
-    res.json(record);
+    res.json(serializeRecord(req, record as Record<string, unknown>));
   }
 
   return { getAll, getById, create, update, remove, restore };

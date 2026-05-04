@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
+import { body } from 'express-validator';
 import prisma from '../lib/prisma.js';
 import { createCrudController } from '../engine/crudControllerFactory.js';
-import { createBodyValidators } from '../engine/validatorFactory.js';
 import { citizensListQueryConfig } from '../utils/listQueryConfig.js';
 import type { ContentTypeConfig } from '../engine/types.js';
 import type { Citizen } from '../types/models.js';
@@ -18,13 +18,31 @@ import {
   PrivacyNoticeAcceptanceError,
   resolvePrivacyNoticeAcceptance,
 } from '../utils/privacyNotice.js';
+import {
+  buildCanonicalNameCreateData,
+  buildCanonicalNameUpdateData,
+  formatCanonicalDisplayName,
+  hasAnyCanonicalNameField,
+} from '../utils/nameFields.js';
+import {
+  buildCanonicalNameCreateValidators,
+  buildCanonicalNameUpdateValidators,
+} from '../validators/nameFields.js';
+
+function serializeCitizenRecord(record: Record<string, unknown>): Record<string, unknown> {
+  const { name: _name, ...rest } = record;
+  return rest;
+}
 
 const config: ContentTypeConfig = {
   modelName: 'citizen',
   displayName: 'Citizen',
   listQueryConfig: citizensListQueryConfig,
   fields: [
-    { name: 'name', requiredOnCreate: true },
+    { name: 'firstName' },
+    { name: 'middleName' },
+    { name: 'lastName' },
+    { name: 'suffix' },
     { name: 'contactInfo', requiredOnCreate: true },
     { name: 'preferredChannel', requiredOnCreate: true },
   ],
@@ -46,10 +64,113 @@ const config: ContentTypeConfig = {
       message: 'Conflict: citizen still has active incidents',
     },
   ],
+  hooks: {
+    async beforeCreate(_req, res, body) {
+      const nameData = buildCanonicalNameCreateData(body);
+      const displayName = nameData ? formatCanonicalDisplayName(nameData) : null;
+
+      if (!nameData || !displayName) {
+        res.status(422).json({ message: 'firstName and lastName are required' });
+        return null;
+      }
+
+      return {
+        data: {
+          ...nameData,
+          name: displayName,
+        },
+      };
+    },
+    async beforeUpdate(_req, res, body, existing) {
+      const nameData = buildCanonicalNameUpdateData(body);
+
+      if (!hasAnyCanonicalNameField(body)) {
+        return { data: nameData };
+      }
+
+      const nextNameState = {
+        firstName: nameData.firstName ?? (existing.firstName as string | null | undefined),
+        middleName: nameData.middleName ?? (existing.middleName as string | null | undefined),
+        lastName: nameData.lastName ?? (existing.lastName as string | null | undefined),
+        suffix: nameData.suffix ?? (existing.suffix as string | null | undefined),
+      };
+      const displayName = formatCanonicalDisplayName(nextNameState);
+
+      if (!displayName) {
+        res.status(422).json({ message: 'firstName and lastName are required for canonical name updates' });
+        return null;
+      }
+
+      return {
+        data: {
+          ...nameData,
+          name: displayName,
+        },
+      };
+    },
+    serializeResponse(record) {
+      return serializeCitizenRecord(record);
+    },
+  },
 };
 
 const handlers = createCrudController(config);
-export const validators = createBodyValidators(config.fields);
+export const validators = {
+  create: [
+    ...buildCanonicalNameCreateValidators(),
+    body('contactInfo')
+      .isString()
+      .trim()
+      .notEmpty()
+      .withMessage('contactInfo is required')
+      .custom((value) => !value.includes('\0'))
+      .withMessage('contactInfo must not contain null bytes'),
+    body('preferredChannel')
+      .isString()
+      .trim()
+      .notEmpty()
+      .withMessage('preferredChannel is required')
+      .custom((value) => !value.includes('\0'))
+      .withMessage('preferredChannel must not contain null bytes'),
+  ],
+  update: [
+    body().custom((value) => {
+      const hasUpdatableField = [
+        'firstName',
+        'middleName',
+        'lastName',
+        'suffix',
+        'contactInfo',
+        'preferredChannel',
+      ].some((field) => value?.[field] !== undefined);
+
+      if (!hasUpdatableField) {
+        throw new Error(
+          'at least one of firstName, middleName, lastName, suffix, contactInfo, or preferredChannel is required',
+        );
+      }
+
+      return true;
+    }),
+    ...buildCanonicalNameUpdateValidators(),
+    body('contactInfo')
+      .optional()
+      .isString()
+      .trim()
+      .notEmpty()
+      .withMessage('contactInfo must be a non-empty string')
+      .custom((value) => typeof value !== 'string' || !value.includes('\0'))
+      .withMessage('contactInfo must not contain null bytes'),
+    body('preferredChannel')
+      .optional()
+      .isString()
+      .trim()
+      .notEmpty()
+      .withMessage('preferredChannel must be a non-empty string')
+      .custom((value) => typeof value !== 'string' || !value.includes('\0'))
+      .withMessage('preferredChannel must not contain null bytes'),
+  ],
+};
 
 export const getCitizens = handlers.getAll;
 export const getCitizenById = handlers.getById;
@@ -99,7 +220,7 @@ export async function getMyCitizenProfile(req: Request, res: Response): Promise<
     return;
   }
 
-  res.json(citizen);
+  res.json(serializeCitizenRecord(citizen as Record<string, unknown>));
 }
 
 export async function linkMyCitizenProfile(req: Request, res: Response): Promise<void> {
@@ -109,9 +230,17 @@ export async function linkMyCitizenProfile(req: Request, res: Response): Promise
     return;
   }
 
-  const { name, preferredChannel } = req.body as Partial<Citizen>;
-  if (!name && !preferredChannel) {
-    res.status(422).json({ message: 'at least one of name or preferredChannel is required' });
+  const body = req.body as Record<string, unknown>;
+  const { preferredChannel } = body as Partial<Citizen>;
+  const nameData = buildCanonicalNameUpdateData(body);
+
+  if (!hasAnyCanonicalNameField(body) && !preferredChannel) {
+    res
+      .status(422)
+      .json({
+        message:
+          'at least one of firstName, middleName, lastName, suffix, or preferredChannel is required',
+      });
     return;
   }
 
@@ -138,10 +267,13 @@ export async function linkMyCitizenProfile(req: Request, res: Response): Promise
   const existingCitizenId = resolution.status === 'linked' ? resolution.citizenId : null;
 
   if (!existingCitizenId) {
-    if (!name || !preferredChannel) {
+    const createNameData = buildCanonicalNameCreateData(body);
+    const displayName = createNameData ? formatCanonicalDisplayName(createNameData) : null;
+
+    if (!createNameData || !displayName || !preferredChannel) {
       res.status(422).json({
         message:
-          'name and preferredChannel are required when creating a new linked citizen profile',
+          'firstName, lastName, and preferredChannel are required when creating a new linked citizen profile',
       });
       return;
     }
@@ -190,7 +322,11 @@ export async function linkMyCitizenProfile(req: Request, res: Response): Promise
 
       const createdCitizen = await transaction.citizen.create({
         data: {
-          name,
+          name: displayName,
+          firstName: createNameData.firstName,
+          middleName: createNameData.middleName,
+          lastName: createNameData.lastName,
+          suffix: createNameData.suffix,
           preferredChannel,
           contactInfo: authUser.email,
           privacyNoticeAcceptedAt: privacyNoticeAcceptance?.acceptedAt ?? null,
@@ -203,17 +339,42 @@ export async function linkMyCitizenProfile(req: Request, res: Response): Promise
       return createdCitizen;
     });
 
-    res.status(201).json(citizen);
+    res.status(201).json(serializeCitizenRecord(citizen as Record<string, unknown>));
+    return;
+  }
+
+  const existingCitizen = await prisma.citizen.findFirst({
+    where: withActiveRecords({ id: existingCitizenId }),
+  });
+
+  if (!existingCitizen) {
+    res.status(404).json({ message: 'Citizen profile not found for authenticated user' });
+    return;
+  }
+
+  const hasCanonicalNameFields = hasAnyCanonicalNameField(body);
+  const displayName = hasCanonicalNameFields
+    ? formatCanonicalDisplayName({
+        firstName: nameData.firstName ?? existingCitizen.firstName,
+        middleName: nameData.middleName ?? existingCitizen.middleName,
+        lastName: nameData.lastName ?? existingCitizen.lastName,
+        suffix: nameData.suffix ?? existingCitizen.suffix,
+      })
+    : null;
+
+  if (hasCanonicalNameFields && !displayName) {
+    res.status(422).json({ message: 'firstName and lastName are required for canonical name updates' });
     return;
   }
 
   const citizen = await prisma.citizen.update({
     where: { id: existingCitizenId },
     data: {
-      name,
+      ...nameData,
+      ...(displayName ? { name: displayName } : {}),
       preferredChannel,
     },
   });
 
-  res.json(citizen);
+  res.json(serializeCitizenRecord(citizen as Record<string, unknown>));
 }

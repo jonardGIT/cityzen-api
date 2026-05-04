@@ -10,6 +10,10 @@ const USERS = `${API_V1}/users`;
 const ADMIN_MFA_COMPLIANCE = `${API_V1}/admin/users/mfa-compliance`;
 const archiveEnabled = isArchiveEnabled();
 
+function assertNoLegacyNameField(body: unknown) {
+  expect(JSON.stringify(body)).not.toContain('"name"');
+}
+
 let adminToken = '';
 let citizenReporterToken = '';
 let cityAdminToken = '';
@@ -377,6 +381,59 @@ describe(`GET ${CAPABILITIES}`, () => {
 });
 
 describe(`POST ${USERS}`, () => {
+  it('should create a user with canonical name fields only', async () => {
+    const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+    const email = `split.name.user.${unique}@xypes.local`;
+
+    const res = await request(app)
+      .post(USERS)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        firstName: 'Mira',
+        middleName: `Dela ${unique}`,
+        lastName: `Santos ${unique}`,
+        suffix: 'Sr.',
+        email,
+        password: 'Password123!',
+        role: 'CITIZEN_REPORTER',
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({
+      firstName: 'Mira',
+      middleName: `Dela ${unique}`,
+      lastName: `Santos ${unique}`,
+      suffix: 'Sr.',
+      email,
+      role: 'CITIZEN_REPORTER',
+    });
+    expect(res.body).not.toHaveProperty('name');
+    assertNoLegacyNameField(res.body);
+  });
+
+  it('should reject legacy name on create', async () => {
+    const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+
+    const res = await request(app)
+      .post(USERS)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: `Legacy Create ${unique}`,
+        email: `invalid.split.user.${unique}@xypes.local`,
+        password: 'Password123!',
+        role: 'CITIZEN_REPORTER',
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          message: 'name is not supported; use firstName and lastName',
+        }),
+      ]),
+    );
+  });
+
   it('should reject municipality jurisdiction input for NATIONAL_ADMIN user creation', async () => {
     const { city } = await ensureRoxasMunicipalityScope();
     const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
@@ -591,6 +648,69 @@ describe(`POST ${USERS}`, () => {
 });
 
 describe(`PATCH ${USERS}/:id`, () => {
+  it('should update a user with canonical name fields only', async () => {
+    const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+    const createdUser = await prisma.user.create({
+      data: {
+        name: `Legacy User ${unique}`,
+        firstName: 'Legacy',
+        lastName: `User ${unique}`,
+        email: `legacy.split.update.${unique}@xypes.local`,
+        passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+        role: 'CITIZEN_REPORTER',
+      },
+    });
+
+    const res = await request(app)
+      .patch(`${USERS}/${createdUser.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        firstName: 'Updated',
+        middleName: `Middle ${unique}`,
+        lastName: `Citizen ${unique}`,
+        suffix: 'IV',
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      id: createdUser.id,
+      firstName: 'Updated',
+      middleName: `Middle ${unique}`,
+      lastName: `Citizen ${unique}`,
+      suffix: 'IV',
+    });
+    expect(res.body).not.toHaveProperty('name');
+    assertNoLegacyNameField(res.body);
+  });
+
+  it('should reject legacy name on update', async () => {
+    const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+    const createdUser = await prisma.user.create({
+      data: {
+        name: `Needs Split Validation ${unique}`,
+        firstName: 'Needs',
+        lastName: `Validation ${unique}`,
+        email: `needs.split.validation.${unique}@xypes.local`,
+        passwordHash: '$2b$10$KhfHQsXw9ehRSmQbqqh0ve3K2yR0F0KJy0Tp8FVXiLU3swp3gzmWK',
+        role: 'CITIZEN_REPORTER',
+      },
+    });
+
+    const res = await request(app)
+      .patch(`${USERS}/${createdUser.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'Legacy Update Attempt' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          message: 'name is not supported; use firstName and lastName',
+        }),
+      ]),
+    );
+  });
+
   it('should allow REGIONAL_DIRECTOR to retarget in-region users and reject out-of-region retargeting', async () => {
     const { region, city: roxasCity } = await ensureRoxasMunicipalityScope();
     const { city: tuguegaraoCity } = await ensureOutsideProvinceMunicipalityScope();

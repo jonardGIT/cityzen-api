@@ -388,7 +388,7 @@ const mobileCitizenSurface: MobileCitizenSurfaceContract = {
       registerPath: '/auth/register',
       loginPath: '/auth/login',
       notes:
-        'Email-based register and login remain canonical for dashboard clients and remain accessible to mobile clients for compatibility. New mobile clients should prefer /auth/mobile/register and /auth/mobile/login (phone + name) so that a citizen profile is auto-linked.',
+        'Email-based register and login remain canonical for dashboard clients and remain accessible to mobile clients for compatibility. New mobile clients should prefer /auth/mobile/register and /auth/mobile/login with canonical split-name fields (firstName + lastName, optional middleName and suffix) so that a citizen profile is auto-linked.',
     },
   },
 };

@@ -54,6 +54,14 @@ function assertNoSensitiveData(body: unknown, context: string): void {
   }
 }
 
+function assertNoLegacyNameField(body: unknown, context: string): void {
+  const json = JSON.stringify(body);
+
+  if (json.includes('"name"')) {
+    fail(`${context}: response should not expose legacy name`);
+  }
+}
+
 // ─── User Endpoints ──────────────────────────────────────────────────────────
 
 describe('Data Leak — User endpoints', () => {
@@ -86,7 +94,8 @@ describe('Data Leak — User endpoints', () => {
       .post(`${API_V1}/users`)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
-        name: `Leak Test ${stamp}`,
+        firstName: 'Leak',
+        lastName: `Test ${stamp}`,
         email: `leak.${stamp}@test.local`,
         password: 'Password123!',
         role: 'CITIZEN_REPORTER',
@@ -94,6 +103,7 @@ describe('Data Leak — User endpoints', () => {
 
     if (res.status === 201) {
       assertNoSensitiveData(res.body, 'POST /users');
+      assertNoLegacyNameField(res.body, 'POST /users');
     }
   });
 
@@ -123,12 +133,14 @@ describe('Data Leak — Auth endpoints', () => {
     const res = await request(app)
       .post(`${API_V1}/auth/register`)
       .send({
-        name: `Leak Reg ${stamp}`,
+        firstName: 'Leak',
+        lastName: `Reg ${stamp}`,
         email: `leakreg.${stamp}@test.local`,
         password: 'Password123!',
       });
 
     assertNoSensitiveData(res.body, 'POST /auth/register');
+    assertNoLegacyNameField(res.body, 'POST /auth/register');
   });
 
   it('GET /auth/me does not expose sensitive fields', async () => {

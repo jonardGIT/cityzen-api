@@ -67,6 +67,44 @@ describe(`GET ${BASE}/:id`, () => {
 });
 
 describe(`POST ${BASE}`, () => {
+  it('should create a citizen with firstName and lastName while preserving name compatibility', async () => {
+    const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+
+    const res = await request(app).post(BASE).set('Authorization', `Bearer ${adminToken}`).send({
+      firstName: 'Grace',
+      lastName: `Dela Rosa ${unique}`,
+      contactInfo: `split-citizen-${unique}@example.com`,
+      preferredChannel: 'Email',
+    });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({
+      name: `Grace Dela Rosa ${unique}`,
+      firstName: 'Grace',
+      lastName: `Dela Rosa ${unique}`,
+    });
+  });
+
+  it('should map split-name validation errors to the missing field on create', async () => {
+    const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+
+    const res = await request(app).post(BASE).set('Authorization', `Bearer ${adminToken}`).send({
+      firstName: 'OnlyFirst',
+      contactInfo: `invalid-citizen-${unique}@example.com`,
+      preferredChannel: 'Email',
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          field: 'lastName',
+          message: 'lastName is required when firstName is provided',
+        }),
+      ]),
+    );
+  });
+
   it('should create a citizen and return 201', async () => {
     const res = await request(app).post(BASE).set('Authorization', `Bearer ${adminToken}`).send({
       name: 'Test User',
@@ -153,6 +191,59 @@ describe(`PATCH ${BASE}/:id`, () => {
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('id', testId);
     expect(res.body).toHaveProperty('name', 'Updated Citizen');
+  });
+
+  it('should update a citizen with firstName and lastName while keeping derived name in sync', async () => {
+    const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+    const createdCitizen = await prisma.citizen.create({
+      data: {
+        name: `Legacy Citizen ${unique}`,
+        contactInfo: `legacy-citizen-${unique}@example.com`,
+        preferredChannel: 'Email',
+      },
+    });
+
+    const res = await request(app)
+      .patch(`${BASE}/${createdCitizen.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        firstName: 'Updated',
+        lastName: `Citizen ${unique}`,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      id: createdCitizen.id,
+      name: `Updated Citizen ${unique}`,
+      firstName: 'Updated',
+      lastName: `Citizen ${unique}`,
+    });
+  });
+
+  it('should map split-name validation errors to the missing field on update', async () => {
+    const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+    const createdCitizen = await prisma.citizen.create({
+      data: {
+        name: `Needs Citizen Validation ${unique}`,
+        contactInfo: `needs-citizen-validation-${unique}@example.com`,
+        preferredChannel: 'Email',
+      },
+    });
+
+    const res = await request(app)
+      .patch(`${BASE}/${createdCitizen.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ lastName: 'OnlyLast' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          field: 'firstName',
+          message: 'firstName is required when lastName is provided',
+        }),
+      ]),
+    );
   });
 
   it('should return 404 for non-existent id', async () => {

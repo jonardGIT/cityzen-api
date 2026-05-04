@@ -54,6 +54,10 @@ import {
   PrivacyNoticeAcceptanceError,
   resolvePrivacyNoticeAcceptance,
 } from '../utils/privacyNotice.js';
+import {
+  buildCanonicalNameCreateData,
+  formatCanonicalDisplayName,
+} from '../utils/nameFields.js';
 
 const MOBILE_AUTH_ROLE_ONLY_MESSAGE = 'Mobile auth is only available for citizen accounts';
 const MOBILE_AUTH_PROVIDER_BOUNDARY_MESSAGE =
@@ -121,7 +125,10 @@ function getAuthUserSelect() {
     id: true,
     createdAt: true,
     updatedAt: true,
-    name: true,
+    firstName: true,
+    middleName: true,
+    lastName: true,
+    suffix: true,
     email: true,
     mobileNumber: true,
     mobileNumberVerifiedAt: true,
@@ -136,7 +143,10 @@ function buildAuthUserPayload(user: {
   id: string;
   createdAt: Date;
   updatedAt: Date;
-  name: string;
+  firstName: string | null;
+  middleName: string | null;
+  lastName: string | null;
+  suffix: string | null;
   email: string;
   mobileNumber: string | null;
   mobileNumberVerifiedAt: Date | null;
@@ -149,7 +159,10 @@ function buildAuthUserPayload(user: {
     id: user.id,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
-    name: user.name,
+    firstName: user.firstName,
+    middleName: user.middleName,
+    lastName: user.lastName,
+    suffix: user.suffix,
     email: user.email,
     mobileNumber: user.mobileNumber,
     mobileNumberVerifiedAt: user.mobileNumberVerifiedAt,
@@ -389,21 +402,26 @@ function handlePasswordResetRuntimeError(res: Response, error: unknown): boolean
 // Registers a new user (public endpoint for self-registration).
 export async function register(req: Request, res: Response): Promise<void> {
   const requestBody = getRequestBodyObject(req);
-  const { name, email, password } = requestBody as {
-    name?: unknown;
+  const { email, password } = requestBody as {
     email?: unknown;
     password?: unknown;
   };
+  const nameData = buildCanonicalNameCreateData(requestBody);
+  const displayName = nameData ? formatCanonicalDisplayName(nameData) : null;
+
+  if (Object.prototype.hasOwnProperty.call(requestBody, 'name')) {
+    res.status(422).json({ message: 'name is not supported; use firstName and lastName' });
+    return;
+  }
 
   if (
-    typeof name !== 'string' ||
     typeof email !== 'string' ||
     typeof password !== 'string' ||
-    !name ||
+    !displayName ||
     !email ||
     !password
   ) {
-    res.status(422).json({ message: 'name, email, and password are required' });
+    res.status(422).json({ message: 'firstName, lastName, email, and password are required' });
     return;
   }
 
@@ -444,7 +462,7 @@ export async function register(req: Request, res: Response): Promise<void> {
       const supabaseUser = await registerSupabaseAuthUser({
         email: normalizedEmail,
         password,
-        name,
+        displayName,
         role: 'CITIZEN_REPORTER',
       });
       supabaseAuthUserId = supabaseUser.id;
@@ -462,7 +480,11 @@ export async function register(req: Request, res: Response): Promise<void> {
   try {
     const user = await prisma.user.create({
       data: {
-        name,
+        name: displayName,
+        firstName: nameData.firstName,
+        middleName: nameData.middleName,
+        lastName: nameData.lastName,
+        suffix: nameData.suffix,
         email: normalizedEmail,
         passwordHash,
         supabaseAuthUserId,
@@ -482,14 +504,14 @@ export async function register(req: Request, res: Response): Promise<void> {
           password,
         });
 
-        res.status(201).json(buildSupabaseJwtResponse(supabaseSession, user));
+        res.status(201).json(buildSupabaseJwtResponse(supabaseSession, buildAuthUserPayload(user)));
         return;
       } catch (error) {
         if (error instanceof SupabaseAuthServiceError && error.code === 'EMAIL_NOT_CONFIRMED') {
           res.status(201).json({
             message: 'Registration succeeded. Confirm your email before signing in.',
             emailConfirmationRequired: true,
-            user,
+            user: buildAuthUserPayload(user),
           });
           return;
         }
@@ -527,12 +549,18 @@ export async function register(req: Request, res: Response): Promise<void> {
 
 export async function registerMobileCitizen(req: Request, res: Response): Promise<void> {
   const requestBody = getRequestBodyObject(req);
-  const { name, mobileNumber, password, preferredChannel } = requestBody as {
-    name?: unknown;
+  const { mobileNumber, password, preferredChannel } = requestBody as {
     mobileNumber?: unknown;
     password?: unknown;
     preferredChannel?: unknown;
   };
+  const nameData = buildCanonicalNameCreateData(requestBody);
+  const displayName = nameData ? formatCanonicalDisplayName(nameData) : null;
+
+  if (Object.prototype.hasOwnProperty.call(requestBody, 'name')) {
+    res.status(422).json({ message: 'name is not supported; use firstName and lastName' });
+    return;
+  }
 
   if (isMobileAuthProviderBoundaryViolated()) {
     res.status(501).json({ message: MOBILE_AUTH_PROVIDER_BOUNDARY_MESSAGE });
@@ -540,15 +568,14 @@ export async function registerMobileCitizen(req: Request, res: Response): Promis
   }
 
   if (
-    typeof name !== 'string' ||
     typeof mobileNumber !== 'string' ||
     typeof password !== 'string' ||
     (preferredChannel !== undefined && typeof preferredChannel !== 'string') ||
-    !name.trim() ||
+    !displayName ||
     !mobileNumber.trim() ||
     !password
   ) {
-    res.status(422).json({ message: 'name, mobileNumber, and password are required' });
+    res.status(422).json({ message: 'firstName, lastName, mobileNumber, and password are required' });
     return;
   }
 
@@ -602,7 +629,11 @@ export async function registerMobileCitizen(req: Request, res: Response): Promis
     const user = await prisma.$transaction(async (transaction) => {
       const citizen = await transaction.citizen.create({
         data: {
-          name: name.trim(),
+          name: displayName,
+          firstName: nameData.firstName,
+          middleName: nameData.middleName,
+          lastName: nameData.lastName,
+          suffix: nameData.suffix,
           contactInfo: normalizedMobileNumber,
           preferredChannel: preferredCitizenChannel,
           privacyNoticeAcceptedAt: privacyNoticeAcceptance?.acceptedAt ?? null,
@@ -612,7 +643,11 @@ export async function registerMobileCitizen(req: Request, res: Response): Promis
 
       return transaction.user.create({
         data: {
-          name: name.trim(),
+          name: displayName,
+          firstName: nameData.firstName,
+          middleName: nameData.middleName,
+          lastName: nameData.lastName,
+          suffix: nameData.suffix,
           email: surrogateEmail,
           mobileNumber: normalizedMobileNumber,
           mobileNumberVerifiedAt: new Date(),
@@ -1226,7 +1261,6 @@ export async function enableMfa(req: Request, res: Response): Promise<void> {
       select: {
         id: true,
         email: true,
-        name: true,
         role: true,
         createdAt: true,
         updatedAt: true,
