@@ -54,14 +54,6 @@ function assertNoSensitiveData(body: unknown, context: string): void {
   }
 }
 
-function assertNoLegacyNameField(body: unknown, context: string): void {
-  const json = JSON.stringify(body);
-
-  if (json.includes('"name"')) {
-    fail(`${context}: response should not expose legacy name`);
-  }
-}
-
 // ─── User Endpoints ──────────────────────────────────────────────────────────
 
 describe('Data Leak — User endpoints', () => {
@@ -103,7 +95,6 @@ describe('Data Leak — User endpoints', () => {
 
     if (res.status === 201) {
       assertNoSensitiveData(res.body, 'POST /users');
-      assertNoLegacyNameField(res.body, 'POST /users');
     }
   });
 
@@ -140,7 +131,6 @@ describe('Data Leak — Auth endpoints', () => {
       });
 
     assertNoSensitiveData(res.body, 'POST /auth/register');
-    assertNoLegacyNameField(res.body, 'POST /auth/register');
   });
 
   it('GET /auth/me does not expose sensitive fields', async () => {

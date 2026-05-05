@@ -23,6 +23,7 @@ import {
   buildCanonicalNameUpdateData,
   formatCanonicalDisplayName,
   hasAnyCanonicalNameField,
+  resolveStoredDisplayName,
 } from '../utils/nameFields.js';
 import {
   buildCanonicalNameCreateValidators,
@@ -30,8 +31,10 @@ import {
 } from '../validators/nameFields.js';
 
 function serializeCitizenRecord(record: Record<string, unknown>): Record<string, unknown> {
-  const { name: _name, ...rest } = record;
-  return rest;
+  return {
+    ...record,
+    name: resolveStoredDisplayName(record),
+  };
 }
 
 const config: ContentTypeConfig = {
@@ -67,15 +70,14 @@ const config: ContentTypeConfig = {
   hooks: {
     async beforeCreate(_req, res, body) {
       const nameData = buildCanonicalNameCreateData(body);
-      const displayName = nameData ? formatCanonicalDisplayName(nameData) : null;
 
-      if (!nameData || !displayName) {
-        res.status(422).json({ message: 'firstName and lastName are required' });
+      if (!nameData) {
+        res.status(422).json({ message: 'name or firstName and lastName are required' });
         return null;
       }
 
       const canonicalNameData = nameData;
-      const canonicalDisplayName = displayName;
+      const canonicalDisplayName = nameData.name;
 
       return {
         data: {
@@ -86,8 +88,15 @@ const config: ContentTypeConfig = {
     },
     async beforeUpdate(_req, res, body, existing) {
       const nameData = buildCanonicalNameUpdateData(body);
+      const hasSplitNameFields = ['firstName', 'middleName', 'lastName', 'suffix'].some((field) =>
+        Object.prototype.hasOwnProperty.call(body, field),
+      );
 
       if (!hasAnyCanonicalNameField(body)) {
+        return { data: nameData };
+      }
+
+      if (!hasSplitNameFields) {
         return { data: nameData };
       }
 
@@ -141,6 +150,7 @@ export const validators = {
   update: [
     body().custom((value) => {
       const hasUpdatableField = [
+        'name',
         'firstName',
         'middleName',
         'lastName',
@@ -151,7 +161,7 @@ export const validators = {
 
       if (!hasUpdatableField) {
         throw new Error(
-          'at least one of firstName, middleName, lastName, suffix, contactInfo, or preferredChannel is required',
+          'at least one of name, firstName, middleName, lastName, suffix, contactInfo, or preferredChannel is required',
         );
       }
 
@@ -244,7 +254,7 @@ export async function linkMyCitizenProfile(req: Request, res: Response): Promise
       .status(422)
       .json({
         message:
-          'at least one of firstName, middleName, lastName, suffix, or preferredChannel is required',
+          'at least one of name, firstName, middleName, lastName, suffix, or preferredChannel is required',
       });
     return;
   }
@@ -273,12 +283,11 @@ export async function linkMyCitizenProfile(req: Request, res: Response): Promise
 
   if (!existingCitizenId) {
     const createNameData = buildCanonicalNameCreateData(body);
-    const displayName = createNameData ? formatCanonicalDisplayName(createNameData) : null;
 
-    if (!createNameData || !displayName || !preferredChannel) {
+    if (!createNameData || !preferredChannel) {
       res.status(422).json({
         message:
-          'firstName, lastName, and preferredChannel are required when creating a new linked citizen profile',
+          'name or firstName and lastName, and preferredChannel are required when creating a new linked citizen profile',
       });
       return;
     }
@@ -327,7 +336,7 @@ export async function linkMyCitizenProfile(req: Request, res: Response): Promise
 
       const createdCitizen = await transaction.citizen.create({
         data: {
-          name: displayName,
+          name: createNameData.name,
           firstName: createNameData.firstName,
           middleName: createNameData.middleName,
           lastName: createNameData.lastName,
@@ -357,8 +366,10 @@ export async function linkMyCitizenProfile(req: Request, res: Response): Promise
     return;
   }
 
-  const hasCanonicalNameFields = hasAnyCanonicalNameField(body);
-  const displayName = hasCanonicalNameFields
+  const hasSplitNameFields = ['firstName', 'middleName', 'lastName', 'suffix'].some((field) =>
+    Object.prototype.hasOwnProperty.call(body, field),
+  );
+  const displayName = hasSplitNameFields
     ? formatCanonicalDisplayName({
         firstName: nameData.firstName ?? existingCitizen.firstName ?? undefined,
         middleName: nameData.middleName ?? existingCitizen.middleName,
@@ -367,7 +378,7 @@ export async function linkMyCitizenProfile(req: Request, res: Response): Promise
       })
     : null;
 
-  if (hasCanonicalNameFields && !displayName) {
+  if (hasSplitNameFields && !displayName) {
     res.status(422).json({ message: 'firstName and lastName are required for canonical name updates' });
     return;
   }

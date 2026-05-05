@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -81,16 +82,36 @@ const shouldAutoStartDatabase =
   isLocalDatabase &&
   databaseTarget.port === '55432';
 
-const embeddedDatabaseDir = path.join(
+const embeddedDatabaseBaseDir = path.join(
   repoRoot,
   'node_modules',
   '.cache',
   'embedded-postgres-test-db',
 );
+let embeddedDatabaseDir = embeddedDatabaseBaseDir;
 
 let embeddedPostgresInstance = null;
 let embeddedPostgresShutdownPromise = null;
 let embeddedPostgresSignalHandlersRegistered = false;
+
+function createEmbeddedPostgresInstance() {
+  return new EmbeddedPostgres({
+    authMethod: 'password',
+    databaseDir: embeddedDatabaseDir,
+    onError: (message) => {
+      const text = String(message).trim();
+
+      if (text) {
+        console.error(text);
+      }
+    },
+    onLog: () => undefined,
+    password: databaseTarget.password || 'postgres',
+    persistent: true,
+    port: Number(databaseTarget.port),
+    user: databaseTarget.username || 'postgres',
+  });
+}
 
 async function canConnectToDatabase() {
   const sql = postgres({
@@ -169,26 +190,31 @@ function canRunCompose() {
   return result.status === 0;
 }
 
-async function ensureEmbeddedDatabase() {
+function resetEmbeddedPostgresState() {
+  embeddedPostgresInstance = null;
+  embeddedPostgresShutdownPromise = null;
+}
+
+function clearEmbeddedDatabaseDir() {
+  fs.rmSync(embeddedDatabaseDir, { force: true, recursive: true });
+}
+
+function resetEmbeddedDatabaseDir() {
+  embeddedDatabaseDir = embeddedDatabaseBaseDir;
+}
+
+function useFreshEmbeddedDatabaseDir() {
+  embeddedDatabaseDir = path.join(
+    tmpdir(),
+    `xypes-cirs-api-embedded-postgres-test-db-${process.pid}`,
+  );
+}
+
+async function ensureEmbeddedDatabaseOnce() {
   fs.mkdirSync(path.dirname(embeddedDatabaseDir), { recursive: true });
 
   if (!embeddedPostgresInstance) {
-    embeddedPostgresInstance = new EmbeddedPostgres({
-      authMethod: 'password',
-      databaseDir: embeddedDatabaseDir,
-      onError: (message) => {
-        const text = String(message).trim();
-
-        if (text) {
-          console.error(text);
-        }
-      },
-      onLog: () => undefined,
-      password: databaseTarget.password || 'postgres',
-      persistent: true,
-      port: Number(databaseTarget.port),
-      user: databaseTarget.username || 'postgres',
-    });
+    embeddedPostgresInstance = createEmbeddedPostgresInstance();
   }
 
   if (!fs.existsSync(path.join(embeddedDatabaseDir, 'PG_VERSION'))) {
@@ -216,6 +242,31 @@ async function ensureEmbeddedDatabase() {
 
     if (!message.toLowerCase().includes('already exists')) {
       throw error;
+    }
+  }
+}
+
+async function ensureEmbeddedDatabase() {
+  try {
+    await ensureEmbeddedDatabaseOnce();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    console.error(`Embedded Postgres failed; retrying with a fresh data dir. ${message}`);
+
+    await shutdownEmbeddedDatabase();
+    resetEmbeddedDatabaseDir();
+    clearEmbeddedDatabaseDir();
+    useFreshEmbeddedDatabaseDir();
+    clearEmbeddedDatabaseDir();
+    resetEmbeddedPostgresState();
+
+    try {
+      await ensureEmbeddedDatabaseOnce();
+    } catch (retryError) {
+      const retryMessage = retryError instanceof Error ? retryError.message : String(retryError);
+      console.error(`Embedded Postgres retry failed. ${retryMessage}`);
+      throw retryError;
     }
   }
 }

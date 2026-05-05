@@ -1,7 +1,8 @@
 export interface CanonicalNameFieldData {
-  firstName: string;
+  name: string;
+  firstName: string | null;
   middleName: string | null;
-  lastName: string;
+  lastName: string | null;
   suffix: string | null;
 }
 
@@ -27,12 +28,18 @@ function getTrimmedNullableString(value: unknown): string | null | undefined {
 }
 
 export function hasAnyCanonicalNameField(body: Record<string, unknown>): boolean {
+  return ['name', 'firstName', 'middleName', 'lastName', 'suffix'].some((field) =>
+    hasOwnField(body, field),
+  );
+}
+
+function hasAnySplitNameField(body: Record<string, unknown>): boolean {
   return ['firstName', 'middleName', 'lastName', 'suffix'].some((field) => hasOwnField(body, field));
 }
 
-export function buildCanonicalNameCreateData(
+function buildCanonicalSplitNameData(
   body: Record<string, unknown>,
-): CanonicalNameFieldData | null {
+): Omit<CanonicalNameFieldData, 'name'> | null {
   const firstName = getTrimmedString(body.firstName);
   const lastName = getTrimmedString(body.lastName);
 
@@ -48,10 +55,51 @@ export function buildCanonicalNameCreateData(
   };
 }
 
+export function buildCanonicalNameCreateData(
+  body: Record<string, unknown>,
+): CanonicalNameFieldData | null {
+  const canonicalSplitData = buildCanonicalSplitNameData(body);
+
+  if (canonicalSplitData) {
+    return {
+      ...canonicalSplitData,
+      name: formatCanonicalDisplayName(canonicalSplitData) as string,
+    };
+  }
+
+  const legacyName = getTrimmedString(body.name);
+
+  if (!legacyName) {
+    return null;
+  }
+
+  return {
+    name: legacyName,
+    firstName: null,
+    middleName: null,
+    lastName: null,
+    suffix: null,
+  };
+}
+
 export function buildCanonicalNameUpdateData(
   body: Record<string, unknown>,
 ): Partial<CanonicalNameFieldData> {
   const data: Partial<CanonicalNameFieldData> = {};
+
+  if (!hasAnySplitNameField(body) && hasOwnField(body, 'name')) {
+    const legacyName = getTrimmedString(body.name);
+
+    if (legacyName) {
+      return {
+        name: legacyName,
+        firstName: null,
+        middleName: null,
+        lastName: null,
+        suffix: null,
+      };
+    }
+  }
 
   if (hasOwnField(body, 'firstName')) {
     const firstName = getTrimmedString(body.firstName);
@@ -78,9 +126,12 @@ export function buildCanonicalNameUpdateData(
   return data;
 }
 
-export function formatCanonicalDisplayName(
-  fields: Partial<CanonicalNameFieldData>,
-): string | null {
+export function formatCanonicalDisplayName(fields: {
+  firstName?: string | null;
+  middleName?: string | null;
+  lastName?: string | null;
+  suffix?: string | null;
+}): string | null {
   const firstName = getTrimmedString(fields.firstName);
   const lastName = getTrimmedString(fields.lastName);
 
@@ -92,4 +143,20 @@ export function formatCanonicalDisplayName(
   const suffix = getTrimmedString(fields.suffix);
 
   return [firstName, middleName, lastName, suffix].filter(Boolean).join(' ');
+}
+
+export function resolveStoredDisplayName(fields: {
+  name?: string | null;
+  firstName?: string | null;
+  middleName?: string | null;
+  lastName?: string | null;
+  suffix?: string | null;
+}): string | null {
+  const legacyName = getTrimmedString(fields.name);
+
+  if (legacyName) {
+    return legacyName;
+  }
+
+  return formatCanonicalDisplayName(fields);
 }

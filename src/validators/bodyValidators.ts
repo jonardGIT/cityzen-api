@@ -194,11 +194,17 @@ const updateIncidentLocationFieldsValidator = [
 
 export const linkMyCitizenProfileValidator = [
   body().custom((value) => {
-    const hasUpdatableField = ['firstName', 'middleName', 'lastName', 'suffix', 'preferredChannel']
-      .some((field) => value?.[field] !== undefined);
+    const hasUpdatableField = [
+      'name',
+      'firstName',
+      'middleName',
+      'lastName',
+      'suffix',
+      'preferredChannel',
+    ].some((field) => value?.[field] !== undefined);
     if (!hasUpdatableField) {
       throw new Error(
-        'at least one of firstName, middleName, lastName, suffix, or preferredChannel is required',
+        'at least one of name, firstName, middleName, lastName, suffix, or preferredChannel is required',
       );
     }
     return true;
@@ -921,6 +927,7 @@ export const createUserValidator = [
 export const updateUserValidator = [
   body().custom((value) => {
     const hasUpdatableField = [
+      'name',
       'firstName',
       'middleName',
       'lastName',
@@ -933,7 +940,7 @@ export const updateUserValidator = [
     ].some((field) => value?.[field] !== undefined);
     if (!hasUpdatableField) {
       throw new Error(
-        'at least one of firstName, middleName, lastName, suffix, email, password, role, jurisdictionType, or jurisdictionId is required',
+        'at least one of name, firstName, middleName, lastName, suffix, email, password, role, jurisdictionType, or jurisdictionId is required',
       );
     }
     return true;

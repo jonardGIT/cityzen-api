@@ -27,12 +27,14 @@ import {
   buildCanonicalNameUpdateData,
   formatCanonicalDisplayName,
   hasAnyCanonicalNameField,
+  resolveStoredDisplayName,
 } from '../utils/nameFields.js';
 
 const userSelect = {
   id: true,
   createdAt: true,
   updatedAt: true,
+  name: true,
   firstName: true,
   middleName: true,
   lastName: true,
@@ -53,6 +55,14 @@ const UNPAGINATED_USERS_LIMIT = 5000;
 // Accept any Postgres UUID-shaped value, including seeded fixtures that do not
 // encode an RFC version nibble.
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function serializeUserRecord<T extends Record<string, unknown>>(record: T): T & { name: string | null } {
+  return {
+    ...record,
+    name: resolveStoredDisplayName(record),
+  };
+}
+
 function getUserId(req: Request, res?: Response): string | null {
   const id = req.params.id;
   if (typeof id !== 'string' || !UUID_REGEX.test(id)) {
@@ -533,7 +543,9 @@ export async function getUsers(req: Request, res: Response): Promise<void> {
         where: withArchiveScope(scopedWhere, listQuery.archiveScope),
       }),
     ]);
-    res.json(buildPaginatedResponse(users, total, pagination));
+    res.json(
+      buildPaginatedResponse(users.map((user) => serializeUserRecord(user)), total, pagination),
+    );
     return;
   }
 
@@ -543,7 +555,7 @@ export async function getUsers(req: Request, res: Response): Promise<void> {
     orderBy: listQuery.orderBy,
     take: pagination.unpaginatedTake ?? undefined,
   });
-  res.json(users);
+  res.json(users.map((user) => serializeUserRecord(user)));
 }
 
 // Returns a single user by UUID. Responds 404 if not found.
@@ -574,7 +586,7 @@ export async function getUserById(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  res.json(user);
+  res.json(serializeUserRecord(user));
 }
 
 // Creates a new user account. Requires name, email, and password.
@@ -588,20 +600,19 @@ export async function createUser(req: Request, res: Response): Promise<void> {
     jurisdictionId?: string;
   };
   const nameData = buildCanonicalNameCreateData(req.body as Record<string, unknown>);
-  const displayName = nameData ? formatCanonicalDisplayName(nameData) : null;
 
   if (!authUser) {
     res.status(401).json({ message: 'Unauthorized: missing authentication context' });
     return;
   }
 
-  if (!nameData || !displayName || !email || !password) {
-    res.status(422).json({ message: 'firstName, lastName, email, and password are required' });
+  if (!nameData || !email || !password) {
+    res.status(422).json({ message: 'name or firstName and lastName, email, and password are required' });
     return;
   }
 
   const canonicalNameData = nameData;
-  const canonicalDisplayName = displayName;
+  const canonicalDisplayName = nameData.name;
 
   const normalizedEmail = normalizeEmail(email);
 
@@ -703,7 +714,7 @@ export async function createUser(req: Request, res: Response): Promise<void> {
       authProvider: isSupabaseAuthEnabled() ? 'supabase' : 'local',
     };
 
-    res.status(201).json(newUser);
+    res.status(201).json(serializeUserRecord(newUser));
   } catch (error) {
     if (supabaseAuthUserId) {
       await deleteSupabaseAuthUser(supabaseAuthUserId).catch(() => undefined);
@@ -733,6 +744,9 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
   const body = req.body as Record<string, unknown>;
   const nameData = buildCanonicalNameUpdateData(body);
   const hasNameFields = hasAnyCanonicalNameField(body);
+  const hasSplitNameFields = ['firstName', 'middleName', 'lastName', 'suffix'].some((field) =>
+    Object.prototype.hasOwnProperty.call(body, field),
+  );
 
   if (!authUser) {
     res.status(401).json({ message: 'Unauthorized: missing authentication context' });
@@ -818,7 +832,7 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
   const data: Prisma.UserUpdateInput = {};
   const normalizedEmail = email !== undefined ? normalizeEmail(email) : undefined;
 
-  if (hasNameFields) {
+  if (hasSplitNameFields) {
     const nextNameState = {
       firstName: nameData.firstName ?? existingUser.firstName ?? undefined,
       middleName: nameData.middleName ?? existingUser.middleName,
@@ -845,6 +859,8 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
     if (Object.prototype.hasOwnProperty.call(nameData, 'suffix')) {
       data.suffix = nameData.suffix;
     }
+  } else if (hasNameFields) {
+    Object.assign(data, nameData);
   }
 
   if (normalizedEmail !== undefined) {
@@ -911,7 +927,7 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
       await revokeAllUserSessions(id);
     }
 
-    res.json(updatedUser);
+    res.json(serializeUserRecord(updatedUser));
   } catch (error) {
     if (isUniqueConstraintError(error)) {
       res.status(409).json({ message: 'A user with that email already exists' });
@@ -1060,5 +1076,5 @@ export async function restoreUser(req: Request, res: Response): Promise<void> {
     restoredFromArchive: true,
   };
 
-  res.json(restoredUser);
+  res.json(serializeUserRecord(restoredUser));
 }

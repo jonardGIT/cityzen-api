@@ -10,10 +10,6 @@ const USERS = `${API_V1}/users`;
 const ADMIN_MFA_COMPLIANCE = `${API_V1}/admin/users/mfa-compliance`;
 const archiveEnabled = isArchiveEnabled();
 
-function assertNoLegacyNameField(body: unknown) {
-  expect(JSON.stringify(body)).not.toContain('"name"');
-}
-
 let adminToken = '';
 let citizenReporterToken = '';
 let cityAdminToken = '';
@@ -407,11 +403,10 @@ describe(`POST ${USERS}`, () => {
       email,
       role: 'CITIZEN_REPORTER',
     });
-    expect(res.body).not.toHaveProperty('name');
-    assertNoLegacyNameField(res.body);
+    expect(res.body).toHaveProperty('name', expect.any(String));
   });
 
-  it('should reject legacy name on create', async () => {
+  it('should accept legacy name on create', async () => {
     const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
 
     const res = await request(app)
@@ -424,14 +419,12 @@ describe(`POST ${USERS}`, () => {
         role: 'CITIZEN_REPORTER',
       });
 
-    expect(res.status).toBe(400);
-    expect(res.body.errors).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          message: 'name is not supported; use firstName and lastName',
-        }),
-      ]),
-    );
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({
+      name: `Legacy Create ${unique}`,
+      email: `invalid.split.user.${unique}@xypes.local`,
+      role: 'CITIZEN_REPORTER',
+    });
   });
 
   it('should reject municipality jurisdiction input for NATIONAL_ADMIN user creation', async () => {
@@ -679,11 +672,10 @@ describe(`PATCH ${USERS}/:id`, () => {
       lastName: `Citizen ${unique}`,
       suffix: 'IV',
     });
-    expect(res.body).not.toHaveProperty('name');
-    assertNoLegacyNameField(res.body);
+    expect(res.body).toHaveProperty('name', expect.any(String));
   });
 
-  it('should reject legacy name on update', async () => {
+  it('should accept legacy name on update', async () => {
     const unique = `${Date.now()}-${Math.round(Math.random() * 100000)}`;
     const createdUser = await prisma.user.create({
       data: {
@@ -701,14 +693,9 @@ describe(`PATCH ${USERS}/:id`, () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ name: 'Legacy Update Attempt' });
 
-    expect(res.status).toBe(400);
-    expect(res.body.errors).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          message: 'name is not supported; use firstName and lastName',
-        }),
-      ]),
-    );
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('id', createdUser.id);
+    expect(res.body).toHaveProperty('name', 'Legacy Update Attempt');
   });
 
   it('should allow REGIONAL_DIRECTOR to retarget in-region users and reject out-of-region retargeting', async () => {

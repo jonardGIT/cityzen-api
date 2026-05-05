@@ -56,7 +56,7 @@ import {
 } from '../utils/privacyNotice.js';
 import {
   buildCanonicalNameCreateData,
-  formatCanonicalDisplayName,
+  resolveStoredDisplayName,
 } from '../utils/nameFields.js';
 
 const MOBILE_AUTH_ROLE_ONLY_MESSAGE = 'Mobile auth is only available for citizen accounts';
@@ -125,6 +125,7 @@ function getAuthUserSelect() {
     id: true,
     createdAt: true,
     updatedAt: true,
+    name: true,
     firstName: true,
     middleName: true,
     lastName: true,
@@ -143,6 +144,7 @@ function buildAuthUserPayload(user: {
   id: string;
   createdAt: Date;
   updatedAt: Date;
+  name: string | null;
   firstName: string | null;
   middleName: string | null;
   lastName: string | null;
@@ -159,6 +161,7 @@ function buildAuthUserPayload(user: {
     id: user.id,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
+    name: resolveStoredDisplayName(user),
     firstName: user.firstName,
     middleName: user.middleName,
     lastName: user.lastName,
@@ -407,27 +410,20 @@ export async function register(req: Request, res: Response): Promise<void> {
     password?: unknown;
   };
   const nameData = buildCanonicalNameCreateData(requestBody);
-  const displayName = nameData ? formatCanonicalDisplayName(nameData) : null;
-
-  if (Object.prototype.hasOwnProperty.call(requestBody, 'name')) {
-    res.status(422).json({ message: 'name is not supported; use firstName and lastName' });
-    return;
-  }
 
   if (
     typeof email !== 'string' ||
     typeof password !== 'string' ||
     !nameData ||
-    !displayName ||
     !email ||
     !password
   ) {
-    res.status(422).json({ message: 'firstName, lastName, email, and password are required' });
+    res.status(422).json({ message: 'name or firstName and lastName, email, and password are required' });
     return;
   }
 
-    const canonicalNameData = nameData;
-    const canonicalDisplayName = displayName;
+  const canonicalNameData = nameData;
+  const canonicalDisplayName = nameData.name;
 
   const normalizedEmail = normalizeEmail(email);
 
@@ -559,12 +555,6 @@ export async function registerMobileCitizen(req: Request, res: Response): Promis
     preferredChannel?: unknown;
   };
   const nameData = buildCanonicalNameCreateData(requestBody);
-  const displayName = nameData ? formatCanonicalDisplayName(nameData) : null;
-
-  if (Object.prototype.hasOwnProperty.call(requestBody, 'name')) {
-    res.status(422).json({ message: 'name is not supported; use firstName and lastName' });
-    return;
-  }
 
   if (isMobileAuthProviderBoundaryViolated()) {
     res.status(501).json({ message: MOBILE_AUTH_PROVIDER_BOUNDARY_MESSAGE });
@@ -576,16 +566,15 @@ export async function registerMobileCitizen(req: Request, res: Response): Promis
     typeof password !== 'string' ||
     (preferredChannel !== undefined && typeof preferredChannel !== 'string') ||
     !nameData ||
-    !displayName ||
     !mobileNumber.trim() ||
     !password
   ) {
-    res.status(422).json({ message: 'firstName, lastName, mobileNumber, and password are required' });
+    res.status(422).json({ message: 'name or firstName and lastName, mobileNumber, and password are required' });
     return;
   }
 
   const canonicalNameData = nameData;
-  const canonicalDisplayName = displayName;
+  const canonicalDisplayName = nameData.name;
 
   const normalizedMobileNumber = normalizeMobileNumber(mobileNumber);
   if (!normalizedMobileNumber) {
@@ -1513,7 +1502,7 @@ export async function me(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  res.json(user);
+  res.json(buildAuthUserPayload(user));
 }
 
 // Rotates a refresh token and returns a new access token pair for the same session.
