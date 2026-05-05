@@ -166,7 +166,7 @@ describe('Supabase JWT mode', () => {
     expect(mockRegisterSupabaseAuthUser).toHaveBeenCalledWith({
       email: registrationEmail,
       password: 'Password123!',
-      name: 'Pending Citizen Reporter',
+      displayName: 'Pending Citizen Reporter',
       role: 'CITIZEN_REPORTER',
     });
     expect(mockSignInSupabaseUser).toHaveBeenCalledWith({
