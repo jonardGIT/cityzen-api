@@ -13,7 +13,10 @@ import type {
 export const citizens: Citizen[] = [
   {
     id: 'uuid-citizen-1',
-    name: 'Jane Doe',
+    firstName: 'Jane',
+    middleName: null,
+    lastName: 'Doe',
+    suffix: null,
     contactInfo: 'jane@example.com',
     preferredChannel: 'SMS',
   },

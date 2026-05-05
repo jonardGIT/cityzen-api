@@ -114,8 +114,20 @@ async function seedTestUsers(): Promise<void> {
     await ensureDefaultGeographyFixtures();
 
   const users = [
-    { name: 'System Admin', email: 'admin@xypes.local', role: 'NATIONAL_ADMIN' },
     {
+      firstName: 'System',
+      middleName: null,
+      lastName: 'Admin',
+      suffix: null,
+      name: 'System Admin',
+      email: 'admin@xypes.local',
+      role: 'NATIONAL_ADMIN',
+    },
+    {
+      firstName: 'Ops',
+      middleName: null,
+      lastName: 'Lead',
+      suffix: null,
       name: 'Ops Lead',
       email: 'ops.lead@xypes.local',
       role: 'CITY_ADMIN',
@@ -123,6 +135,10 @@ async function seedTestUsers(): Promise<void> {
       jurisdictionId: ilaganCityId,
     },
     {
+      firstName: 'City',
+      middleName: 'Content',
+      lastName: 'Editor',
+      suffix: null,
       name: 'City Content Editor',
       email: 'content.editor@xypes.local',
       role: 'CITY_CONTENT_EDITOR',
@@ -130,13 +146,21 @@ async function seedTestUsers(): Promise<void> {
       jurisdictionId: ilaganCityId,
     },
     {
-      name: 'Dispatcher',
+      firstName: 'Dispatch',
+      middleName: null,
+      lastName: 'Operator',
+      suffix: null,
+      name: 'Dispatch Operator',
       email: 'dispatcher@xypes.local',
       role: 'DISPATCHER',
       jurisdictionType: 'city',
       jurisdictionId: ilaganCityId,
     },
     {
+      firstName: 'Tuguegarao',
+      middleName: 'City',
+      lastName: 'Admin',
+      suffix: null,
       name: 'Tuguegarao City Admin',
       email: 'tuguegarao.city.admin@xypes.local',
       role: 'CITY_ADMIN',
@@ -144,15 +168,43 @@ async function seedTestUsers(): Promise<void> {
       jurisdictionId: tuguegaraoCityId,
     },
     {
+      firstName: 'Provincial',
+      middleName: null,
+      lastName: 'Admin',
+      suffix: null,
       name: 'Provincial Admin',
       email: 'provincial.admin@xypes.local',
       role: 'PROVINCIAL_ADMIN',
       jurisdictionType: 'province',
       jurisdictionId: isabelaProvinceId,
     },
-    { name: 'Responder', email: 'responder@xypes.local', role: 'RESPONDER' },
-    { name: 'Analyst', email: 'analyst@xypes.local', role: 'CITIZEN_REPORTER' },
-    { name: 'Auditor', email: 'auditor@xypes.local', role: 'AUDITOR' },
+    {
+      firstName: 'Response',
+      middleName: null,
+      lastName: 'Lead',
+      suffix: null,
+      name: 'Response Lead',
+      email: 'responder@xypes.local',
+      role: 'RESPONDER',
+    },
+    {
+      firstName: 'Data',
+      middleName: null,
+      lastName: 'Analyst',
+      suffix: null,
+      name: 'Data Analyst',
+      email: 'analyst@xypes.local',
+      role: 'CITIZEN_REPORTER',
+    },
+    {
+      firstName: 'Audit',
+      middleName: null,
+      lastName: 'Reviewer',
+      suffix: null,
+      name: 'Audit Reviewer',
+      email: 'auditor@xypes.local',
+      role: 'AUDITOR',
+    },
   ];
 
   for (const user of users) {
@@ -160,6 +212,10 @@ async function seedTestUsers(): Promise<void> {
       where: { email: user.email },
       update: {
         name: user.name,
+        firstName: user.firstName,
+        middleName: user.middleName,
+        lastName: user.lastName,
+        suffix: user.suffix,
         role: user.role,
         passwordHash,
         archivedAt: null,
@@ -171,6 +227,10 @@ async function seedTestUsers(): Promise<void> {
       },
       create: {
         name: user.name,
+        firstName: user.firstName,
+        middleName: user.middleName,
+        lastName: user.lastName,
+        suffix: user.suffix,
         email: user.email,
         role: user.role,
         passwordHash,
@@ -189,8 +249,14 @@ beforeAll(async () => {
 
   await prisma.$executeRawUnsafe('CREATE EXTENSION IF NOT EXISTS pgcrypto');
   await prisma.$executeRawUnsafe(
-    `CREATE TABLE IF NOT EXISTS users (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), "createdAt" timestamptz NOT NULL DEFAULT NOW(), "updatedAt" timestamptz NOT NULL DEFAULT NOW(), name text NOT NULL, email text NOT NULL UNIQUE, "passwordHash" text NOT NULL, role text NOT NULL DEFAULT 'CITIZEN_REPORTER')`,
+    `CREATE TABLE IF NOT EXISTS users (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), "createdAt" timestamptz NOT NULL DEFAULT NOW(), "updatedAt" timestamptz NOT NULL DEFAULT NOW(), name text, "firstName" text, "middleName" text, "lastName" text, suffix text, email text NOT NULL UNIQUE, "passwordHash" text NOT NULL, role text NOT NULL DEFAULT 'CITIZEN_REPORTER')`,
   );
+  await prisma.$executeRawUnsafe('ALTER TABLE users ADD COLUMN IF NOT EXISTS name text');
+  await prisma.$executeRawUnsafe('ALTER TABLE users ALTER COLUMN name DROP NOT NULL');
+  await prisma.$executeRawUnsafe('ALTER TABLE users ADD COLUMN IF NOT EXISTS "firstName" text');
+  await prisma.$executeRawUnsafe('ALTER TABLE users ADD COLUMN IF NOT EXISTS "middleName" text');
+  await prisma.$executeRawUnsafe('ALTER TABLE users ADD COLUMN IF NOT EXISTS "lastName" text');
+  await prisma.$executeRawUnsafe('ALTER TABLE users ADD COLUMN IF NOT EXISTS suffix text');
   await prisma.$executeRawUnsafe(
     'ALTER TABLE users ADD COLUMN IF NOT EXISTS "privacyNoticeAcceptedAt" timestamptz',
   );
@@ -210,8 +276,14 @@ beforeAll(async () => {
     'CREATE TABLE IF NOT EXISTS statuses (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), "createdAt" timestamptz NOT NULL DEFAULT NOW(), "updatedAt" timestamptz NOT NULL DEFAULT NOW(), name text NOT NULL)',
   );
   await prisma.$executeRawUnsafe(
-    'CREATE TABLE IF NOT EXISTS citizens (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), "createdAt" timestamptz NOT NULL DEFAULT NOW(), "updatedAt" timestamptz NOT NULL DEFAULT NOW(), name text NOT NULL, "contactInfo" text NOT NULL, "preferredChannel" text NOT NULL)',
+    'CREATE TABLE IF NOT EXISTS citizens (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), "createdAt" timestamptz NOT NULL DEFAULT NOW(), "updatedAt" timestamptz NOT NULL DEFAULT NOW(), name text, "firstName" text, "middleName" text, "lastName" text, suffix text, "contactInfo" text NOT NULL, "preferredChannel" text NOT NULL)',
   );
+  await prisma.$executeRawUnsafe('ALTER TABLE citizens ADD COLUMN IF NOT EXISTS name text');
+  await prisma.$executeRawUnsafe('ALTER TABLE citizens ALTER COLUMN name DROP NOT NULL');
+  await prisma.$executeRawUnsafe('ALTER TABLE citizens ADD COLUMN IF NOT EXISTS "firstName" text');
+  await prisma.$executeRawUnsafe('ALTER TABLE citizens ADD COLUMN IF NOT EXISTS "middleName" text');
+  await prisma.$executeRawUnsafe('ALTER TABLE citizens ADD COLUMN IF NOT EXISTS "lastName" text');
+  await prisma.$executeRawUnsafe('ALTER TABLE citizens ADD COLUMN IF NOT EXISTS suffix text');
   await prisma.$executeRawUnsafe(
     'ALTER TABLE citizens ADD COLUMN IF NOT EXISTS "privacyNoticeAcceptedAt" timestamptz',
   );

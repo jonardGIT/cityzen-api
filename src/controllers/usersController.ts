@@ -600,6 +600,9 @@ export async function createUser(req: Request, res: Response): Promise<void> {
     return;
   }
 
+  const canonicalNameData = nameData;
+  const canonicalDisplayName = displayName;
+
   const normalizedEmail = normalizeEmail(email);
 
   const normalizedRole = normalizeRole(role ?? 'CITIZEN_REPORTER');
@@ -652,7 +655,7 @@ export async function createUser(req: Request, res: Response): Promise<void> {
       const supabaseUser = await registerSupabaseAuthUser({
         email: normalizedEmail,
         password,
-        displayName,
+        displayName: canonicalDisplayName,
         role: normalizedRole,
       });
       supabaseAuthUserId = supabaseUser.id;
@@ -669,11 +672,11 @@ export async function createUser(req: Request, res: Response): Promise<void> {
 
   try {
     const createData: Prisma.UserCreateInput = {
-      name: displayName,
-      firstName: nameData.firstName,
-      middleName: nameData.middleName,
-      lastName: nameData.lastName,
-      suffix: nameData.suffix,
+      name: canonicalDisplayName,
+      firstName: canonicalNameData.firstName,
+      middleName: canonicalNameData.middleName,
+      lastName: canonicalNameData.lastName,
+      suffix: canonicalNameData.suffix,
       email: normalizedEmail,
       role: normalizedRole,
       jurisdictionType: managedJurisdiction?.jurisdictionType ?? null,
@@ -817,9 +820,9 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
 
   if (hasNameFields) {
     const nextNameState = {
-      firstName: nameData.firstName ?? existingUser.firstName,
+      firstName: nameData.firstName ?? existingUser.firstName ?? undefined,
       middleName: nameData.middleName ?? existingUser.middleName,
-      lastName: nameData.lastName ?? existingUser.lastName,
+      lastName: nameData.lastName ?? existingUser.lastName ?? undefined,
       suffix: nameData.suffix ?? existingUser.suffix,
     };
     const displayName = formatCanonicalDisplayName(nextNameState);

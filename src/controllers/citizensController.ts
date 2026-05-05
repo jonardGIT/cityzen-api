@@ -74,10 +74,13 @@ const config: ContentTypeConfig = {
         return null;
       }
 
+      const canonicalNameData = nameData;
+      const canonicalDisplayName = displayName;
+
       return {
         data: {
-          ...nameData,
-          name: displayName,
+          ...canonicalNameData,
+          name: canonicalDisplayName,
         },
       };
     },
@@ -89,9 +92,9 @@ const config: ContentTypeConfig = {
       }
 
       const nextNameState = {
-        firstName: nameData.firstName ?? (existing.firstName as string | null | undefined),
+        firstName: nameData.firstName ?? (existing.firstName as string | null | undefined) ?? undefined,
         middleName: nameData.middleName ?? (existing.middleName as string | null | undefined),
-        lastName: nameData.lastName ?? (existing.lastName as string | null | undefined),
+        lastName: nameData.lastName ?? (existing.lastName as string | null | undefined) ?? undefined,
         suffix: nameData.suffix ?? (existing.suffix as string | null | undefined),
       };
       const displayName = formatCanonicalDisplayName(nextNameState);
@@ -101,10 +104,12 @@ const config: ContentTypeConfig = {
         return null;
       }
 
+      const canonicalDisplayName = displayName;
+
       return {
         data: {
           ...nameData,
-          name: displayName,
+          name: canonicalDisplayName,
         },
       };
     },
@@ -355,9 +360,9 @@ export async function linkMyCitizenProfile(req: Request, res: Response): Promise
   const hasCanonicalNameFields = hasAnyCanonicalNameField(body);
   const displayName = hasCanonicalNameFields
     ? formatCanonicalDisplayName({
-        firstName: nameData.firstName ?? existingCitizen.firstName,
+        firstName: nameData.firstName ?? existingCitizen.firstName ?? undefined,
         middleName: nameData.middleName ?? existingCitizen.middleName,
-        lastName: nameData.lastName ?? existingCitizen.lastName,
+        lastName: nameData.lastName ?? existingCitizen.lastName ?? undefined,
         suffix: nameData.suffix ?? existingCitizen.suffix,
       })
     : null;

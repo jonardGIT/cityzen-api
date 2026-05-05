@@ -417,6 +417,7 @@ export async function register(req: Request, res: Response): Promise<void> {
   if (
     typeof email !== 'string' ||
     typeof password !== 'string' ||
+    !nameData ||
     !displayName ||
     !email ||
     !password
@@ -424,6 +425,9 @@ export async function register(req: Request, res: Response): Promise<void> {
     res.status(422).json({ message: 'firstName, lastName, email, and password are required' });
     return;
   }
+
+    const canonicalNameData = nameData;
+    const canonicalDisplayName = displayName;
 
   const normalizedEmail = normalizeEmail(email);
 
@@ -462,7 +466,7 @@ export async function register(req: Request, res: Response): Promise<void> {
       const supabaseUser = await registerSupabaseAuthUser({
         email: normalizedEmail,
         password,
-        displayName,
+        displayName: canonicalDisplayName,
         role: 'CITIZEN_REPORTER',
       });
       supabaseAuthUserId = supabaseUser.id;
@@ -480,11 +484,11 @@ export async function register(req: Request, res: Response): Promise<void> {
   try {
     const user = await prisma.user.create({
       data: {
-        name: displayName,
-        firstName: nameData.firstName,
-        middleName: nameData.middleName,
-        lastName: nameData.lastName,
-        suffix: nameData.suffix,
+        name: canonicalDisplayName,
+        firstName: canonicalNameData.firstName,
+        middleName: canonicalNameData.middleName,
+        lastName: canonicalNameData.lastName,
+        suffix: canonicalNameData.suffix,
         email: normalizedEmail,
         passwordHash,
         supabaseAuthUserId,
@@ -571,6 +575,7 @@ export async function registerMobileCitizen(req: Request, res: Response): Promis
     typeof mobileNumber !== 'string' ||
     typeof password !== 'string' ||
     (preferredChannel !== undefined && typeof preferredChannel !== 'string') ||
+    !nameData ||
     !displayName ||
     !mobileNumber.trim() ||
     !password
@@ -578,6 +583,9 @@ export async function registerMobileCitizen(req: Request, res: Response): Promis
     res.status(422).json({ message: 'firstName, lastName, mobileNumber, and password are required' });
     return;
   }
+
+  const canonicalNameData = nameData;
+  const canonicalDisplayName = displayName;
 
   const normalizedMobileNumber = normalizeMobileNumber(mobileNumber);
   if (!normalizedMobileNumber) {
@@ -629,11 +637,11 @@ export async function registerMobileCitizen(req: Request, res: Response): Promis
     const user = await prisma.$transaction(async (transaction) => {
       const citizen = await transaction.citizen.create({
         data: {
-          name: displayName,
-          firstName: nameData.firstName,
-          middleName: nameData.middleName,
-          lastName: nameData.lastName,
-          suffix: nameData.suffix,
+          name: canonicalDisplayName,
+          firstName: canonicalNameData.firstName,
+          middleName: canonicalNameData.middleName,
+          lastName: canonicalNameData.lastName,
+          suffix: canonicalNameData.suffix,
           contactInfo: normalizedMobileNumber,
           preferredChannel: preferredCitizenChannel,
           privacyNoticeAcceptedAt: privacyNoticeAcceptance?.acceptedAt ?? null,
@@ -643,11 +651,11 @@ export async function registerMobileCitizen(req: Request, res: Response): Promis
 
       return transaction.user.create({
         data: {
-          name: displayName,
-          firstName: nameData.firstName,
-          middleName: nameData.middleName,
-          lastName: nameData.lastName,
-          suffix: nameData.suffix,
+          name: canonicalDisplayName,
+          firstName: canonicalNameData.firstName,
+          middleName: canonicalNameData.middleName,
+          lastName: canonicalNameData.lastName,
+          suffix: canonicalNameData.suffix,
           email: surrogateEmail,
           mobileNumber: normalizedMobileNumber,
           mobileNumberVerifiedAt: new Date(),
