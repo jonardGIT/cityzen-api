@@ -77,6 +77,26 @@ function validateSelection(selection: FeatureSelectionCore): void {
   if (selection.mfaMode === 'supabase-totp' && selection.tokenMode !== 'supabase-jwt') {
     throw new Error('FEATURE_MFA_MODE=supabase-totp requires FEATURE_TOKEN_MODE=supabase-jwt');
   }
+
+  if (selection.authProvider !== 'supabase') {
+    throw new Error('FEATURE_AUTH_PROVIDER must be supabase for production builds');
+  }
+
+  if (selection.tokenMode !== 'supabase-jwt') {
+    throw new Error('FEATURE_TOKEN_MODE must be supabase-jwt for production builds');
+  }
+
+  if (selection.mfaMode === 'disabled') {
+    throw new Error('FEATURE_MFA_MODE must not be disabled for production builds');
+  }
+
+  if (selection.mfaMode !== 'supabase-totp') {
+    throw new Error('FEATURE_MFA_MODE must be supabase-totp for production builds');
+  }
+
+  if (selection.mediaStorage !== 'supabase-storage') {
+    throw new Error('FEATURE_MEDIA_STORAGE must be supabase-storage for production builds');
+  }
 }
 
 function writeProductionFeatureProfile(selection: FeatureSelectionCore): void {
