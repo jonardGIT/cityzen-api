@@ -62,6 +62,10 @@ export interface Citizen {
   middleName?: string | null;
   lastName: string;
   suffix?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  cityMunicipalityId?: string | null;
+  barangayId?: string | null;
   contactInfo: string;
   preferredChannel: string;
 }

@@ -116,6 +116,50 @@ describe('Auth bootstrap endpoints', () => {
     expect(res.body.user).toHaveProperty('name', `Legacy Bootstrap User ${stamp}`);
   });
 
+  it('POST /auth/register should create a CITIZEN_REPORTER account without name fields', async () => {
+    const stamp = Date.now();
+    const email = `nameless.bootstrap.${stamp}@postman.local`;
+
+    const res = await request(app)
+      .post(`${API_V1}/auth/register`)
+      .send({
+        email,
+        password: 'Password123!',
+        ...buildPrivacyNoticeAcceptance(),
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty('token');
+    expect(res.body.user).toMatchObject({
+      email,
+      name: null,
+      firstName: null,
+      middleName: null,
+      lastName: null,
+      suffix: null,
+      role: 'CITIZEN_REPORTER',
+    });
+
+    const createdUser = await prisma.user.findUnique({
+      where: { email },
+      select: {
+        name: true,
+        firstName: true,
+        middleName: true,
+        lastName: true,
+        suffix: true,
+      },
+    });
+
+    expect(createdUser).toMatchObject({
+      name: null,
+      firstName: null,
+      middleName: null,
+      lastName: null,
+      suffix: null,
+    });
+  });
+
   it('POST /auth/login should return token for seeded admin', async () => {
     const res = await request(app).post(`${API_V1}/auth/login`).send({
       email: 'admin@xypes.local',
@@ -239,6 +283,51 @@ describe('Auth bootstrap endpoints', () => {
     expect(res.body.user).toHaveProperty('name', `Legacy Mobile User ${stamp}`);
   });
 
+  it('POST /auth/mobile/register should create a citizen account without name fields', async () => {
+    const stamp = Date.now();
+    const mobileNumber = buildUniqueMobileNumber(stamp + 8);
+    const normalizedMobileNumber = `+63${mobileNumber.slice(1)}`;
+
+    const res = await request(app)
+      .post(`${API_V1}/auth/mobile/register`)
+      .send({
+        mobileNumber,
+        password: 'Password123!',
+        ...buildPrivacyNoticeAcceptance(),
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty('token');
+    expect(res.body.user).toMatchObject({
+      mobileNumber: normalizedMobileNumber,
+      name: null,
+      firstName: null,
+      middleName: null,
+      lastName: null,
+      suffix: null,
+      role: 'CITIZEN_REPORTER',
+    });
+
+    const createdUser = await prisma.user.findUnique({
+      where: { mobileNumber: normalizedMobileNumber },
+      select: {
+        name: true,
+        firstName: true,
+        middleName: true,
+        lastName: true,
+        suffix: true,
+      },
+    });
+
+    expect(createdUser).toMatchObject({
+      name: null,
+      firstName: null,
+      middleName: null,
+      lastName: null,
+      suffix: null,
+    });
+  });
+
   it('POST /auth/mobile/register should return 409 for duplicate mobile number', async () => {
     const mobileNumber = buildUniqueMobileNumber(Date.now() + 1);
     const payload = {
@@ -257,6 +346,35 @@ describe('Auth bootstrap endpoints', () => {
     expect(first.status).toBe(201);
     expect(second.status).toBe(409);
     expect(second.body).toHaveProperty('message', 'Mobile number already registered');
+  });
+
+  it('POST /auth/mobile/register should reject non-citizen role selection', async () => {
+    const mobileNumber = buildUniqueMobileNumber(Date.now() + 3);
+    const normalizedMobileNumber = `+63${mobileNumber.slice(1)}`;
+
+    const res = await request(app)
+      .post(`${API_V1}/auth/mobile/register`)
+      .send({
+        firstName: 'Staff',
+        lastName: 'Attempt',
+        mobileNumber,
+        password: 'Password123!',
+        role: 'NATIONAL_ADMIN',
+        ...buildPrivacyNoticeAcceptance(),
+      });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toHaveProperty(
+      'message',
+      'Mobile auth is only available for citizen accounts',
+    );
+
+    const createdUser = await prisma.user.findUnique({
+      where: { mobileNumber: normalizedMobileNumber },
+      select: { id: true },
+    });
+
+    expect(createdUser).toBeNull();
   });
 
   it('POST /auth/mobile/login should authenticate by normalized mobile number and password', async () => {
@@ -469,6 +587,7 @@ describe('Auth bootstrap endpoints', () => {
   it('POST /auth/register should return 422 for missing fields', async () => {
     const res = await request(app).post(`${API_V1}/auth/register`).send({ name: 'Incomplete' });
     expect(res.status).toBe(422);
+    expect(res.body).toHaveProperty('message', 'email and password are required');
   });
 
   it('POST /auth/register should require privacy notice acceptance when enforcement is enabled', async () => {

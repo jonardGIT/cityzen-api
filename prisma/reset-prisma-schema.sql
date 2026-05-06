@@ -125,6 +125,10 @@ CREATE TABLE citizens (
   "middleName" text,
   "lastName" text,
   suffix text,
+  "addressLine1" text,
+  "addressLine2" text,
+  "cityMunicipalityId" uuid,
+  "barangayId" uuid,
   "contactInfo" text NOT NULL,
   "preferredChannel" text NOT NULL,
   "privacyNoticeAcceptedAt" timestamptz,
@@ -272,6 +276,14 @@ CREATE TABLE barangays (
   name text NOT NULL,
   "cityMunicipalityId" uuid NOT NULL REFERENCES cities_municipalities(id)
 );
+
+ALTER TABLE citizens
+  ADD CONSTRAINT citizens_city_municipality_id_fkey
+  FOREIGN KEY ("cityMunicipalityId") REFERENCES cities_municipalities(id);
+
+ALTER TABLE citizens
+  ADD CONSTRAINT citizens_barangay_id_fkey
+  FOREIGN KEY ("barangayId") REFERENCES barangays(id);
 
 CREATE TABLE agencies (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -487,6 +499,8 @@ CREATE INDEX cities_municipalities_province_id_idx ON cities_municipalities ("pr
 CREATE INDEX cities_municipalities_province_name_idx ON cities_municipalities ("provinceId", name);
 CREATE INDEX barangays_city_municipality_id_idx ON barangays ("cityMunicipalityId");
 CREATE INDEX barangays_city_name_idx ON barangays ("cityMunicipalityId", name);
+CREATE INDEX citizens_city_municipality_id_idx ON citizens ("cityMunicipalityId");
+CREATE INDEX citizens_barangay_id_idx ON citizens ("barangayId");
 CREATE INDEX agencies_region_id_idx ON agencies ("regionId");
 CREATE INDEX agencies_province_id_idx ON agencies ("provinceId");
 CREATE INDEX agencies_city_municipality_id_idx ON agencies ("cityMunicipalityId");

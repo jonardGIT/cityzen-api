@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import type { Prisma } from '@prisma/client';
 import { body } from 'express-validator';
 import prisma from '../lib/prisma.js';
 import { createCrudController } from '../engine/crudControllerFactory.js';
@@ -29,12 +30,182 @@ import {
   buildCanonicalNameCreateValidators,
   buildCanonicalNameUpdateValidators,
 } from '../validators/nameFields.js';
+import {
+  MOBILE_PROFILE_LOCALITY_MISCONFIGURATION_MESSAGE,
+  getActiveCagayanBarangayById,
+  getActiveCagayanLocalityById,
+  getActiveCagayanProvince,
+} from '../services/cagayanMobileGeographyService.js';
 
-function serializeCitizenRecord(record: Record<string, unknown>): Record<string, unknown> {
+type CitizenLocationReference = {
+  id: string;
+  code: string;
+  name: string;
+  type?: string;
+};
+
+type CitizenProfileSerializedRecord = Record<string, unknown> & {
+  name?: string | null;
+  firstName?: string | null;
+  middleName?: string | null;
+  lastName?: string | null;
+  suffix?: string | null;
+  cityMunicipalityRef?: CitizenLocationReference | null;
+  barangayRef?: CitizenLocationReference | null;
+};
+
+type MobileCitizenProfileLocationInput = {
+  addressLine1?: string;
+  addressLine2?: string | null;
+  cityMunicipalityId?: string | null;
+  barangayId?: string | null;
+};
+
+const mobileCitizenProfileInclude: Prisma.CitizenInclude = {
+  cityMunicipalityRef: {
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      type: true,
+    },
+  },
+  barangayRef: {
+    select: {
+      id: true,
+      code: true,
+      name: true,
+    },
+  },
+} as const;
+
+function serializeCitizenRecord(record: CitizenProfileSerializedRecord): Record<string, unknown> {
+  const { cityMunicipalityRef, barangayRef, ...rest } = record;
+
   return {
-    ...record,
+    ...rest,
     name: resolveStoredDisplayName(record),
+    locality: cityMunicipalityRef
+      ? {
+          id: cityMunicipalityRef.id,
+          code: cityMunicipalityRef.code,
+          name: cityMunicipalityRef.name,
+          type: cityMunicipalityRef.type,
+        }
+      : null,
+    barangay: barangayRef
+      ? {
+          id: barangayRef.id,
+          code: barangayRef.code,
+          name: barangayRef.name,
+        }
+      : null,
   };
+}
+
+async function resolveMobileCitizenProfileLocationData(
+  body: Record<string, unknown>,
+  existingCitizen?: {
+    cityMunicipalityId?: string | null;
+  },
+): Promise<
+  | { status: 'ok'; data: MobileCitizenProfileLocationInput }
+  | { status: 'error'; code: number; message: string }
+> {
+  const hasCityMunicipalityId = Object.prototype.hasOwnProperty.call(body, 'cityMunicipalityId');
+  const hasBarangayId = Object.prototype.hasOwnProperty.call(body, 'barangayId');
+  const hasAddressLine1 = Object.prototype.hasOwnProperty.call(body, 'addressLine1');
+  const hasAddressLine2 = Object.prototype.hasOwnProperty.call(body, 'addressLine2');
+
+  if (!hasCityMunicipalityId && !hasBarangayId && !hasAddressLine1 && !hasAddressLine2) {
+    return { status: 'ok', data: {} };
+  }
+
+  const province = await getActiveCagayanProvince();
+
+  if (!province) {
+    return {
+      status: 'error',
+      code: 503,
+      message: MOBILE_PROFILE_LOCALITY_MISCONFIGURATION_MESSAGE,
+    };
+  }
+
+  const data: MobileCitizenProfileLocationInput = {};
+  const cityMunicipalityId = hasCityMunicipalityId
+    ? ((body.cityMunicipalityId as string | null | undefined) ?? null)
+    : undefined;
+  const barangayId = hasBarangayId
+    ? ((body.barangayId as string | null | undefined) ?? null)
+    : undefined;
+
+  if (hasAddressLine1) {
+    data.addressLine1 = body.addressLine1 as string;
+  }
+
+  if (hasAddressLine2) {
+    data.addressLine2 = (body.addressLine2 as string | null | undefined) ?? null;
+  }
+
+  if (hasBarangayId && !hasCityMunicipalityId) {
+    return {
+      status: 'error',
+      code: 422,
+      message: 'cityMunicipalityId is required when barangayId is provided',
+    };
+  }
+
+  if (hasCityMunicipalityId) {
+    data.cityMunicipalityId = cityMunicipalityId ?? null;
+
+    if (cityMunicipalityId) {
+      const locality = await getActiveCagayanLocalityById(cityMunicipalityId);
+
+      if (!locality) {
+        return {
+          status: 'error',
+          code: 404,
+          message: 'Active Cagayan locality not found',
+        };
+      }
+    }
+
+    if (cityMunicipalityId === null) {
+      data.barangayId = null;
+      return { status: 'ok', data };
+    }
+  }
+
+  if (hasBarangayId) {
+    if (barangayId === null) {
+      data.barangayId = null;
+    } else {
+      const resolvedCityMunicipalityId = cityMunicipalityId as string;
+      const resolvedBarangayId = barangayId as string;
+      const barangay = await getActiveCagayanBarangayById(
+        resolvedCityMunicipalityId,
+        resolvedBarangayId,
+      );
+
+      if (!barangay) {
+        return {
+          status: 'error',
+          code: 404,
+          message: 'Active Cagayan barangay not found for the selected locality',
+        };
+      }
+
+      data.barangayId = barangay.id;
+    }
+  } else if (
+    hasCityMunicipalityId &&
+    cityMunicipalityId !== undefined &&
+    cityMunicipalityId !== (existingCitizen?.cityMunicipalityId ?? null)
+  ) {
+    data.barangayId = null;
+  }
+
+  return { status: 'ok', data };
 }
 
 const config: ContentTypeConfig = {
@@ -101,15 +272,19 @@ const config: ContentTypeConfig = {
       }
 
       const nextNameState = {
-        firstName: nameData.firstName ?? (existing.firstName as string | null | undefined) ?? undefined,
+        firstName:
+          nameData.firstName ?? (existing.firstName as string | null | undefined) ?? undefined,
         middleName: nameData.middleName ?? (existing.middleName as string | null | undefined),
-        lastName: nameData.lastName ?? (existing.lastName as string | null | undefined) ?? undefined,
+        lastName:
+          nameData.lastName ?? (existing.lastName as string | null | undefined) ?? undefined,
         suffix: nameData.suffix ?? (existing.suffix as string | null | undefined),
       };
       const displayName = formatCanonicalDisplayName(nextNameState);
 
       if (!displayName) {
-        res.status(422).json({ message: 'firstName and lastName are required for canonical name updates' });
+        res
+          .status(422)
+          .json({ message: 'firstName and lastName are required for canonical name updates' });
         return null;
       }
 
@@ -228,6 +403,7 @@ export async function getMyCitizenProfile(req: Request, res: Response): Promise<
 
   const citizen = await prisma.citizen.findFirst({
     where: withActiveRecords({ id: resolution.citizenId }),
+    include: mobileCitizenProfileInclude,
   });
 
   if (!citizen) {
@@ -235,7 +411,7 @@ export async function getMyCitizenProfile(req: Request, res: Response): Promise<
     return;
   }
 
-  res.json(serializeCitizenRecord(citizen as Record<string, unknown>));
+  res.json(serializeCitizenRecord(citizen as CitizenProfileSerializedRecord));
 }
 
 export async function linkMyCitizenProfile(req: Request, res: Response): Promise<void> {
@@ -248,14 +424,18 @@ export async function linkMyCitizenProfile(req: Request, res: Response): Promise
   const body = req.body as Record<string, unknown>;
   const { preferredChannel } = body as Partial<Citizen>;
   const nameData = buildCanonicalNameUpdateData(body);
+  const hasLocationOrAddressField = [
+    'addressLine1',
+    'addressLine2',
+    'cityMunicipalityId',
+    'barangayId',
+  ].some((field) => Object.prototype.hasOwnProperty.call(body, field));
 
-  if (!hasAnyCanonicalNameField(body) && !preferredChannel) {
-    res
-      .status(422)
-      .json({
-        message:
-          'at least one of name, firstName, middleName, lastName, suffix, or preferredChannel is required',
-      });
+  if (!hasAnyCanonicalNameField(body) && !preferredChannel && !hasLocationOrAddressField) {
+    res.status(422).json({
+      message:
+        'at least one of name, firstName, middleName, lastName, suffix, preferredChannel, addressLine1, addressLine2, cityMunicipalityId, or barangayId is required',
+    });
     return;
   }
 
@@ -289,6 +469,13 @@ export async function linkMyCitizenProfile(req: Request, res: Response): Promise
         message:
           'name or firstName and lastName, and preferredChannel are required when creating a new linked citizen profile',
       });
+      return;
+    }
+
+    const locationData = await resolveMobileCitizenProfileLocationData(body);
+
+    if (locationData.status === 'error') {
+      res.status(locationData.code).json({ message: locationData.message });
       return;
     }
 
@@ -341,11 +528,13 @@ export async function linkMyCitizenProfile(req: Request, res: Response): Promise
           middleName: createNameData.middleName,
           lastName: createNameData.lastName,
           suffix: createNameData.suffix,
+          ...locationData.data,
           preferredChannel,
           contactInfo: authUser.email,
           privacyNoticeAcceptedAt: privacyNoticeAcceptance?.acceptedAt ?? null,
           privacyNoticeVersion: privacyNoticeAcceptance?.version ?? null,
         },
+        include: mobileCitizenProfileInclude,
       });
 
       await assignCitizenToUser(authUser.id, createdCitizen.id, transaction);
@@ -353,12 +542,20 @@ export async function linkMyCitizenProfile(req: Request, res: Response): Promise
       return createdCitizen;
     });
 
-    res.status(201).json(serializeCitizenRecord(citizen as Record<string, unknown>));
+    res.status(201).json(serializeCitizenRecord(citizen as CitizenProfileSerializedRecord));
     return;
   }
 
   const existingCitizen = await prisma.citizen.findFirst({
     where: withActiveRecords({ id: existingCitizenId }),
+    select: {
+      id: true,
+      firstName: true,
+      middleName: true,
+      lastName: true,
+      suffix: true,
+      cityMunicipalityId: true,
+    },
   });
 
   if (!existingCitizen) {
@@ -379,7 +576,18 @@ export async function linkMyCitizenProfile(req: Request, res: Response): Promise
     : null;
 
   if (hasSplitNameFields && !displayName) {
-    res.status(422).json({ message: 'firstName and lastName are required for canonical name updates' });
+    res
+      .status(422)
+      .json({ message: 'firstName and lastName are required for canonical name updates' });
+    return;
+  }
+
+  const locationData = await resolveMobileCitizenProfileLocationData(body, {
+    cityMunicipalityId: existingCitizen.cityMunicipalityId,
+  });
+
+  if (locationData.status === 'error') {
+    res.status(locationData.code).json({ message: locationData.message });
     return;
   }
 
@@ -388,9 +596,11 @@ export async function linkMyCitizenProfile(req: Request, res: Response): Promise
     data: {
       ...nameData,
       ...(displayName ? { name: displayName } : {}),
+      ...locationData.data,
       preferredChannel,
     },
+    include: mobileCitizenProfileInclude,
   });
 
-  res.json(serializeCitizenRecord(citizen as Record<string, unknown>));
+  res.json(serializeCitizenRecord(citizen as CitizenProfileSerializedRecord));
 }

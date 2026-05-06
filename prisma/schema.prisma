@@ -140,6 +140,12 @@ model Citizen {
   middleName              String?
   lastName                String?
   suffix                  String?
+  addressLine1            String?
+  addressLine2            String?
+  cityMunicipalityId      String?              @db.Uuid
+  cityMunicipalityRef     CityMunicipality?    @relation(fields: [cityMunicipalityId], references: [id])
+  barangayId              String?              @db.Uuid
+  barangayRef             Barangay?            @relation(fields: [barangayId], references: [id])
   contactInfo             String
   preferredChannel        String
   privacyNoticeAcceptedAt DateTime?
@@ -148,6 +154,8 @@ model Citizen {
   dataSubjectRequests     DataSubjectRequest[]
   incidents               CitizenIncident[]
 
+  @@index([cityMunicipalityId])
+  @@index([barangayId])
   @@map("citizens")
 }
 
@@ -493,6 +501,7 @@ model CityMunicipality {
   type                        String
   provinceId                  String               @db.Uuid
   province                    Province             @relation(fields: [provinceId], references: [id])
+  citizens                    Citizen[]
   barangays                   Barangay[]
   incidents                   CitizenIncident[]
   sourceIncidentEscalations   IncidentEscalation[] @relation("IncidentEscalationSourceCityMunicipality")
@@ -513,6 +522,7 @@ model Barangay {
   name               String
   cityMunicipalityId String            @db.Uuid
   cityMunicipality   CityMunicipality  @relation(fields: [cityMunicipalityId], references: [id])
+  citizens           Citizen[]
   incidents          CitizenIncident[]
   agencies           Agency[]
 

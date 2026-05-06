@@ -22,10 +22,7 @@ export const DASHBOARD_API_BASE_PATH = '/api/v1';
  * regional governance is enabled. See `pilot` block on `dashboardCrudConfig`
  * and docs/tuguegarao-pilot-governance-baseline.md.
  */
-export type PilotScope =
-  | 'tuguegarao-first'
-  | 'partner-lgu'
-  | 'national-deferred';
+export type PilotScope = 'tuguegarao-first' | 'partner-lgu' | 'national-deferred';
 
 /**
  * Compatibility classification for a contract route.
@@ -300,6 +297,24 @@ const mobileCitizenSurface: MobileCitizenSurfaceContract = {
       notes:
         'Publicly available mobile app content. Backend filters audience to published, generic content only; draft and citizen-only entries are not exposed unauthenticated.',
     }),
+    cagayanLocalitiesReference: route('GET', '/mobile/cagayan/localities', {
+      authRequired: false,
+      pilotScope: 'tuguegarao-first',
+      compatibility: { status: 'canonical' },
+      notes:
+        'Public Cagayan-only mobile reference data for locality selection flows. Returns active Cagayan province metadata plus active child cities and municipalities with minimal fields (id, code, name, type).',
+    }),
+    cagayanLocalityBarangaysReference: route(
+      'GET',
+      '/mobile/cagayan/localities/{localityId}/barangays',
+      {
+        authRequired: false,
+        pilotScope: 'tuguegarao-first',
+        compatibility: { status: 'canonical' },
+        notes:
+          'Public Cagayan-only mobile reference data for barangay selection flows. Returns only active barangays for the selected active Cagayan locality with minimal fields (id, code, name).',
+      },
+    ),
     getProfile: route('GET', '/mobile/profile', {
       authRequired: true,
       allowedRoles: ['CITIZEN_REPORTER'],
@@ -618,8 +633,8 @@ export function buildDashboardCrudConfigFlat(
     }),
   );
 
-  const dashboardEndpoints: DashboardCrudFlatEndpointWithSurface[] =
-    config.resources.flatMap((resource) =>
+  const dashboardEndpoints: DashboardCrudFlatEndpointWithSurface[] = config.resources.flatMap(
+    (resource) =>
       Object.entries(resource.routes).map(([operation, endpoint]) => ({
         resource: resource.name,
         label: resource.label,
@@ -628,31 +643,29 @@ export function buildDashboardCrudConfigFlat(
         fullPath: `${config.apiBasePath}${endpoint.path}`,
         surface: 'dashboard' as const,
       })),
-    );
+  );
 
-  const mobileCanonicalEndpoints: DashboardCrudFlatEndpointWithSurface[] =
-    Object.entries(config.mobileCitizenSurface.routes).map(
-      ([operation, endpoint]) => ({
-        resource: 'mobileCitizen',
-        label: config.mobileCitizenSurface.label,
-        operation,
-        ...endpoint,
-        fullPath: `${config.apiBasePath}${endpoint.path}`,
-        surface: 'mobile-citizen' as const,
-      }),
-    );
+  const mobileCanonicalEndpoints: DashboardCrudFlatEndpointWithSurface[] = Object.entries(
+    config.mobileCitizenSurface.routes,
+  ).map(([operation, endpoint]) => ({
+    resource: 'mobileCitizen',
+    label: config.mobileCitizenSurface.label,
+    operation,
+    ...endpoint,
+    fullPath: `${config.apiBasePath}${endpoint.path}`,
+    surface: 'mobile-citizen' as const,
+  }));
 
-  const mobileCompatibilityEndpoints: DashboardCrudFlatEndpointWithSurface[] =
-    Object.entries(config.mobileCitizenSurface.compatibilityRoutes).map(
-      ([operation, endpoint]) => ({
-        resource: 'mobileCitizen',
-        label: config.mobileCitizenSurface.label,
-        operation,
-        ...endpoint,
-        fullPath: `${config.apiBasePath}${endpoint.path}`,
-        surface: 'mobile-citizen-compatibility' as const,
-      }),
-    );
+  const mobileCompatibilityEndpoints: DashboardCrudFlatEndpointWithSurface[] = Object.entries(
+    config.mobileCitizenSurface.compatibilityRoutes,
+  ).map(([operation, endpoint]) => ({
+    resource: 'mobileCitizen',
+    label: config.mobileCitizenSurface.label,
+    operation,
+    ...endpoint,
+    fullPath: `${config.apiBasePath}${endpoint.path}`,
+    surface: 'mobile-citizen-compatibility' as const,
+  }));
 
   return {
     apiBasePath: config.apiBasePath,

@@ -56,12 +56,11 @@ import {
 } from '../utils/privacyNotice.js';
 import {
   buildCanonicalNameCreateData,
+  hasAnyCanonicalNameField,
   resolveStoredDisplayName,
 } from '../utils/nameFields.js';
 
 const MOBILE_AUTH_ROLE_ONLY_MESSAGE = 'Mobile auth is only available for citizen accounts';
-const MOBILE_AUTH_PROVIDER_BOUNDARY_MESSAGE =
-  'Mobile auth is only available when local app auth and app JWT sessions are enabled';
 
 function isStrongPassword(password: string): boolean {
   return (
@@ -368,8 +367,15 @@ function isCitizenReporterAccount(role: string): boolean {
   return normalizeUserRoleInput(role) === 'CITIZEN_REPORTER';
 }
 
-function isMobileAuthProviderBoundaryViolated(): boolean {
-  return isSupabaseAuthEnabled() || isSupabaseJwtEnabled();
+function isForbiddenMobileRegistrationRole(requestBody: Record<string, unknown>): boolean {
+  if (!Object.prototype.hasOwnProperty.call(requestBody, 'role')) {
+    return false;
+  }
+
+  const requestedRole =
+    typeof requestBody.role === 'string' ? normalizeUserRoleInput(requestBody.role) : null;
+
+  return requestedRole !== 'CITIZEN_REPORTER';
 }
 
 function handlePasswordResetRuntimeError(res: Response, error: unknown): boolean {
@@ -410,20 +416,26 @@ export async function register(req: Request, res: Response): Promise<void> {
     password?: unknown;
   };
   const nameData = buildCanonicalNameCreateData(requestBody);
+  const hasNameFields = hasAnyCanonicalNameField(requestBody);
 
   if (
     typeof email !== 'string' ||
     typeof password !== 'string' ||
-    !nameData ||
+    (hasNameFields && !nameData) ||
     !email ||
     !password
   ) {
-    res.status(422).json({ message: 'name or firstName and lastName, email, and password are required' });
+    res.status(422).json({ message: 'email and password are required' });
     return;
   }
 
-  const canonicalNameData = nameData;
-  const canonicalDisplayName = nameData.name;
+  const canonicalNameData = nameData ?? {
+    firstName: null,
+    middleName: null,
+    lastName: null,
+    suffix: null,
+  };
+  const canonicalDisplayName = nameData?.name ?? null;
 
   const normalizedEmail = normalizeEmail(email);
 
@@ -462,7 +474,7 @@ export async function register(req: Request, res: Response): Promise<void> {
       const supabaseUser = await registerSupabaseAuthUser({
         email: normalizedEmail,
         password,
-        displayName: canonicalDisplayName,
+        ...(canonicalDisplayName ? { displayName: canonicalDisplayName } : {}),
         role: 'CITIZEN_REPORTER',
       });
       supabaseAuthUserId = supabaseUser.id;
@@ -555,9 +567,10 @@ export async function registerMobileCitizen(req: Request, res: Response): Promis
     preferredChannel?: unknown;
   };
   const nameData = buildCanonicalNameCreateData(requestBody);
+  const hasNameFields = hasAnyCanonicalNameField(requestBody);
 
-  if (isMobileAuthProviderBoundaryViolated()) {
-    res.status(501).json({ message: MOBILE_AUTH_PROVIDER_BOUNDARY_MESSAGE });
+  if (isForbiddenMobileRegistrationRole(requestBody)) {
+    res.status(403).json({ message: MOBILE_AUTH_ROLE_ONLY_MESSAGE });
     return;
   }
 
@@ -565,16 +578,21 @@ export async function registerMobileCitizen(req: Request, res: Response): Promis
     typeof mobileNumber !== 'string' ||
     typeof password !== 'string' ||
     (preferredChannel !== undefined && typeof preferredChannel !== 'string') ||
-    !nameData ||
+    (hasNameFields && !nameData) ||
     !mobileNumber.trim() ||
     !password
   ) {
-    res.status(422).json({ message: 'name or firstName and lastName, mobileNumber, and password are required' });
+    res.status(422).json({ message: 'mobileNumber and password are required' });
     return;
   }
 
-  const canonicalNameData = nameData;
-  const canonicalDisplayName = nameData.name;
+  const canonicalNameData = nameData ?? {
+    firstName: null,
+    middleName: null,
+    lastName: null,
+    suffix: null,
+  };
+  const canonicalDisplayName = nameData?.name ?? null;
 
   const normalizedMobileNumber = normalizeMobileNumber(mobileNumber);
   if (!normalizedMobileNumber) {
@@ -615,12 +633,33 @@ export async function registerMobileCitizen(req: Request, res: Response): Promis
     return;
   }
 
-  const passwordHash = await bcrypt.hash(password, 10);
   const surrogateEmail = buildCitizenMobileSurrogateEmail(normalizedMobileNumber);
   const preferredCitizenChannel =
     typeof preferredChannel === 'string' && preferredChannel.trim()
       ? preferredChannel.trim()
       : 'mobile';
+  let passwordHash: string | null = null;
+  let supabaseAuthUserId: string | null = null;
+
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const supabaseUser = await registerSupabaseAuthUser({
+        email: surrogateEmail,
+        password,
+        ...(canonicalDisplayName ? { displayName: canonicalDisplayName } : {}),
+        role: 'CITIZEN_REPORTER',
+      });
+      supabaseAuthUserId = supabaseUser.id;
+    } catch (error) {
+      if (handleSupabaseAuthRuntimeError(res, error)) {
+        return;
+      }
+
+      throw error;
+    }
+  } else {
+    passwordHash = await bcrypt.hash(password, 10);
+  }
 
   try {
     const user = await prisma.$transaction(async (transaction) => {
@@ -649,6 +688,7 @@ export async function registerMobileCitizen(req: Request, res: Response): Promis
           mobileNumber: normalizedMobileNumber,
           mobileNumberVerifiedAt: new Date(),
           passwordHash,
+          supabaseAuthUserId,
           role: 'CITIZEN_REPORTER',
           citizenId: citizen.id,
           privacyNoticeAcceptedAt: privacyNoticeAcceptance?.acceptedAt ?? null,
@@ -657,6 +697,33 @@ export async function registerMobileCitizen(req: Request, res: Response): Promis
         select: getAuthUserSelect(),
       });
     });
+
+    if (isSupabaseJwtEnabled()) {
+      try {
+        const supabaseSession = await signInSupabaseUser({
+          email: surrogateEmail,
+          password,
+        });
+
+        res.status(201).json(buildSupabaseJwtResponse(supabaseSession, buildAuthUserPayload(user)));
+        return;
+      } catch (error) {
+        if (error instanceof SupabaseAuthServiceError && error.code === 'EMAIL_NOT_CONFIRMED') {
+          res.status(201).json({
+            message: 'Registration succeeded. Confirm your email before signing in.',
+            emailConfirmationRequired: true,
+            user: buildAuthUserPayload(user),
+          });
+          return;
+        }
+
+        if (handleSupabaseAuthRuntimeError(res, error)) {
+          return;
+        }
+
+        throw error;
+      }
+    }
 
     const session = await createAuthSession({
       userId: user.id,
@@ -668,6 +735,10 @@ export async function registerMobileCitizen(req: Request, res: Response): Promis
 
     res.status(201).json(buildLocalJwtResponse(session, buildAuthUserPayload(user)));
   } catch (error) {
+    if (supabaseAuthUserId) {
+      await deleteSupabaseAuthUser(supabaseAuthUserId).catch(() => undefined);
+    }
+
     if (isUniqueConstraintError(error)) {
       res.status(409).json({ message: 'Mobile number already registered' });
       return;
@@ -908,11 +979,6 @@ export async function loginMobileCitizen(req: Request, res: Response): Promise<v
     password?: unknown;
   };
 
-  if (isMobileAuthProviderBoundaryViolated()) {
-    res.status(501).json({ message: MOBILE_AUTH_PROVIDER_BOUNDARY_MESSAGE });
-    return;
-  }
-
   if (
     typeof mobileNumber !== 'string' ||
     typeof password !== 'string' ||
@@ -936,6 +1002,7 @@ export async function loginMobileCitizen(req: Request, res: Response): Promise<v
     select: {
       ...getAuthUserSelect(),
       passwordHash: true,
+      supabaseAuthUserId: true,
     },
   });
 
@@ -949,14 +1016,72 @@ export async function loginMobileCitizen(req: Request, res: Response): Promise<v
     return;
   }
 
-  if (!user.passwordHash) {
-    res.status(401).json({ message: 'Invalid mobile number or password' });
-    return;
+  let supabaseJwtSession: {
+    token: string;
+    refreshToken: string | null;
+    tokenType: string;
+    sessionId: string | null;
+    expiresAt: string | null;
+    refreshExpiresAt: string | null;
+    userId: string;
+    email: string;
+  } | null = null;
+
+  if (isSupabaseAuthEnabled()) {
+    try {
+      const supabaseUser = isSupabaseJwtEnabled()
+        ? ((supabaseJwtSession = await signInSupabaseUser({
+            email: user.email,
+            password,
+          })),
+          {
+            id: supabaseJwtSession.userId,
+            email: supabaseJwtSession.email,
+          })
+        : await authenticateSupabaseUser({
+            email: user.email,
+            password,
+          });
+
+      if (user.supabaseAuthUserId && user.supabaseAuthUserId !== supabaseUser.id) {
+        await revokeSupabaseTokenQuietly(supabaseJwtSession?.token);
+        res.status(409).json({
+          message: 'This mobile account is linked to a different Supabase Auth account',
+        });
+        return;
+      }
+
+      if (!user.supabaseAuthUserId) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            supabaseAuthUserId: supabaseUser.id,
+          },
+        });
+        user.supabaseAuthUserId = supabaseUser.id;
+      }
+    } catch (error) {
+      if (handleSupabaseAuthRuntimeError(res, error)) {
+        return;
+      }
+
+      throw error;
+    }
+  } else {
+    if (!user.passwordHash) {
+      res.status(401).json({ message: 'Invalid mobile number or password' });
+      return;
+    }
+
+    const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+    if (!isValidPassword) {
+      res.status(401).json({ message: 'Invalid mobile number or password' });
+      return;
+    }
   }
 
-  const isValidPassword = await bcrypt.compare(password, user.passwordHash);
-  if (!isValidPassword) {
-    res.status(401).json({ message: 'Invalid mobile number or password' });
+  if (supabaseJwtSession) {
+    res.json(buildSupabaseJwtResponse(supabaseJwtSession, buildAuthUserPayload(user)));
     return;
   }
 

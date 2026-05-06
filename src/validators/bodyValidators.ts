@@ -201,10 +201,14 @@ export const linkMyCitizenProfileValidator = [
       'lastName',
       'suffix',
       'preferredChannel',
+      'addressLine1',
+      'addressLine2',
+      'cityMunicipalityId',
+      'barangayId',
     ].some((field) => value?.[field] !== undefined);
     if (!hasUpdatableField) {
       throw new Error(
-        'at least one of name, firstName, middleName, lastName, suffix, or preferredChannel is required',
+        'at least one of name, firstName, middleName, lastName, suffix, preferredChannel, addressLine1, addressLine2, cityMunicipalityId, or barangayId is required',
       );
     }
     return true;
@@ -220,6 +224,24 @@ export const linkMyCitizenProfileValidator = [
     .trim()
     .notEmpty()
     .withMessage('preferredChannel must be a non-empty string'),
+  body('addressLine1')
+    .optional()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('addressLine1 must be a non-empty string'),
+  body('addressLine2')
+    .optional({ nullable: true })
+    .isString()
+    .withMessage('addressLine2 must be a string'),
+  body('cityMunicipalityId')
+    .optional({ nullable: true })
+    .custom((value) => isPostgresUuid(value))
+    .withMessage('cityMunicipalityId must be a valid UUID'),
+  body('barangayId')
+    .optional({ nullable: true })
+    .custom((value) => isPostgresUuid(value))
+    .withMessage('barangayId must be a valid UUID'),
 ];
 
 export const createDataSubjectRequestValidator = [

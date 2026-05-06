@@ -1264,6 +1264,36 @@
     {
       "resource": "mobileCitizen",
       "label": "Mobile Citizen (Canonical Pilot Surface)",
+      "operation": "cagayanLocalitiesReference",
+      "method": "GET",
+      "path": "/mobile/cagayan/localities",
+      "authRequired": false,
+      "pilotScope": "tuguegarao-first",
+      "compatibility": {
+        "status": "canonical"
+      },
+      "notes": "Public Cagayan-only mobile reference data for locality selection flows. Returns active Cagayan province metadata plus active child cities and municipalities with minimal fields (id, code, name, type).",
+      "fullPath": "/api/v1/mobile/cagayan/localities",
+      "surface": "mobile-citizen"
+    },
+    {
+      "resource": "mobileCitizen",
+      "label": "Mobile Citizen (Canonical Pilot Surface)",
+      "operation": "cagayanLocalityBarangaysReference",
+      "method": "GET",
+      "path": "/mobile/cagayan/localities/{localityId}/barangays",
+      "authRequired": false,
+      "pilotScope": "tuguegarao-first",
+      "compatibility": {
+        "status": "canonical"
+      },
+      "notes": "Public Cagayan-only mobile reference data for barangay selection flows. Returns only active barangays for the selected active Cagayan locality with minimal fields (id, code, name).",
+      "fullPath": "/api/v1/mobile/cagayan/localities/{localityId}/barangays",
+      "surface": "mobile-citizen"
+    },
+    {
+      "resource": "mobileCitizen",
+      "label": "Mobile Citizen (Canonical Pilot Surface)",
       "operation": "getProfile",
       "method": "GET",
       "path": "/mobile/profile",

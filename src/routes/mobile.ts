@@ -16,6 +16,7 @@
  * regardless of which surface a client uses.
  */
 import { Router } from 'express';
+import { param } from 'express-validator';
 import { getMyCitizenProfile, linkMyCitizenProfile } from '../controllers/citizensController.js';
 import {
   createCitizenIncidentReport,
@@ -24,6 +25,10 @@ import {
   getIncidents,
 } from '../controllers/incidentsController.js';
 import { getPublishedMobileAppContent } from '../controllers/mobileAppContentsController.js';
+import {
+  getCagayanLocalities,
+  getCagayanLocalityBarangays,
+} from '../controllers/mobileReferencesController.js';
 import { requireJwtAuth, requireRole } from '../middleware/jwtAuth.js';
 import { validateRequest } from '../middleware/validateRequest.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -35,7 +40,18 @@ import { incidentTimelineParamValidator } from '../validators/incidentTrustValid
 
 const router = Router();
 
+const localityIdParamValidator = [
+  param('localityId').isUUID().withMessage('localityId must be a valid UUID'),
+];
+
 router.get('/content', asyncHandler(getPublishedMobileAppContent));
+router.get('/cagayan/localities', asyncHandler(getCagayanLocalities));
+router.get(
+  '/cagayan/localities/:localityId/barangays',
+  ...localityIdParamValidator,
+  validateRequest,
+  asyncHandler(getCagayanLocalityBarangays),
+);
 
 router.get(
   '/profile',

@@ -1033,6 +1033,26 @@
         },
         "notes": "Publicly available mobile app content. Backend filters audience to published, generic content only; draft and citizen-only entries are not exposed unauthenticated."
       },
+      "cagayanLocalitiesReference": {
+        "method": "GET",
+        "path": "/mobile/cagayan/localities",
+        "authRequired": false,
+        "pilotScope": "tuguegarao-first",
+        "compatibility": {
+          "status": "canonical"
+        },
+        "notes": "Public Cagayan-only mobile reference data for locality selection flows. Returns active Cagayan province metadata plus active child cities and municipalities with minimal fields (id, code, name, type)."
+      },
+      "cagayanLocalityBarangaysReference": {
+        "method": "GET",
+        "path": "/mobile/cagayan/localities/{localityId}/barangays",
+        "authRequired": false,
+        "pilotScope": "tuguegarao-first",
+        "compatibility": {
+          "status": "canonical"
+        },
+        "notes": "Public Cagayan-only mobile reference data for barangay selection flows. Returns only active barangays for the selected active Cagayan locality with minimal fields (id, code, name)."
+      },
       "getProfile": {
         "method": "GET",
         "path": "/mobile/profile",

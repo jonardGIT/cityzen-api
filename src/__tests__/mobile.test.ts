@@ -137,6 +137,236 @@ describe(`PATCH ${MOBILE_BASE}/profile and GET ${MOBILE_BASE}/profile`, () => {
 
     expect(matchedCitizens).toEqual([{ id: legacyCitizen.id }]);
   });
+
+  it('accepts locality and address updates for an existing linked citizen', async () => {
+    const reporter = await registerCitizenReporter('mobile-profile-address');
+
+    const [tuguegaraoCity, centroBarangay] = await Promise.all([
+      prisma.cityMunicipality.findUniqueOrThrow({
+        where: { code: '021529000' },
+        select: { id: true, code: true, name: true, type: true },
+      }),
+      prisma.barangay.findUniqueOrThrow({
+        where: { code: '021529001' },
+        select: { id: true, code: true, name: true },
+      }),
+    ]);
+
+    const createRes = await request(app)
+      .patch(`${MOBILE_BASE}/profile`)
+      .set('Authorization', `Bearer ${reporter.token}`)
+      .send({
+        name: 'Mobile Address Owner',
+        preferredChannel: 'app',
+      });
+
+    expect(createRes.status).toBe(201);
+
+    const updateRes = await request(app)
+      .patch(`${MOBILE_BASE}/profile`)
+      .set('Authorization', `Bearer ${reporter.token}`)
+      .send({
+        addressLine1: 'Door 4, Rizal Street',
+        addressLine2: 'Near plaza',
+        cityMunicipalityId: tuguegaraoCity.id,
+        barangayId: centroBarangay.id,
+      });
+
+    expect(updateRes.status).toBe(200);
+    expect(updateRes.body).toMatchObject({
+      id: createRes.body.id,
+      addressLine1: 'Door 4, Rizal Street',
+      addressLine2: 'Near plaza',
+      cityMunicipalityId: tuguegaraoCity.id,
+      barangayId: centroBarangay.id,
+      locality: {
+        id: tuguegaraoCity.id,
+        code: tuguegaraoCity.code,
+        name: tuguegaraoCity.name,
+        type: tuguegaraoCity.type,
+      },
+      barangay: {
+        id: centroBarangay.id,
+        code: centroBarangay.code,
+        name: centroBarangay.name,
+      },
+    });
+
+    const getRes = await request(app)
+      .get(`${MOBILE_BASE}/profile`)
+      .set('Authorization', `Bearer ${reporter.token}`);
+
+    expect(getRes.status).toBe(200);
+    expect(getRes.body).toMatchObject({
+      addressLine1: 'Door 4, Rizal Street',
+      addressLine2: 'Near plaza',
+      cityMunicipalityId: tuguegaraoCity.id,
+      barangayId: centroBarangay.id,
+    });
+  });
+
+  it('rejects barangay-only updates and invalid locality barangay pairings', async () => {
+    const reporter = await registerCitizenReporter('mobile-profile-validation');
+
+    const [tuguegaraoCity, ilaganBarangay] = await Promise.all([
+      prisma.cityMunicipality.findUniqueOrThrow({
+        where: { code: '021529000' },
+        select: { id: true },
+      }),
+      prisma.barangay.findUniqueOrThrow({
+        where: { code: '023101001' },
+        select: { id: true },
+      }),
+    ]);
+
+    const createRes = await request(app)
+      .patch(`${MOBILE_BASE}/profile`)
+      .set('Authorization', `Bearer ${reporter.token}`)
+      .send({
+        name: 'Mobile Validation Owner',
+        preferredChannel: 'app',
+      });
+
+    expect(createRes.status).toBe(201);
+
+    const missingLocalityRes = await request(app)
+      .patch(`${MOBILE_BASE}/profile`)
+      .set('Authorization', `Bearer ${reporter.token}`)
+      .send({
+        barangayId: ilaganBarangay.id,
+      });
+
+    expect(missingLocalityRes.status).toBe(422);
+    expect(missingLocalityRes.body).toEqual({
+      message: 'cityMunicipalityId is required when barangayId is provided',
+    });
+
+    const invalidPairingRes = await request(app)
+      .patch(`${MOBILE_BASE}/profile`)
+      .set('Authorization', `Bearer ${reporter.token}`)
+      .send({
+        cityMunicipalityId: tuguegaraoCity.id,
+        barangayId: ilaganBarangay.id,
+      });
+
+    expect(invalidPairingRes.status).toBe(404);
+    expect(invalidPairingRes.body).toEqual({
+      message: 'Active Cagayan barangay not found for the selected locality',
+    });
+  });
+});
+
+describe(`GET ${MOBILE_BASE}/cagayan/localities and GET ${MOBILE_BASE}/cagayan/localities/:localityId/barangays`, () => {
+  it('returns public active Cagayan localities with more than one locality choice', async () => {
+    const cagayanProvince = await prisma.province.findUniqueOrThrow({
+      where: { code: '021500000' },
+      select: { id: true },
+    });
+
+    await prisma.cityMunicipality.upsert({
+      where: { code: '021518000' },
+      update: {
+        name: 'Amulung',
+        type: 'MUNICIPALITY',
+        provinceId: cagayanProvince.id,
+        archivedAt: null,
+      },
+      create: {
+        code: '021518000',
+        name: 'Amulung',
+        type: 'MUNICIPALITY',
+        provinceId: cagayanProvince.id,
+      },
+    });
+
+    const response = await request(app).get(`${MOBILE_BASE}/cagayan/localities`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      province: {
+        code: '021500000',
+        name: 'Cagayan',
+      },
+    });
+
+    expect(response.body.localities).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: '021518000',
+          name: 'Amulung',
+          type: 'MUNICIPALITY',
+        }),
+        expect.objectContaining({
+          code: '021529000',
+          name: 'Tuguegarao City',
+          type: 'CITY',
+        }),
+      ]),
+    );
+    expect(response.body.localities).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: '023101000',
+          name: 'Ilagan City',
+        }),
+      ]),
+    );
+
+    expect(response.body.localities).toEqual(
+      [...response.body.localities].sort((left, right) => left.name.localeCompare(right.name)),
+    );
+    expect(response.body.localities[0]).toEqual({
+      id: expect.any(String),
+      code: expect.any(String),
+      name: expect.any(String),
+      type: expect.any(String),
+    });
+  });
+
+  it('returns only barangays for the selected active Cagayan locality', async () => {
+    const tuguegaraoCity = await prisma.cityMunicipality.findUniqueOrThrow({
+      where: { code: '021529000' },
+      select: { id: true, code: true, name: true, type: true },
+    });
+
+    const response = await request(app).get(
+      `${MOBILE_BASE}/cagayan/localities/${tuguegaraoCity.id}/barangays`,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      locality: {
+        id: tuguegaraoCity.id,
+        code: tuguegaraoCity.code,
+        name: tuguegaraoCity.name,
+        type: tuguegaraoCity.type,
+      },
+    });
+    expect(response.body.barangays).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: '021529001',
+          name: 'Centro 01',
+        }),
+      ]),
+    );
+    expect(response.body.barangays).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: '023101001',
+          name: 'San Felipe',
+        }),
+      ]),
+    );
+    expect(response.body.barangays).toEqual(
+      [...response.body.barangays].sort((left, right) => left.name.localeCompare(right.name)),
+    );
+    expect(response.body.barangays[0]).toEqual({
+      id: expect.any(String),
+      code: expect.any(String),
+      name: expect.any(String),
+    });
+  });
 });
 
 describe(`POST ${MOBILE_BASE}/incidents/report`, () => {

@@ -276,7 +276,7 @@ beforeAll(async () => {
     'CREATE TABLE IF NOT EXISTS statuses (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), "createdAt" timestamptz NOT NULL DEFAULT NOW(), "updatedAt" timestamptz NOT NULL DEFAULT NOW(), name text NOT NULL)',
   );
   await prisma.$executeRawUnsafe(
-    'CREATE TABLE IF NOT EXISTS citizens (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), "createdAt" timestamptz NOT NULL DEFAULT NOW(), "updatedAt" timestamptz NOT NULL DEFAULT NOW(), name text, "firstName" text, "middleName" text, "lastName" text, suffix text, "contactInfo" text NOT NULL, "preferredChannel" text NOT NULL)',
+    'CREATE TABLE IF NOT EXISTS citizens (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), "createdAt" timestamptz NOT NULL DEFAULT NOW(), "updatedAt" timestamptz NOT NULL DEFAULT NOW(), name text, "firstName" text, "middleName" text, "lastName" text, suffix text, "addressLine1" text, "addressLine2" text, "cityMunicipalityId" uuid, "barangayId" uuid, "contactInfo" text NOT NULL, "preferredChannel" text NOT NULL)',
   );
   await prisma.$executeRawUnsafe('ALTER TABLE citizens ADD COLUMN IF NOT EXISTS name text');
   await prisma.$executeRawUnsafe('ALTER TABLE citizens ALTER COLUMN name DROP NOT NULL');
@@ -284,6 +284,16 @@ beforeAll(async () => {
   await prisma.$executeRawUnsafe('ALTER TABLE citizens ADD COLUMN IF NOT EXISTS "middleName" text');
   await prisma.$executeRawUnsafe('ALTER TABLE citizens ADD COLUMN IF NOT EXISTS "lastName" text');
   await prisma.$executeRawUnsafe('ALTER TABLE citizens ADD COLUMN IF NOT EXISTS suffix text');
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE citizens ADD COLUMN IF NOT EXISTS "addressLine1" text',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE citizens ADD COLUMN IF NOT EXISTS "addressLine2" text',
+  );
+  await prisma.$executeRawUnsafe(
+    'ALTER TABLE citizens ADD COLUMN IF NOT EXISTS "cityMunicipalityId" uuid',
+  );
+  await prisma.$executeRawUnsafe('ALTER TABLE citizens ADD COLUMN IF NOT EXISTS "barangayId" uuid');
   await prisma.$executeRawUnsafe(
     'ALTER TABLE citizens ADD COLUMN IF NOT EXISTS "privacyNoticeAcceptedAt" timestamptz',
   );
@@ -460,6 +470,34 @@ beforeAll(async () => {
   await prisma.$executeRawUnsafe(
     'ALTER TABLE barangays ADD COLUMN IF NOT EXISTS "archivedAt" timestamptz',
   );
+  await prisma.$executeRawUnsafe(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'citizens_city_municipality_id_fkey'
+      ) THEN
+        ALTER TABLE citizens
+        ADD CONSTRAINT citizens_city_municipality_id_fkey
+        FOREIGN KEY ("cityMunicipalityId") REFERENCES cities_municipalities(id);
+      END IF;
+    END $$;
+  `);
+  await prisma.$executeRawUnsafe(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'citizens_barangay_id_fkey'
+      ) THEN
+        ALTER TABLE citizens
+        ADD CONSTRAINT citizens_barangay_id_fkey
+        FOREIGN KEY ("barangayId") REFERENCES barangays(id);
+      END IF;
+    END $$;
+  `);
   await prisma.$executeRawUnsafe(
     'ALTER TABLE agencies ADD COLUMN IF NOT EXISTS "archivedAt" timestamptz',
   );
@@ -516,6 +554,12 @@ beforeAll(async () => {
   );
   await prisma.$executeRawUnsafe(
     'CREATE INDEX IF NOT EXISTS citizens_archived_at_idx ON citizens ("archivedAt")',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS citizens_city_municipality_id_idx ON citizens ("cityMunicipalityId")',
+  );
+  await prisma.$executeRawUnsafe(
+    'CREATE INDEX IF NOT EXISTS citizens_barangay_id_idx ON citizens ("barangayId")',
   );
   await prisma.$executeRawUnsafe(
     'CREATE INDEX IF NOT EXISTS data_subject_requests_requester_user_id_idx ON data_subject_requests ("requesterUserId")',

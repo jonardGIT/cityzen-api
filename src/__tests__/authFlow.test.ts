@@ -73,13 +73,33 @@ describe('Auth — Registration', () => {
     expect(res.body.user.role).toBe('CITIZEN_REPORTER');
   });
 
+  it('registers a new citizen user without any name fields', async () => {
+    const stamp = Date.now();
+    const email = `flowtest.nameless.${stamp}@test.local`;
+    const res = await request(app).post(`${API_V1}/auth/register`).send({
+      email,
+      password: 'Password123!',
+    });
+
+    expect(res.status).toBe(201);
+    expect(res.body.user).toMatchObject({
+      email,
+      name: null,
+      firstName: null,
+      middleName: null,
+      lastName: null,
+      suffix: null,
+      role: 'CITIZEN_REPORTER',
+    });
+  });
+
   it('rejects registration with missing fields', async () => {
     const res = await request(app)
       .post(`${API_V1}/auth/register`)
       .send({ email: 'test@test.local' });
 
     expect(res.status).toBe(422);
-    expect(res.body.message).toMatch(/name.*email.*password|required/i);
+    expect(res.body.message).toBe('email and password are required');
   });
 
   it('rejects weak password', async () => {

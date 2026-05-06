@@ -62,6 +62,14 @@ const ADMIN_EMAIL = 'admin@xypes.local';
 const SUPABASE_USER_ID = '11111111-1111-4111-8111-111111111111';
 const SUPABASE_SESSION_ID = '22222222-2222-4222-8222-222222222222';
 const PENDING_CONFIRMATION_SUPABASE_USER_ID = '33333333-3333-4333-8333-333333333333';
+const DEFAULT_PRIVACY_NOTICE_VERSION = 'ph-dpa-2012-v1';
+
+function buildPrivacyNoticeAcceptance() {
+  return {
+    privacyNoticeAccepted: true,
+    privacyNoticeVersion: DEFAULT_PRIVACY_NOTICE_VERSION,
+  };
+}
 
 describe('Supabase JWT mode', () => {
   beforeEach(async () => {
@@ -84,6 +92,7 @@ describe('Supabase JWT mode', () => {
           { supabaseAuthUserId: SUPABASE_USER_ID },
           { supabaseAuthUserId: PENDING_CONFIRMATION_SUPABASE_USER_ID },
           { email: { startsWith: 'pending-confirmation-' } },
+          { email: { startsWith: 'citizen.mobile.' } },
         ],
       },
     });
@@ -175,45 +184,204 @@ describe('Supabase JWT mode', () => {
     });
   });
 
-  it('rejects mobile registration when Supabase JWT mode is enabled', async () => {
-    const mobileNumber = '09171239999';
+  it('registers an email citizen without name fields and omits Supabase displayName', async () => {
+    const registrationEmail = `nameless-${Date.now()}@xypes.local`;
 
-    const response = await request(app).post(`${API_V1}/auth/mobile/register`).send({
-      name: 'Mobile Citizen Reporter',
-      mobileNumber,
+    mockRegisterSupabaseAuthUser.mockResolvedValue({
+      id: SUPABASE_USER_ID,
+      email: registrationEmail,
+    });
+    mockSignInSupabaseUser.mockResolvedValue({
+      token: 'supabase-access-token',
+      refreshToken: 'supabase-refresh-token',
+      tokenType: 'Bearer',
+      sessionId: SUPABASE_SESSION_ID,
+      expiresAt: '2026-04-02T00:00:00.000Z',
+      refreshExpiresAt: null,
+      userId: SUPABASE_USER_ID,
+      email: registrationEmail,
+    });
+
+    const response = await request(app).post(`${API_V1}/auth/register`).send({
+      email: registrationEmail,
       password: 'Password123!',
     });
 
-    expect(response.status).toBe(501);
+    expect(response.status).toBe(201);
     expect(response.body).toMatchObject({
-      message: 'Mobile auth is only available when local app auth and app JWT sessions are enabled',
+      token: 'supabase-access-token',
+      refreshToken: 'supabase-refresh-token',
+      tokenType: 'Bearer',
+      sessionId: SUPABASE_SESSION_ID,
+      user: {
+        email: registrationEmail,
+        role: 'CITIZEN_REPORTER',
+        name: null,
+        firstName: null,
+        middleName: null,
+        lastName: null,
+        suffix: null,
+      },
+    });
+    expect(mockRegisterSupabaseAuthUser).toHaveBeenCalledWith({
+      email: registrationEmail,
+      password: 'Password123!',
+      role: 'CITIZEN_REPORTER',
+    });
+  });
+
+  it('registers a citizen mobile account and returns a Supabase session bundle in JWT mode', async () => {
+    const mobileNumber = '09171239999';
+    const normalizedMobileNumber = '+639171239999';
+    const surrogateEmail = 'citizen.mobile.639171239999@cirs.mobile.invalid';
+
+    mockRegisterSupabaseAuthUser.mockResolvedValue({
+      id: SUPABASE_USER_ID,
+      email: surrogateEmail,
+    });
+    mockSignInSupabaseUser.mockResolvedValue({
+      token: 'supabase-access-token',
+      refreshToken: 'supabase-refresh-token',
+      tokenType: 'Bearer',
+      sessionId: SUPABASE_SESSION_ID,
+      expiresAt: '2026-04-02T00:00:00.000Z',
+      refreshExpiresAt: null,
+      userId: SUPABASE_USER_ID,
+      email: surrogateEmail,
+    });
+
+    const response = await request(app)
+      .post(`${API_V1}/auth/mobile/register`)
+      .send({
+        firstName: 'Mobile',
+        lastName: 'Citizen Reporter',
+        mobileNumber,
+        password: 'Password123!',
+        ...buildPrivacyNoticeAcceptance(),
+      });
+
+    expect(response.status).toBe(201);
+    expect(response.body).toMatchObject({
+      token: 'supabase-access-token',
+      refreshToken: 'supabase-refresh-token',
+      tokenType: 'Bearer',
+      sessionId: SUPABASE_SESSION_ID,
+      user: {
+        role: 'CITIZEN_REPORTER',
+        mobileNumber: normalizedMobileNumber,
+        email: surrogateEmail,
+      },
+    });
+    expect(mockRegisterSupabaseAuthUser).toHaveBeenCalledWith({
+      email: surrogateEmail,
+      password: 'Password123!',
+      displayName: 'Mobile Citizen Reporter',
+      role: 'CITIZEN_REPORTER',
+    });
+    expect(mockSignInSupabaseUser).toHaveBeenCalledWith({
+      email: surrogateEmail,
+      password: 'Password123!',
     });
 
     const createdUser = await prisma.user.findUnique({
-      where: { mobileNumber: '+639171239999' },
-      select: { id: true },
+      where: { mobileNumber: normalizedMobileNumber },
+      select: {
+        email: true,
+        mobileNumber: true,
+        role: true,
+        supabaseAuthUserId: true,
+        passwordHash: true,
+        citizenId: true,
+      },
     });
 
-    expect(createdUser).toBeNull();
+    expect(createdUser).toMatchObject({
+      email: surrogateEmail,
+      mobileNumber: normalizedMobileNumber,
+      role: 'CITIZEN_REPORTER',
+      supabaseAuthUserId: SUPABASE_USER_ID,
+      passwordHash: null,
+    });
+    expect(createdUser?.citizenId).toBeTruthy();
   });
 
-  it('rejects mobile login when Supabase JWT mode is enabled', async () => {
+  it('registers a citizen mobile account without name fields and omits Supabase displayName', async () => {
+    const mobileNumber = '09171238888';
+    const normalizedMobileNumber = '+639171238888';
+    const surrogateEmail = 'citizen.mobile.639171238888@cirs.mobile.invalid';
+
+    mockRegisterSupabaseAuthUser.mockResolvedValue({
+      id: SUPABASE_USER_ID,
+      email: surrogateEmail,
+    });
+    mockSignInSupabaseUser.mockResolvedValue({
+      token: 'supabase-access-token',
+      refreshToken: 'supabase-refresh-token',
+      tokenType: 'Bearer',
+      sessionId: SUPABASE_SESSION_ID,
+      expiresAt: '2026-04-02T00:00:00.000Z',
+      refreshExpiresAt: null,
+      userId: SUPABASE_USER_ID,
+      email: surrogateEmail,
+    });
+
+    const response = await request(app)
+      .post(`${API_V1}/auth/mobile/register`)
+      .send({
+        mobileNumber,
+        password: 'Password123!',
+        ...buildPrivacyNoticeAcceptance(),
+      });
+
+    expect(response.status).toBe(201);
+    expect(response.body).toMatchObject({
+      token: 'supabase-access-token',
+      refreshToken: 'supabase-refresh-token',
+      tokenType: 'Bearer',
+      sessionId: SUPABASE_SESSION_ID,
+      user: {
+        role: 'CITIZEN_REPORTER',
+        mobileNumber: normalizedMobileNumber,
+        email: surrogateEmail,
+        name: null,
+        firstName: null,
+        middleName: null,
+        lastName: null,
+        suffix: null,
+      },
+    });
+    expect(mockRegisterSupabaseAuthUser).toHaveBeenCalledWith({
+      email: surrogateEmail,
+      password: 'Password123!',
+      role: 'CITIZEN_REPORTER',
+    });
+  });
+
+  it('logs in a citizen mobile account and returns a Supabase session bundle in JWT mode', async () => {
     const unique = Date.now();
-    const mobileNumber = `+63917${unique.toString().slice(-7).padStart(7, '0')}`;
-    const rawMobileNumber = `0${mobileNumber.slice(3)}`;
-    const passwordHash = await import('bcryptjs').then(({ default: bcrypt }) =>
-      bcrypt.hash('Password123!', 10),
-    );
+    const normalizedMobileNumber = `+63917${unique.toString().slice(-7).padStart(7, '0')}`;
+    const rawMobileNumber = `0${normalizedMobileNumber.slice(3)}`;
+    const surrogateEmail = `citizen.mobile.${normalizedMobileNumber.slice(1)}@cirs.mobile.invalid`;
 
     await prisma.user.create({
       data: {
         name: 'Mobile Login Citizen',
-        email: `mobile.login.${unique}@xypes.local`,
-        mobileNumber,
+        email: surrogateEmail,
+        mobileNumber: normalizedMobileNumber,
         mobileNumberVerifiedAt: new Date(),
-        passwordHash,
         role: 'CITIZEN_REPORTER',
       },
+    });
+
+    mockSignInSupabaseUser.mockResolvedValue({
+      token: 'supabase-access-token',
+      refreshToken: 'supabase-refresh-token',
+      tokenType: 'Bearer',
+      sessionId: SUPABASE_SESSION_ID,
+      expiresAt: '2026-04-02T00:00:00.000Z',
+      refreshExpiresAt: null,
+      userId: SUPABASE_USER_ID,
+      email: surrogateEmail,
     });
 
     const response = await request(app).post(`${API_V1}/auth/mobile/login`).send({
@@ -221,10 +389,57 @@ describe('Supabase JWT mode', () => {
       password: 'Password123!',
     });
 
-    expect(response.status).toBe(501);
+    expect(response.status).toBe(200);
     expect(response.body).toMatchObject({
-      message: 'Mobile auth is only available when local app auth and app JWT sessions are enabled',
+      token: 'supabase-access-token',
+      refreshToken: 'supabase-refresh-token',
+      sessionId: SUPABASE_SESSION_ID,
+      user: {
+        role: 'CITIZEN_REPORTER',
+        mobileNumber: normalizedMobileNumber,
+        email: surrogateEmail,
+      },
     });
+    expect(mockSignInSupabaseUser).toHaveBeenCalledWith({
+      email: surrogateEmail,
+      password: 'Password123!',
+    });
+
+    const updatedUser = await prisma.user.findUnique({
+      where: { mobileNumber: normalizedMobileNumber },
+      select: { supabaseAuthUserId: true },
+    });
+
+    expect(updatedUser?.supabaseAuthUserId).toBe(SUPABASE_USER_ID);
+  });
+
+  it('rejects duplicate mobile registration before calling Supabase in JWT mode', async () => {
+    const normalizedMobileNumber = '+639171234567';
+
+    await prisma.user.create({
+      data: {
+        name: 'Existing Mobile Citizen',
+        email: 'citizen.mobile.639171234567@cirs.mobile.invalid',
+        mobileNumber: normalizedMobileNumber,
+        mobileNumberVerifiedAt: new Date(),
+        role: 'CITIZEN_REPORTER',
+      },
+    });
+
+    const response = await request(app)
+      .post(`${API_V1}/auth/mobile/register`)
+      .send({
+        name: 'Duplicate Mobile Citizen',
+        mobileNumber: '09171234567',
+        password: 'Password123!',
+        ...buildPrivacyNoticeAcceptance(),
+      });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toMatchObject({
+      message: 'Mobile number already registered',
+    });
+    expect(mockRegisterSupabaseAuthUser).not.toHaveBeenCalled();
   });
 
   it('accepts a Supabase bearer token on protected routes and links the local user', async () => {
