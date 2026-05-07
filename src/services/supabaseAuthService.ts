@@ -317,6 +317,7 @@ export async function registerSupabaseAuthUser(input: {
   password: string;
   displayName?: string;
   role: string;
+  emailConfirmed?: boolean;
 }): Promise<{ id: string; email: string }> {
   const client = getAdminClient();
   const userMetadata: Record<string, string> = {
@@ -330,7 +331,7 @@ export async function registerSupabaseAuthUser(input: {
   const { data, error } = await client.auth.admin.createUser({
     email: input.email,
     password: input.password,
-    email_confirm: shouldAutoConfirmEmail(),
+    email_confirm: input.emailConfirmed ?? shouldAutoConfirmEmail(),
     user_metadata: userMetadata,
   });
 

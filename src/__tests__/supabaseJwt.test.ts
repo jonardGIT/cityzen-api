@@ -277,6 +277,7 @@ describe('Supabase JWT mode', () => {
       password: 'Password123!',
       displayName: 'Mobile Citizen Reporter',
       role: 'CITIZEN_REPORTER',
+      emailConfirmed: true,
     });
     expect(mockSignInSupabaseUser).toHaveBeenCalledWith({
       email: surrogateEmail,
@@ -354,6 +355,7 @@ describe('Supabase JWT mode', () => {
       email: surrogateEmail,
       password: 'Password123!',
       role: 'CITIZEN_REPORTER',
+      emailConfirmed: true,
     });
   });
 

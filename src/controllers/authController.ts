@@ -648,6 +648,7 @@ export async function registerMobileCitizen(req: Request, res: Response): Promis
         password,
         ...(canonicalDisplayName ? { displayName: canonicalDisplayName } : {}),
         role: 'CITIZEN_REPORTER',
+        emailConfirmed: true,
       });
       supabaseAuthUserId = supabaseUser.id;
     } catch (error) {
