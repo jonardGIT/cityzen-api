@@ -1264,6 +1264,21 @@
     {
       "resource": "mobileCitizen",
       "label": "Mobile Citizen (Canonical Pilot Surface)",
+      "operation": "geographyReferenceMeta",
+      "method": "GET",
+      "path": "/mobile/reference-data/geography/meta",
+      "authRequired": false,
+      "pilotScope": "tuguegarao-first",
+      "compatibility": {
+        "status": "canonical"
+      },
+      "notes": "Public Cagayan-only mobile geography metadata for offline-first cache validation. Returns the Tuguegarao-first pilot scope, the active Cagayan province code, and an opaque geographyVersion derived from the latest active province, locality, and barangay update timestamp.",
+      "fullPath": "/api/v1/mobile/reference-data/geography/meta",
+      "surface": "mobile-citizen"
+    },
+    {
+      "resource": "mobileCitizen",
+      "label": "Mobile Citizen (Canonical Pilot Surface)",
       "operation": "cagayanLocalitiesReference",
       "method": "GET",
       "path": "/mobile/cagayan/localities",
