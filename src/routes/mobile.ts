@@ -26,6 +26,7 @@ import {
 } from '../controllers/incidentsController.js';
 import { getPublishedMobileAppContent } from '../controllers/mobileAppContentsController.js';
 import {
+  getCagayanGeographyMeta,
   getCagayanLocalities,
   getCagayanLocalityBarangays,
 } from '../controllers/mobileReferencesController.js';
@@ -45,6 +46,7 @@ const localityIdParamValidator = [
 ];
 
 router.get('/content', asyncHandler(getPublishedMobileAppContent));
+router.get('/reference-data/geography/meta', asyncHandler(getCagayanGeographyMeta));
 router.get('/cagayan/localities', asyncHandler(getCagayanLocalities));
 router.get(
   '/cagayan/localities/:localityId/barangays',

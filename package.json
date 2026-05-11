@@ -9,6 +9,7 @@
     "bootstrap:admin": "tsx scripts/bootstrapAdmin.ts",
     "docs:dashboard-config": "tsx scripts/generateDashboardCrudConfig.ts",
     "docs:dashboard-config:check": "npm run docs:dashboard-config && git diff --exit-code -- docs/dashboard-crud-config.json docs/dashboard-crud-config.flat.json",
+    "seed:cagayan:generate": "tsx scripts/generateCagayanProvinceSeed.ts",
     "smoke:local": "tsx scripts/smokeLocal.ts",
     "smoke:remote": "tsx scripts/smokeRemote.ts",
     "start": "node dist/server.js",

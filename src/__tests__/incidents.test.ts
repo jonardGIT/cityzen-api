@@ -540,6 +540,41 @@ describe(`POST ${BASE}`, () => {
       message: 'Incident locality must resolve to an active city or municipality',
     });
   });
+
+  it('should reject mismatched canonical cityMunicipalityId and barangayId pairings on create', async () => {
+    const tuguegaraoScope = await ensureTuguegaraoCityScope();
+    const partnerCity = await ensurePartnerCityScope();
+    const partnerBarangay = await prisma.barangay.findFirstOrThrow({
+      where: {
+        cityMunicipalityId: partnerCity.id,
+        archivedAt: null,
+      },
+      select: { id: true },
+    });
+    const statusId = await getStatusId();
+    const citizenId = await createCitizen();
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const res = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        description: 'Incident with mismatched canonical barangay pairing',
+        statusId,
+        citizenId,
+        categoryId,
+        severityId,
+        ...buildTuguegaraoLocationSnapshot(),
+        cityMunicipalityId: tuguegaraoScope.city.id,
+        barangayId: partnerBarangay.id,
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({
+      message: 'barangayId does not belong to cityMunicipalityId',
+    });
+  });
 });
 
 describe(`POST ${BASE}/report trust metadata`, () => {
@@ -722,6 +757,50 @@ describe(`POST ${BASE}/report trust metadata`, () => {
     expect(patchRes.status).toBe(400);
     expect(patchRes.body).toMatchObject({
       message: 'Incident locality must resolve to an active city or municipality',
+    });
+  });
+
+  it('should reject mismatched canonical cityMunicipalityId and barangayId pairings on patch', async () => {
+    const tuguegaraoScope = await ensureTuguegaraoCityScope();
+    const partnerCity = await ensurePartnerCityScope();
+    const partnerBarangay = await prisma.barangay.findFirstOrThrow({
+      where: {
+        cityMunicipalityId: partnerCity.id,
+        archivedAt: null,
+      },
+      select: { id: true },
+    });
+    const statusId = await getStatusId();
+    const citizenId = await createCitizen();
+    const categoryId = await createCategory();
+    const severityId = await createSeverity();
+
+    const createRes = await request(app)
+      .post(BASE)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        description: 'Incident patch mismatch regression target',
+        statusId,
+        citizenId,
+        categoryId,
+        severityId,
+        ...buildTuguegaraoLocationSnapshot(),
+        cityMunicipalityId: tuguegaraoScope.city.id,
+      });
+
+    expect(createRes.status).toBe(201);
+
+    const patchRes = await request(app)
+      .patch(`${BASE}/${createRes.body.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        cityMunicipalityId: tuguegaraoScope.city.id,
+        barangayId: partnerBarangay.id,
+      });
+
+    expect(patchRes.status).toBe(400);
+    expect(patchRes.body).toEqual({
+      message: 'barangayId does not belong to cityMunicipalityId',
     });
   });
 });

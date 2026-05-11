@@ -1,11 +1,33 @@
 import type { Request, Response } from 'express';
 import {
+  CAGAYAN_PROVINCE_CODE,
   MOBILE_CAGAYAN_LOCALITIES_MISCONFIGURATION_MESSAGE,
+  getActiveCagayanGeographyMeta,
   getActiveCagayanLocalityById,
   getActiveCagayanProvince,
   listActiveCagayanBarangays,
   listActiveCagayanLocalities,
 } from '../services/cagayanMobileGeographyService.js';
+
+export async function getCagayanGeographyMeta(_req: Request, res: Response): Promise<void> {
+  const geographyMeta = await getActiveCagayanGeographyMeta();
+
+  if (!geographyMeta) {
+    res.status(503).json({
+      message: MOBILE_CAGAYAN_LOCALITIES_MISCONFIGURATION_MESSAGE,
+    });
+    return;
+  }
+
+  res.json({
+    scope: {
+      pilotScope: 'tuguegarao-first',
+      provinceCode: CAGAYAN_PROVINCE_CODE,
+    },
+    geographyVersion: geographyMeta.geographyVersion,
+    lastUpdatedAt: geographyMeta.lastUpdatedAt,
+  });
+}
 
 export async function getCagayanLocalities(_req: Request, res: Response): Promise<void> {
   const province = await getActiveCagayanProvince();

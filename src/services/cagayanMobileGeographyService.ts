@@ -13,6 +13,12 @@ export type CagayanProvinceReference = {
   name: string;
 };
 
+export type CagayanGeographyMetaReference = {
+  provinceCode: string;
+  geographyVersion: string;
+  lastUpdatedAt: string;
+};
+
 export type CagayanLocalityReference = {
   id: string;
   code: string;
@@ -26,7 +32,12 @@ export type CagayanBarangayReference = {
   name: string;
 };
 
-export async function getActiveCagayanProvince(): Promise<CagayanProvinceReference | null> {
+async function findActiveCagayanProvinceRecord(): Promise<{
+  id: string;
+  code: string;
+  name: string;
+  updatedAt: Date;
+} | null> {
   return prisma.province.findFirst({
     where: withActiveRecords({
       code: CAGAYAN_PROVINCE_CODE,
@@ -35,8 +46,72 @@ export async function getActiveCagayanProvince(): Promise<CagayanProvinceReferen
       id: true,
       code: true,
       name: true,
+      updatedAt: true,
     },
   });
+}
+
+export async function getActiveCagayanProvince(): Promise<CagayanProvinceReference | null> {
+  const province = await findActiveCagayanProvinceRecord();
+
+  if (!province) {
+    return null;
+  }
+
+  return {
+    id: province.id,
+    code: province.code,
+    name: province.name,
+  };
+}
+
+export async function getActiveCagayanGeographyMeta(): Promise<CagayanGeographyMetaReference | null> {
+  const province = await findActiveCagayanProvinceRecord();
+
+  if (!province) {
+    return null;
+  }
+
+  const [localitiesAggregate, barangaysAggregate] = await Promise.all([
+    prisma.cityMunicipality.aggregate({
+      where: withActiveRecords({
+        provinceId: province.id,
+      }),
+      _max: {
+        updatedAt: true,
+      },
+    }),
+    prisma.barangay.aggregate({
+      where: withActiveRecords({
+        cityMunicipality: withActiveRecords({
+          provinceId: province.id,
+        }),
+      }),
+      _max: {
+        updatedAt: true,
+      },
+    }),
+  ]);
+
+  const lastUpdatedAt = [
+    province.updatedAt,
+    localitiesAggregate._max.updatedAt,
+    barangaysAggregate._max.updatedAt,
+  ].reduce<Date>((latest, current) => {
+    if (!current || latest >= current) {
+      return latest;
+    }
+
+    return current;
+  }, province.updatedAt);
+
+  const lastUpdatedAtIso = lastUpdatedAt.toISOString();
+
+  return {
+    provinceCode: province.code,
+    geographyVersion: `${province.code}:${lastUpdatedAtIso}`,
+    lastUpdatedAt: lastUpdatedAtIso,
+  };
 }
 
 export async function listActiveCagayanLocalities(

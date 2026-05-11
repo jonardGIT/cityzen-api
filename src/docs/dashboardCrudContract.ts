@@ -297,6 +297,13 @@ const mobileCitizenSurface: MobileCitizenSurfaceContract = {
       notes:
         'Publicly available mobile app content. Backend filters audience to published, generic content only; draft and citizen-only entries are not exposed unauthenticated.',
     }),
+    geographyReferenceMeta: route('GET', '/mobile/reference-data/geography/meta', {
+      authRequired: false,
+      pilotScope: 'tuguegarao-first',
+      compatibility: { status: 'canonical' },
+      notes:
+        'Public Cagayan-only mobile geography metadata for offline-first cache validation. Returns the Tuguegarao-first pilot scope, the active Cagayan province code, and an opaque geographyVersion derived from the latest active province, locality, and barangay update timestamp.',
+    }),
     cagayanLocalitiesReference: route('GET', '/mobile/cagayan/localities', {
       authRequired: false,
       pilotScope: 'tuguegarao-first',

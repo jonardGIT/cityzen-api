@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it, jest } from '@jest/globals';
 import app, { API_V1 } from '../app.js';
 import prisma from '../lib/prisma.js';
 import { MANUAL_LINK_REQUIRED_LINKED_CITIZEN_MESSAGE } from '../services/userCitizenLinkService.js';
+import { withActiveRecords } from '../utils/archive.js';
 import { getAdminToken, getTokenForRole } from './helpers/auth.js';
 import {
   buildIncidentLocationSnapshot,
@@ -257,6 +258,60 @@ describe(`PATCH ${MOBILE_BASE}/profile and GET ${MOBILE_BASE}/profile`, () => {
 });
 
 describe(`GET ${MOBILE_BASE}/cagayan/localities and GET ${MOBILE_BASE}/cagayan/localities/:localityId/barangays`, () => {
+  it('returns public geography metadata for offline-first cache staleness checks', async () => {
+    const province = await prisma.province.findUniqueOrThrow({
+      where: { code: '021500000' },
+      select: { id: true, updatedAt: true },
+    });
+
+    const [localitiesAggregate, barangaysAggregate] = await Promise.all([
+      prisma.cityMunicipality.aggregate({
+        where: withActiveRecords({
+          provinceId: province.id,
+        }),
+        _max: {
+          updatedAt: true,
+        },
+      }),
+      prisma.barangay.aggregate({
+        where: withActiveRecords({
+          cityMunicipality: withActiveRecords({
+            provinceId: province.id,
+          }),
+        }),
+        _max: {
+          updatedAt: true,
+        },
+      }),
+    ]);
+
+    const lastUpdatedAt = [
+      province.updatedAt,
+      localitiesAggregate._max.updatedAt,
+      barangaysAggregate._max.updatedAt,
+    ].reduce<Date>((latest, current) => {
+      if (!current || latest >= current) {
+        return latest;
+      }
+
+      return current;
+    }, province.updatedAt);
+
+    const lastUpdatedAtIso = lastUpdatedAt.toISOString();
+
+    const response = await request(app).get(`${MOBILE_BASE}/reference-data/geography/meta`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      scope: {
+        pilotScope: 'tuguegarao-first',
+        provinceCode: '021500000',
+      },
+      geographyVersion: `021500000:${lastUpdatedAtIso}`,
+      lastUpdatedAt: lastUpdatedAtIso,
+    });
+  });
+
   it('returns public active Cagayan localities with more than one locality choice', async () => {
     const cagayanProvince = await prisma.province.findUniqueOrThrow({
       where: { code: '021500000' },
