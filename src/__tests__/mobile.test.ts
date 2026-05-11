@@ -481,9 +481,7 @@ describe(`GET ${MOBILE_BASE}/cagayan/localities and GET ${MOBILE_BASE}/cagayan/l
       ]),
     );
     expect(response.body.barangays).toHaveLength(
-      new Set(
-        response.body.barangays.map((barangay: { id: string }) => barangay.id),
-      ).size,
+      new Set(response.body.barangays.map((barangay: { id: string }) => barangay.id)).size,
     );
     expect(response.body.barangays[0]).toEqual({
       id: expect.any(String),
