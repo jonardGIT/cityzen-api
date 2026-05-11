@@ -43,7 +43,12 @@ That means:
 
 ## Current Resource Surface
 
-The dashboard resource model currently includes:
+The dashboard contract currently includes:
+
+- `regions`
+- `provinces`
+- `cities-municipalities`
+- `barangays`
 
 - citizens
 - agencies
@@ -54,6 +59,27 @@ The dashboard resource model currently includes:
 - incidents
 - assignments
 - users
+- `adminUsers`
+- `adminUserMfaCompliance`
+- `adminUserAccessReview`
+- `adminSecurityDataGovernance`
+- `auditLogs`
+- `mobileCitizen`
+
+The primary operator navigation is intentionally narrower than the full contract and remains centered on the current pilot-visible surfaces.
+
+The current pilot-visible operator workflow is still primarily:
+
+- citizens
+- agencies
+- responders
+- statuses
+- categories
+- severities
+- incidents
+- assignments
+- users
+- audit logs
 
 Core resource actions include combinations of:
 

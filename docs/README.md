@@ -30,8 +30,15 @@ This API provides versioned endpoints for:
 - Categories
 - Severities
 - Incidents
+- Public case lookup
 - Assignments
 - Users
+- Audit logs
+- Geography: regions, provinces, cities or municipalities, barangays
+- Incident escalations and mutual-aid requests
+- Auth and session management
+- Privacy requests
+- Admin and mobile surfaces
 
 Core features:
 
@@ -49,6 +56,7 @@ Core features:
 
 Current platform capabilities:
 
+- Published dashboard contract generation and drift checking for the current Tuguegarao-first pilot boundary
 - Optional Supabase-backed email/password auth, optional Supabase JWT mode, and optional Supabase TOTP MFA, while preserving the API's local user/session model when those flags are disabled.
 - Runtime and migration database connection split for Supabase deployments: pooled `DATABASE_URL` for the API, direct `DIRECT_URL` for Prisma schema and migration commands.
 - Persistent audit logging for auth and privileged mutating flows, including citizen incident reporting and failure-path capture for operational review.
