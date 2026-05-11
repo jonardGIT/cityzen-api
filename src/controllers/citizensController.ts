@@ -121,14 +121,18 @@ async function resolveMobileCitizenProfileLocationData(
     return { status: 'ok', data: {} };
   }
 
-  const province = await getActiveCagayanProvince();
+  const requiresGeographyLookup = hasCityMunicipalityId || hasBarangayId;
 
-  if (!province) {
-    return {
-      status: 'error',
-      code: 503,
-      message: MOBILE_PROFILE_LOCALITY_MISCONFIGURATION_MESSAGE,
-    };
+  if (requiresGeographyLookup) {
+    const province = await getActiveCagayanProvince();
+
+    if (!province) {
+      return {
+        status: 'error',
+        code: 503,
+        message: MOBILE_PROFILE_LOCALITY_MISCONFIGURATION_MESSAGE,
+      };
+    }
   }
 
   const data: MobileCitizenProfileLocationInput = {};

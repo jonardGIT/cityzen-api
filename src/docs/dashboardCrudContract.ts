@@ -288,7 +288,7 @@ const mobileCitizenSurface: MobileCitizenSurfaceContract = {
   basePath: '/mobile',
   pilotScope: 'tuguegarao-first',
   notes:
-    'Canonical mobile-citizen surface for the Tuguegarao-first pilot (consumed by MyTuguegarao). Mobile clients SHOULD use these routes in preference to dashboard-shared aliases. Backend authorization, jurisdiction scoping, and trust-layer rules are enforced server-side regardless of client choice.',
+    'Canonical mobile-citizen surface for the Tuguegarao-first pilot (consumed by MyTuguegarao). Mobile clients SHOULD use these routes in preference to dashboard-shared aliases. Public Cagayan geography reference routes remain province-wide reference data for locality selection while backend authorization, jurisdiction scoping, and trust-layer rules continue to enforce the Tuguegarao-first pilot rollout server-side.',
   routes: {
     publishedContent: route('GET', '/mobile/content', {
       authRequired: false,
@@ -302,14 +302,14 @@ const mobileCitizenSurface: MobileCitizenSurfaceContract = {
       pilotScope: 'tuguegarao-first',
       compatibility: { status: 'canonical' },
       notes:
-        'Public Cagayan-only mobile geography metadata for offline-first cache validation. Returns the Tuguegarao-first pilot scope, the active Cagayan province code, and an opaque geographyVersion derived from the latest active province, locality, and barangay update timestamp.',
+        'Public Cagayan-wide mobile geography metadata for offline-first cache validation. Returns the overall Tuguegarao-first pilot scope alongside the active Cagayan province code and an opaque geographyVersion derived from the latest active province, locality, and barangay update timestamp.',
     }),
     cagayanLocalitiesReference: route('GET', '/mobile/cagayan/localities', {
       authRequired: false,
       pilotScope: 'tuguegarao-first',
       compatibility: { status: 'canonical' },
       notes:
-        'Public Cagayan-only mobile reference data for locality selection flows. Returns active Cagayan province metadata plus active child cities and municipalities with minimal fields (id, code, name, type).',
+        'Public Cagayan-wide mobile reference data for locality selection flows. Returns active Cagayan province metadata plus active child cities and municipalities with minimal fields (id, code, name, type). This reference dataset is broader than the current Tuguegarao-first rollout scope.',
     }),
     cagayanLocalityBarangaysReference: route(
       'GET',
@@ -319,7 +319,7 @@ const mobileCitizenSurface: MobileCitizenSurfaceContract = {
         pilotScope: 'tuguegarao-first',
         compatibility: { status: 'canonical' },
         notes:
-          'Public Cagayan-only mobile reference data for barangay selection flows. Returns only active barangays for the selected active Cagayan locality with minimal fields (id, code, name).',
+          'Public Cagayan-wide mobile reference data for barangay selection flows. Returns only active barangays for the selected active Cagayan locality with minimal fields (id, code, name). This reference dataset is broader than the current Tuguegarao-first rollout scope.',
       },
     ),
     getProfile: route('GET', '/mobile/profile', {

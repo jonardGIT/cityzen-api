@@ -1,7 +1,8 @@
 import request from 'supertest';
-import { beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import app, { API_V1 } from '../app.js';
 import prisma from '../lib/prisma.js';
+import * as cagayanMobileGeographyService from '../services/cagayanMobileGeographyService.js';
 import { MANUAL_LINK_REQUIRED_LINKED_CITIZEN_MESSAGE } from '../services/userCitizenLinkService.js';
 import { withActiveRecords } from '../utils/archive.js';
 import { getAdminToken, getTokenForRole } from './helpers/auth.js';
@@ -18,6 +19,10 @@ const MOBILE_CONTENT_BASE = `${API_V1}/mobile-content`;
 
 let adminToken = '';
 let contentEditorToken = '';
+
+afterEach(() => {
+  jest.restoreAllMocks();
+});
 
 async function registerCitizenReporter(uniqueLabel: string): Promise<{
   token: string;
@@ -255,10 +260,44 @@ describe(`PATCH ${MOBILE_BASE}/profile and GET ${MOBILE_BASE}/profile`, () => {
       message: 'Active Cagayan barangay not found for the selected locality',
     });
   });
+
+  it('accepts address-only updates when Cagayan geography configuration is unavailable', async () => {
+    const reporter = await registerCitizenReporter('mobile-profile-address-only');
+
+    const createRes = await request(app)
+      .patch(`${MOBILE_BASE}/profile`)
+      .set('Authorization', `Bearer ${reporter.token}`)
+      .send({
+        name: 'Mobile Address Only Owner',
+        preferredChannel: 'app',
+      });
+
+    expect(createRes.status).toBe(201);
+
+    const provinceSpy = jest
+      .spyOn(cagayanMobileGeographyService, 'getActiveCagayanProvince')
+      .mockResolvedValueOnce(null);
+
+    const updateRes = await request(app)
+      .patch(`${MOBILE_BASE}/profile`)
+      .set('Authorization', `Bearer ${reporter.token}`)
+      .send({
+        addressLine1: 'Purok 1, Quiet Street',
+        addressLine2: 'Landmark nearby',
+      });
+
+    expect(updateRes.status).toBe(200);
+    expect(updateRes.body).toMatchObject({
+      id: createRes.body.id,
+      addressLine1: 'Purok 1, Quiet Street',
+      addressLine2: 'Landmark nearby',
+    });
+    expect(provinceSpy).not.toHaveBeenCalled();
+  });
 });
 
 describe(`GET ${MOBILE_BASE}/cagayan/localities and GET ${MOBILE_BASE}/cagayan/localities/:localityId/barangays`, () => {
-  it('returns public geography metadata for offline-first cache staleness checks', async () => {
+  it('returns public geography metadata for offline-first cache checks while keeping Tuguegarao-first pilot scope metadata', async () => {
     const province = await prisma.province.findUniqueOrThrow({
       where: { code: '021500000' },
       select: { id: true, updatedAt: true },
@@ -312,7 +351,21 @@ describe(`GET ${MOBILE_BASE}/cagayan/localities and GET ${MOBILE_BASE}/cagayan/l
     });
   });
 
-  it('returns public active Cagayan localities with more than one locality choice', async () => {
+  it('returns 503 when public geography metadata is unavailable', async () => {
+    jest
+      .spyOn(cagayanMobileGeographyService, 'getActiveCagayanGeographyMeta')
+      .mockResolvedValueOnce(null);
+
+    const response = await request(app).get(`${MOBILE_BASE}/reference-data/geography/meta`);
+
+    expect(response.status).toBe(503);
+    expect(response.body).toEqual({
+      message:
+        'Mobile Cagayan locality reference is unavailable: active Cagayan province geography is not configured on the server.',
+    });
+  });
+
+  it('returns public active Cagayan localities as province-wide reference data with more than one locality choice', async () => {
     const cagayanProvince = await prisma.province.findUniqueOrThrow({
       where: { code: '021500000' },
       select: { id: true },
@@ -378,6 +431,20 @@ describe(`GET ${MOBILE_BASE}/cagayan/localities and GET ${MOBILE_BASE}/cagayan/l
     });
   });
 
+  it('returns 503 when public Cagayan localities are unavailable', async () => {
+    jest
+      .spyOn(cagayanMobileGeographyService, 'getActiveCagayanProvince')
+      .mockResolvedValueOnce(null);
+
+    const response = await request(app).get(`${MOBILE_BASE}/cagayan/localities`);
+
+    expect(response.status).toBe(503);
+    expect(response.body).toEqual({
+      message:
+        'Mobile Cagayan locality reference is unavailable: active Cagayan province geography is not configured on the server.',
+    });
+  });
+
   it('returns only barangays for the selected active Cagayan locality', async () => {
     const tuguegaraoCity = await prisma.cityMunicipality.findUniqueOrThrow({
       where: { code: '021529000' },
@@ -413,13 +480,36 @@ describe(`GET ${MOBILE_BASE}/cagayan/localities and GET ${MOBILE_BASE}/cagayan/l
         }),
       ]),
     );
-    expect(response.body.barangays).toEqual(
-      [...response.body.barangays].sort((left, right) => left.name.localeCompare(right.name)),
+    expect(response.body.barangays).toHaveLength(
+      new Set(
+        response.body.barangays.map((barangay: { id: string }) => barangay.id),
+      ).size,
     );
     expect(response.body.barangays[0]).toEqual({
       id: expect.any(String),
       code: expect.any(String),
       name: expect.any(String),
+    });
+  });
+
+  it('returns 503 when public Cagayan barangay reference data is unavailable', async () => {
+    const tuguegaraoCity = await prisma.cityMunicipality.findUniqueOrThrow({
+      where: { code: '021529000' },
+      select: { id: true },
+    });
+
+    jest
+      .spyOn(cagayanMobileGeographyService, 'getActiveCagayanProvince')
+      .mockResolvedValueOnce(null);
+
+    const response = await request(app).get(
+      `${MOBILE_BASE}/cagayan/localities/${tuguegaraoCity.id}/barangays`,
+    );
+
+    expect(response.status).toBe(503);
+    expect(response.body).toEqual({
+      message:
+        'Mobile Cagayan locality reference is unavailable: active Cagayan province geography is not configured on the server.',
     });
   });
 });

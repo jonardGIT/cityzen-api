@@ -55,6 +55,15 @@ export async function getCagayanLocalityBarangays(req: Request, res: Response): 
     ? req.params.localityId[0]
     : req.params.localityId;
 
+  const province = await getActiveCagayanProvince();
+
+  if (!province) {
+    res.status(503).json({
+      message: MOBILE_CAGAYAN_LOCALITIES_MISCONFIGURATION_MESSAGE,
+    });
+    return;
+  }
+
   const locality = await getActiveCagayanLocalityById(localityId);
 
   if (!locality) {

@@ -4,6 +4,9 @@
  * The `/mobile/*` namespace is the canonical entry surface for citizen mobile
  * clients (MyTuguegarao). Each authenticated route requires CITIZEN_REPORTER
  * and the backend scopes results to the JWT subject's own citizen profile.
+ * Public Cagayan geography reference routes remain province-wide reference
+ * data for locality selection flows even while the overall mobile rollout
+ * remains Tuguegarao-first.
  *
  * Compatibility-only aliases live OUTSIDE this router and are kept for
  * dashboard-bootstrap and pre-mobile clients:
