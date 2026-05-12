@@ -182,21 +182,21 @@ describe('Data Leak — Admin endpoints', () => {
     assertNoSensitiveData(res.body, 'GET /admin/users');
   });
 
-  it('GET /admin/mfa-compliance does not expose MFA secrets', async () => {
+  it('GET /admin/users/mfa-compliance does not expose MFA secrets', async () => {
     const res = await request(app)
-      .get(`${API_V1}/admin/mfa-compliance`)
+      .get(`${API_V1}/admin/users/mfa-compliance`)
       .set('Authorization', `Bearer ${adminToken}`);
 
-    assertNoSensitiveData(res.body, 'GET /admin/mfa-compliance');
+    assertNoSensitiveData(res.body, 'GET /admin/users/mfa-compliance');
   });
 
-  it('GET /admin/access-review does not expose sensitive session data', async () => {
+  it('GET /admin/users/access-review does not expose sensitive session data', async () => {
     const res = await request(app)
-      .get(`${API_V1}/admin/access-review`)
+      .get(`${API_V1}/admin/users/access-review`)
       .set('Authorization', `Bearer ${adminToken}`);
 
     if (res.status === 200) {
-      assertNoSensitiveData(res.body, 'GET /admin/access-review');
+      assertNoSensitiveData(res.body, 'GET /admin/users/access-review');
     }
   });
 });

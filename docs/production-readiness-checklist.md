@@ -144,30 +144,32 @@ These are the highest-value additions based on the current route surface and tes
 
 ### Critical
 
-- Geography CRUD endpoints have no direct endpoint tests: `/regions`, `/provinces`, `/cities-municipalities`, `/barangays`.
 - Real migration rehearsal is not the same thing as the current Jest bootstrap in [src/**tests**/setup.ts](/home/nhad/xypes/xypes-cirs-api/src/__tests__/setup.ts).
+- Deploy-facing smoke coverage is still missing for key admin and privacy surfaces even though direct in-repo HTTP tests now exist for geography CRUD, privacy-incident admin endpoints, public case lookup privacy behavior, and rate-limit threshold behavior.
 
 ### Medium-High
 
-- Public case lookup does not have a dedicated `cases` test file; most coverage is indirect through incidents tests.
+- Dedicated public case lookup coverage may still be worth adding if the goal is a clearer black-box suite for privacy and enumeration resistance, even though direct in-repo HTTP proof now exists.
 - Feature-gated incident media upload and managed media access need direct end-to-end coverage when that profile is enabled.
 - Auditor-specific incident read surfaces deserve stronger direct coverage, especially list and detail reads.
-- New privacy incident and data-subject request endpoints still need black-box validation on a live database-backed environment, not only compile coverage.
+- Privacy-request and privacy-incident workflows now have direct in-repo HTTP proof, but they still need deploy-facing smoke depth on a real environment.
 
 ### Medium
 
+- Geography CRUD and privacy workflows would benefit from broader lifecycle depth beyond the newly landed route-level proof, especially around archive, restore, filtering, and role-matrix breadth where applicable.
 - Session invalidation after destructive user actions should be asserted as a black-box behavior, not just assumed from auth-session internals.
-- Rate-limit threshold behavior needs more direct end-to-end checks for 429 responses and abuse boundaries.
+- Rate-limit threshold behavior now has direct in-repo proof, but it still needs black-box verification behind the real ingress path to confirm 429 behavior and abuse boundaries.
 - API-key edge cases and bypass-path regressions should be exercised directly in a deploy-facing smoke path.
 
 ## Recommended Next Additions
 
-1. Add a dedicated geography integration suite.
-2. Add a dedicated public case lookup suite.
+1. Add broader lifecycle-depth coverage where still thin, especially archive, restore, role-matrix breadth, and filtering across geography and privacy workflows.
+2. Add a dedicated public case lookup suite if a standalone privacy and enumeration-resistance harness would improve maintenance or release confidence.
 3. Add a feature-gated media-upload integration suite.
 4. Wire remote smoke into staging or post-deploy automation.
-5. Add a written rollback and restore runbook.
-6. Add deploy-facing smoke coverage for privacy request and privacy incident admin surfaces.
+5. Add a written rollback and restore runbook, then drill it.
+6. Add deploy-facing smoke coverage for admin, privacy, and media surfaces.
+7. Add black-box rate-limit verification behind the real ingress path.
 
 ## Minimum Confidence Standard
 

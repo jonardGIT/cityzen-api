@@ -1,6 +1,6 @@
 # Pilot Readiness Status
 
-Last reviewed: 2026-05-10
+Last reviewed: 2026-05-12
 
 ## Current Verdict
 
@@ -74,13 +74,20 @@ These items remain open unless they are proven in a real environment.
 
 ### Some service surfaces still need stronger deploy-facing proof
 
-The current repo is strong on source-level coverage, but these areas still deserve explicit black-box or deploy-facing validation:
+The current repo now has direct in-repo HTTP coverage for these backend surfaces:
 
-- geography CRUD routes
-- public case lookup
-- feature-gated media upload and access
-- privacy-request and privacy-incident admin surfaces
+- geography CRUD route surface
+- public case lookup privacy behavior
+- privacy-request workflow
+- privacy-incident admin workflow
 - rate-limit threshold behavior
+
+That closes the earlier repo-level proof gap for those routes. The remaining issue is deploy-facing and live-environment confidence, especially:
+
+- remote smoke against a real deployment
+- operational drills for migration, rollback, and restore
+- post-deploy watch-window verification
+- broader black-box checks for feature-gated media upload and access
 
 ### External governance and pilot-operations evidence is still missing
 
@@ -96,7 +103,7 @@ The most important non-code blockers are documented in `docs/privacy-external-bl
 
 Use this wording unless the live environment evidence above has been completed:
 
-> The API appears ready for a controlled Tuguegarao-first pilot from a code and contract perspective, but it should not be described as fully production-ready until live migration rehearsal, remote smoke, monitoring verification, rollback drills, and external governance approvals are complete.
+> The API appears ready for a controlled Tuguegarao-first pilot from a code and contract perspective, but it should not be described as fully production-ready until live migration rehearsal, remote smoke, monitoring verification, watch-window checks, rollback drills, and external governance approvals are complete.
 
 ## Immediate Next Checks
 
