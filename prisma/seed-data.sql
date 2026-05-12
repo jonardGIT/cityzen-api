@@ -1,8 +1,19 @@
 BEGIN;
 
 TRUNCATE TABLE
+  mutual_aid_requests,
+  incident_escalations,
+  incident_status_history,
+  case_tokens,
+  incident_media,
   audit_logs,
   assignments,
+  auth_sessions,
+  password_reset_tokens,
+  rate_limit_buckets,
+  data_subject_requests,
+  privacy_incidents,
+  name_backfill_reviews,
   mobile_app_content,
   incidents,
   responders,
