@@ -568,6 +568,8 @@ npm run dev
 npm test
 ```
 
+The destructive helper commands behind the local test DB workflow now fail closed when `NODE_ENV=production` or when `DATABASE_URL` or `DIRECT_URL` point to anything other than an obvious local or test target such as the compose `postgres` service or the `xypes_test` database.
+
 ### Standard TypeScript build
 
 ```bash
