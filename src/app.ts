@@ -27,7 +27,7 @@ import adminRouter from './routes/admin.js';
 import mobileRouter from './routes/mobile.js';
 import mobileContentRouter from './routes/mobileContent.js';
 import privacyRequestsRouter from './routes/privacyRequests.js';
-import { openApiDocument } from './docs/openapi.js';
+import { loadRuntimeOpenApiDocument } from './docs/runtimeOpenapi.js';
 import { getFeatureSelection } from './featureSelection.js';
 import { createApiKeyAuthMiddleware } from './middleware/apiKeyAuth.js';
 import { createRateLimitMiddleware } from './middleware/rateLimit.js';
@@ -99,6 +99,7 @@ morgan.token('safe-url', (req) => {
 const app = express();
 export const API_V1 = process.env.API_BASE_PATH ?? '/api/v1';
 const isProduction = process.env.NODE_ENV === 'production';
+const runtimeOpenApiDocument = !isProduction ? loadRuntimeOpenApiDocument() : null;
 const featureSelection = getFeatureSelection();
 const apiKeyBypassPaths = ['/health', '/openapi.json', '/docs', '/auth', '/cases', '/mobile'];
 const rateLimitBypassPaths = ['/health', '/openapi.json', '/docs', '/cases'];
@@ -164,13 +165,13 @@ app.use(API_V1, createRateLimitMiddleware(rateLimitBypassPaths));
 // Require valid API keys on protected versioned API routes.
 app.use(API_V1, createApiKeyAuthMiddleware(apiKeyBypassPaths));
 
-if (!isProduction) {
+if (!isProduction && runtimeOpenApiDocument) {
   app.get(`${API_V1}/openapi.json`, (_req, res) => {
-    res.json(openApiDocument);
+    res.json(runtimeOpenApiDocument);
   });
 
   // Serve interactive Swagger UI in non-production environments.
-  app.use(`${API_V1}/docs`, swaggerUi.serve, swaggerUi.setup(openApiDocument));
+  app.use(`${API_V1}/docs`, swaggerUi.serve, swaggerUi.setup(runtimeOpenApiDocument));
 }
 
 // Mount citizens resource routes.

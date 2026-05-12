@@ -40,6 +40,7 @@ Environment:
   SMOKE_API_KEY            Optional x-api-key value for protected routes
   SMOKE_ADMIN_EMAIL        Optional admin login email, defaults to admin@xypes.local
   SMOKE_ADMIN_PASSWORD     Optional admin login password, defaults to Password123!
+  SMOKE_ADMIN_MFA_CODE     Optional MFA code for admin login when the account requires TOTP
   SMOKE_CITIZEN_EMAIL      Optional citizen reporter login for mobile checks
   SMOKE_CITIZEN_PASSWORD   Optional citizen reporter password for mobile checks
   SMOKE_CASE_TOKEN         Optional public case token for /cases/{token} check
@@ -57,8 +58,10 @@ const apiBasePath = process.env.SMOKE_API_BASE_PATH?.trim() || '/api/v1';
 const apiKey = process.env.SMOKE_API_KEY?.trim();
 const adminEmail = process.env.SMOKE_ADMIN_EMAIL?.trim() || 'admin@xypes.local';
 const adminPassword = process.env.SMOKE_ADMIN_PASSWORD?.trim() || 'Password123!';
+const adminMfaCode = process.env.SMOKE_ADMIN_MFA_CODE?.trim();
 const citizenEmail = process.env.SMOKE_CITIZEN_EMAIL?.trim();
 const citizenPassword = process.env.SMOKE_CITIZEN_PASSWORD?.trim();
+const citizenMfaCode = process.env.SMOKE_CITIZEN_MFA_CODE?.trim();
 const caseToken = process.env.SMOKE_CASE_TOKEN?.trim();
 
 if (!baseUrl) {
@@ -211,15 +214,43 @@ async function loginUser(
   name: string,
   email: string,
   password: string,
+  mfaCode?: string,
 ): Promise<AuthPayload | null> {
   const result = await runCheck(summary, name, () =>
     requestJson('POST', '/auth/login', {
-      body: { email, password },
-      expectedStatuses: [200],
+      body: {
+        email,
+        password,
+        ...(mfaCode ? { mfaCode } : {}),
+      },
+      expectedStatuses: [200, 401],
     }),
   );
 
-  if (!result || typeof result.body !== 'object' || !result.body) {
+  if (!result) {
+    return null;
+  }
+
+  if (result.status === 401) {
+    const maybeError =
+      result.body && typeof result.body === 'object'
+        ? (result.body as Record<string, unknown>)
+        : null;
+
+    addCheck(summary, {
+      name: `${name} auth requirement`,
+      ok: false,
+      status: result.status,
+      summary: summarizeBody(result.body),
+      error:
+        maybeError?.mfaRequired && !mfaCode
+          ? 'MFA code required. Set SMOKE_ADMIN_MFA_CODE or use a non-MFA smoke account.'
+          : 'Login failed.',
+    });
+    return null;
+  }
+
+  if (typeof result.body !== 'object' || !result.body) {
     return null;
   }
 
@@ -288,7 +319,13 @@ async function main(): Promise<void> {
     );
   }
 
-  const adminAuth = await loginUser(summary, 'admin login', adminEmail, adminPassword);
+  const adminAuth = await loginUser(
+    summary,
+    'admin login',
+    adminEmail,
+    adminPassword,
+    adminMfaCode,
+  );
 
   if (adminAuth?.token) {
     await runCheck(summary, 'auth me', () =>
@@ -377,7 +414,7 @@ async function main(): Promise<void> {
     await runCheck(summary, 'logout current session', () =>
       requestJson('POST', '/auth/logout', {
         authToken: activeToken,
-        expectedStatuses: [200],
+        expectedStatuses: [204],
       }),
     );
 
@@ -399,7 +436,13 @@ async function main(): Promise<void> {
   }
 
   if (citizenEmail && citizenPassword) {
-    const citizenAuth = await loginUser(summary, 'citizen login', citizenEmail, citizenPassword);
+    const citizenAuth = await loginUser(
+      summary,
+      'citizen login',
+      citizenEmail,
+      citizenPassword,
+      citizenMfaCode,
+    );
     if (citizenAuth?.token) {
       await runCheck(summary, 'mobile profile', () =>
         requestJson('GET', '/mobile/profile', {

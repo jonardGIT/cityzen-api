@@ -40,7 +40,8 @@
     "Public and citizen-facing trust endpoints must stay redacted, enumeration-resistant, and least-privilege.",
     "Role or route changes should be checked against docs/dashboard-crud-config.flat.json for drift.",
     "Direct in-repo HTTP test proof now exists for the geography CRUD route surface, privacy-incident admin endpoints, public case lookup privacy behavior, and rate-limit threshold behavior.",
-    "Remaining readiness blockers are now mostly live-environment proof, deploy-facing smoke depth, rollback and restore evidence, and external governance approvals rather than missing core backend features."
+    "Remaining readiness blockers are now mostly live-environment proof, deploy-facing smoke depth, rollback and restore evidence, and external governance approvals rather than missing core backend features.",
+    "Geography remains contract-backed and seeded from the API perspective, while the dashboard intentionally keeps geography out of primary Tuguegarao-first pilot navigation until that pilot-visible workflow is explicitly widened."
   ],
   "validationDefaults": [
     "Prefer targeted Jest and Supertest coverage for touched endpoints and denial paths.",
