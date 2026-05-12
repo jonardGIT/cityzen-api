@@ -66,6 +66,10 @@ INSERT INTO barangays (id, code, name, "cityMunicipalityId", "createdAt", "updat
   ('15000000-0000-0000-0000-000000000005', '023101002', 'San Vicente', '14000000-0000-0000-0000-000000000003', NOW() - INTERVAL '11 days', NOW() - INTERVAL '14 hours'),
   ('15000000-0000-0000-0000-000000000006', '023126001', 'Munumun', '14000000-0000-0000-0000-000000000001', NOW() - INTERVAL '11 days', NOW() - INTERVAL '13 hours');
 
+-- Preserve the stable sample locality and barangay fixture IDs above, then add the
+-- remaining Cagayan PSGC coverage without overwriting those fixed rows.
+\i /workspace/prisma/seed-cagayan-province-supplement.sql
+
 INSERT INTO mobile_app_content (
   id,
   "createdAt",

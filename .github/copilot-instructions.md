@@ -108,6 +108,11 @@ Feature selection drives auth provider, token mode, MFA, media storage, and arch
 - Dashboard CRUD config at [docs/dashboard-crud-config.flat.json](../docs/dashboard-crud-config.flat.json) must stay aligned with backend route, method, resource, and permission expectations. Treat drift as a real bug.
 - For multi-repo work, see the user-level `xypes-platform-orchestrator` agent. Do not cross repo boundaries inside backend changes — return cross-repo notes instead.
 
+## AI workflow
+
+- Use `.github/agent-context.json` as the canonical durable reference for repo-level orchestration notes, validation defaults, and reusable handoff context.
+- Prefer updating that file over duplicating updateable state across multiple agent files.
+
 ## Available agents
 
 Local specialists in `.github/agents/`:

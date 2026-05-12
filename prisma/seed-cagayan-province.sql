@@ -1,5 +1,6 @@
 -- Seed data: complete Cagayan province localities and barangays (PSGC-based)
 -- Generated from https://psgc.gitlab.io/api on 2026-05-11.
+-- Mode: complete standalone seed with rerunnable upserts.
 
 BEGIN;
 

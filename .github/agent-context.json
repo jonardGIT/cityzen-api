@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "lastUpdated": "2026-05-12",
+  "purpose": "Durable repo-level reference for CIRS API orchestration, specialist handoffs, and instruction-sync updates.",
+  "orchestratorReadFirst": true,
+  "updatePolicy": {
+    "canonicalFile": ".github/agent-context.json",
+    "whenToUpdate": [
+      "When durable backend workflow or rollout priorities change.",
+      "When specialist output introduces reusable constraints, validation defaults, or handoff notes.",
+      "When agent instructions would otherwise need duplicate durable updates across multiple files."
+    ],
+    "doNotStore": [
+      "Secrets, tokens, credentials, or personal data.",
+      "One-off chat recap without future planning value."
+    ]
+  },
+  "specialistReportContract": {
+    "requiredSection": "Agent context updates",
+    "include": [
+      "durable repo knowledge learned",
+      "constraints or assumptions that changed",
+      "validation defaults worth preserving",
+      "handoff notes another agent should inherit"
+    ]
+  },
+  "stableFocus": [
+    "Keep /api/v1 backward-compatible unless a task explicitly authorizes a breaking change.",
+    "Stay Tuguegarao-first and fail-closed on privacy, authorization, and public exposure.",
+    "Use factory CRUD for standard resources and keep incidents in custom domain logic.",
+    "Keep Prisma schema, SQL migrations, auth boundaries, and tests aligned."
+  ],
+  "currentReference": {
+    "localOrchestrator": "orchestrator",
+    "preferredSequence": ["schema", "rbac", "crud-runtime", "infra-if-needed", "tests", "review"],
+    "crossRepoBoundary": "Return dashboard or mobile follow-up as coordination notes for xypes-platform-orchestrator instead of implementing cross-repo from the API repo."
+  },
+  "coordinationNotes": [
+    "Backend is the source of truth for contract, roles, privacy boundaries, and rate-limit behavior.",
+    "Public and citizen-facing trust endpoints must stay redacted, enumeration-resistant, and least-privilege.",
+    "Role or route changes should be checked against docs/dashboard-crud-config.flat.json for drift."
+  ],
+  "validationDefaults": [
+    "Prefer targeted Jest and Supertest coverage for touched endpoints and denial paths.",
+    "Run narrow type/build validation after non-trivial backend changes.",
+    "Use git diff --check when customization changes have no narrower executable validation."
+  ],
+  "workingState": {
+    "activeArea": "Shared agent-context adoption for orchestrators and specialists.",
+    "notes": [
+      "Treat this file as the canonical durable reference instead of duplicating updateable state across multiple agent files."
+    ]
+  }
+}
