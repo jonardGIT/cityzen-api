@@ -20,7 +20,7 @@ type InternalOnlyOpenApiDocument = OpenAPIV3.Document & {
   'x-internal-only-docs'?: true;
 };
 
-const requireForDocs = createRequire(__filename);
+const requireForDocs = createRequire(path.resolve(process.cwd(), 'package.json'));
 const INTERNAL_ONLY_DOCS_EXTENSION = 'x-internal-only-docs';
 const INTERNAL_ONLY_DOCS_WARNING =
   'WARNING: This full OpenAPI contract may contain sensitive setup details, internal-only operational guidance, and implementation instructions. Do not expose it in production or public mirrors.';
@@ -73,10 +73,6 @@ function loadTranspiledModule(modulePath: string): OpenApiModule | null {
 
 function getLocalOpenApiModulePaths(): string[] {
   const candidatePaths = new Set<string>();
-
-  if (typeof __dirname !== 'undefined') {
-    candidatePaths.add(path.resolve(__dirname, '../../docs/private-local/openapi.full.ts'));
-  }
 
   candidatePaths.add(path.resolve(process.cwd(), 'docs/private-local/openapi.full.ts'));
 

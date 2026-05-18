@@ -13,6 +13,10 @@ import {
   revokeAuthSession,
   revokeUserSession,
 } from '../services/authSessionService.js';
+import {
+  listSupabaseSessionsForUser,
+  revokeSupabaseUserSession,
+} from '../services/supabaseSessionInventoryService.js';
 import { createMfaSetup, verifyMfaCode } from '../utils/mfa.js';
 import { isAnyMfaFeatureEnabled, isLocalTotpFeatureEnabled } from '../featureSelection.js';
 import {
@@ -1697,17 +1701,31 @@ export async function refresh(req: Request, res: Response): Promise<void> {
 
 // Lists the authenticated user's sessions for device/session management UI.
 export async function listSessions(req: Request, res: Response): Promise<void> {
-  if ((req as AuthenticatedRequest).authProvider === 'supabase') {
-    res.status(501).json({
-      message: 'Session listing is not available when Supabase JWT mode is enabled',
-    });
-    return;
-  }
-
   const authUser = (req as AuthenticatedRequest).authUser;
   const currentSessionId = (req as AuthenticatedRequest).authSessionId;
   if (!authUser || !currentSessionId) {
     res.status(401).json({ message: 'Unauthorized: missing authentication context' });
+    return;
+  }
+
+  if ((req as AuthenticatedRequest).authProvider === 'supabase') {
+    const user = await prisma.user.findUnique({
+      where: { id: authUser.id },
+      select: { supabaseAuthUserId: true },
+    });
+
+    if (!user?.supabaseAuthUserId) {
+      res.status(401).json({ message: 'Unauthorized: missing Supabase identity mapping' });
+      return;
+    }
+
+    const sessions = await listSupabaseSessionsForUser(user.supabaseAuthUserId);
+    res.json(
+      sessions.map((session) => ({
+        ...session,
+        isCurrent: session.id === currentSessionId,
+      })),
+    );
     return;
   }
 
@@ -1722,13 +1740,6 @@ export async function listSessions(req: Request, res: Response): Promise<void> {
 
 // Revokes one of the authenticated user's sessions by session id.
 export async function revokeSession(req: Request, res: Response): Promise<void> {
-  if ((req as AuthenticatedRequest).authProvider === 'supabase') {
-    res.status(501).json({
-      message: 'Revoking an arbitrary session is not available when Supabase JWT mode is enabled',
-    });
-    return;
-  }
-
   const authUser = (req as AuthenticatedRequest).authUser;
   if (!authUser) {
     res.status(401).json({ message: 'Unauthorized: missing authentication context' });
@@ -1738,6 +1749,49 @@ export async function revokeSession(req: Request, res: Response): Promise<void> 
   const sessionId = req.params.id;
   if (!sessionId || typeof sessionId !== 'string') {
     res.status(400).json({ message: 'Invalid session id' });
+    return;
+  }
+
+  if ((req as AuthenticatedRequest).authProvider === 'supabase') {
+    const currentSessionId = (req as AuthenticatedRequest).authSessionId;
+    const authAccessToken = (req as AuthenticatedRequest).authAccessToken;
+
+    if (sessionId === currentSessionId) {
+      if (!authAccessToken) {
+        res.status(401).json({ message: 'Unauthorized: missing authentication session' });
+        return;
+      }
+
+      try {
+        await revokeSupabaseAccessToken(authAccessToken, 'local');
+        res.status(204).send();
+        return;
+      } catch (error) {
+        if (handleSupabaseAuthRuntimeError(res, error)) {
+          return;
+        }
+
+        throw error;
+      }
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: authUser.id },
+      select: { supabaseAuthUserId: true },
+    });
+
+    if (!user?.supabaseAuthUserId) {
+      res.status(401).json({ message: 'Unauthorized: missing Supabase identity mapping' });
+      return;
+    }
+
+    const revoked = await revokeSupabaseUserSession(user.supabaseAuthUserId, sessionId);
+    if (!revoked) {
+      res.status(404).json({ message: 'Session not found' });
+      return;
+    }
+
+    res.status(204).send();
     return;
   }
 

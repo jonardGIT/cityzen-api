@@ -203,7 +203,7 @@ export function isSupabaseJwtFeatureEnabled(): boolean {
 }
 
 export function isSessionInventoryFeatureEnabled(): boolean {
-  return getFeatureSelection().tokenMode === 'app-jwt';
+  return ['app-jwt', 'supabase-jwt'].includes(getFeatureSelection().tokenMode);
 }
 
 export function isSupabaseTotpFeatureEnabled(): boolean {

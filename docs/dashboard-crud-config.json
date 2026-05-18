@@ -27,9 +27,12 @@
         "authRequired": true,
         "featureGate": {
           "feature": "tokenMode",
-          "requires": "app-jwt"
+          "requiresAnyOf": [
+            "app-jwt",
+            "supabase-jwt"
+          ]
         },
-        "notes": "Available only when tokenMode is app-jwt. Feature-aware OpenAPI output omits session inventory endpoints for other token modes."
+        "notes": "Available when tokenMode is app-jwt or supabase-jwt. Feature-aware OpenAPI output omits session inventory endpoints for other token modes."
       },
       "revokeSession": {
         "method": "DELETE",
@@ -37,9 +40,12 @@
         "authRequired": true,
         "featureGate": {
           "feature": "tokenMode",
-          "requires": "app-jwt"
+          "requiresAnyOf": [
+            "app-jwt",
+            "supabase-jwt"
+          ]
         },
-        "notes": "Available only when tokenMode is app-jwt."
+        "notes": "Available when tokenMode is app-jwt or supabase-jwt."
       },
       "mfaSetup": {
         "method": "POST",

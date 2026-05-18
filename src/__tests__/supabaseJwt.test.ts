@@ -13,9 +13,11 @@ const mockIsSupabaseJwtEnabled = jest.fn(() => true);
 const mockIsSupabaseTotpEnabled = jest.fn(() => false);
 const mockListSupabaseAdminMfaFactors = jest.fn();
 const mockListSupabaseMfaFactors = jest.fn();
+const mockListSupabaseSessionsForUser = jest.fn();
 const mockRefreshSupabaseSession = jest.fn();
 const mockRegisterSupabaseAuthUser = jest.fn();
 const mockRevokeSupabaseAccessToken = jest.fn();
+const mockRevokeSupabaseUserSession = jest.fn();
 const mockSignInSupabaseUser = jest.fn();
 const mockUpdateSupabaseAuthUser = jest.fn();
 const mockVerifySupabaseAccessToken = jest.fn();
@@ -54,6 +56,11 @@ jest.mock('../services/supabaseAuthService.js', () => {
     verifySupabaseAccessToken: mockVerifySupabaseAccessToken,
   };
 });
+
+jest.mock('../services/supabaseSessionInventoryService.js', () => ({
+  listSupabaseSessionsForUser: mockListSupabaseSessionsForUser,
+  revokeSupabaseUserSession: mockRevokeSupabaseUserSession,
+}));
 
 import app, { API_V1 } from '../app.js';
 import { SupabaseAuthServiceError } from '../services/supabaseAuthService.js';
@@ -501,7 +508,7 @@ describe('Supabase JWT mode', () => {
     expect(mockRefreshSupabaseSession).toHaveBeenCalledWith('supabase-refresh-token');
   });
 
-  it('returns 501 for session listing in Supabase JWT mode', async () => {
+  it('lists sessions in Supabase JWT mode', async () => {
     mockVerifySupabaseAccessToken.mockResolvedValue({
       id: SUPABASE_USER_ID,
       email: ADMIN_EMAIL,
@@ -511,13 +518,62 @@ describe('Supabase JWT mode', () => {
       nextAuthenticatorLevel: 'aal1',
       currentAuthenticationMethods: ['password'],
     });
+    mockListSupabaseSessionsForUser.mockResolvedValue([
+      {
+        id: SUPABASE_SESSION_ID,
+        createdAt: '2026-04-01T00:00:00.000Z',
+        updatedAt: '2026-04-01T00:30:00.000Z',
+        expiresAt: null,
+        refreshExpiresAt: null,
+        refreshUsedAt: '2026-04-01T00:30:00.000Z',
+        revokedAt: null,
+        lastUsedAt: '2026-04-01T00:30:00.000Z',
+        userAgent: 'Mozilla/5.0',
+        ipAddress: '127.0.0.1',
+        browserFamily: 'Chrome',
+        osFamily: 'Linux',
+        deviceLabel: 'Chrome on Linux',
+        status: 'active',
+      },
+    ]);
 
     const response = await request(app)
       .get(`${API_V1}/auth/sessions`)
       .set('Authorization', 'Bearer supabase-access-token');
 
-    expect(response.status).toBe(501);
-    expect(response.body.message).toContain('Session listing is not available');
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual([
+      expect.objectContaining({
+        id: SUPABASE_SESSION_ID,
+        isCurrent: true,
+        expiresAt: null,
+        refreshExpiresAt: null,
+      }),
+    ]);
+    expect(mockListSupabaseSessionsForUser).toHaveBeenCalledWith(SUPABASE_USER_ID);
+  });
+
+  it('revokes a specific non-current session in Supabase JWT mode', async () => {
+    mockVerifySupabaseAccessToken.mockResolvedValue({
+      id: SUPABASE_USER_ID,
+      email: ADMIN_EMAIL,
+      sessionId: SUPABASE_SESSION_ID,
+      accessTokenIssuedAt: Math.floor(Date.now() / 1000),
+      currentAuthenticatorLevel: 'aal1',
+      nextAuthenticatorLevel: 'aal1',
+      currentAuthenticationMethods: ['password'],
+    });
+    mockRevokeSupabaseUserSession.mockResolvedValue(true);
+
+    const response = await request(app)
+      .delete(`${API_V1}/auth/sessions/99999999-9999-4999-8999-999999999999`)
+      .set('Authorization', 'Bearer supabase-access-token');
+
+    expect(response.status).toBe(204);
+    expect(mockRevokeSupabaseUserSession).toHaveBeenCalledWith(
+      SUPABASE_USER_ID,
+      '99999999-9999-4999-8999-999999999999',
+    );
   });
 
   it('logs out via Supabase token revocation in JWT mode', async () => {

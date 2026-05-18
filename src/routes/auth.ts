@@ -50,7 +50,7 @@ import { normalizeMobileNumber } from '../utils/mobileAuth.js';
 const router = Router();
 const sessionInventoryFeatureEnabled =
   process.env.CIRS_BUNDLE_FEATURE_LOCKED === 'true'
-    ? process.env.CIRS_BUNDLE_FEATURE_TOKEN_MODE === 'app-jwt'
+    ? ['app-jwt', 'supabase-jwt'].includes(process.env.CIRS_BUNDLE_FEATURE_TOKEN_MODE ?? '')
     : isSessionInventoryFeatureEnabled();
 const anyMfaFeatureEnabled =
   process.env.CIRS_BUNDLE_FEATURE_LOCKED === 'true'

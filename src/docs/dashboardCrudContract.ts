@@ -233,18 +233,18 @@ const authOptionalEndpoints: AuthOptionalEndpointMap = {
     authRequired: true,
     featureGate: {
       feature: 'tokenMode',
-      requires: 'app-jwt',
+      requiresAnyOf: ['app-jwt', 'supabase-jwt'],
     },
     notes:
-      'Available only when tokenMode is app-jwt. Feature-aware OpenAPI output omits session inventory endpoints for other token modes.',
+      'Available when tokenMode is app-jwt or supabase-jwt. Feature-aware OpenAPI output omits session inventory endpoints for other token modes.',
   }),
   revokeSession: route('DELETE', '/auth/sessions/{id}', {
     authRequired: true,
     featureGate: {
       feature: 'tokenMode',
-      requires: 'app-jwt',
+      requiresAnyOf: ['app-jwt', 'supabase-jwt'],
     },
-    notes: 'Available only when tokenMode is app-jwt.',
+    notes: 'Available when tokenMode is app-jwt or supabase-jwt.',
   }),
   mfaSetup: route('POST', '/auth/mfa/setup', {
     authRequired: true,
