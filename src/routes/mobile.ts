@@ -38,6 +38,7 @@ import { validateRequest } from '../middleware/validateRequest.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import {
   createCitizenIncidentReportValidator,
+  isPostgresUuid,
   linkMyCitizenProfileValidator,
 } from '../validators/bodyValidators.js';
 import { incidentTimelineParamValidator } from '../validators/incidentTrustValidators.js';
@@ -45,7 +46,9 @@ import { incidentTimelineParamValidator } from '../validators/incidentTrustValid
 const router = Router();
 
 const localityIdParamValidator = [
-  param('localityId').isUUID().withMessage('localityId must be a valid UUID'),
+  param('localityId')
+    .custom((value) => isPostgresUuid(value))
+    .withMessage('localityId must be a valid UUID'),
 ];
 
 router.get('/content', asyncHandler(getPublishedMobileAppContent));

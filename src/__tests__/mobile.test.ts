@@ -622,7 +622,6 @@ describe(`POST ${MOBILE_BASE}/incidents/report`, () => {
       });
 
     expect(reportRes.status).toBe(201);
-    expect(reportRes.body).toHaveProperty('status.name', 'Reported');
 
     const activeReportedStatuses = await prisma.status.findMany({
       where: {
@@ -635,6 +634,7 @@ describe(`POST ${MOBILE_BASE}/incidents/report`, () => {
       select: { id: true, name: true },
     });
 
+    expect(reportRes.body).toHaveProperty('statusId', activeReportedStatuses[0]?.id);
     expect(activeReportedStatuses).toEqual([
       {
         id: expect.any(String),
