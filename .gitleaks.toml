@@ -46,6 +46,7 @@ description = "Ignore local-only and temporary files outside the tracked CI surf
 paths = [
   '''^\.env$''',
   '''^\.env\.development$''',
+  '''^\.env\.test$''',
   '''^docs/private-local/''',
   '''^\.tmp-gitleaks-bin/''',
   '''^\.tmp-gitleaks-report\.json$''',
