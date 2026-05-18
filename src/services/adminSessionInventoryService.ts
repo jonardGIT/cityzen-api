@@ -110,6 +110,13 @@ function buildAdminSessionRecord(input: {
 }): AdminSessionInventoryRecord {
   const metadata = getSessionMetadata(input.userAgent);
   const refreshExpiry = input.refreshExpiresAt ?? input.expiresAt;
+  const status =
+    input.authProvider === 'supabase-jwt' && !refreshExpiry
+      ? 'active'
+      : getAuthSessionStatus({
+          revokedAt: input.revokedAt,
+          refreshExpiresAt: refreshExpiry ?? new Date(0),
+        });
 
   return {
     id: input.id,
@@ -124,10 +131,7 @@ function buildAdminSessionRecord(input: {
     lastUsedAt: toIsoString(input.lastUsedAt),
     expiresAt: toIsoString(input.expiresAt),
     revokedAt: toIsoString(input.revokedAt),
-    status: getAuthSessionStatus({
-      revokedAt: input.revokedAt,
-      refreshExpiresAt: refreshExpiry ?? new Date(0),
-    }),
+    status,
     browserFamily: metadata.browserFamily,
     osFamily: metadata.osFamily,
     deviceLabel: metadata.deviceLabel,
