@@ -41,7 +41,7 @@ id = "curl-auth-header"
     '''x-api-key:\s+your-api-key''',
   ]
 
-[allowlist]
+[[allowlists]]
 description = "Ignore local-only and temporary files outside the tracked CI surface"
 paths = [
   '''^(?:\./)?\.env$''',
