@@ -1,5 +1,9 @@
 import { Router } from 'express';
 import {
+  listAdminSessionInventory,
+  revokeAdminSessionInventoryEntry,
+} from '../controllers/adminSessionInventoryController.js';
+import {
   getDataGovernanceSummary,
   getAllUsersForAdmin,
   getPrivilegedAccessReviewReport,
@@ -129,6 +133,22 @@ router.get(
   requireJwtAuth,
   requireRole('NATIONAL_ADMIN'),
   asyncHandler(getAllUsersForAdmin),
+);
+
+router.get(
+  '/session-inventory',
+  requireJwtAuth,
+  requireRole(...AUDIT_READ_ROLES),
+  asyncHandler(listAdminSessionInventory),
+);
+
+router.delete(
+  '/session-inventory/:id',
+  requireJwtAuth,
+  requireRole('NATIONAL_ADMIN'),
+  ...privacyIncidentIdValidator,
+  validateRequest,
+  asyncHandler(revokeAdminSessionInventoryEntry),
 );
 
 export default router;

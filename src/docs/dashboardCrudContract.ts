@@ -596,6 +596,25 @@ export const dashboardCrudConfig: DashboardCrudConfig = {
       },
     },
     {
+      name: 'adminSessionInventory',
+      label: 'Session Inventory',
+      primaryKey: 'id',
+      routes: {
+        list: route('GET', '/admin/session-inventory', {
+          authRequired: true,
+          allowedRoles: auditReadRoles,
+          notes:
+            'Redacted administrative session inventory for National Admin and Auditor review workflows. Use the dedicated page rather than the self-service account security card.',
+        }),
+        delete: route('DELETE', '/admin/session-inventory/{id}', {
+          authRequired: true,
+          allowedRoles: nationalAdminOnly,
+          notes:
+            'Administrative session revocation route for National Admin only. Revocations are audited separately from self-service session sign-outs.',
+        }),
+      },
+    },
+    {
       name: 'adminSecurityDataGovernance',
       label: 'Security Data Governance',
       routes: {

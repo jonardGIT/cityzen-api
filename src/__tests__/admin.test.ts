@@ -4,6 +4,22 @@ import app, { API_V1 } from '../app.js';
 import prisma from '../lib/prisma.js';
 import { getAdminToken, getTokenForRole } from './helpers/auth.js';
 
+async function waitForAuditLog(
+  query: () => Promise<Array<Record<string, unknown>>>,
+  attempts = 10,
+): Promise<Array<Record<string, unknown>>> {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const logs = await query();
+    if (logs.length > 0) {
+      return logs;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+
+  return query();
+}
+
 describe('admin access review', () => {
   let adminToken = '';
   let managerToken = '';
@@ -107,6 +123,116 @@ describe('admin access review', () => {
 
     expect(response.status).toBe(200);
     expect(Array.isArray(response.body)).toBe(true);
+  });
+
+  it('allows NATIONAL_ADMIN to read the admin session inventory with tighter redaction', async () => {
+    const dispatcherLogin = await request(app)
+      .post(`${API_V1}/auth/login`)
+      .set(
+        'User-Agent',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36',
+      )
+      .send({
+        email: 'review.dispatcher@xypes.local',
+        password: 'Password123!',
+      });
+
+    expect(dispatcherLogin.status).toBe(200);
+
+    const response = await request(app)
+      .get(`${API_V1}/admin/session-inventory`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(response.status).toBe(200);
+    expect(Array.isArray(response.body)).toBe(true);
+
+    const dispatcherSession = response.body.find(
+      (session: { userEmail?: string; id?: string }) =>
+        session.userEmail === 'review.dispatcher@xypes.local' &&
+        session.id === dispatcherLogin.body.sessionId,
+    );
+
+    expect(dispatcherSession).toMatchObject({
+      userEmail: 'review.dispatcher@xypes.local',
+      userRole: 'DISPATCHER',
+      deviceLabel: 'Chrome on Windows',
+      authProvider: expect.any(String),
+      ipAddressMasked: expect.any(String),
+      status: 'active',
+    });
+    expect(dispatcherSession).not.toHaveProperty('userAgent');
+    expect(dispatcherSession).not.toHaveProperty('ipAddress');
+    expect(dispatcherSession).not.toHaveProperty('refreshExpiresAt');
+  });
+
+  it('allows AUDITOR to read the admin session inventory', async () => {
+    const response = await request(app)
+      .get(`${API_V1}/admin/session-inventory`)
+      .set('Authorization', `Bearer ${auditorToken}`);
+
+    expect(response.status).toBe(200);
+    expect(Array.isArray(response.body)).toBe(true);
+  });
+
+  it('returns 403 for CITY_ADMIN on the admin session inventory', async () => {
+    const response = await request(app)
+      .get(`${API_V1}/admin/session-inventory`)
+      .set('Authorization', `Bearer ${managerToken}`);
+
+    expect(response.status).toBe(403);
+  });
+
+  it('allows NATIONAL_ADMIN to revoke a session through the admin session inventory and records a distinct audit log', async () => {
+    const dispatcherLogin = await request(app).post(`${API_V1}/auth/login`).send({
+      email: 'review.dispatcher@xypes.local',
+      password: 'Password123!',
+    });
+
+    expect(dispatcherLogin.status).toBe(200);
+
+    const before = new Date();
+    const revokeResponse = await request(app)
+      .delete(`${API_V1}/admin/session-inventory/${dispatcherLogin.body.sessionId as string}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(revokeResponse.status).toBe(204);
+
+    const meResponse = await request(app)
+      .get(`${API_V1}/auth/me`)
+      .set('Authorization', `Bearer ${dispatcherLogin.body.token as string}`);
+
+    expect(meResponse.status).toBe(401);
+
+    const auditLogs = await waitForAuditLog(
+      () =>
+        prisma.auditLog.findMany({
+          where: {
+            action: 'admin_session_revoke',
+            resource: 'admin-session-inventory',
+            timestamp: { gte: before },
+          },
+          orderBy: { timestamp: 'desc' },
+          take: 1,
+        }) as unknown as Promise<Array<Record<string, unknown>>>,
+    );
+
+    expect(auditLogs[0]).toMatchObject({
+      action: 'admin_session_revoke',
+      resource: 'admin-session-inventory',
+      outcome: 'success',
+      metadata: expect.objectContaining({
+        adminScope: 'session-inventory',
+        targetUserEmail: 'review.dispatcher@xypes.local',
+      }),
+    });
+  });
+
+  it('returns 403 for AUDITOR when revoking an admin session inventory entry', async () => {
+    const response = await request(app)
+      .delete(`${API_V1}/admin/session-inventory/11111111-1111-4111-8111-111111111111`)
+      .set('Authorization', `Bearer ${auditorToken}`);
+
+    expect(response.status).toBe(403);
   });
 
   it('allows NATIONAL_ADMIN to read the privileged MFA compliance report', async () => {

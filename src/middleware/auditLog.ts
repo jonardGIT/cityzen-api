@@ -78,6 +78,13 @@ function getAuditEvent(method: string, path: string): AuditEventDefinition | nul
     return { action: 'mfa_disable', resource: 'auth' };
   }
 
+  if (
+    upperMethod === 'DELETE' &&
+    /^\/admin\/session-inventory\/[A-Za-z0-9-]+$/.test(normalizedPath)
+  ) {
+    return { action: 'admin_session_revoke', resource: 'admin-session-inventory' };
+  }
+
   if (upperMethod === 'DELETE' && /^\/auth\/sessions\/[A-Za-z0-9-]+$/.test(normalizedPath)) {
     return { action: 'session_revoke', resource: 'auth' };
   }
