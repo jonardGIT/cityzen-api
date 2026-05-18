@@ -82,7 +82,6 @@ jobs:
               --exclude=.env \
               --exclude=.env.production \
               --exclude=.env.local
-            npm ci
-            npm run build:production
+            npm ci --omit=dev
             node --check dist/server.js
             pm2 startOrRestart ecosystem.config.cjs --env production
