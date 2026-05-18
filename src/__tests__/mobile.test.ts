@@ -582,6 +582,66 @@ describe(`POST ${MOBILE_BASE}/incidents/report`, () => {
 
     expect(otherDetailRes.status).toBe(404);
   });
+
+  it('recreates the canonical Reported status when no active baseline status exists', async () => {
+    const reporter = await registerCitizenReporter('mobile-incident-reported-status');
+    const categoryId = await createCategory(adminToken);
+    const severityId = await createSeverity(adminToken);
+
+    const profileRes = await request(app)
+      .patch(`${MOBILE_BASE}/profile`)
+      .set('Authorization', `Bearer ${reporter.token}`)
+      .send({
+        name: 'Reported Status Citizen',
+        preferredChannel: 'app',
+      });
+
+    expect(profileRes.status).toBe(201);
+
+    await prisma.status.updateMany({
+      where: {
+        archivedAt: null,
+        name: {
+          equals: 'Reported',
+          mode: 'insensitive',
+        },
+      },
+      data: {
+        archivedAt: new Date(),
+      },
+    });
+
+    const reportRes = await request(app)
+      .post(`${MOBILE_BASE}/incidents/report`)
+      .set('Authorization', `Bearer ${reporter.token}`)
+      .send({
+        description: 'Mobile app incident report without seeded Reported status',
+        categoryId,
+        severityId,
+        ...buildIncidentLocationSnapshot(),
+      });
+
+    expect(reportRes.status).toBe(201);
+    expect(reportRes.body).toHaveProperty('status.name', 'Reported');
+
+    const activeReportedStatuses = await prisma.status.findMany({
+      where: {
+        archivedAt: null,
+        name: {
+          equals: 'Reported',
+          mode: 'insensitive',
+        },
+      },
+      select: { id: true, name: true },
+    });
+
+    expect(activeReportedStatuses).toEqual([
+      {
+        id: expect.any(String),
+        name: 'Reported',
+      },
+    ]);
+  });
 });
 
 describe(`GET ${MOBILE_BASE}/content and CRUD ${MOBILE_CONTENT_BASE}`, () => {

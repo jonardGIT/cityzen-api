@@ -158,6 +158,28 @@ type TimelineIncidentRecord = {
 
 type IncidentWritePayload = Partial<CitizenIncident> & { mediaUrls?: string[] };
 
+async function resolveCitizenReportedStatus() {
+  const existingReportedStatus = await prisma.status.findFirst({
+    where: {
+      archivedAt: null,
+      name: {
+        equals: 'Reported',
+        mode: 'insensitive',
+      },
+    },
+  });
+
+  if (existingReportedStatus) {
+    return existingReportedStatus;
+  }
+
+  return prisma.status.create({
+    data: {
+      name: 'Reported',
+    },
+  });
+}
+
 type IncidentLocalityInput = {
   barangay?: string | null;
   cityName?: string | null;
@@ -1296,15 +1318,7 @@ export async function createCitizenIncidentReport(req: Request, res: Response): 
     if (!citizenId) {
       return;
     }
-    const reportedStatus = await prisma.status.findFirst({
-      where: withActiveRecords({ name: 'Reported' }),
-    });
-    if (!reportedStatus) {
-      res
-        .status(500)
-        .json({ message: 'Default status "Reported" not found. Contact an administrator.' });
-      return;
-    }
+    const reportedStatus = await resolveCitizenReportedStatus();
     const statusId = reportedStatus.id;
     const trustArtifacts = issueIncidentTrustArtifacts(reportedStatus.name);
     if (!(await prisma.category.findFirst({ where: withActiveRecords({ id: categoryId }) }))) {
