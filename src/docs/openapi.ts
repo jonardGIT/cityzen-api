@@ -33,7 +33,29 @@ export function createOpenApiDocument(
           'This tracked document is a public-safe placeholder. The full internal OpenAPI definition is stored locally only.',
       },
     ],
-    paths: {},
+    paths: {
+      '/health': {
+        get: {
+          summary: 'Health check',
+          tags: ['LocalOnly'],
+          responses: {
+            '200': {
+              description: 'Service is healthy',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      status: { type: 'string', example: 'ok' },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
     components: {},
     'x-local-only-docs': true,
     'x-feature-profile': {
