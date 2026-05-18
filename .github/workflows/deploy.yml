@@ -71,6 +71,19 @@ jobs:
           script: |
             set -e
             cd /var/www/xypes-cirs-api
+
+            if [[ -s "$HOME/.nvm/nvm.sh" ]]; then
+              . "$HOME/.nvm/nvm.sh"
+              nvm install 20
+              nvm use 20
+            fi
+
+            if ! node -e "const [major]=process.versions.node.split('.').map(Number); process.exit(major >= 20 ? 0 : 1)"; then
+              echo "Node 20+ is required on the droplet for the mirrored runtime and Supabase dependencies."
+              echo "Current Node version: $(node -v)"
+              exit 1
+            fi
+
             if [[ ! -f ecosystem.config.cjs ]]; then
               cp ecosystem.config.example.cjs ecosystem.config.cjs
             fi
