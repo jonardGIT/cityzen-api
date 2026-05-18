@@ -4,6 +4,8 @@ import prisma from '../lib/prisma.js';
 
 jest.setTimeout(120000);
 
+const DEFAULT_PRIVACY_NOTICE_VERSION = 'ph-dpa-2012-v1';
+
 /**
  * Middleware Integration Tests
  *
@@ -66,6 +68,49 @@ describe('Middleware — Audit Logging', () => {
 
     expect(logs.length).toBeGreaterThan(0);
     expect(logs[0].action).toBe('login');
+  });
+
+  it('records audit log for mobile login attempt', async () => {
+    const mobileNumber = `0917${String(Date.now()).slice(-7)}`;
+    const before = new Date();
+
+    const register = await request(app).post(`${API_V1}/auth/mobile/register`).send({
+      firstName: 'Audit',
+      lastName: 'Mobile Login',
+      mobileNumber,
+      password: 'Password123!',
+      privacyNoticeAccepted: true,
+      privacyNoticeVersion: DEFAULT_PRIVACY_NOTICE_VERSION,
+    });
+
+    expect(register.status).toBe(201);
+
+    const login = await request(app).post(`${API_V1}/auth/mobile/login`).send({
+      mobileNumber,
+      password: 'Password123!',
+    });
+
+    expect(login.status).toBe(200);
+
+    const logs = await waitForAuditLogs(() =>
+      prisma.auditLog.findMany({
+        where: {
+          action: 'login',
+          resource: 'auth',
+          actorUserId: login.body.user.id,
+          timestamp: { gte: before },
+        },
+        orderBy: { timestamp: 'desc' },
+        take: 1,
+      }),
+    );
+
+    expect(logs.length).toBeGreaterThan(0);
+    expect(logs[0]).toMatchObject({
+      action: 'login',
+      resource: 'auth',
+      actorRole: 'CITIZEN_REPORTER',
+    });
   });
 
   it('records audit log for resource creation', async () => {

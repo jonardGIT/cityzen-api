@@ -17,7 +17,10 @@ function getAuditEvent(method: string, path: string): AuditEventDefinition | nul
   const normalizedPath = normalizePath(path);
   const upperMethod = method.toUpperCase();
 
-  if (upperMethod === 'POST' && normalizedPath === '/auth/login') {
+  if (
+    upperMethod === 'POST' &&
+    (normalizedPath === '/auth/login' || normalizedPath === '/auth/mobile/login')
+  ) {
     return { action: 'login', resource: 'auth' };
   }
 
