@@ -17,6 +17,12 @@ For API operators, the important integration rules are:
 - `CORS_ORIGIN` must allow the real dashboard origin or origins for the environment being deployed
 - production dashboard runtime should not depend on live `/api/v1/openapi.json`
 
+Operational note:
+
+- The dashboard route contract published from this repo is generated from `src/docs/dashboardCrudContract.ts`.
+- After any backend route, auth-surface, or allowed-role change that affects dashboard-visible behavior, run `npm run docs:dashboard-config` and `npm run docs:dashboard-config:check` before pushing.
+- Do not hand-edit `docs/dashboard-crud-config.json` or `docs/dashboard-crud-config.flat.json`; CI and security checks will fail on drift, including formatting-only drift.
+
 ## 1. Setup Order
 
 Set the API up in this order:

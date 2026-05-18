@@ -33,6 +33,15 @@ npm install
 npm run dev
 ```
 
+When backend routes, auth surfaces, or allowed-role contract metadata change, regenerate the checked-in dashboard contract artifacts before pushing:
+
+```bash
+npm run docs:dashboard-config
+npm run docs:dashboard-config:check
+```
+
+`src/docs/dashboardCrudContract.ts` is the source of truth. Do not hand-edit `docs/dashboard-crud-config.json` or `docs/dashboard-crud-config.flat.json`; CI treats drift in those generated files as a real failure.
+
 ## Production
 
 Build the locked production profile first, then run the bundled server output:
