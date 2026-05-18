@@ -42,8 +42,11 @@ coverage/
 
 # Local-only and generated files
 api-audit-report.txt
+test_output.txt
+test_results.txt
 docs/private-local/
 .vscode/
 .github/agents/
 .tmp-gitleaks-bin/
 .tmp-gitleaks-report.json
+gitleaks_report.json
