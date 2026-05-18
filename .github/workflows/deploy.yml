@@ -82,6 +82,7 @@ jobs:
               --exclude=.env \
               --exclude=.env.production \
               --exclude=.env.local
-            npm ci --omit=dev
+            npm ci
+            npx prisma generate
             node --check dist/server.js
             pm2 startOrRestart ecosystem.config.cjs --env production
