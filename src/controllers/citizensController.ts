@@ -4,7 +4,7 @@ import { body } from 'express-validator';
 import prisma from '../lib/prisma.js';
 import { createCrudController } from '../engine/crudControllerFactory.js';
 import { citizensListQueryConfig } from '../utils/listQueryConfig.js';
-import type { ContentTypeConfig } from '../engine/types.js';
+import type { ContentTypeConfig, PrismaInclude } from '../engine/types.js';
 import type { Citizen } from '../types/models.js';
 import type { AuthenticatedRequest } from '../middleware/jwtAuth.js';
 import { withActiveRecords } from '../utils/archive.js';
@@ -224,7 +224,7 @@ const config: ContentTypeConfig = {
     { name: 'contactInfo', requiredOnCreate: true },
     { name: 'preferredChannel', requiredOnCreate: true },
   ],
-  include: mobileCitizenProfileInclude,
+  include: mobileCitizenProfileInclude as PrismaInclude,
   allowedIncludes: {
     incidents: {
       fragment: { where: withActiveRecords() },
