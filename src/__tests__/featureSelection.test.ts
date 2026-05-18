@@ -56,7 +56,7 @@ describe('feature selection', () => {
       }),
     );
 
-    expect(document.paths).toEqual({});
+    expect(Object.keys(document.paths)).toEqual(['/health']);
     expect(document.info.version).toBe('local-only');
     expect(document.info.description).toContain('local-only artifact');
     expect(document['x-local-only-docs']).toBe(true);
@@ -74,7 +74,7 @@ describe('feature selection', () => {
   it('keeps feature metadata for local-only OpenAPI usage', () => {
     const document = createOpenApiDocument(createSelection({}));
 
-    expect(document.paths).toEqual({});
+    expect(Object.keys(document.paths)).toEqual(['/health']);
     expect(document['x-local-only-docs']).toBe(true);
     expect(document['x-feature-profile']).toEqual({
       profileSource: 'runtime-env',
