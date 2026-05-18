@@ -44,10 +44,10 @@ id = "curl-auth-header"
 [allowlist]
 description = "Ignore local-only and temporary files outside the tracked CI surface"
 paths = [
-  '''^\.env$''',
-  '''^\.env\.development$''',
-  '''^\.env\.test$''',
-  '''^docs/private-local/''',
-  '''^\.tmp-gitleaks-bin/''',
-  '''^\.tmp-gitleaks-report\.json$''',
+  '''^(?:\./)?\.env$''',
+  '''^(?:\./)?\.env\.development$''',
+  '''^(?:\./)?\.env\.test$''',
+  '''^(?:\./)?docs/private-local/''',
+  '''^(?:\./)?\.tmp-gitleaks-bin/''',
+  '''^(?:\./)?\.tmp-gitleaks-report\.json$''',
 ]
