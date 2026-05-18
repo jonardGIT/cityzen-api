@@ -32,9 +32,6 @@ jobs:
         if: hashFiles('scripts/generateDashboardCrudConfig.ts', 'src/docs/dashboardCrudContract.ts') != ''
         run: npm run docs:dashboard-config:check
 
-      - name: Build runtime artifact
-        run: npm run build
-
       - name: Verify bundled runtime exists
         run: test -f dist/server.js
 
