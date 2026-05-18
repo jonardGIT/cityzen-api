@@ -40,6 +40,8 @@
     "Public and citizen-facing trust endpoints must stay redacted, enumeration-resistant, and least-privilege.",
     "Everything emitted to the mirror repository is production-facing output and must be treated as production: exclude local-only docs, internal setup instructions, secrets, and non-production artifacts, and review mirror-published changes with the same caution as production outputs.",
     "Role or route changes should be checked against docs/dashboard-crud-config.flat.json for drift.",
+    "Treat SYSTEM_ADMIN and SUPER_ADMIN as backward-compatibility aliases only; do not reintroduce them as first-class roles in docs, UI, seeds, or contract updates.",
+    "For the Tuguegarao-first pilot, NATIONAL_ADMIN should stay disabled in the live roster unless cross-LGU governance is formally approved; do not use it as a stand-in for city operations or generic platform-owner access.",
     "Direct in-repo HTTP test proof now exists for the geography CRUD route surface, privacy-incident admin endpoints, public case lookup privacy behavior, and rate-limit threshold behavior.",
     "Remaining readiness blockers are now mostly live-environment proof, deploy-facing smoke depth, rollback and restore evidence, and external governance approvals rather than missing core backend features.",
     "Geography remains contract-backed and seeded from the API perspective, while the dashboard intentionally keeps geography out of primary Tuguegarao-first pilot navigation until that pilot-visible workflow is explicitly widened."

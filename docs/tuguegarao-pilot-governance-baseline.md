@@ -28,6 +28,19 @@ Suggested live role baseline:
 5. one auditor or compliance reviewer where justified
 6. no regional or national roles unless the deployment genuinely requires them
 
+### Role naming and top-role guardrail
+
+For the current repository baseline, `SYSTEM_ADMIN` and `SUPER_ADMIN` are legacy compatibility aliases that normalize to `NATIONAL_ADMIN` in backend role parsing. They should not be treated as separate live roles for the Tuguegarao-first pilot.
+
+This is not an immediate pilot blocker if national roles remain disabled in the live roster. It does become a governance problem if the deployment starts issuing `NATIONAL_ADMIN` accounts as a stand-in for platform superuser access or day-to-day city operations.
+
+Pilot posture:
+
+1. do not issue `SYSTEM_ADMIN` as a live role label in UI, policy, seeded production accounts, or operator guidance
+2. keep `NATIONAL_ADMIN` disabled for the city-first pilot unless formally approved for real cross-LGU governance
+3. treat `SYSTEM_ADMIN` and `SUPER_ADMIN` as backward-compatibility input aliases only
+4. if a future rollout needs true platform-superuser authority beyond jurisdiction governance, define a separate internal platform role instead of broadening `NATIONAL_ADMIN`
+
 ## 3. Sample Processor Baseline
 
 For a Supabase-backed deployment with operational monitoring, the initial processor review should explicitly check:
@@ -109,11 +122,10 @@ Mobile auth bootstrap canonical paths:
 
 The following routes remain functional for backward compatibility (dashboard self-link flows and pre-mobile clients) but are flagged `compatibility-only` in the contract under `mobileCitizenSurface.compatibilityRoutes`. New mobile clients should NOT prefer them:
 
-- `POST /api/v1/citizens/link-me`  (superseded by `PATCH /api/v1/mobile/profile`)
-- `POST /api/v1/incidents/report`  (superseded by `POST /api/v1/mobile/incidents/report`)
+- `POST /api/v1/citizens/link-me` (superseded by `PATCH /api/v1/mobile/profile`)
+- `POST /api/v1/incidents/report` (superseded by `POST /api/v1/mobile/incidents/report`)
 - `POST /api/v1/auth/register`, `POST /api/v1/auth/login` (canonical for dashboard; compatibility for mobile)
 
 ### Backend authority
 
 All authorization, jurisdiction scoping, citizen-self scoping, trust-layer rules, and privacy redactions are enforced server-side regardless of which surface a client uses. The contract's canonical-vs-compatibility classification is a client-preference signal only; it does not relax any backend boundary.
-

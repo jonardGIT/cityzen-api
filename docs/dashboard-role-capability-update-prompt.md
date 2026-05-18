@@ -27,6 +27,8 @@ Treat the backend as the source of truth. Build for the current LGU-first 9-role
   - `DEPARTMENT_MANAGER` -> `CITY_ADMIN`
   - `SUPERVISOR` -> `PROVINCIAL_ADMIN`
   - `VIEWER` -> `CITIZEN_REPORTER`
+- Legacy aliases are compatibility-only input handling, not first-class roles for new UI, docs, or policy. Do not surface `SYSTEM_ADMIN` or `SUPER_ADMIN` as distinct selectable roles.
+- For the Tuguegarao-first pilot, do not widen UX or navigation around `NATIONAL_ADMIN` unless the deployment has explicitly enabled national governance beyond the city-first live roster.
 - `POST /auth/register` creates a `CITIZEN_REPORTER` account by default.
 - `GET /users/capabilities` is available to any authenticated user and returns:
   - `role`
@@ -51,6 +53,7 @@ Treat the backend as the source of truth. Build for the current LGU-first 9-role
   - Higher-scope admins can manage only backend-allowed roles inside their jurisdiction.
   - `CITY_CONTENT_EDITOR` is not a user-management role.
   - `AUDITOR` is not part of the admin hierarchy and should never be treated as a subordinate operational role in UI logic.
+  - `NATIONAL_ADMIN` currently carries both jurisdiction-governance and legacy top-admin semantics; future design work should avoid extending that overload unless the backend role model is intentionally revised.
 - Route access rules relevant to the dashboard:
   - `GET /users/capabilities`: any authenticated user
   - `GET /users`, `POST /users`, `PATCH /users/:id`, `DELETE /users/:id`: `NATIONAL_ADMIN`, `REGIONAL_DIRECTOR`, `PROVINCIAL_ADMIN`, `CITY_ADMIN`
