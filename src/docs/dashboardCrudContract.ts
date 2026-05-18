@@ -436,6 +436,34 @@ export const dashboardCrudConfig: DashboardCrudConfig = {
   },
   resources: [
     {
+      name: 'regions',
+      label: 'Regions',
+      primaryKey: 'id',
+      routes: buildCrudRoutes('/regions', adminRoles, ['NATIONAL_ADMIN', 'REGIONAL_DIRECTOR']),
+    },
+    {
+      name: 'provinces',
+      label: 'Provinces',
+      primaryKey: 'id',
+      routes: buildCrudRoutes('/provinces', adminRoles, ['NATIONAL_ADMIN', 'REGIONAL_DIRECTOR']),
+    },
+    {
+      name: 'cities-municipalities',
+      label: 'Cities / Municipalities',
+      primaryKey: 'id',
+      routes: buildCrudRoutes('/cities-municipalities', adminRoles, [
+        'NATIONAL_ADMIN',
+        'REGIONAL_DIRECTOR',
+        'PROVINCIAL_ADMIN',
+      ]),
+    },
+    {
+      name: 'barangays',
+      label: 'Barangays',
+      primaryKey: 'id',
+      routes: buildCrudRoutes('/barangays', adminRoles, adminRoles),
+    },
+    {
       name: 'citizens',
       label: 'Citizens',
       primaryKey: 'id',
