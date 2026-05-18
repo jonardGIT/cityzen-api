@@ -1,5 +1,7 @@
 import { createCrudController } from '../engine/crudControllerFactory.js';
 import { createBodyValidators } from '../engine/validatorFactory.js';
+import type { Request, Response } from 'express';
+import { ensureBaselineIncidentSeverities } from '../services/incidentReferenceDataService.js';
 import { severitiesListQueryConfig } from '../utils/listQueryConfig.js';
 import type { ContentTypeConfig } from '../engine/types.js';
 
@@ -23,7 +25,10 @@ const config: ContentTypeConfig = {
 const handlers = createCrudController(config);
 export const validators = createBodyValidators(config.fields);
 
-export const getSeverities = handlers.getAll;
+export const getSeverities = async (req: Request, res: Response) => {
+  await ensureBaselineIncidentSeverities();
+  return handlers.getAll(req, res);
+};
 export const getSeverityById = handlers.getById;
 export const createSeverity = handlers.create;
 export const updateSeverity = handlers.update;

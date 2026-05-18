@@ -513,6 +513,60 @@ describe(`GET ${MOBILE_BASE}/cagayan/localities and GET ${MOBILE_BASE}/cagayan/l
 });
 
 describe(`POST ${MOBILE_BASE}/incidents/report`, () => {
+  it('restores the baseline incident taxonomy when mobile reference reads find no active records', async () => {
+    const reporter = await registerCitizenReporter('mobile-incident-taxonomy-restore');
+
+    const profileRes = await request(app)
+      .patch(`${MOBILE_BASE}/profile`)
+      .set('Authorization', `Bearer ${reporter.token}`)
+      .send({
+        name: 'Mobile Taxonomy Reader',
+        preferredChannel: 'app',
+      });
+
+    expect(profileRes.status).toBe(201);
+
+    await Promise.all([
+      prisma.category.updateMany({
+        where: { archivedAt: null },
+        data: { archivedAt: new Date() },
+      }),
+      prisma.severity.updateMany({
+        where: { archivedAt: null },
+        data: { archivedAt: new Date() },
+      }),
+    ]);
+
+    const [categoriesRes, severitiesRes] = await Promise.all([
+      request(app).get(`${API_V1}/categories`).set('Authorization', `Bearer ${reporter.token}`),
+      request(app).get(`${API_V1}/severities`).set('Authorization', `Bearer ${reporter.token}`),
+    ]);
+
+    expect(categoriesRes.status).toBe(200);
+    expect(categoriesRes.body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'Fire Incident',
+        }),
+        expect.objectContaining({
+          name: 'Medical Emergency',
+        }),
+      ]),
+    );
+
+    expect(severitiesRes.status).toBe(200);
+    expect(severitiesRes.body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          level: 'Low',
+        }),
+        expect.objectContaining({
+          level: 'Critical',
+        }),
+      ]),
+    );
+  });
+
   it('lets a linked citizen reporter create and read back only their own incident views', async () => {
     const reporter = await registerCitizenReporter('mobile-incident-owner');
     const otherReporter = await registerCitizenReporter('mobile-incident-other');
