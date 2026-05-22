@@ -38,8 +38,8 @@ Environment:
   SMOKE_BASE_URL           Required base origin, e.g. https://api.example.gov
   SMOKE_API_BASE_PATH      Optional API prefix, defaults to /api/v1
   SMOKE_API_KEY            Optional x-api-key value for protected routes
-  SMOKE_ADMIN_EMAIL        Optional admin login email, defaults to admin@xypes.local
-  SMOKE_ADMIN_PASSWORD     Optional admin login password, defaults to Password123!
+  SMOKE_ADMIN_EMAIL        Required admin login email for authenticated smoke checks
+  SMOKE_ADMIN_PASSWORD     Required admin login password for authenticated smoke checks
   SMOKE_ADMIN_MFA_CODE     Optional MFA code for admin login when the account requires TOTP
   SMOKE_CITIZEN_EMAIL      Optional citizen reporter login for mobile checks
   SMOKE_CITIZEN_PASSWORD   Optional citizen reporter password for mobile checks
@@ -56,8 +56,8 @@ if (process.argv.includes('--help') || process.argv.includes('-h')) {
 const baseUrl = process.env.SMOKE_BASE_URL?.trim();
 const apiBasePath = process.env.SMOKE_API_BASE_PATH?.trim() || '/api/v1';
 const apiKey = process.env.SMOKE_API_KEY?.trim();
-const adminEmail = process.env.SMOKE_ADMIN_EMAIL?.trim() || 'admin@xypes.local';
-const adminPassword = process.env.SMOKE_ADMIN_PASSWORD?.trim() || 'Password123!';
+const adminEmail = process.env.SMOKE_ADMIN_EMAIL?.trim();
+const adminPassword = process.env.SMOKE_ADMIN_PASSWORD?.trim();
 const adminMfaCode = process.env.SMOKE_ADMIN_MFA_CODE?.trim();
 const citizenEmail = process.env.SMOKE_CITIZEN_EMAIL?.trim();
 const citizenPassword = process.env.SMOKE_CITIZEN_PASSWORD?.trim();
@@ -66,6 +66,11 @@ const caseToken = process.env.SMOKE_CASE_TOKEN?.trim();
 
 if (!baseUrl) {
   console.error('SMOKE_BASE_URL must be configured');
+  process.exit(1);
+}
+
+if (!adminEmail || !adminPassword) {
+  console.error('SMOKE_ADMIN_EMAIL and SMOKE_ADMIN_PASSWORD must be configured');
   process.exit(1);
 }
 

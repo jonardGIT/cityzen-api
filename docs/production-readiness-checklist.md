@@ -64,7 +64,7 @@ The script verifies:
 Before every real release:
 
 1. Restore a recent production-like database snapshot into staging.
-2. Apply the exact release migrations and SQL patches.
+2. Apply the exact release migrations and SQL patches. Use [migration-rehearsal-restored-snapshot.md](/home/nhad/xypes/xypes-cirs-api/docs/migration-rehearsal-restored-snapshot.md) as the step-by-step runbook.
 3. Boot the built server artifact, not the dev server.
 4. Run the remote smoke script against that staging environment.
 5. Confirm rollback instructions still work if the app or migrations fail.
