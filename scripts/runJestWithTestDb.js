@@ -13,7 +13,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
 const developmentEnvFilePath = path.join(repoRoot, '.env.development');
-const envFilePath = path.join(repoRoot, '.env.test');
+const runnerArgs = process.argv.slice(2);
+const shouldUseDevelopmentDatabaseFlag = runnerArgs.includes('--development-db');
+const allowNonTestDatabaseFlag = runnerArgs.includes('--allow-non-test-database');
 const defaultTestEnvironment = {
   API_BASE_PATH: '/api/v1',
   CORS_ORIGIN: 'http://localhost:3001',
@@ -28,8 +30,49 @@ const defaultTestEnvironment = {
   TRUST_PROXY: 'false',
 };
 
+function getArgValue(name) {
+  const exactPrefix = `${name}=`;
+
+  for (let index = 0; index < runnerArgs.length; index += 1) {
+    const arg = runnerArgs[index];
+
+    if (arg === name) {
+      return runnerArgs[index + 1];
+    }
+
+    if (arg.startsWith(exactPrefix)) {
+      return arg.slice(exactPrefix.length);
+    }
+  }
+
+  return undefined;
+}
+
+function resolveEnvFilePath() {
+  const selectedEnvFile =
+    getArgValue('--test-env-file') ?? process.env.TEST_ENV_FILE ?? '.env.test';
+
+  if (!selectedEnvFile.trim()) {
+    return path.join(repoRoot, '.env.test');
+  }
+
+  return path.isAbsolute(selectedEnvFile)
+    ? selectedEnvFile
+    : path.resolve(repoRoot, selectedEnvFile);
+}
+
 function isTrue(value) {
   return value?.trim().toLowerCase() === 'true';
+}
+
+function resolveSqlSslOption(url) {
+  const sslMode = url.searchParams.get('sslmode')?.trim().toLowerCase();
+
+  if (sslMode === 'require') {
+    return 'require';
+  }
+
+  return undefined;
 }
 
 export function applyDevelopmentDatabaseEnv(targetEnv, developmentEnv, options = {}) {
@@ -46,10 +89,12 @@ export function applyDevelopmentDatabaseEnv(targetEnv, developmentEnv, options =
 
 const explicitDatabaseUrl = process.env.DATABASE_URL;
 const explicitDirectUrl = process.env.DIRECT_URL;
+const envFilePath = resolveEnvFilePath();
 const developmentEnv = fs.existsSync(developmentEnvFilePath)
   ? dotenv.parse(fs.readFileSync(developmentEnvFilePath))
   : {};
-const shouldUseDevelopmentDatabase = isTrue(process.env.TEST_USE_DEVELOPMENT_DATABASE);
+const shouldUseDevelopmentDatabase =
+  shouldUseDevelopmentDatabaseFlag || isTrue(process.env.TEST_USE_DEVELOPMENT_DATABASE);
 
 if (fs.existsSync(envFilePath)) {
   dotenv.config({ path: envFilePath, override: false });
@@ -60,6 +105,8 @@ if (shouldUseDevelopmentDatabase) {
     preserveDatabaseUrl: Boolean(explicitDatabaseUrl),
     preserveDirectUrl: Boolean(explicitDirectUrl),
   });
+
+  process.env.JEST_TEST_TIMEOUT_MS ??= '180000';
 }
 
 for (const [key, value] of Object.entries(defaultTestEnvironment)) {
@@ -76,11 +123,28 @@ if (!databaseUrl) {
 const databaseTarget = new URL(databaseUrl);
 const isLocalDatabase = ['localhost', '127.0.0.1'].includes(databaseTarget.hostname);
 const requestedDatabaseName = databaseTarget.pathname.replace(/^\//, '') || 'postgres';
+const isNamedTestDatabase = /(^|[_-])test([_-]|$)/i.test(requestedDatabaseName);
+const shouldAllowNonTestDatabase =
+  allowNonTestDatabaseFlag || isTrue(process.env.TEST_ALLOW_NON_TEST_DATABASE);
 const shouldAutoStartDatabase =
   process.env.CI !== 'true' &&
   process.env.TEST_DB_AUTO_START !== 'false' &&
   isLocalDatabase &&
   databaseTarget.port === '55432';
+
+if (!isLocalDatabase && !shouldAllowNonTestDatabase) {
+  console.error(
+    `Refusing to run Jest against non-local database ${databaseTarget.host}. Use --allow-non-test-database or TEST_ALLOW_NON_TEST_DATABASE=true to override deliberately.`,
+  );
+  process.exit(1);
+}
+
+if (!isNamedTestDatabase && !shouldAllowNonTestDatabase) {
+  console.error(
+    `Refusing to run Jest against database ${requestedDatabaseName}. Select a dedicated test database or pass --allow-non-test-database to override deliberately.`,
+  );
+  process.exit(1);
+}
 
 const embeddedDatabaseBaseDir = path.join(
   repoRoot,
@@ -123,6 +187,7 @@ async function canConnectToDatabase() {
     pass: decodeURIComponent(databaseTarget.password),
     port: Number(databaseTarget.port || '5432'),
     prepare: false,
+    ssl: resolveSqlSslOption(databaseTarget),
     username: decodeURIComponent(databaseTarget.username),
   });
 
@@ -293,9 +358,13 @@ async function shutdownEmbeddedDatabase() {
 }
 
 async function ensureLocalTestDatabase() {
+  const initialProbeTimeoutMs = shouldAutoStartDatabase ? 1_000 : 10_000;
+  const initialProbeSuccesses = shouldAutoStartDatabase ? 3 : 1;
+
   if (
     await hasStableDatabaseConnection({
-      timeoutAt: Date.now() + 1_000,
+      requiredConsecutiveSuccesses: initialProbeSuccesses,
+      timeoutAt: Date.now() + initialProbeTimeoutMs,
     })
   ) {
     return;
@@ -333,7 +402,28 @@ async function main() {
   await ensureTestDatabaseReady();
 
   const jestBin = path.join(repoRoot, 'node_modules', 'jest', 'bin', 'jest.js');
-  const result = spawnSync(process.execPath, [jestBin, ...process.argv.slice(2)], {
+  const forwardedArgs = [];
+
+  for (let index = 0; index < runnerArgs.length; index += 1) {
+    const arg = runnerArgs[index];
+
+    if (arg === '--development-db' || arg === '--allow-non-test-database') {
+      continue;
+    }
+
+    if (arg === '--test-env-file') {
+      index += 1;
+      continue;
+    }
+
+    if (arg.startsWith('--test-env-file=')) {
+      continue;
+    }
+
+    forwardedArgs.push(arg);
+  }
+
+  const result = spawnSync(process.execPath, [jestBin, ...forwardedArgs], {
     cwd: repoRoot,
     env: process.env,
     stdio: 'inherit',

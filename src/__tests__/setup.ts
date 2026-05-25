@@ -2,7 +2,9 @@ import bcrypt from 'bcryptjs';
 import { resetFeatureSelectionCache } from '../featureSelection.js';
 import { resetRateLimitStateForTests } from '../middleware/rateLimit.js';
 
-jest.setTimeout(60000);
+const jestTestTimeoutMs = Number.parseInt(process.env.JEST_TEST_TIMEOUT_MS ?? '60000', 10);
+
+jest.setTimeout(Number.isFinite(jestTestTimeoutMs) ? jestTestTimeoutMs : 60000);
 jest.retryTimes(3, { logErrorsBeforeRetry: true });
 
 function clearAmbientFeatureFlags(): void {

@@ -6,7 +6,7 @@ Last reviewed: 2026-05-20
 
 The CIRS API is pilot-capable for the core Tuguegarao-first workflow, but it is not yet fully release-proven.
 
-In repository terms, the backend already exposes the main pilot service surface, has broad automated coverage, and publishes the dashboard contract from the API repo. The remaining gaps are mostly live-environment proof and external operating-governance evidence, not obvious missing core backend features. As of 2026-05-25, pre-production remote smoke reached the deployed environment, proved authenticated admin access when run with the deployed API key and a current MFA code, and then failed its post-logout verification because `GET /auth/me` returned `503` and `POST /auth/refresh` returned `400` after logout.
+In repository terms, the backend already exposes the main pilot service surface, has broad automated coverage, and publishes the dashboard contract from the API repo. The remaining gaps are mostly live-environment proof and external operating-governance evidence, not obvious missing core backend features. As of 2026-05-25, pre-production remote smoke reached the deployed environment and now passes end to end when run with the deployed API key and a current MFA code, including logout, post-logout token rejection, and post-logout refresh rejection.
 
 ## Confirmed In The Repo
 
@@ -68,7 +68,7 @@ These items remain open unless they are proven in a real environment.
 ### Operational proof is still required
 
 - Run a migration rehearsal against a restored production-like database snapshot using `docs/migration-rehearsal-restored-snapshot.md`.
-- Run `npm run smoke:remote` against a real deployed environment and capture one clean fully passing record, including the post-logout checks, with the deployed API key and a current MFA code or a dedicated non-MFA smoke account.
+- Keep the captured clean fully passing `npm run smoke:remote` record for the deployed environment, including the post-logout checks, alongside the release evidence.
 - Verify post-deploy health, alerting, and a monitored watch window.
 - Complete at least one backup, restore, and rollback drill.
 
@@ -107,28 +107,31 @@ Use this wording unless the live environment evidence above has been completed:
 
 ## Current Pre-Production Smoke Status
 
+- `npm test`: passed locally in the current workspace using the standard Docker-backed test database flow.
 - `npm run build`: passed locally on the current release candidate workspace.
 - `npm run docs:dashboard-config:check`: passed locally on the current release candidate workspace.
-- `npm run smoke:remote`: partially proven against `https://x1.dev.xypes.com`.
+- `npm run smoke:remote`: passed against `https://x1.dev.xypes.com`.
 
 What passed:
 
+- the full Jest suite completed successfully in the current workspace
 - health and public-content checks reached the deployed environment successfully
 - the environment appears reachable and correctly mounted at `/api/v1`
 - authenticated admin login succeeded with a current MFA code
 - protected admin and audit routes succeeded when the deployed `x-api-key` was supplied
+- logout revoked the current session
+- `GET /auth/me` failed closed with `401` after logout
+- `POST /auth/refresh` failed closed with `401` after logout
 
 What is still missing:
 
-- one clean fully passing smoke run through the post-logout checks
-- a captured smoke record that shows `/auth/me` and `/auth/refresh` fail closed with the expected statuses after logout in the deployed environment
+- migration rehearsal evidence on a restored production-like snapshot
+- post-deploy health, alerting, watch-window, backup, restore, and rollback drill evidence
 
 Current blocker:
 
-- the latest remote smoke run failed its final post-logout checks even after admin login and protected admin routes passed
-- `GET /auth/me` returned `503` instead of the expected revoked-session `401`
-- `POST /auth/refresh` returned `400` instead of the expected invalid-refresh-token `401`
-- this is no longer an MFA freshness problem; it is now a deployed post-logout auth-behavior mismatch that needs investigation
+- there is no longer a remote-smoke auth blocker on the deployed pre-production environment
+- remaining blockers are operational and governance evidence outside this smoke path
 
 ### Running smoke with the current pre-production env
 
@@ -167,7 +170,7 @@ Current startup ownership model for this checklist:
 5. Verify `GET /api/v1/auth/me` returns the expected authenticated user.
 6. Verify `GET /api/v1/users/capabilities` returns the expected capability set for the pilot operator.
 7. Verify key pilot endpoints respond for the real role mix: incidents, assignments, users, audit logs, and mobile incident reporting.
-8. Verify logout revokes the current session in the deployed environment and that both `GET /api/v1/auth/me` and `POST /api/v1/auth/refresh` fail closed with the expected statuses afterward.
+8. Verify logout revokes the current session in the deployed environment and that both `GET /api/v1/auth/me` and `POST /api/v1/auth/refresh` fail closed with `401` afterward.
 9. Confirm public and citizen-facing endpoints remain privacy-safe and do not expose internal-only fields.
 10. Confirm seeded baseline reference data exists in the live environment, especially statuses, categories, severities, and locality references required by the pilot flows.
 11. Verify API key, CORS, Supabase auth, password-reset delivery, and privacy-governance environment variables are loaded as intended.
@@ -185,7 +188,7 @@ Current assignment for pilot evidence:
 ## Immediate Next Checks
 
 1. Run `npm run docs:dashboard-config:check` on the release candidate.
-2. Run `npm test` and `npm run build` on the release candidate.
+2. Keep the captured successful `npm test` run and rerun only if the release candidate changes.
 3. Rehearse migrations on a restored staging snapshot using `docs/migration-rehearsal-restored-snapshot.md`.
-4. Investigate the deployed post-logout mismatch where `/auth/me` returned `503` and `/auth/refresh` returned `400` after logout, then rerun `npm run smoke:remote` against staging or pre-production and capture the fully passing output.
+4. Keep the captured fully passing `npm run smoke:remote` output with the release evidence and move to migration rehearsal, watch-window, rollback, and governance completion.
 5. Complete the external privacy and access-review evidence listed in `docs/privacy-external-blockers-report.md`.

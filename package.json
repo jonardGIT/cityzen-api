@@ -21,7 +21,7 @@
     "test:db:seed": "node ./scripts/guardDestructivePrismaCommand.js --label=test:db:seed --allow-host=postgres --allow-host=xypes-cirs-test-db --allow-db=xypes_test && sh ./scripts/runTestDbCompose.sh exec -T postgres psql -U postgres -d xypes_test -f /workspace/prisma/seed-data.sql",
     "test:local": "node ./scripts/guardDestructivePrismaCommand.js --label=test:local --allow-host=postgres --allow-host=xypes-cirs-test-db --allow-db=xypes_test && npm run test:db:up && npm run test:db:reset && npm run test:db:seed && npm test",
     "test": "node ./scripts/runJestWithTestDb.js",
-    "test:development-db": "TEST_USE_DEVELOPMENT_DATABASE=true node ./scripts/runJestWithTestDb.js",
+    "test:development-db": "node ./scripts/runJestWithTestDb.js --development-db",
     "test:watch": "node ./scripts/runJestWithTestDb.js --watch",
     "test:coverage": "node ./scripts/runJestWithTestDb.js --coverage"
   },
