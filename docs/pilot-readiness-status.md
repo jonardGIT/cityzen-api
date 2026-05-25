@@ -6,7 +6,7 @@ Last reviewed: 2026-05-20
 
 The CIRS API is pilot-capable for the core Tuguegarao-first workflow, but it is not yet fully release-proven.
 
-In repository terms, the backend already exposes the main pilot service surface, has broad automated coverage, and publishes the dashboard contract from the API repo. The remaining gaps are mostly live-environment proof and external operating-governance evidence, not obvious missing core backend features. As of 2026-05-20, pre-production remote smoke reached the deployed environment, but the authenticated admin portion still lacks one clean passing record because the latest MFA-backed login attempt returned `422 Invalid TOTP code entered`.
+In repository terms, the backend already exposes the main pilot service surface, has broad automated coverage, and publishes the dashboard contract from the API repo. The remaining gaps are mostly live-environment proof and external operating-governance evidence, not obvious missing core backend features. As of 2026-05-25, pre-production remote smoke reached the deployed environment, proved authenticated admin access when run with the deployed API key and a current MFA code, and then failed its post-logout verification because `GET /auth/me` returned `503` and `POST /auth/refresh` returned `400` after logout.
 
 ## Confirmed In The Repo
 
@@ -68,7 +68,7 @@ These items remain open unless they are proven in a real environment.
 ### Operational proof is still required
 
 - Run a migration rehearsal against a restored production-like database snapshot using `docs/migration-rehearsal-restored-snapshot.md`.
-- Run `npm run smoke:remote` against a real deployed environment and capture one clean authenticated admin pass with a current MFA code or a dedicated non-MFA smoke account.
+- Run `npm run smoke:remote` against a real deployed environment and capture one clean fully passing record, including the post-logout checks, with the deployed API key and a current MFA code or a dedicated non-MFA smoke account.
 - Verify post-deploy health, alerting, and a monitored watch window.
 - Complete at least one backup, restore, and rollback drill.
 
@@ -103,7 +103,7 @@ The most important non-code blockers are documented in `docs/privacy-external-bl
 
 Use this wording unless the live environment evidence above has been completed:
 
-> The API appears ready for a controlled Tuguegarao-first pilot from a code and contract perspective, but it should not be described as fully production-ready until live migration rehearsal, one clean authenticated remote smoke pass, monitoring verification, watch-window checks, rollback drills, and external governance approvals are complete.
+> The API appears ready for a controlled Tuguegarao-first pilot from a code and contract perspective, but it should not be described as fully production-ready until live migration rehearsal, one clean fully passing remote smoke run, monitoring verification, watch-window checks, rollback drills, and external governance approvals are complete.
 
 ## Current Pre-Production Smoke Status
 
@@ -115,16 +115,20 @@ What passed:
 
 - health and public-content checks reached the deployed environment successfully
 - the environment appears reachable and correctly mounted at `/api/v1`
+- authenticated admin login succeeded with a current MFA code
+- protected admin and audit routes succeeded when the deployed `x-api-key` was supplied
 
 What is still missing:
 
-- one clean authenticated admin smoke pass through `/auth/login`, `/auth/me`, `/users/capabilities`, `/users`, and the follow-on admin checks
-- a captured smoke run that uses a current MFA code or a dedicated smoke account that does not require MFA
+- one clean fully passing smoke run through the post-logout checks
+- a captured smoke record that shows `/auth/me` and `/auth/refresh` fail closed with the expected statuses after logout in the deployed environment
 
 Current blocker:
 
-- the latest direct and scripted admin login attempt returned `422 {"message":"Invalid TOTP code entered"}`
-- this is currently an MFA freshness problem, not a confirmed application regression
+- the latest remote smoke run failed its final post-logout checks even after admin login and protected admin routes passed
+- `GET /auth/me` returned `503` instead of the expected revoked-session `401`
+- `POST /auth/refresh` returned `400` instead of the expected invalid-refresh-token `401`
+- this is no longer an MFA freshness problem; it is now a deployed post-logout auth-behavior mismatch that needs investigation
 
 ### Running smoke with the current pre-production env
 
@@ -159,15 +163,17 @@ Current startup ownership model for this checklist:
 1. Confirm the deployed pre-production or pilot API URL is the intended environment.
 2. Verify `GET /api/v1/health` succeeds from outside the cluster or host.
 3. Verify privileged admin login works with the intended pilot account, including MFA when required.
-4. Verify `GET /api/v1/auth/me` returns the expected authenticated user.
-5. Verify `GET /api/v1/users/capabilities` returns the expected capability set for the pilot operator.
-6. Verify key pilot endpoints respond for the real role mix: incidents, assignments, users, audit logs, and mobile incident reporting.
-7. Confirm public and citizen-facing endpoints remain privacy-safe and do not expose internal-only fields.
-8. Confirm seeded baseline reference data exists in the live environment, especially statuses, categories, severities, and locality references required by the pilot flows.
-9. Verify API key, CORS, Supabase auth, password-reset delivery, and privacy-governance environment variables are loaded as intended.
-10. Confirm logs and alerts are available for the watch window and that a named owner will review them.
-11. Confirm backup, restore, and rollback procedures are documented and owned for the pilot window.
-12. Record who performed the check, which account and role were used, what environment was tested, and any unresolved blockers.
+4. Verify the deployed API key is supplied for protected non-auth routes during smoke.
+5. Verify `GET /api/v1/auth/me` returns the expected authenticated user.
+6. Verify `GET /api/v1/users/capabilities` returns the expected capability set for the pilot operator.
+7. Verify key pilot endpoints respond for the real role mix: incidents, assignments, users, audit logs, and mobile incident reporting.
+8. Verify logout revokes the current session in the deployed environment and that both `GET /api/v1/auth/me` and `POST /api/v1/auth/refresh` fail closed with the expected statuses afterward.
+9. Confirm public and citizen-facing endpoints remain privacy-safe and do not expose internal-only fields.
+10. Confirm seeded baseline reference data exists in the live environment, especially statuses, categories, severities, and locality references required by the pilot flows.
+11. Verify API key, CORS, Supabase auth, password-reset delivery, and privacy-governance environment variables are loaded as intended.
+12. Confirm logs and alerts are available for the watch window and that a named owner will review them.
+13. Confirm backup, restore, and rollback procedures are documented and owned for the pilot window.
+14. Record who performed the check, which account and role were used, what environment was tested, and any unresolved blockers.
 
 For the migration-specific drill, use `docs/migration-rehearsal-restored-snapshot.md` as the release runbook and `/home/nhad/xypes/shared/ROLLBACK_RESTORE_RUNBOOK.md` for rollback or restore decisions.
 
@@ -181,5 +187,5 @@ Current assignment for pilot evidence:
 1. Run `npm run docs:dashboard-config:check` on the release candidate.
 2. Run `npm test` and `npm run build` on the release candidate.
 3. Rehearse migrations on a restored staging snapshot using `docs/migration-rehearsal-restored-snapshot.md`.
-4. Rerun `npm run smoke:remote` against staging or pre-production with a current MFA code or a dedicated smoke account and capture the passing output.
+4. Investigate the deployed post-logout mismatch where `/auth/me` returned `503` and `/auth/refresh` returned `400` after logout, then rerun `npm run smoke:remote` against staging or pre-production and capture the fully passing output.
 5. Complete the external privacy and access-review evidence listed in `docs/privacy-external-blockers-report.md`.

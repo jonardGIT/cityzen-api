@@ -264,6 +264,44 @@ function shouldAutoConfirmEmail(): boolean {
   return isTrue(rawValue);
 }
 
+function includesAnyMessageHint(message: string, hints: readonly string[]): boolean {
+  return hints.some((hint) => message.includes(hint));
+}
+
+function isInvalidSupabaseAccessTokenError(status: number, message: string): boolean {
+  if (![400, 401, 403].includes(status)) {
+    return false;
+  }
+
+  return includesAnyMessageHint(message, [
+    'invalid jwt',
+    'invalid token',
+    'jwt expired',
+    'token has expired',
+    'token is expired',
+    'session from session_id claim in jwt does not exist',
+    'user from sub claim in jwt does not exist',
+    'invalid claim: missing sub claim',
+    'auth session missing',
+  ]);
+}
+
+function isInvalidSupabaseRefreshTokenError(status: number, message: string): boolean {
+  if (![400, 401, 403].includes(status)) {
+    return false;
+  }
+
+  return includesAnyMessageHint(message, [
+    'invalid refresh token',
+    'invalid refresh_token',
+    'refresh token not found',
+    'refresh token has been revoked',
+    'refresh token already used',
+    'already been used',
+    'invalid grant',
+  ]);
+}
+
 function mapAuthApiError(error: AuthError): SupabaseAuthServiceError {
   const message = error.message.toLowerCase();
   const status = error.status ?? 500;
@@ -283,6 +321,22 @@ function mapAuthApiError(error: AuthError): SupabaseAuthServiceError {
 
   if (status === 400 && message.includes('invalid login credentials')) {
     return new SupabaseAuthServiceError('INVALID_CREDENTIALS', 'Invalid email or password', 401);
+  }
+
+  if (isInvalidSupabaseAccessTokenError(status, message)) {
+    return new SupabaseAuthServiceError(
+      'INVALID_ACCESS_TOKEN',
+      'Invalid or expired Supabase access token',
+      401,
+    );
+  }
+
+  if (isInvalidSupabaseRefreshTokenError(status, message)) {
+    return new SupabaseAuthServiceError(
+      'INVALID_REFRESH_TOKEN',
+      'Invalid or expired refresh token',
+      401,
+    );
   }
 
   if (code === 'mfa_totp_enroll_not_enabled' || code === 'mfa_totp_verify_not_enabled') {
