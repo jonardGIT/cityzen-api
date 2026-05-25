@@ -36,6 +36,8 @@ SMOKE_ADMIN_PASSWORD='your-password' \
 npm run smoke:remote
 ```
 
+When the smoke account requires MFA, you can either set `SMOKE_ADMIN_MFA_CODE` up front or omit it and enter the current code when the script prompts in an interactive terminal.
+
 Optional environment variables:
 
 - `SMOKE_CITIZEN_EMAIL`

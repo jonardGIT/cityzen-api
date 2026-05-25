@@ -149,7 +149,7 @@ Minimum values to provide to the script:
 - `SMOKE_API_KEY` or the first value from `API_KEYS` when that matches the deployed API policy
 - `SMOKE_ADMIN_EMAIL`
 - `SMOKE_ADMIN_PASSWORD`
-- `SMOKE_ADMIN_MFA_CODE` when the smoke account requires MFA
+- `SMOKE_ADMIN_MFA_CODE` when the smoke account requires MFA, or omit it and enter the code when the script prompts in an interactive terminal
 
 For the current pre-production environment, the intended API origin is `https://x1.dev.xypes.com`.
 

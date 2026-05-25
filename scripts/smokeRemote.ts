@@ -1,3 +1,8 @@
+/// <reference types="node" />
+
+import { createInterface } from 'readline/promises';
+import { stdin as input, stdout as output } from 'process';
+
 type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 
 type SmokeCheck = {
@@ -45,6 +50,8 @@ Environment:
   SMOKE_CITIZEN_PASSWORD   Optional citizen reporter password for mobile checks
   SMOKE_CASE_TOKEN         Optional public case token for /cases/{token} check
 
+When the terminal is interactive, the script can prompt for MFA after the login step instead of requiring the code up front.
+
 This script is a black-box smoke test for a running deployment. It never imports the app.
 `.trim();
 
@@ -74,8 +81,14 @@ if (!adminEmail || !adminPassword) {
   process.exit(1);
 }
 
+const requiredBaseUrl = baseUrl;
+const requiredAdminEmail = adminEmail;
+const requiredAdminPassword = adminPassword;
+
 function buildUrl(path: string): string {
-  const normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  const normalizedBaseUrl = requiredBaseUrl.endsWith('/')
+    ? requiredBaseUrl.slice(0, -1)
+    : requiredBaseUrl;
   const normalizedApiBasePath = apiBasePath.startsWith('/') ? apiBasePath : `/${apiBasePath}`;
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   return `${normalizedBaseUrl}${normalizedApiBasePath}${normalizedPath}`;
@@ -214,6 +227,41 @@ function addSkippedCheck(summary: SmokeSummary, name: string, reason: string): v
   });
 }
 
+function canPromptForInput(): boolean {
+  return Boolean(input.isTTY && output.isTTY);
+}
+
+async function promptForMfaCode(name: string): Promise<string | undefined> {
+  if (!canPromptForInput()) {
+    return undefined;
+  }
+
+  const prompt = createInterface({ input, output });
+
+  try {
+    const answer = await prompt.question(`${name}: enter current MFA code: `);
+    const trimmedAnswer = answer.trim();
+    return trimmedAnswer || undefined;
+  } finally {
+    prompt.close();
+  }
+}
+
+async function requestLogin(
+  email: string,
+  password: string,
+  mfaCode?: string,
+): Promise<{ status: number; body: unknown }> {
+  return requestJson('POST', '/auth/login', {
+    body: {
+      email,
+      password,
+      ...(mfaCode ? { mfaCode } : {}),
+    },
+    expectedStatuses: [200, 401, 422],
+  });
+}
+
 async function loginUser(
   summary: SmokeSummary,
   name: string,
@@ -221,35 +269,73 @@ async function loginUser(
   password: string,
   mfaCode?: string,
 ): Promise<AuthPayload | null> {
-  const result = await runCheck(summary, name, () =>
-    requestJson('POST', '/auth/login', {
-      body: {
-        email,
-        password,
-        ...(mfaCode ? { mfaCode } : {}),
-      },
-      expectedStatuses: [200, 401],
-    }),
-  );
+  let effectiveMfaCode = mfaCode;
+  let result = await runCheck(summary, name, () => requestLogin(email, password, effectiveMfaCode));
 
   if (!result) {
     return null;
   }
 
-  if (result.status === 401) {
-    const maybeError =
-      result.body && typeof result.body === 'object'
-        ? (result.body as Record<string, unknown>)
-        : null;
+  const maybeErrorBody =
+    result.body && typeof result.body === 'object'
+      ? (result.body as Record<string, unknown>)
+      : null;
 
+  if (
+    result.status === 401 &&
+    maybeErrorBody?.mfaRequired &&
+    !effectiveMfaCode &&
+    canPromptForInput()
+  ) {
+    const promptedMfaCode = await promptForMfaCode(name);
+
+    if (!promptedMfaCode) {
+      addCheck(summary, {
+        name: `${name} auth requirement`,
+        ok: false,
+        status: result.status,
+        summary: summarizeBody(result.body),
+        error: 'MFA code required but no code was entered.',
+      });
+      return null;
+    }
+
+    effectiveMfaCode = promptedMfaCode;
+    result = await runCheck(summary, `${name} with MFA`, () =>
+      requestLogin(email, password, effectiveMfaCode),
+    );
+
+    if (!result) {
+      return null;
+    }
+  }
+
+  const maybeError =
+    result.body && typeof result.body === 'object'
+      ? (result.body as Record<string, unknown>)
+      : null;
+
+  if (result.status === 422) {
+    addCheck(summary, {
+      name: `${name} validation`,
+      ok: false,
+      status: result.status,
+      summary: summarizeBody(result.body),
+      error:
+        typeof maybeError?.message === 'string' ? maybeError.message : 'Login validation failed.',
+    });
+    return null;
+  }
+
+  if (result.status === 401) {
     addCheck(summary, {
       name: `${name} auth requirement`,
       ok: false,
       status: result.status,
       summary: summarizeBody(result.body),
       error:
-        maybeError?.mfaRequired && !mfaCode
-          ? 'MFA code required. Set SMOKE_ADMIN_MFA_CODE or use a non-MFA smoke account.'
+        maybeError?.mfaRequired && !effectiveMfaCode
+          ? 'MFA code required. Set SMOKE_ADMIN_MFA_CODE, enter one when prompted, or use a non-MFA smoke account.'
           : 'Login failed.',
     });
     return null;
@@ -291,7 +377,7 @@ async function loginUser(
 
 async function main(): Promise<void> {
   const summary: SmokeSummary = {
-    baseUrl,
+    baseUrl: requiredBaseUrl,
     apiBasePath,
     startedAt: new Date().toISOString(),
     checks: [],
@@ -327,8 +413,8 @@ async function main(): Promise<void> {
   const adminAuth = await loginUser(
     summary,
     'admin login',
-    adminEmail,
-    adminPassword,
+    requiredAdminEmail,
+    requiredAdminPassword,
     adminMfaCode,
   );
 
