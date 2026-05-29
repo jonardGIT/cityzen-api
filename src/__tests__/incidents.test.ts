@@ -181,33 +181,30 @@ async function ensureTuguegaraoCityScope() {
 async function ensurePartnerCityScope() {
   const { province } = await ensureTuguegaraoCityScope();
 
-  const city = await prisma.cityMunicipality.upsert({
-    where: { code: 'PH-021518' },
-    update: {
-      name: 'Penablanca',
-      type: 'MUNICIPALITY',
-      provinceId: province.id,
+  const archivedAt = new Date();
+
+  await prisma.cityMunicipality.updateMany({
+    where: {
+      name: { in: ['Penablanca', 'Peñablanca'] },
+      code: { not: '021519000' },
       archivedAt: null,
     },
-    create: {
-      code: 'PH-021518',
-      name: 'Penablanca',
-      type: 'MUNICIPALITY',
-      provinceId: province.id,
-    },
+    data: { archivedAt },
   });
 
-  await prisma.barangay.upsert({
-    where: { code: 'PH-021518-001' },
+  const city = await prisma.cityMunicipality.upsert({
+    where: { code: '021519000' },
     update: {
-      name: 'Centro',
-      cityMunicipalityId: city.id,
+      name: 'Peñablanca',
+      type: 'MUNICIPALITY',
+      provinceId: province.id,
       archivedAt: null,
     },
     create: {
-      code: 'PH-021518-001',
-      name: 'Centro',
-      cityMunicipalityId: city.id,
+      code: '021519000',
+      name: 'Peñablanca',
+      type: 'MUNICIPALITY',
+      provinceId: province.id,
     },
   });
 

@@ -3,6 +3,21 @@ import request from 'supertest';
 
 dotenv.config({ path: '.env.development' });
 
+delete process.env.CIRS_BUNDLE_FEATURE_LOCKED;
+delete process.env.CIRS_BUNDLE_FEATURE_PROFILE_NAME;
+delete process.env.CIRS_BUNDLE_FEATURE_AUTH_PROVIDER;
+delete process.env.CIRS_BUNDLE_FEATURE_TOKEN_MODE;
+delete process.env.CIRS_BUNDLE_FEATURE_MFA_MODE;
+delete process.env.CIRS_BUNDLE_FEATURE_MEDIA_STORAGE;
+delete process.env.CIRS_BUNDLE_FEATURE_RECORD_DELETION;
+
+process.env.FEATURE_PROFILE_NAME = 'local-smoke';
+process.env.FEATURE_AUTH_PROVIDER = 'local';
+process.env.FEATURE_TOKEN_MODE = 'app-jwt';
+process.env.FEATURE_MFA_MODE = 'local-totp';
+process.env.FEATURE_MEDIA_STORAGE = 'disabled';
+process.env.FEATURE_RECORD_DELETION = 'archive';
+
 const { default: app, API_V1 } = await import('../src/app.js');
 
 type LoginSummary = {
