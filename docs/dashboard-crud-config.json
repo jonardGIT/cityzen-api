@@ -929,6 +929,15 @@
           ],
           "notes": "The backend applies role-aware scoping. Citizen reporters only receive their own incidents."
         },
+        "auditList": {
+          "method": "GET",
+          "path": "/incidents/audit",
+          "authRequired": true,
+          "allowedRoles": [
+            "AUDITOR"
+          ],
+          "notes": "Auditor-safe incident list. Returns the redacted incident surface for auditor review workflows only."
+        },
         "get": {
           "method": "GET",
           "path": "/incidents/{id}",
@@ -943,6 +952,39 @@
             "RESPONDER"
           ],
           "notes": "The backend enforces per-role incident visibility. Citizen reporters can only access their own incident IDs."
+        },
+        "auditGet": {
+          "method": "GET",
+          "path": "/incidents/audit/{id}",
+          "authRequired": true,
+          "allowedRoles": [
+            "AUDITOR"
+          ],
+          "notes": "Auditor-safe incident detail route. Keeps redacted auditor reads separate from the internal incident detail surface."
+        },
+        "timeline": {
+          "method": "GET",
+          "path": "/incidents/{id}/timeline",
+          "authRequired": true,
+          "allowedRoles": [
+            "CITIZEN_REPORTER",
+            "NATIONAL_ADMIN",
+            "REGIONAL_DIRECTOR",
+            "PROVINCIAL_ADMIN",
+            "CITY_ADMIN",
+            "DISPATCHER",
+            "RESPONDER"
+          ],
+          "notes": "Internal incident status timeline for authenticated incident readers. Citizen reporters receive only their own incident timeline."
+        },
+        "auditTimeline": {
+          "method": "GET",
+          "path": "/incidents/audit/{id}/timeline",
+          "authRequired": true,
+          "allowedRoles": [
+            "AUDITOR"
+          ],
+          "notes": "Auditor-safe incident timeline route with the redacted trust-layer payload used by auditor review flows."
         },
         "create": {
           "method": "POST",

@@ -518,11 +518,35 @@ export const dashboardCrudConfig: DashboardCrudConfig = {
           notes:
             'The backend applies role-aware scoping. Citizen reporters only receive their own incidents.',
         }),
+        auditList: route('GET', '/incidents/audit', {
+          authRequired: true,
+          allowedRoles: ['AUDITOR'],
+          notes:
+            'Auditor-safe incident list. Returns the redacted incident surface for auditor review workflows only.',
+        }),
         get: route('GET', '/incidents/{id}', {
           authRequired: true,
           allowedRoles: incidentReadRoles,
           notes:
             'The backend enforces per-role incident visibility. Citizen reporters can only access their own incident IDs.',
+        }),
+        auditGet: route('GET', '/incidents/audit/{id}', {
+          authRequired: true,
+          allowedRoles: ['AUDITOR'],
+          notes:
+            'Auditor-safe incident detail route. Keeps redacted auditor reads separate from the internal incident detail surface.',
+        }),
+        timeline: route('GET', '/incidents/{id}/timeline', {
+          authRequired: true,
+          allowedRoles: incidentReadRoles,
+          notes:
+            'Internal incident status timeline for authenticated incident readers. Citizen reporters receive only their own incident timeline.',
+        }),
+        auditTimeline: route('GET', '/incidents/audit/{id}/timeline', {
+          authRequired: true,
+          allowedRoles: ['AUDITOR'],
+          notes:
+            'Auditor-safe incident timeline route with the redacted trust-layer payload used by auditor review flows.',
         }),
         create: route('POST', '/incidents', {
           authRequired: true,
